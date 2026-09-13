@@ -32,6 +32,10 @@ const CloneExperience = lazy(() => import("./CloneExperience"));
 const StudioWorkspaceStyles = lazy(() => import("./StudioWorkspaceStyles"));
 import PersonalAuthGate, { type AuthResumeIntent } from "./PersonalAuthGate";
 import { PersonalAuthLoading, readPersonalAuthLocale } from "./personalAuthLocale";
+import { readStudioLocale, StudioLocaleProvider } from "./localeContext";
+import LanguageSwitch from "./LanguageSwitch";
+import type { StudioLocale } from "../creatorStudio/studioLocalePreference";
+import { writeRememberedStudioLocale } from "../creatorStudio/studioLocalePreference";
 const VoicePreviewPanel = lazy(() => import("./VoicePreviewPanel"));
 const IngestChannelStudio = lazy(() => import("./IngestChannelStudio"));
 const ContextLockerPanel = lazy(() => import("./ContextLockerPanel"));
@@ -1369,6 +1373,19 @@ export default function StudioApp({
   // navigation, so this never flips mid-session.
   const [mode] = useState<StudioMode>(readStudioMode);
   const copy = STUDIO_SELF_TEST_UI ? TEST_COPY : GENERIC_COPY;
+  // WS-R159: the shell's own locale for `StudioLocaleProvider`
+  // (`localeContext.tsx`), read once at mount the same way `mode` above is —
+  // `?lang=` wins over a reload of this same tab; `LanguageSwitch.tsx`'s own
+  // `onSwitch` (below) is what actually changes it within a session.
+  const [studioLocale, setStudioLocale] = useState<StudioLocale>(readStudioLocale);
+  const switchStudioLocale = useCallback((next: StudioLocale) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", next);
+    try { window.history.replaceState(window.history.state, "", url); }
+    catch { /* The in-memory choice still works when history writes are blocked. */ }
+    writeRememberedStudioLocale(next);
+    setStudioLocale(next);
+  }, []);
   const [session, setSession] = useState<StudioSession | null>(() => initialSession);
   const activeSessionRef = useRef<StudioSession | null>(initialSession);
   const replicaLoadRevision = useRef(0);
@@ -2484,6 +2501,7 @@ export default function StudioApp({
 
   if (!STUDIO_SELF_TEST_UI) {
     return (
+      <StudioLocaleProvider locale={studioLocale}>
       <Suspense fallback={<DeferredWorkspacePanel />}>
       <StudioWorkspaceStyles />
       <CloneExperience
@@ -2545,10 +2563,12 @@ export default function StudioApp({
         onContextCount={setContextItemCount}
       />
       </Suspense>
+      </StudioLocaleProvider>
     );
   }
 
   return (
+    <StudioLocaleProvider locale={studioLocale}>
     <Suspense fallback={<DeferredWorkspacePanel />}>
     <StudioWorkspaceStyles />
     <div className={`studio-shell${STUDIO_SELF_TEST_UI ? " studio-shell-self-test" : ""}`}>
@@ -2559,6 +2579,7 @@ export default function StudioApp({
         </a>
         <div className="header-trust"><span className="secure-dot" />{STUDIO_SELF_TEST_UI ? "Internal test workspace" : mode === "teacher" ? "Private teaching-clone workspace" : "Private self-replica workspace"}</div>
         <div className="account-menu">
+          <LanguageSwitch id="studio-shell-language" locale={studioLocale} onSwitch={switchStudioLocale} />
           <span className="account-copy"><strong>{identity}</strong><small>{STUDIO_SELF_TEST_UI ? "Test workspace session" : "Verified account session"}</small></span>
           <button className="signout-button" type="button" onClick={() => signOut()}>Sign out</button>
         </div>
@@ -2703,5 +2724,6 @@ export default function StudioApp({
       </div>
     </div>
     </Suspense>
+    </StudioLocaleProvider>
   );
 }

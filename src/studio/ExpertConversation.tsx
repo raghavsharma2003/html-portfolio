@@ -9,6 +9,7 @@ import ExpertAnswer from "./ExpertAnswer";
 import FeedbackDatasetPanel from "./FeedbackDatasetPanel";
 import { conversationSetupUrl } from "./conversationSetupNavigation";
 import type { ReplicaDialogueTurn, ReplicaLifecycle, ReplicaRuntimeStatus } from "./types";
+import { useStudioLocale } from "./localeContext";
 import "./expert-experience.css";
 import "./conversation-setup.css";
 
@@ -29,10 +30,10 @@ type Props = {
 };
 
 export default function ExpertConversation({ token, replicaId, runtimeStatus, stopped, lifecycle, onAuthError }: Props) {
-  const continuityAudioLocale = new URLSearchParams(window.location.search).get("lang") === "hi" ? "hi" : "en";
-  const continuityAudioNote = continuityAudioLocale === "hi"
-    ? "पुरानी बातचीत वाले जवाबों में ऑडियो उपलब्ध नहीं है।"
-    : "Audio is unavailable for replies using earlier conversations.";
+  const { locale, t } = useStudioLocale();
+  const copy = t.expertConversation;
+  const continuityAudioLocale = locale;
+  const continuityAudioNote = copy.continuityAudioNote;
   const [runtime, setRuntime] = useState(runtimeStatus?.replica_id === replicaId ? runtimeStatus : null);
   const [checking, setChecking] = useState(true);
   const [readUnavailable, setReadUnavailable] = useState(false);
@@ -93,7 +94,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       setExchanges(restored.exchanges); setHistoryScope(scope); setHistoryPending(restored.pending || restored.billing_pending);
       setUncertain(Boolean(next.uncertainTrace)); setHistoryReady(true);
       if (recovered) {
-        setDraft(""); setError("Your saved reply has been recovered.");
+        setDraft(""); setError(copy.errorRecovered);
       }
       return true;
     } catch (cause) {
@@ -103,12 +104,12 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
         && cause instanceof ReplicaApiError && cause.status === 409
         && ['dialogue_session_not_authorized','dialogue_runtime_not_active'].includes(cause.data?.error);
       setCanReplaceMissingHistory(Boolean(missingPrior));
-      setHistoryError(missingPrior ? 'The previous conversation is unavailable. You can explicitly start a new conversation.'
-        : "We could not restore this conversation. Check again before sending another message.");
+      setHistoryError(missingPrior ? copy.errorConversationUnavailable
+        : copy.errorRestoreFailed);
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
       return false;
     }
-  }, [token, replicaId, scope, onAuthError]);
+  }, [token, replicaId, scope, onAuthError, copy]);
   const checkReadiness = useCallback(async () => {
     const requestEpoch = epoch.current;
     const request = ++readinessRequest.current;
@@ -197,7 +198,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       }
     } catch (cause) {
       if (!current()) return;
-      setHistoryError("Opening the conversation could not be confirmed. Retry opening to check the same conversation.");
+      setHistoryError(copy.errorOpenFailed);
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
     } finally { if (current()) setOpening(false); }
   }
@@ -218,13 +219,13 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       if (requestEpoch !== epoch.current) return;
       setExchanges(current => [...current, { question, answer }]); setDraft("");
       setUncertain(false);
-      if (answer.billing_state === "reconcile_required") setError("Your reply is saved. We need to reconcile its usage before another reply.");
+      if (answer.billing_state === "reconcile_required") setError(copy.errorReplySavedNeedsReconcile);
       input.current?.focus();
     } catch (cause) {
       if (requestEpoch !== epoch.current) return;
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
       else {
-        setError("Your AI could not complete this reply. Your message is still here. We have not retried it automatically.");
+        setError(copy.errorReplyFailed);
         setUncertain(Boolean(continuity.get(scope)?.uncertainTrace));
         await restoreHistory(() => requestEpoch === epoch.current);
       }
@@ -245,62 +246,62 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       const url = URL.createObjectURL(blob); blobUrl.current = url;
       const player = new Audio(url); audio.current = player;
       player.onended = () => stopAudio();
-      player.onerror = () => { stopAudio(); setError("This audio could not play. Try listening again."); };
+      player.onerror = () => { stopAudio(); setError(copy.errorAudioPlaybackFailed); };
       await player.play();
       if (requestEpoch === epoch.current && requestVoice === voiceEpoch.current) setHeard(current => new Set(current).add(answer.turn_id));
     } catch {
       if (requestEpoch !== epoch.current || requestVoice !== voiceEpoch.current) return;
-      stopAudio(); setError("Voice playback is unavailable. The text reply is still here.");
+      stopAudio(); setError(copy.errorVoiceUnavailable);
     }
   }
-  return <section className="expert-conversation" aria-label="Private expert conversation">
-    <div className="expert-conversation__status"><span>{active ? "Private conversation" : "Private workspace"}</span><span>AI, reviewed by you</span></div>
+  return <section className="expert-conversation" aria-label={copy.ariaLabel}>
+    <div className="expert-conversation__status"><span>{active ? copy.statusActive : copy.statusInactive}</span><span>{copy.aiReviewedByYou}</span></div>
     {(!runtimeActive || unsettled) && <div className="expert-conversation__readiness" role="status">
-      <h2>{readiness === "stopped" ? "This AI is stopped" : readiness === "reconciling" ? "Reply saved" : readiness === "checking" ? "Checking your AI" : readiness === 'private_unavailable' ? 'Your private version is unavailable' : readiness === "unavailable" ? "Readiness is unavailable" : "Set up your first conversation"}</h2>
-      <p>{readiness === "stopped" ? "Private replies are unavailable for this AI."
-        : readiness === "reconciling" ? "We are checking usage before another reply can begin."
-          : readiness === "checking" ? "Checking the current server state."
-            : readiness === 'private_unavailable' ? 'We could not load the selected private version. Check again while we resolve this.'
-            : readiness === "unavailable" ? "We could not check conversation readiness. Try again."
-              : "Check what is still needed before private replies can begin."}</p>
+      <h2>{readiness === "stopped" ? copy.readinessTitle.stopped : readiness === "reconciling" ? copy.readinessTitle.reconciling : readiness === "checking" ? copy.readinessTitle.checking : readiness === 'private_unavailable' ? copy.readinessTitle.privateUnavailable : readiness === "unavailable" ? copy.readinessTitle.unavailable : copy.readinessTitle.setup}</h2>
+      <p>{readiness === "stopped" ? copy.readinessBody.stopped
+        : readiness === "reconciling" ? copy.readinessBody.reconciling
+          : readiness === "checking" ? copy.readinessBody.checking
+            : readiness === 'private_unavailable' ? copy.readinessBody.privateUnavailable
+            : readiness === "unavailable" ? copy.readinessBody.unavailable
+              : copy.readinessBody.setup}</p>
       {(readiness === "setup" || readiness === "unavailable" || readiness === 'private_unavailable') && <div className="expert-conversation__actions">
-        {readiness === "setup" && <a className="expert-conversation__setup" href={conversationSetupUrl(replicaId, window.location.search)}>Open conversation setup</a>}
-        <button type="button" onClick={() => { setError(""); void checkReadiness(); }}>Check again</button>
+        {readiness === "setup" && <a className="expert-conversation__setup" href={conversationSetupUrl(replicaId, window.location.search)}>{copy.openConversationSetup}</a>}
+        <button type="button" onClick={() => { setError(""); void checkReadiness(); }}>{copy.checkAgain}</button>
       </div>}
       {readiness === 'private_unavailable' && <PrivateSelectionRecovery key={scope} token={token} replicaId={replicaId} onAuthError={onAuthError}/>}
     </div>}
     {runtimeActive && <div className="expert-conversation__actions">
       <button type="button" disabled={sending || opening || historyPending || unsettled || (needsNewSession && (uncertain || (!historyReady&&!canReplaceMissingHistory)))} onClick={() => void startConversation()}>
-        {opening ? "Opening conversation" : continuity.get(scope)?.openingId ? "Retry opening conversation" : "New conversation"}
+        {opening ? copy.openingConversation : continuity.get(scope)?.openingId ? copy.retryOpeningConversation : copy.newConversation}
       </button>
-      <button type="button" disabled={sending || opening || checking} onClick={() => void checkReadiness()}>Check conversation</button>
-      <span>Recent completed replies</span>
+      <button type="button" disabled={sending || opening || checking} onClick={() => void checkReadiness()}>{copy.checkConversation}</button>
+      <span>{copy.recentCompletedReplies}</span>
     </div>}
-    {needsNewSession && <p role="status">Your private version changed. Start a new conversation after the previous reply is checked.</p>}
+    {needsNewSession && <p role="status">{copy.runtimeChangedNotice}</p>}
     {(historyError || (runtimeActive && (historyPending || unsettled || uncertain))) && <p role="status">
-      {historyError || (historyPending || unsettled ? "We are checking the previous reply and its usage. Check the conversation before sending again."
-        : "The previous reply could not be confirmed. Check this conversation, or explicitly start a new one. We have not sent your message again.")}
+      {historyError || (historyPending || unsettled ? copy.historyPendingNotice
+        : copy.historyUnconfirmedNotice)}
     </p>}
     <div className="expert-conversation__thread" aria-label="Conversation">
-      {!scopedExchanges.length && active && <div className="expert-conversation__empty"><h2>Try a real question.</h2><p>Ask something a client would ask you. Listen, then show your AI what you would change.</p><button type="button" onClick={() => { setDraft("What is the first step you would recommend to someone new to my work?"); input.current?.focus(); }}>Help someone get started</button></div>}
+      {!scopedExchanges.length && active && <div className="expert-conversation__empty"><h2>{copy.emptyHeading}</h2><p>{copy.emptyBody}</p><button type="button" onClick={() => { setDraft(copy.emptyStarterQuestion); input.current?.focus(); }}>{copy.emptyStarterButton}</button></div>}
       {scopedExchanges.map(({ question, answer }) => <div className="expert-exchange" key={answer.turn_id}>
-        <div className="expert-exchange__question"><span>You</span><p>{question}</p></div>
-        <article className="expert-exchange__answer"><span>Your AI</span><ExpertAnswer text={answer.reply} />
+        <div className="expert-exchange__question"><span>{copy.youLabel}</span><p>{question}</p></div>
+        <article className="expert-exchange__answer"><span>{copy.yourAiLabel}</span><ExpertAnswer text={answer.reply} />
           {answer.has_continuity&&<PrivateConversationSources key={`${scope}:${answer.turn_id}`} token={token} replicaId={replicaId} turnId={answer.turn_id}/>}
-          <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped || privateTextOnly} aria-describedby={answer.has_continuity === true && answer.can_voice === false ? `continuity-audio-${answer.turn_id}` : undefined} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? "Stop audio" : "Listen"}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>Teach a correction</button></div>
+          <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped || privateTextOnly} aria-describedby={answer.has_continuity === true && answer.can_voice === false ? `continuity-audio-${answer.turn_id}` : undefined} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? copy.stopAudio : copy.listen}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>{copy.teachCorrection}</button></div>
           {answer.has_continuity === true && answer.can_voice === false && <p id={`continuity-audio-${answer.turn_id}`} lang={continuityAudioLocale} className="expert-conversation__audio-note">{continuityAudioNote}</p>}
           {feedbackTurn === answer.turn_id && <TurnFeedback token={token} replicaId={replicaId} turnId={answer.turn_id} voiceHeard={heard.has(answer.turn_id)} onAuthError={onAuthError} onSaved={() => setFeedbackRevision(current => current + 1)} initialOpen focusedCorrection />}
         </article>
       </div>)}
-      {sending && <p className="expert-conversation__working" role="status">Your AI is preparing a reply</p>}<div ref={latest} />
+      {sending && <p className="expert-conversation__working" role="status">{copy.workingStatus}</p>}<div ref={latest} />
     </div>
     <FeedbackDatasetPanel key={replicaId} token={token} replicaId={replicaId} feedbackRevision={feedbackRevision} onAuthError={onAuthError} />
     {error && <p className="expert-conversation__error" role="alert">{error}</p>}
     <form className="expert-conversation__composer" onSubmit={event => { event.preventDefault(); void send(); }}>
-      <label className="private-continuity-choice"><input type="checkbox" checked={recallPrevious} disabled={!active||sending} onChange={event=>setRecallPrevious(event.target.checked)}/>Use earlier private conversations</label>
-      <label htmlFor="expert-question">Ask your AI</label>
-      <textarea ref={input} id="expert-question" rows={2} maxLength={4000} value={historyScope === scope ? draft : ""} disabled={!active} onChange={event => setDraft(event.target.value)} placeholder="Bring a question from your work" />
-      <div><span>Private to this relationship</span><button type="submit" disabled={!active || sending || !draft.trim()}>{sending ? "Answering" : "Send"}</button></div>
+      <label className="private-continuity-choice"><input type="checkbox" checked={recallPrevious} disabled={!active||sending} onChange={event=>setRecallPrevious(event.target.checked)}/>{copy.recallPreviousLabel}</label>
+      <label htmlFor="expert-question">{copy.askYourAi}</label>
+      <textarea ref={input} id="expert-question" rows={2} maxLength={4000} value={historyScope === scope ? draft : ""} disabled={!active} onChange={event => setDraft(event.target.value)} placeholder={copy.questionPlaceholder} />
+      <div><span>{copy.privateToThisRelationship}</span><button type="submit" disabled={!active || sending || !draft.trim()}>{sending ? copy.answering : copy.send}</button></div>
     </form>
   </section>;
 }

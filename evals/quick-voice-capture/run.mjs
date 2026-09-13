@@ -11,6 +11,15 @@ const enrollment = readFileSync(join(ROOT, "src/studio/EnrollmentWorkspace.tsx")
 const fixture = readFileSync(join(ROOT, "src/studio/layoutFixture.tsx"), "utf8");
 const studio = readFileSync(join(ROOT, "src/studio/StudioApp.tsx"), "utf8");
 const studioCss = readFileSync(join(ROOT, "src/studio/studio.css"), "utf8");
+// WS-R159: QuickVoiceCapture.tsx's own literal English strings moved into
+// `copy.ts#quickVoiceCapture` (`t.` reads replaced the literals in place,
+// the component's structure and every non-copy assertion below is
+// unchanged); the checks that used to regex-match those literals directly
+// against `capture` now check `copy.ts`'s own English table instead, the
+// established `evals/studio-locale/run.mjs`'s own header pattern for a
+// literal that moves file ("both evals were updated to check copy.ts ...
+// instead").
+const copy = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
 
 let failures = 0;
 function ok(name, condition) {
@@ -42,7 +51,7 @@ ok("the guided session has an honest minimum, target and hard maximum",
   /MINIMUM_MS = 12_000/.test(capture)
   && /TARGET_MS = 30_000/.test(capture)
   && /MAXIMUM_MS = 60_000/.test(capture)
-  && /too short/i.test(capture));
+  && /too short/i.test(copy));
 ok("Hindi, Hinglish and Indian English have distinct visible prompts",
   /english:[\s\S]*lang: "en-IN"/.test(capture)
   && /hindi:[\s\S]*lang: "hi"/.test(capture)
@@ -54,18 +63,18 @@ ok("live input level is measured from real samples without modifying captured PC
   && /chunks\.push\(samples\.slice\(\)\)/.test(wav));
 ok("clean capture finishes and starts the clone in one action after the minimum",
   /finish\(true\)/.test(capture)
-  && /Finish and build/.test(capture)
+  && /finishAndBuild: "Finish and build"/.test(copy)
   && /disabled=\{elapsedMs < MINIMUM_MS\}/.test(capture)
   && /onUseRecording\(renamed, language\)/.test(capture));
 ok("quality failure keeps playback and a clear retake path",
   /<audio controls preload="metadata"/.test(capture)
-  && /Retake needed/.test(capture)
-  && /Record again/.test(capture)
+  && /retakeNeeded: "Retake needed"/.test(copy)
+  && /recordAgain: "Record again"/.test(copy)
   && /samplePeakRef\.current >= 0\.995/.test(capture)
   && /audibleRatio < 0\.35/.test(capture));
 ok("recording timer is not a rapidly repeating live region",
   /<div className="quick-voice-live">/.test(capture)
-  && /Recording started\. Finish and build becomes available after 12 seconds/.test(capture)
+  && /recordingVisuallyHidden: "Recording started\. Finish and build becomes available after 12 seconds\."/.test(copy)
   && !/className="quick-voice-live" role="status" aria-live="polite"/.test(capture));
 ok("accepted capture becomes a named 24 kHz WAV in the existing source queue",
   /new File\(\[result\.file\]/.test(capture)
@@ -80,13 +89,14 @@ ok("recording is the primary audio path while existing file upload remains avail
   && /Upload an existing audio file instead/.test(enrollment)
   && /<details className="file-upload-alternative"/.test(enrollment));
 ok("capture copy states the real short-window pipeline instead of promising full-file conditioning",
-  /more clean speech to choose from/i.test(capture)
-  && /keep it private/i.test(capture)
-  && !/more audio (?:always )?(?:means|guarantees) better/i.test(capture));
+  /more clean speech to choose from/i.test(copy)
+  && /keep it private/i.test(copy)
+  && !/more audio (?:always )?(?:means|guarantees) better/i.test(capture)
+  && !/more audio (?:always )?(?:means|guarantees) better/i.test(copy));
 ok("free speech is primary and the written prompt is optional",
-  /Talk naturally about anything/.test(capture)
-  && /Show an optional prompt/.test(capture)
-  && /You do not have to read this/.test(capture));
+  /Talk naturally about anything/.test(copy)
+  && /Show an optional prompt/.test(copy)
+  && /You do not have to read this/.test(copy));
 ok("loopback fixture completes create, byte upload and finalize instead of returning a blank shape",
   /op === "create_upload"/.test(fixture)
   && /__fixture-private-upload/.test(fixture)

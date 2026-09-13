@@ -7,6 +7,7 @@ import {
   openPrivateWavCapture,
   type PrivateWavCapture,
 } from "./wavCapture";
+import { useStudioLocale } from "./localeContext";
 
 const MINIMUM_MS = 12_000;
 const TARGET_MS = 30_000;
@@ -46,6 +47,8 @@ interface Props {
 }
 
 export default function QuickVoiceCapture({ disabled = false, onUseRecording }: Props) {
+  const { t } = useStudioLocale();
+  const copy = t.quickVoiceCapture;
   const [language, setLanguage] = useState<EnrollmentLanguage>("hinglish");
   const [captureState, setCaptureState] = useState<CaptureState>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -90,11 +93,11 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
         ? audibleFramesRef.current / totalFramesRef.current
         : 0;
       const qualityProblem = result.durationMs < MINIMUM_MS
-        ? "This sample is too short. Speak for at least 12 seconds."
+        ? copy.errorTooShort
         : samplePeakRef.current >= 0.995
-          ? "The microphone level clipped. Move slightly away and record once more."
+          ? copy.errorClipped
           : audibleRatio < 0.35
-            ? "Too much of this sample is quiet. Move closer and record once more."
+            ? copy.errorTooQuiet
             : "";
 
       if (submitWhenClean && !qualityProblem) {
@@ -112,12 +115,12 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
       setCaptureState("review");
     } catch (cause) {
       if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
-      setError(cause instanceof Error ? cause.message : "The recording could not be finished.");
+      setError(cause instanceof Error ? cause.message : copy.errorFinishFailed);
       setCaptureState("idle");
     } finally {
       if (attempt === captureAttemptRef.current) stoppingRef.current = false;
     }
-  }, [language, onUseRecording]);
+  }, [language, onUseRecording, copy]);
 
   useEffect(() => {
     if (captureState !== "recording") return;
@@ -191,7 +194,7 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
     } catch (cause) {
       if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
       captureRef.current = null;
-      setError(cause instanceof Error ? cause.message : "The browser could not start recording.");
+      setError(cause instanceof Error ? cause.message : copy.errorStartFailed);
       setCaptureState("idle");
     }
   }
@@ -202,7 +205,7 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
     captureRef.current = null;
     try { await capture?.cancel(); }
     catch (cause) {
-      if (mountedRef.current && attempt === captureAttemptRef.current) setError(cause instanceof Error ? cause.message : "The microphone could not be closed.");
+      if (mountedRef.current && attempt === captureAttemptRef.current) setError(cause instanceof Error ? cause.message : copy.errorCloseMicFailed);
       return;
     }
     if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
@@ -215,10 +218,10 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
 
   const audibleRatio = totalFrames ? audibleFrames / totalFrames : 0;
   const localSignal = samplePeak >= 0.995
-    ? "The level may be too high. Move slightly away from the microphone and retake."
+    ? copy.levelTooHigh
     : audibleRatio < 0.35
-      ? "Much of this recording is quiet. Speak closer to the microphone and retake."
-      : "The local input level looks usable. Private processing makes the final reference choice.";
+      ? copy.quietRecording
+      : copy.usableLevel;
   const enough = Boolean(recording && recording.durationMs >= MINIMUM_MS);
   const progress = Math.min(100, Math.round((elapsedMs / TARGET_MS) * 100));
 
@@ -226,15 +229,15 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
     <section className="quick-voice-capture" aria-labelledby="quick-voice-title">
       <div className="quick-voice-heading">
         <div>
-          <p className="eyebrow">Recommended</p>
-          <h4 id="quick-voice-title">Record a clean voice sample</h4>
-          <p>Talk naturally about anything. After 12 seconds, one tap finishes the recording and starts your clone.</p>
-          <p>About 30 seconds gives us more clean speech to choose from. We keep it private.</p>
+          <p className="eyebrow">{copy.recommendedEyebrow}</p>
+          <h4 id="quick-voice-title">{copy.heading}</h4>
+          <p>{copy.instructionsOne}</p>
+          <p>{copy.instructionsTwo}</p>
         </div>
-        <span className="quick-voice-private">Local until you upload</span>
+        <span className="quick-voice-private">{copy.localUntilUpload}</span>
       </div>
 
-      <div className="quick-voice-languages" role="group" aria-label="Recording language">
+      <div className="quick-voice-languages" role="group" aria-label={copy.languageGroupAriaLabel}>
         {(Object.keys(ENROLLMENT_LANGUAGE_LABELS) as EnrollmentLanguage[]).map((item) => (
           <button
             key={item}
@@ -250,33 +253,33 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
       </div>
 
       <details className="quick-voice-prompt">
-        <summary>Need an idea? Show an optional prompt</summary>
-        <p>You do not have to read this. Your own natural words are preferred.</p>
+        <summary>{copy.promptSummary}</summary>
+        <p>{copy.promptHint}</p>
         <blockquote lang={RECORDING_PROMPTS[language].lang}>{RECORDING_PROMPTS[language].text}</blockquote>
       </details>
 
       {captureState === "idle" && (
         <div className="quick-voice-action">
           <button className="button primary-button" type="button" disabled={disabled} onClick={() => void start()}>
-            Start recording
+            {copy.startRecording}
           </button>
-          <p>Your browser asks for microphone access only after this click.</p>
+          <p>{copy.micPermissionNote}</p>
         </div>
       )}
 
       {captureState === "requesting" && (
         <div className="quick-voice-wait" role="status">
           <span className="quick-voice-spinner" aria-hidden="true" />
-          <div><strong>Opening your microphone</strong><p>Check the browser permission prompt.</p></div>
+          <div><strong>{copy.openingMic}</strong><p>{copy.checkPermissionPrompt}</p></div>
         </div>
       )}
 
       {captureState === "recording" && (
         <div className="quick-voice-live">
-          <p className="visually-hidden" role="status">Recording started. Finish and build becomes available after 12 seconds.</p>
+          <p className="visually-hidden" role="status">{copy.recordingVisuallyHidden}</p>
           <div className="quick-voice-live-top">
             <span className="recording-dot" aria-hidden="true" />
-            <div><strong>Recording</strong><span>{timeLabel(elapsedMs)} of 1:00 maximum</span></div>
+            <div><strong>{copy.recordingLabel}</strong><span>{copy.ofMaxTemplate.replace("{time}", timeLabel(elapsedMs))}</span></div>
             <button
               className="button primary-button quick-voice-finish"
               type="button"
@@ -284,16 +287,16 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
               onClick={() => void finish(true)}
             >
               {elapsedMs < MINIMUM_MS
-                ? `Speak ${Math.ceil((MINIMUM_MS - elapsedMs) / 1000)}s more`
-                : "Finish and build"}
+                ? copy.speakMoreTemplate.replace("{n}", String(Math.ceil((MINIMUM_MS - elapsedMs) / 1000)))
+                : copy.finishAndBuild}
             </button>
           </div>
-          <div className="quick-voice-meter" aria-label="Live microphone input level">
+          <div className="quick-voice-meter" aria-label={copy.meterAriaLabel}>
             <span style={{ transform: `scaleX(${Math.max(0.02, level)})` }} />
           </div>
           <div className="quick-voice-progress">
-            <span>{elapsedMs < MINIMUM_MS ? `Keep speaking for ${Math.ceil((MINIMUM_MS - elapsedMs) / 1000)} more seconds` : elapsedMs < TARGET_MS ? "Good. Keep going for a stronger choice." : "Target reached. Stop when this sentence feels complete."}</span>
-            <progress max={100} value={progress} aria-label="Recommended recording length" />
+            <span>{elapsedMs < MINIMUM_MS ? copy.keepSpeakingTemplate.replace("{n}", String(Math.ceil((MINIMUM_MS - elapsedMs) / 1000))) : elapsedMs < TARGET_MS ? copy.goodKeepGoing : copy.targetReached}</span>
+            <progress max={100} value={progress} aria-label={copy.progressAriaLabel} />
           </div>
         </div>
       )}
@@ -301,13 +304,13 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
       {captureState === "review" && recording && (
         <div className="quick-voice-review">
           <div className="quick-voice-review-head">
-            <div><strong>Let's improve this sample</strong><span>{timeLabel(recording.durationMs)} · 24 kHz private WAV</span></div>
-            <span className="short">Retake needed</span>
+            <div><strong>{copy.improveSampleHeading}</strong><span>{copy.durationFormatTemplate.replace("{duration}", timeLabel(recording.durationMs))}</span></div>
+            <span className="short">{copy.retakeNeeded}</span>
           </div>
           <audio controls preload="metadata" src={recording.url} />
-          <p>{enough ? localSignal : "Speak for at least 12 seconds. About 30 seconds gives processing more clean speech to choose from."}</p>
+          <p>{enough ? localSignal : copy.notEnoughYet}</p>
           <div className="quick-voice-review-actions">
-            <button className="button primary-button" type="button" onClick={() => void retake()}>Record again</button>
+            <button className="button primary-button" type="button" onClick={() => void retake()}>{copy.recordAgain}</button>
           </div>
         </div>
       )}

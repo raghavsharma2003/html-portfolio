@@ -18100,3 +18100,53 @@ Method: `node evals/rehearsal/personal.mjs` (also via `node evals/run.mjs rehear
 Total wall clock per run (sum of the above, excludes the ~20-40s Chromium probe/launch overhead at process start): roughly 55.6s, 46.9s, 55.6s — dominated by `recordAndBuildMs` (a real >=12s microphone recording is the floor) and `serverStartMs` (one real `vite build`, cached by neither this suite nor `follower.mjs`/`creator.mjs` since each rehearsal builds independently). Never under the pool (this suite is a `PRE_POOL_SUITES` entry, like its two siblings, since it also writes the shared `dist/`).
 
 No model call, no GPU, no network beyond 127.0.0.1 in any run.
+
+## `ws-r159-personal-studio-hindi-string-count-and-chunk-size-2026-09-13`
+
+**Method.** `src/studio/copy.ts` bundled with esbuild
+(`--bundle --format=esm --platform=node`), `loadStudioCopy("hi")` awaited to
+install the real Hindi chunk, then every leaf key path of
+`STUDIO_COPY_TABLE.en` walked and counted (n=1 table, exact count, not a
+sample). Chunk size read directly off `npx vite build`'s own `dist/assets/`
+output (n=1 production build, `2026-09-13`, this worktree).
+
+**String count.** 153 new leaf strings per locale across the four Tier 1
+sections (`expertSharePanel` 4, `quickVoiceCapture` 33, `expertConversation`
+46, `personModelStudio` 70); 213 total leaves in the combined
+`StudioCopy` shape once the pre-existing `personalAuth` section (60 leaves,
+`personalAuthCopy.ts`, unchanged by this workstream) is merged in by
+`copy.ts#loadStudioCopy`. `en` and `hi` key sets are identical
+(`evals/studio-locale-personal/run.mjs` section 1 asserts this against the
+real export, not a sample).
+
+**Chunk size.** `src/studio/hiCopy.ts`'s own build output,
+`dist/assets/hiCopy-t4wJWyeD.js` (the exact hashed filename changes on
+every build; identified by grepping the chunk for `personModelStudio`/
+`expertSharePanel`, its own unique keys, since three different `hiCopy-*.js`
+files exist in the same build — `src/room/hiCopy.ts` at 4,164 B and
+`src/creatorStudio/hiCopy.ts` at 201,423 B are the other two, confirmed
+unaffected and still their own separate chunks): **19,043 bytes raw, 4,827
+bytes gzip (18.6 KB / 4.71 KB)**. This chunk is reached only from behind
+sign-in (`localeContext.tsx` is imported only by `StudioApp.tsx` and the
+four converted components, all of which load lazily off
+`PersonalStudioEntry.tsx`'s own `lazy(() => import("./StudioApp"))`) —
+confirmed by grepping every OTHER `dist/assets/*.js` file for the section
+keys `expertSharePanel`/`quickVoiceCapture`: they appear only in
+`ExpertSharePanel-*.js`, `EnrollmentWorkspace-*.js`, `StudioApp-*.js` (all
+already lazy chunks) and this Hindi chunk itself — never in `main-*.js` or
+any chunk reachable from a signed-out visit. No performance-gate target
+exists yet for the personal studio's signed-out entry size specifically
+(the brief's own law 5 names only confirming the EXISTING `studio-hi`
+target — the creator studio's — still meets its budget, which this
+workstream's changes cannot affect since they touch no
+`src/creatorStudio/` file except the one-line `copy-room-scope.mjs` regex
+fix, unrelated to bundle size); a future workstream adding a personal-studio
+performance target should reuse this measurement as its own pre-existing
+baseline rather than re-deriving it.
+
+**What this does NOT measure.** Real first-Hindi-paint latency on a
+throttled connection (`ws-r71-studio-hindi-table-is-its-own-chunk`'s own
+583-636ms measurement for the creator studio's much larger 201 KB chunk is
+not a substitute — a 4.71 KB gzipped chunk is a different network profile
+entirely, and no dedicated measurement was taken this session because no
+performance-gate target reaches this chunk yet, per the paragraph above).

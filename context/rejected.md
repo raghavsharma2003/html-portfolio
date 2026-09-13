@@ -18098,3 +18098,183 @@ or risk this exact false positive/vacuous-negative-control pair.
 **Found, not a bug.** `submitRecording`'s own success branch clears its `voiceSaga` localStorage entry — the ONE thing gating BOTH `showRecorder` and `voiceWorkspaceReady` away from `showVerification` — only when the build intent it receives carries `state: "review"` AND a real `promoted_at`. Reaching that state for real requires `_replica-build-intent.js`'s own `promoteCandidate` CTE, which itself requires an APPROVED `vy_replica_model_build` bound to a `vy_replica_voice_genome` whose `source_set_hash` matches, which requires `queueOwnedVoiceGenome`'s real evidence gate (the identical `readiness()` blockers list this workstream already found too deep to fixture for `voice_genome_readiness.ready`). So the real, honest first pass lands on `settleWaiting` (`state: "waiting"`), and the real, UNMODIFIED `CloneVerificationJourney` component renders in Meet's place — not a crash, not a rehearsal shortcut, a genuine product fact: **a personal replica cannot reach Meet on this tree without the full voice processing/qualification pipeline**, the same structural gap `context/STATE.md` already names for the Room ("a personal AI cannot open a Room"), one layer earlier. `/api/replica-runtime`'s own real blockers list (this same walk's Deploy assertion) names the full chain by its real codes: `person_profile_not_approved`, `calibration_not_approved`, `voice_genome_not_approved`, `voice_not_ready`, `qualification_incomplete`, `voice_fidelity_not_qualified`.
 
 **What this walk does instead.** Asserts the real, honest degraded state (`CloneVerificationJourney` renders, never a crash) rather than forcing a fabricated promotion; drives `POST /api/replica-dialogue` and a `MirrorCallStudio` reload directly and asserts BOTH answer honestly (a real refusal, never a fabricated success) rather than reaching a completed turn. See `context/decisions.md#ws-r158-build-intent-left-honestly-waiting` for the reversal condition.
+
+## `ws-r159-mixed-copy-regex-matched-the-wrong-studio` (2026-09-13, WS-R159)
+
+**Tried.** Building the personal studio's new copy registry at
+`src/studio/copy.ts` / `src/studio/hiCopy.ts`, the exact filenames and
+WS-R71 chunk shape the brief names, matching `src/creatorStudio/copy.ts` /
+`hiCopy.ts`'s own established convention byte for byte (top-level `EN_...`
+naming, Hindi as its own lazily-imported chunk).
+
+**What specifically broke.** `scripts/check-copy.mjs`'s rooms-vocabulary
+gate routes any file matching `scripts/copy-room-scope.mjs`'s `MIXED_COPY`
+regex — `^src\/(?:studio|creatorStudio)\/(copy|hiCopy)\.ts$` — through
+`roomCopySectionSource`, which parses the file's AST looking for a top-level
+declaration literally named `EN` (for `copy.ts`) or `HI` (for `hiCopy.ts`)
+and REQUIRES it to contain an object literal property for every one of the
+sixteen `ROOM_COPY_SECTIONS` keys (`readiness`, `payouts`, `checkins`,
+`roomStudio`, ...), throwing `copy_room_section_missing` for any absent key
+and `copy_room_table_shape_invalid` if no such `EN`/`HI` declaration exists
+at all. This mechanism exists for exactly one file pair,
+`src/creatorStudio/copy.ts` / `hiCopy.ts`, which genuinely carries all
+sixteen Room sections and genuinely exports `EN`/`HI`. `MIXED_COPY`'s
+`(?:studio|creatorStudio)` alternation predates Codex's handoff206 rename:
+before that merge, the wave-era creator studio LIVED at `src/studio/`, so
+the pattern correctly named the one file pair it needed to. After the
+rename moved that file pair to `src/creatorStudio/` and gave `src/studio/`
+an unrelated new meaning (the personal journey), nobody updated this one
+regex — and unlike `ROOM_VOCAB_PATH`'s own `studio` alternation two lines up
+(which names nine specific creatorStudio component filenames that simply do
+not exist under the new `src/studio/`, so it is inert there), `MIXED_COPY`
+matches by BARE FILENAME, with no component-name specificity at all. The
+instant `src/studio/copy.ts` existed — under either naming convention, since
+the shape check runs on the PATH before it ever looks at what is inside —
+this gate would have hard-failed with a Room-section-completeness error
+against a file that has no business carrying Room vocabulary sections at
+all: the personal studio is not a Room-facing surface.
+
+**Fix.** `decisions.md
+#ws-r159-mixed-copy-regex-fixed-to-name-creatorstudio-only`: `MIXED_COPY`
+narrowed to `^src\/creatorStudio\/(copy|hiCopy)\.ts$`, the one pattern that
+was live rather than dead. Generalizes to every future "the rename moved
+the file but not every regex that named its old path" bug: a path pattern
+that matches by DIRECTORY PREFIX (`ROOM_VOCAB_PATH`'s nine filenames) goes
+stale gracefully (it simply stops matching anything, and the gate keeps
+working, just for fewer files than intended); a path pattern that matches by
+BARE FILENAME across a shared prefix (`MIXED_COPY`'s `copy.ts`/`hiCopy.ts`)
+goes stale ACTIVELY (it starts matching a completely different file the
+moment one happens to share that filename), and only the second kind
+announces itself with a hard failure the first time someone collides with
+it — which is exactly what would have happened here, on the very first
+build after this file was created, with no warning in `git diff` that
+anything outside `src/studio/` needed a second look.
+
+
+## `ws-r159-bare-dash-placeholder-only-safe-outside-a-copy-file` (2026-09-13, WS-R159)
+
+**Tried.** Moving `PersonModelStudio.tsx`'s pre-existing "no approved
+version yet" placeholder (`{approved ? \`v\${approved.version}\` : "—"}`,
+a literal em dash) into `copy.ts#personModelStudio.noApprovedVersion`
+verbatim.
+
+**What specifically broke.** `scripts/check-copy.mjs`'s dash rule (PASS 1)
+scans every comment-stripped LINE of any file matched by `COPY_FILES`
+(`copy.ts` ends in `Copy.ts`, so every literal in it is read) for an em or en
+dash character. Inline inside `PersonModelStudio.tsx`'s own render body the
+same literal never tripped this rule, because PASS 1 scans the raw line
+regardless of file type — it should have fired there too, and evidently the
+inline form was simply never exercised by a prior run of the same file
+against the gate; moving it into a copy file made the same literal visible
+to a human reviewer of `context/rejected.md` in a way "it happened not to
+fail before" would not.
+
+**Fix.** Reworded to `"Not yet approved"` / Hindi `"अभी मंज़ूर नहीं"` — a
+small, deliberate improvement over the bare dash (which told a screen reader
+user nothing at all) rather than a workaround chosen only to pass the gate.
+
+## OPEN: `ws-r159-creatorstudio-hi-glyph-probe-targets-the-wrong-fixture` (2026-09-13, found by WS-R159, not fixed)
+
+**Found, not fixed — out of this workstream's scope (the personal studio),
+logged so the next `src/creatorStudio/` session does not have to
+re-discover it.** `scripts/check-layout.mjs`'s Devanagari glyph probe (the
+block guarded by `ACTIVE_TARGETS.some(t => t.name.startsWith("studio-hi") ||
+t.name.startsWith("studio:shell-hi"))`, added WS-R52) navigates to
+`studio-layout-fixture.html?mode=teacher&step=feed&lang=hi` and reads
+`window.__STUDIO_HI_STRINGS__` off `.studio-shell`. `window
+.__STUDIO_HI_STRINGS__` is set ONLY by `src/creatorStudio/layoutFixture.tsx`
+(grep confirms this); `studio-layout-fixture.html` loads
+`src/studio/layoutFixture.tsx` (the PERSONAL studio's own fixture, since
+Codex's handoff206 rename — the same rename behind
+`ws-r159-mixed-copy-regex-matched-the-wrong-studio` above), which never sets
+that global and whose own `.studio-shell` (the legacy internal-test-only
+shell) does not even mount under this gate's build (`STUDIO_SELF_TEST_UI` is
+false, so `.vx-shell`/`CloneExperience` renders instead — the `clone`
+target's own selector). The probe's `.locator(".studio-shell")
+.evaluate(...).catch(() => fallbackFontStack)` swallows the missing element
+silently, so this block currently runs to completion, reports zero glyph
+findings, and adds zero to `glyphN`/`glyphTestableN` on every gate run — a
+VACUOUS check that has verified nothing about `src/creatorStudio/`'s own
+Hindi glyph rendering since the rename, with no visible failure to flag it.
+**What would fix it:** change the hardcoded navigation target from
+`studio-layout-fixture.html` to `creator-layout-fixture.html` (matching the
+`studio`/`studio-hi` TARGETS entries' own `fixture` field two lines up in
+the same file) so the probe reaches the file that actually sets
+`window.__STUDIO_HI_STRINGS__`. Not made here: this workstream owns the
+personal studio's Hindi, not `src/creatorStudio/`'s existing gate wiring,
+and a fix untested against a live creatorStudio Hindi regression would be
+exactly the "speculative edit this session cannot verify" pattern
+`ws-r159-mixed-copy-regex-fixed-to-name-creatorstudio-only`'s own reversal
+condition warns against for the sibling `ROOM_VOCAB_PATH` pattern.
+
+
+## `ws-r159-first-localecontext-draft-invented-a-second-provider-contract` (2026-09-13, WS-R159)
+
+**Tried.** `localeContext.tsx`'s first draft, written before checking for a
+pre-existing convention: `StudioLocaleProvider({ children })` reads
+`?lang=`/remembered choice ITSELF (no `locale` prop), and `useStudioLocale()`
+throws `"useStudioLocale: no StudioLocaleProvider above this component"`
+outside a provider — a fail-loud posture modeled on
+`personalAuthCopyRegistry.ts`'s own Proxy (which throws on an unloaded
+locale, a different failure class entirely: "loaded but not installed" vs
+"no provider exists at all").
+
+**What specifically broke, in two layers.** (1) `node scripts/verify-release.mjs`'s
+eval-suite gate failed nine pooled suites (`verification-knowledge`,
+`personality-review-scope-ui`, `private-rehearsal-combined`,
+`conversation-setup-ui`, `capture-lifetime`, `dialogue-history-ui`,
+`quickvoicecapture`, `feedback-dataset-ui`, `day-one`): a wide set of
+PRE-EXISTING `evals/` harnesses mount `CloneExperience.tsx` (or a piece of
+it) directly, bypassing `StudioApp.tsx` entirely, and every one of them now
+threw the instant `ExpertSharePanel`/`QuickVoiceCapture`/
+`ExpertConversation`/`PersonModelStudio` tried to read `useStudioLocale()`.
+(2) Deeper and more specific: `git grep` at the base commit found
+`evals/conversation-setup-ui.mjs` ALREADY importing
+`{StudioLocaleProvider} from './localeContext'` with a `locale` PROP
+(`<StudioLocaleProvider locale={params.get('lang')==='hi'?'hi':'en'}>`) —
+committed before this workstream, presumably by an earlier, incomplete
+attempt at this exact feature — and `src/creatorStudio/localeContext.tsx`
+(WS-R52, already shipped) uses EXACTLY that shape:
+`StudioLocaleProvider({ locale, children })` with the caller (its own
+`StudioApp.tsx`) resolving locale once and passing it down, and
+`useStudioLocale()` reading `createContext(DEFAULT_VALUE)` directly (a real
+English default, never throwing) rather than `createContext(null)` plus a
+null check. This workstream's first draft reinvented a WORSE, incompatible
+version of an API the codebase had already built and partially depended on.
+
+**Fix.** `localeContext.tsx` rewritten to match `src/creatorStudio/
+localeContext.tsx`'s shape exactly: `StudioLocaleProvider({ locale,
+children })`; `useStudioLocale()` returns `useContext(StudioLocaleContext)`
+against a `DEFAULT_VALUE` of `{ locale: "en", t: STUDIO_COPY_TABLE.en }`,
+never throwing. `readStudioLocale()` (the `?lang=`/remembered/`"en"` chain)
+moved to be the CALLER's job — `StudioApp.tsx` now owns a `studioLocale`
+state and a `switchStudioLocale` callback, matching creatorStudio's own
+`StudioApp.tsx#switchLocale` one line for line (minus the server-side
+replica-locale write, which has no equivalent here — no migration).
+`LanguageSwitch.tsx` takes `locale`/`onSwitch` as explicit props rather than
+reading them from context, matching `StudioShell.tsx`'s own
+`StudioLanguageSwitch`. This fixed all nine suites without touching any of
+them.
+
+**What still needed a per-file fix, and why that is NOT the same mistake.**
+Two eval harnesses (`evals/conversation-setup-ui.mjs`'s "meet" fixture,
+which had NO provider wrap at all — `ExpertConversation.tsx` used to read
+`?lang=` directly itself, a behavior this workstream centralized away — and
+`evals/private-rehearsal-combined.mjs`'s file-immutability list, which
+pinned `QuickVoiceCapture.tsx` byte-identical to a historical commit)
+required real, reviewed edits, plus roughly thirty English-text locators
+inside `conversation-setup-ui.mjs` that now correctly render Hindi under its
+own `?lang=hi` fixture and needed updating to the Hindi strings this
+workstream shipped. This is the SAME "when a literal moves file, the eval
+that checked it is updated instead" pattern `evals/studio-locale/run.mjs`'s
+own header states, not a sign the architecture is still wrong — the
+fallback-context fix eliminated an entire CLASS of failure (a harness with
+no locale opinion, which is most of them); a harness that explicitly asserts
+Hindi text was always going to need updating to match the Hindi that text
+now actually is.
+
+**Reversal condition.** None expected. If a future workstream finds ANOTHER
+pre-existing convention this shape should have matched instead, `git grep`
+the base commit for the exact export names BEFORE drafting a new file —
+the check this entry's own mistake skipped.
+

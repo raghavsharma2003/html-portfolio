@@ -24393,3 +24393,148 @@ same fact by construction and this fallback needs no further change.
 **Why.** `CloneExperience.tsx`'s own `showVerification` render gate (`Boolean(selected && consentActive && activeCandidate && !upload)`) takes over the WHOLE screen the moment a voice build is in flight, regardless of `room`/`enrichView` state — a real product fact this walk found by trying the documented order first: once `onRequestVoiceBuild` returns anything short of `state: "review"` with `promoted_at` (see the decision above), `voiceSaga` never clears and every other room, Describe me included, is unreachable until it does.
 
 **Reversal.** Once the build-promotion pipeline is fixtured for real (see the decision above), the walk can be reordered to match the brief's own listed sequence exactly, since `showVerification` would then resolve and release the screen on its own.
+
+## `ws-r159-tier-1-scope-and-tier-2-allowlist` (2026-09-13, WS-R159)
+
+**Decision.** The personal studio gets its OWN copy registry, `src/studio/copy.ts`
+/ `hiCopy.ts` — a separate table from `src/creatorStudio/copy.ts` / `hiCopy.ts`,
+because the two are different products since Codex's handoff206 rename
+(`decisions.md#codex-handoff206-adopted-as-the-base`): the wave-era creator
+studio moved from `src/studio/` to `src/creatorStudio/`, and `src/studio/`
+now names the unrelated personal journey. The registry follows the
+WS-R71/WS-R113 chunk shape exactly (English inline, Hindi lazily imported as
+its own chunk, a Proxy that throws `studio_personal_copy_hi_not_loaded` until
+installed, a provider — `localeContext.tsx`'s `StudioLocaleProvider` — that
+renders nothing until the resolved locale's table is ready) and MERGES the
+pre-existing `personalAuthCopy.ts` registry in as a `personalAuth` section
+rather than duplicating or replacing it: `copy.ts#loadStudioCopy` installs
+`hiCopy.ts` AND calls the existing `loadPersonalAuthCopy("hi")` together, so
+one await gets every section a caller will ever need.
+
+Four screens are Tier 1 this session, every literal string moved and both
+locales proven under the real copy gate: `ExpertSharePanel.tsx` (4 strings),
+`QuickVoiceCapture.tsx` (33 strings), `ExpertConversation.tsx` (46 strings),
+`PersonModelStudio.tsx` (70 strings) — 153 new leaf strings per locale total
+(`measurements.md#ws-r159-personal-studio-hindi-string-count-and-chunk-size-2026-09-13`).
+`VoiceField.tsx` (a pure SVG dial, zero text of its own) and
+`PersonalStudioEntry.tsx` (already fully localized through the pre-existing
+`personalAuthCopy.ts` registry before this session started) are listed as
+CONVERTED with zero findings, `localeContext.tsx`/`Localized.tsx`'s own
+creatorStudio precedent for a file with no literal English text of its own.
+`StudioApp.tsx` is wrapped in `StudioLocaleProvider` at both its render paths
+(the production `CloneExperience` branch and the internal-test-only legacy
+shell) and given the shell's own language switch (`LanguageSwitch.tsx`,
+brief law 3) — necessary infrastructure so the four converted panels
+actually receive a locale — but its own remaining ~2,600 lines of inline
+English (the legacy shell chrome, `TEACHER_COPY`/`GENERIC_COPY`/`TEST_COPY`)
+are NOT converted this session.
+
+**What is Tier 2 this session, and why, one line each** (the WS-R52/R61/R71
+time-boxing pattern restated for this product): `CloneExperience.tsx`
+(1,225 lines, the main journey shell — renders the four converted panels as
+children, so they already speak Hindi, but its own tab chrome and headlines
+do not); `CloneVerificationJourney.tsx` (566), `VoicePreviewPanel.tsx` (797),
+`MirrorCallStudio.tsx` (1,086), `ContextLockerPanel.tsx` (635) — none reached
+this session, time-boxed at four converted files to match the pace a single
+session can prove clean rather than a shallower pass across every file named
+in the brief; `VideoEnrollPanel.tsx` — read in full and found to carry the
+IDENTICAL five-statement YouTube channel-ownership/rights/audio-extraction
+consent ceremony (`ATTESTATION_COPY`: `owns_or_controls_channel`,
+`is_rights_holder_of_uploads`, `authorizes_audio_extraction_for_own_replica`,
+`understands_tos_exposure_is_not_copyright_permission`,
+`understands_revocation_stops_extraction`) that
+`decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted` already
+carves out of `src/creatorStudio/VideoEnrollPanel.tsx` for the same reason: a
+mistranslation in rights-attestation text carries real legal weight and no
+legal review of Hindi wording was in scope for this session. This is the
+SAME standing decision extended to the personal studio's own copy of the
+same screen, not a new one.
+
+**Vocabulary.** `scripts/check-copy.mjs`'s rooms-vocabulary rule (the ban on
+"clone"/"model"/"train(ing)"/etc.) is gated by `ROOM_VOCAB_PATH` in
+`scripts/copy-room-scope.mjs`, which names neither `src/studio/copy.ts` nor
+any personal-studio component — private expert-preparation copy is
+deliberately exempt (that file's own header comment), only Room-recipient
+and Room-publishing surfaces are held to it. This file's own English and
+Hindi still avoid "clone"/"model"/"training" throughout, as a matter of
+product voice rather than gate compliance, reusing
+`src/creatorStudio/copy.ts#personModelStudio` (WS-R61)'s own already-reviewed
+rephrasing wherever the content overlaps ("model-assisted claim extraction"
+-> "AI-building consent for assisted claim extraction"; "Building model..."
+-> "Building..."; "Person Model could not be loaded" -> "What we learned
+about you could not be loaded") and applying the same standard to
+`QuickVoiceCapture.tsx`'s own "...starts your clone." -> "...starts your
+AI." — a string the automated gate does not currently reach at all (see
+`rejected.md#ws-r159-mixed-copy-regex-matched-the-wrong-studio` for the
+related, separate finding about why `copy.ts`/`hiCopy.ts` themselves DO need
+a gate fix).
+
+**Reversal condition.** A future workstream converting one of the five
+"not reached" files (`CloneExperience.tsx`, `CloneVerificationJourney.tsx`,
+`VoicePreviewPanel.tsx`, `MirrorCallStudio.tsx`, `ContextLockerPanel.tsx`)
+removes it from `TIER_2_ALLOWLIST` in
+`evals/studio-locale-personal/run.mjs` and adds it to `TIER_1_FILES` in the
+same change; a future workstream that converts the rest of `StudioApp.tsx`
+does the same. `VideoEnrollPanel.tsx` moves only once a Hindi-language
+honesty/consent detector exists for its specific ceremony with legal sign-off
+on the translated wording — unchanged from the reversal condition
+`ws-r71-consent-ceremony-files-found-and-not-converted` already states for
+the identical screen one product over.
+
+## `ws-r159-mixed-copy-regex-fixed-to-name-creatorstudio-only` (2026-09-13, WS-R159)
+
+**Decision.** `scripts/copy-room-scope.mjs`'s `MIXED_COPY` regex (which
+triggers `roomCopySectionSource`'s "carve out Room sections, blank the rest"
+transform for the rooms-vocabulary check) is narrowed from
+`^src\/(?:studio|creatorStudio)\/(copy|hiCopy)\.ts$` to
+`^src\/creatorStudio\/(copy|hiCopy)\.ts$`. `ROOM_VOCAB_PATH`'s own `studio`
+alternation is left untouched: its nine named component filenames
+(`RoomStudio.tsx`, `ReadinessPanel.tsx`, ...) do not exist under the new
+`src/studio/` at all, so that half is dead code today rather than a live
+hazard, and touching it without a concrete file to test against would be a
+speculative edit this workstream is not positioned to verify.
+
+**Why.** See `rejected.md#ws-r159-mixed-copy-regex-matched-the-wrong-studio`
+for what this regex would have done to `src/studio/copy.ts`/`hiCopy.ts` left
+unfixed. The fix is scoped to the ONE pattern that is not dead: `MIXED_COPY`
+matches by bare filename (`copy.ts` / `hiCopy.ts`), independent of which
+component names live in that directory, so it actually intercepts the new
+personal-studio files the instant they exist.
+
+**Reversal condition.** If a future personal-studio component is ever named
+identically to one of `ROOM_VOCAB_PATH`'s nine listed creatorStudio
+filenames (unlikely, but the alternation would then silently apply the
+rooms-vocabulary rule to the wrong file), split `ROOM_VOCAB_PATH` into two
+explicit lists — one per studio — rather than trying to keep one shared
+alternation correct for two products that no longer share a rename history.
+
+## `ws-r159-localecontext-matches-creatorstudio-shape` (2026-09-13, WS-R159)
+
+**Decision.** `src/studio/localeContext.tsx`'s final shape matches
+`src/creatorStudio/localeContext.tsx` (WS-R52) exactly rather than the
+URL-self-resolving, throw-on-missing-provider shape this workstream first
+wrote: `StudioLocaleProvider({ locale, children })` takes `locale` as a
+prop (the caller — `StudioApp.tsx` — resolves it once via `readStudioLocale()`
+and owns a `switchStudioLocale` callback, its own `studioLocalePreference.ts`
+chain reused unchanged); `useStudioLocale()` reads a context seeded with a
+real default value (`{ locale: "en", t: STUDIO_COPY_TABLE.en }`) and never
+throws outside a provider. `LanguageSwitch.tsx` takes `locale`/`onSwitch` as
+explicit props rather than pulling them from `useStudioLocale()`'s own
+context, matching `StudioShell.tsx`'s `StudioLanguageSwitch`.
+
+**Why.** `rejected.md#ws-r159-first-localecontext-draft-invented-a-second-provider-contract`:
+the first draft broke nine pooled eval suites and, more importantly, turned
+out to reinvent an API the codebase had already committed to and one
+pre-existing eval (`evals/conversation-setup-ui.mjs`, base commit) already
+depended on by name. Matching the established shape is not a style
+preference here — it is the difference between "every existing harness that
+mounts a piece of the personal studio keeps working" and "every one of them
+needs to learn about a new, bespoke contract."
+
+**Reversal condition.** If the personal studio's `Replica` type ever gains a
+`locale` column (a future migration), `StudioApp.tsx`'s own `studioLocale`
+state should read it the way creatorStudio's `resolveStudioLocale` already
+prefers a loaded replica's row over the remembered choice — this provider's
+own `locale` prop contract does not change, only what `StudioApp.tsx` passes
+into it.
+

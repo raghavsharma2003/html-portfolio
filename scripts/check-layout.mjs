@@ -226,6 +226,23 @@ const TARGETS = [
     steps: ["default"], mounted: ".vx-shell",
     panels: ".lt-panel", minPanels: 1,
   },
+  // WS-R159: the SAME personal-studio fixture and steps as `clone` above,
+  // with `&lang=hi` appended so the four panels this workstream converted
+  // (ExpertConversation, PersonModelStudio, ExpertSharePanel, reached via
+  // the `voice`/`enrich` steps' own `room=voice|evolve|share` states) render
+  // through `StudioLocaleProvider` in Hindi. `CloneExperience.tsx`'s own
+  // shell chrome around them (the "Meet {name}." headline, the tab labels)
+  // is Tier 2 this session and stays English even here -- this target is
+  // named `studio-hi:personal` (the brief's own naming) precisely so a
+  // partial mix does not read as an oversight: it proves the CONVERTED
+  // panels never collapse a Devanagari column, not that the whole screen is
+  // translated (context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist).
+  {
+    name: "studio-hi:personal", fixture: "studio-layout-fixture.html",
+    query: (step) => step === "capture" ? "step=feed&scenario=public-capture&lang=hi" : `step=meet&scenario=voice-ready&view=${step}&lang=hi`,
+    steps: ["capture", "voice", "enrich"], mounted: ".vx-shell",
+    panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu", minPanels: 1,
+  },
   {
     name: "studio",
     fixture: "creator-layout-fixture.html",

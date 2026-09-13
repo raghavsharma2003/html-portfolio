@@ -22,6 +22,7 @@ import { expertWorkspaceUrl } from "./workspaceNavigation";
 import type { ReplicaRuntimeStatus } from "./types";
 import MaterialSharePanel from "./publication/MaterialSharePanel";
 import DeployStudio from "./DeployStudio";
+import { useStudioLocale } from "./localeContext";
 
 export default function ExpertSharePanel({ replicaId, token, stopped, onAuthError, onReview, voiceWorkspaceReady }: {
   token: string;
@@ -32,15 +33,17 @@ export default function ExpertSharePanel({ replicaId, token, stopped, onAuthErro
   onReview: () => void;
   voiceWorkspaceReady: boolean;
 }) {
+  const { t } = useStudioLocale();
+  const copy = t.expertSharePanel;
   if (voiceWorkspaceReady) {
     return <DeployStudio token={token} replicaId={replicaId} stopped={stopped} onAuthError={onAuthError} onReview={onReview} />;
   }
   return <section className="vx-expert-share" aria-labelledby="expert-share-title">
-    <div className="vx-stage-title"><h1 id="expert-share-title">Give your AI a home.</h1></div>
+    <div className="vx-stage-title"><h1 id="expert-share-title">{copy.title}</h1></div>
     <MaterialSharePanel token={token} replicaId={replicaId} onReview={onReview} />
-    <details className="vp-data"><summary>Voice and other channels</summary>
-      <p>These need their own verification before sharing.</p>
-      <a className="vx-button" href={expertWorkspaceUrl(replicaId, "share", window.location.search)}>Review readiness</a>
+    <details className="vp-data"><summary>{copy.voiceOtherChannelsSummary}</summary>
+      <p>{copy.voiceOtherChannelsNote}</p>
+      <a className="vx-button" href={expertWorkspaceUrl(replicaId, "share", window.location.search)}>{copy.reviewReadiness}</a>
     </details>
   </section>;
 }

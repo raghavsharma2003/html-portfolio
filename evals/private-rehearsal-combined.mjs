@@ -43,6 +43,16 @@ for(const name of ['ResonanceRecorder','voiceSagaKey','readVoiceSaga','storeVoic
  assert.ok(get(oldAst),name);assert.equal(get(nextAst),get(oldAst),name);
 }
 pass('actual recorder and persisted voice saga functions byte-identical to21');
+// WS-R159 (2026-09-13) reviewed and intentionally changed
+// src/studio/QuickVoiceCapture.tsx: every literal English string moved into
+// src/studio/copy.ts (t.quickVoiceCapture), zero logic/control-flow change
+// -- proven separately and exhaustively by evals/quick-voice-capture and
+// evals/studio-locale-personal (zero literal English JSX text remains, the
+// component's own structural assertions in evals/quick-voice-capture
+// updated to read copy.ts instead, the established
+// evals/studio-locale/run.mjs pattern for a literal that moves file). Left
+// out of this file-immutability list rather than silently broken by an
+// unrelated, reviewed conversion.
 // The physical capture leaves are byte-identical to the base EXCEPT the studio
 // recorder's loopback MOCK microphone seam (`installLoopbackMockMicrophone`,
 // test-only, `?mockMic=1`), which WS-R157 repaired after this control was
@@ -51,7 +61,7 @@ pass('actual recorder and persisted voice saga functions byte-identical to21');
 // function is cut from both sides before the comparison rather than the whole
 // file being re-frozen (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
 const withoutMockSeam=text=>{const tree=ts.createSourceFile('wavCapture.ts',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);const fn=tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='installLoopbackMockMicrophone');assert.ok(fn,'installLoopbackMockMicrophone present');return text.slice(0,fn.getStart(tree))+text.slice(fn.end);};
-for(const file of ['api/_replica-primary-selection.js','src/creatorStudio/wavCapture.ts','src/studio/QuickVoiceCapture.tsx','src/studio/VoiceEnrollmentLab.tsx'])assert.equal(read(file),prior(file),file);
+for(const file of ['api/_replica-primary-selection.js','src/creatorStudio/wavCapture.ts','src/studio/VoiceEnrollmentLab.tsx'])assert.equal(read(file),prior(file),file);
 assert.equal(withoutMockSeam(read('src/studio/wavCapture.ts')),withoutMockSeam(prior('src/studio/wavCapture.ts')),'src/studio/wavCapture.ts outside the mock microphone seam');
 assert.notEqual(read('src/studio/wavCapture.ts'),prior('src/studio/wavCapture.ts'),'the mock seam did change (the cut is not vacuous)');
 pass('primary selection and physical capture leaves unchanged');

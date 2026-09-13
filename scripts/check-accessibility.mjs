@@ -127,6 +127,22 @@ const TARGETS = [
     fixture: "studio-layout-fixture.html",
     query: () => "step=meet&scenario=voice-ready&view=voice&listening=1",
     screens: ["default"],
+  },
+  // WS-R159. `clone`'s own fixture and screens with `&lang=hi` appended --
+  // `check-layout.mjs`'s own `studio-hi:personal` target, the same query
+  // shape, reused verbatim (this file's own header rule). Checks the four
+  // panels this workstream converted (ExpertConversation, PersonModelStudio,
+  // ExpertSharePanel, QuickVoiceCapture) for a missing accessible name or a
+  // lost focus ring specific to Devanagari rendering; `CloneExperience.tsx`'s
+  // own shell chrome around them is Tier 2 this session and stays English
+  // (context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist).
+  {
+    name: "studio-hi:personal",
+    fixture: "studio-layout-fixture.html",
+    query: (screen) => screen === "capture"
+      ? "step=feed&scenario=public-capture&lang=hi"
+      : `step=meet&scenario=voice-ready&view=${screen}&lang=hi`,
+    screens: ["capture", "voice", "enrich"],
     mounted: ".vx-shell",
   },
   {
