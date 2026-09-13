@@ -131,6 +131,15 @@ const ROUTES: Record<string, unknown> = {
     limits: { perOwnerPerDay: 4, maxDurationMs: 7_200_000, maxAudioBytes: 536_870_912, globalPerDay: 20 },
   },
   "/api/mirror-call": { contract: null, call: null },
+  // WS-R152. `DeployStudio.tsx` mounts the real `RoomStudio`, which reads
+  // this on mount (`readOwnedRoom`, `getOwnedRoom`'s own shape in
+  // `api/_room-publish.js`). "Not created yet" is the honest state a person
+  // who has never opened Deploy is actually in: `RoomStudio`'s own
+  // `!room` branch (its "Set up your Room" button) needs nothing else fed —
+  // `payments`/`pulse`/`cohorts`/`org` are only ever read when `state.room`
+  // is truthy (`RoomStudio.tsx`'s own `load()`), so none of those need a
+  // route here for this screen to render without throwing.
+  "/api/room-publish": { room: null, reason: "not_created" },
 };
 
 /* WS-AP's scenarios, layered onto `ROUTES` by `?scenario=`.

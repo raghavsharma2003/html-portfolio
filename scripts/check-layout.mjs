@@ -169,6 +169,35 @@ const TARGETS = [
     steps: ["capture", "voice", "enrich"], mounted: ".vx-shell",
     panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu", minPanels: 1,
   },
+  // WS-R152. Deploy for a personal AI: `src/studio/DeployStudio.tsx` (the
+  // personal studio's own Deploy screen, `ExpertSharePanel`'s own export
+  // name, mounted at `?view=share`) plus the REAL `RoomStudio` it mounts
+  // underneath. `clone`'s own `scenario=voice-ready` restated: reaching ANY
+  // room content (`CloneExperience.tsx`'s `needsAgreement` gate) needs an
+  // active consent, which only that scenario's `/api/replica-consent` seeds.
+  // Named `studio:deploy`/`studio-hi:deploy` (the brief's own names) rather
+  // than folded into `clone`'s own `steps`, because `clone`'s fixture is the
+  // PERSONAL studio (`studio-layout-fixture.html`) same as this target, but
+  // `clone`'s existing selectors/`minPanels` are tuned for the voice/enrich
+  // panels, not this screen's own `.vx-deploy` shell.
+  {
+    name: "studio:deploy",
+    fixture: "studio-layout-fixture.html",
+    query: () => "step=meet&scenario=voice-ready&view=share",
+    steps: ["deploy"],
+    mounted: ".vx-deploy",
+    panels: ".vx-deploy-banner, #room-studio",
+    minPanels: 2,
+  },
+  {
+    name: "studio-hi:deploy",
+    fixture: "studio-layout-fixture.html",
+    query: () => "step=meet&scenario=voice-ready&view=share&lang=hi",
+    steps: ["deploy"],
+    mounted: ".vx-deploy",
+    panels: ".vx-deploy-banner, #room-studio",
+    minPanels: 2,
+  },
   {
     name: "studio",
     fixture: "creator-layout-fixture.html",

@@ -24049,3 +24049,27 @@ Preserve the shared inert template but correct its obsolete assertion that OpenR
 **Why.** Eight consecutive git-connected deployments of `codex/handoff206` failed in 7 seconds with "deployment source product is missing or invalid" because the strict writer ran unconditionally. The strict writer stays strict (the deploy-verifier eval's negative control still proves it fails closed on a missing commitment); only the choice of which path a git-connected build takes changed.
 
 **Reversal.** If the release verifier ever compares a git-connected deployment against the wrong source identity, add the commit SHA to the marker schema rather than reinstating the unconditional strict writer.
+
+## `ws-r152-deploy-mounts-roomstudio-whole-not-a-leaner-personal-fork` (2026-09-13, WS-R152)
+
+**Decision.** `src/studio/DeployStudio.tsx` mounts the creator studio's real `RoomStudio` (which already mounts `ShareKitCard` itself) lazily, through its existing props, exactly as `src/creatorStudio/StudioApp.tsx` already does for `mode === "teacher"`. It is not forked, not copied, and not trimmed: a personal AI's Deploy screen shows the SAME payments/cohorts/pulse/suite cards a creator's does, degrading to their own honest empty states (`.catch(() => null)` throughout `RoomStudio.tsx`'s own `load()`) for a self-replica that has none of that data.
+
+**Why.** The brief's own law 2 names this explicitly ("the SAME components, lazily loaded, no copy"), and building a second, leaner Deploy surface for personal AIs would be exactly the second-implementation problem `docs/gurukul/PRODUCT-JOURNEY.md` already argues against. `RoomStudio.tsx`'s own cards are already written to degrade gracefully when their data is absent (Suite/creator-tier/cohort reads are all `.catch(() => null)` or a soft `cohortError` flag, never a hard throw), so reuse costs nothing at render time for a replica with no monetization or Suite membership.
+
+**Reversal.** If a personal AI ever needs a materially different Deploy surface (for example, HumanOS/RelationOS-specific controls RoomStudio has no field for, or a genuine product decision to hide creator-only monetization from a person who never asked for it), fork at that point with the gap named — not preemptively, and not by trimming `RoomStudio.tsx` itself, which the teacher studio still depends on unchanged.
+
+## `ws-r152-deploy-banner-collapses-three-server-blockers-into-two-booleans` (2026-09-13, WS-R152)
+
+**Decision.** `deployStudioState.ts`'s `deployBannerState` reads only `stopped` (the same boolean `CloneExperience.tsx` already computes from `selected.lifecycle`) and `publishedRoom` (`room?.published`), never `api/_room-publish.js`'s own three blocker anchors (`#runtime-gate`, `#readiness-title`, `#teacher-sheet-studio`) that `RoomStudio`'s `onRoomState` callback already carries. `stopped` stands in for the first two (activation requires both together); "not stopped, not published" reads as "publish who you are first" because disclosure (`context/rejected.md#ws-r7-room-for-generic-mode-with-no-disclosure-pathway`) is the only blocker a generic-mode replica can never clear today, so it is also the only one that can still be the reason once voice is ready.
+
+**Why.** The owner's brief names exactly three plain-words states, and DESIGN-SYSTEM.md's "one ember at a time" rule (cited in `wizardModel.ts`'s own header) already forbids showing more than one. Reading the real blocker anchor would buy no extra truth today, only extra code, since the anchor is `#teacher-sheet-studio` in every reachable case.
+
+**Reversal.** The day a generic-mode replica gets any path to a satisfied disclosure predicate other than none (HumanOS/R151 landing a real sheet-equivalent, or the predicate widened), "not stopped, not published" will sometimes mean a different real blocker (readiness, or an actual publish failure), and `deployBannerState` should read `blocker.anchor` from `onRoomState` directly rather than infer from the two booleans.
+
+## `ws-r152-visitor-link-gated-on-published-not-on-a-slug-existing` (2026-09-13, WS-R152)
+
+**Decision.** DeployStudio's own "See it as a visitor" action (`deployVisitorLink`) returns `null` until `room.published` is true, even though `RoomStudio.tsx` itself shows the Room's address, story card and poster the moment a Room row exists at all, published or not (`RoomStudio.tsx`'s own address card has no `room.published &&` guard).
+
+**Why.** "See it as a visitor" is new copy this workstream is adding, and it implies a visitor can see something. `resolveRoom` refuses every follower on an unpublished Room regardless of this screen, so showing the action before publish would either open a real dead end or read as if this screen were promising more than the platform delivers. `RoomStudio`'s own always-shown address card is existing, out-of-scope product behaviour (a creator previewing/sharing their draft address before publish is a decision this workstream did not revisit).
+
+**Reversal.** If product direction decides a draft Room's own "not open yet" honest refusal page (the same page a stranger would see) is itself worth showing a person before they publish, gate on `room != null` (slug exists) instead of `room.published`, and update `evals/deploy-studio/run.mjs`'s negative control to match.

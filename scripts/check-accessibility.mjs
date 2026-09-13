@@ -86,6 +86,28 @@ const TARGETS = [
     screens: ["capture", "voice", "enrich"],
     mounted: ".vx-shell",
   },
+  // WS-R152. Deploy for a personal AI -- `check-layout.mjs`'s own
+  // `studio:deploy`/`studio-hi:deploy` targets, the same fixture and query
+  // shapes reused verbatim (this file's own header rule). `RoomStudio` (the
+  // real creator-studio component this screen mounts) has its own controls
+  // -- copy address, download poster/story card, ShareKitCard's copy
+  // buttons -- none of which this accessibility gate has judged before, since
+  // it only ever reached `RoomStudio` under `mode=teacher` (`studio:shell`'s
+  // own "deploy" screen) rather than through the personal studio's shell.
+  {
+    name: "studio:deploy",
+    fixture: "studio-layout-fixture.html",
+    query: () => "step=meet&scenario=voice-ready&view=share",
+    screens: ["deploy"],
+    mounted: ".vx-deploy",
+  },
+  {
+    name: "studio-hi:deploy",
+    fixture: "studio-layout-fixture.html",
+    query: () => "step=meet&scenario=voice-ready&view=share&lang=hi",
+    screens: ["deploy"],
+    mounted: ".vx-deploy",
+  },
   {
     name: "room",
     fixture: "room-layout-fixture.html",

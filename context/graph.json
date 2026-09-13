@@ -17994,6 +17994,60 @@
       "kind": "measurement",
       "title": "Gate runs on the merged handoff206 tree and the live catalog before and after the apply (2026-09-13)",
       "at": "context/measurements.md#gate-on-the-merged-handoff206-tree-2026-09-13"
+    },
+    {
+      "id": "ws-r152-deploy-studio",
+      "kind": "component",
+      "title": "DeployStudio.tsx: the personal studio's Deploy screen, mounting the real RoomStudio",
+      "at": "src/studio/DeployStudio.tsx"
+    },
+    {
+      "id": "ws-r152-deploy-mounts-roomstudio-whole-not-a-leaner-personal-fork",
+      "kind": "decision",
+      "title": "Deploy for a personal AI reuses RoomStudio whole, never a second/leaner implementation",
+      "at": "context/decisions.md#ws-r152-deploy-mounts-roomstudio-whole-not-a-leaner-personal-fork"
+    },
+    {
+      "id": "ws-r152-deploy-banner-collapses-three-server-blockers-into-two-booleans",
+      "kind": "decision",
+      "title": "The Deploy readiness banner collapses three server blocker codes into stopped + publishedRoom",
+      "at": "context/decisions.md#ws-r152-deploy-banner-collapses-three-server-blockers-into-two-booleans"
+    },
+    {
+      "id": "ws-r152-visitor-link-gated-on-published-not-on-a-slug-existing",
+      "kind": "decision",
+      "title": "\"See it as a visitor\" shows no link until the Room is actually published",
+      "at": "context/decisions.md#ws-r152-visitor-link-gated-on-published-not-on-a-slug-existing"
+    },
+    {
+      "id": "ws-r152-deploy-banner-tint-inherited-field-note-color-failed-contrast",
+      "kind": "rejection",
+      "title": "The Deploy banner's own tinted background failed AA contrast with the studio's ordinary .field-note color",
+      "at": "context/rejected.md#ws-r152-deploy-banner-tint-inherited-field-note-color-failed-contrast"
+    },
+    {
+      "id": "ws-r152-studiolocaleprovider-locale-prop-does-not-tag-the-dom-lang-attribute",
+      "kind": "rejection",
+      "title": "StudioLocaleProvider's locale prop selects Hindi copy but tags no DOM lang attribute",
+      "at": "context/rejected.md#ws-r152-studiolocaleprovider-locale-prop-does-not-tag-the-dom-lang-attribute"
+    },
+    {
+      "id": "ws-r152-compound-camelcase-copy-keys-are-invisible-to-check-copy",
+      "kind": "rejection",
+      "title": "Compound camelCase copy object keys (voiceHeadline, feedCopy's own teach/test/back) are invisible to check-copy.mjs's exact-suffix visible-key match",
+      "at": "context/rejected.md#ws-r152-compound-camelcase-copy-keys-are-invisible-to-check-copy"
+    },
+    {
+      "id": "ws-r152-deploy-for-a-personal-ai-gate-results-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R152 Deploy for a personal AI: gate results, contrast numbers, before/after accessibility findings",
+      "at": "context/measurements.md#ws-r152-deploy-for-a-personal-ai-gate-results-2026-09-13"
+    },
+    {
+      "id": "ws-r152-personal-ai-room-still-cannot-publish-live",
+      "kind": "open",
+      "title": "A personal AI's Deploy screen can show every state except \"ready\" for real: the disclosure gate (ws-r7) still refuses every generic-mode Room until HumanOS (R151) or an equivalent lands",
+      "at": "src/studio/deployStudioState.ts"
     }
   ],
   "edges": [
@@ -30439,6 +30493,51 @@
       "src": "codex-handoff206-adopted-as-the-base",
       "dst": "gate-on-the-merged-handoff206-tree-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r152-deploy-studio",
+      "dst": "ws-r7-room-for-generic-mode-with-no-disclosure-pathway",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r152-deploy-studio",
+      "dst": "ws-r152-deploy-mounts-roomstudio-whole-not-a-leaner-personal-fork",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r152-deploy-banner-collapses-three-server-blockers-into-two-booleans",
+      "dst": "ws-r7-room-for-generic-mode-with-no-disclosure-pathway",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r152-deploy-mounts-roomstudio-whole-not-a-leaner-personal-fork",
+      "dst": "ws-r152-deploy-for-a-personal-ai-gate-results-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r152-deploy-banner-collapses-three-server-blockers-into-two-booleans",
+      "dst": "ws-r152-personal-ai-room-still-cannot-publish-live",
+      "rel": "blocks"
+    },
+    {
+      "src": "ws-r152-personal-ai-room-still-cannot-publish-live",
+      "dst": "ws-r7-room-for-generic-mode-with-no-disclosure-pathway",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r152-deploy-banner-tint-inherited-field-note-color-failed-contrast",
+      "dst": "ws-r152-deploy-studio",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r152-studiolocaleprovider-locale-prop-does-not-tag-the-dom-lang-attribute",
+      "dst": "ws-r152-deploy-studio",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r152-compound-camelcase-copy-keys-are-invisible-to-check-copy",
+      "dst": "ws-r152-deploy-studio",
+      "rel": "part_of"
     }
   ]
 }
