@@ -23,6 +23,17 @@ function fixture(p, { rejected = false, choice = 'left', revoked = false, relati
   const db = async (sql, args) => {
     calls.push({ sql, args });
     if (/select r\.replica_id,r\.owner_user_id/.test(sql)) return args[0] !== p.replica || args[1] !== p.owner || revoked ? [] : [{ replica_id: p.replica, owner_user_id: p.owner, subject_person_id: p.person, agent_id: p.agent, subject_mode: 'self', lifecycle: 'active', policy_version: REPLICA_POLICY_VERSION, capability_id: id(200), capability_state: 'active', runtime_policy: 'replica-runtime-v1', profile_version: 7, profile_status: 'approved', profile_definition: profile, calibration_version: 2, calibration_status: 'approved', calibration_definition: policy, voice_profile_id: id(201), genome_version: 1, voice_status: 'ready', genome_status: 'approved', capabilities: {}, consent_id: id(202), consent_scope: 'inference', consent_policy: REPLICA_POLICY_VERSION }];
+    // WS-R161 (wave twenty-two). `generateOwnedDialogue` now falls back to
+    // the text-ready door (`ownedRuntimeStatus`'s own `RUNTIME_STATUS_SQL`)
+    // whenever the voice-runtime query immediately above finds no row —
+    // exactly the `foreign-owner`/`revoked` scenarios this file's own `mode`
+    // loop drives, never the `relationship-down` one (a REAL, active voice
+    // runtime exists there, so that scenario never reaches this query at
+    // all). Same ownership predicate as the query above, so the SAME two
+    // scenarios still resolve to no row, and `generateOwnedTextDialogue`
+    // still fails with the SAME `dialogue_runtime_not_active` this suite's
+    // own assertions already expect.
+    if (/select r\.replica_id,r\.subject_mode,r\.lifecycle/.test(sql)) return args[0] !== p.replica || args[1] !== p.owner || revoked ? [] : assert.fail('personality-flow28: an active-voice scenario unexpectedly reached the text-ready status query');
     if (/insert into vy_replica_runtime_session/.test(sql)) return [{ session_id: p.session, channel: 'private_chat' }];
     if (/from vy_(?:rel_state|pattern|ritual|currency|phrase|kin)/.test(sql)) {
       assert(sql.includes('agent_id=$1::uuid and person_id=$2::uuid')); assert.deepEqual(args, [p.agent, p.person]);
