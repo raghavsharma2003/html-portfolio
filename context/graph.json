@@ -19164,6 +19164,18 @@
       "kind": "measurement",
       "title": "Ten suites the wave-22 merge gate (ee7ac84) failed, each individually before/after this session's fix (feed-meet-teach-cta 16/16, feed-meet-mined-cta 15/15, feed-meet-return-ui 13/13, private-text-rehearsal-ui 20/20, conversation-setup-ui 46/46, dialogue-history-ui 30/30, recorder-lifecycle 12/12, mirrorcall 81/81, mirrorownerspeaker 37/37, studioselftestui 36/36); full registry, tsc, check-copy, check-mirrors and context.mjs --check all re-run clean",
       "at": "context/measurements.md#ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13"
+    },
+    {
+      "id": "wave-22-merged-as-a-batch-with-a-repair-workstream",
+      "kind": "decision",
+      "title": "Wave twenty-two merged under the fast checks with an eleventh workstream repairing what the batch gate found (2026-09-13)",
+      "at": "context/decisions.md#wave-22-merged-as-a-batch-with-a-repair-workstream"
+    },
+    {
+      "id": "wave-22-merges-2026-09-13",
+      "kind": "measurement",
+      "title": "Wave twenty-two's eleven merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
+      "at": "context/measurements.md#wave-22-merges-2026-09-13"
     }
   ],
   "edges": [
@@ -32639,6 +32651,16 @@
       "src": "ws-r171-owner-memory-panels-automatic-status-load-was-not-ws-r166-at-all",
       "rel": "caused_by",
       "dst": "ws-r167-meet-continuity-offline-proofs-2026-09-13"
+    },
+    {
+      "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
+      "dst": "wave-22-merges-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
+      "dst": "wave-21-merged-as-a-batch-under-contention",
+      "rel": "supersedes"
     }
   ]
 }

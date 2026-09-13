@@ -18553,3 +18553,23 @@ Method: each of the ten suites the wave-twenty-two merge gate (ee7ac84) failed, 
 | `studioselftestui` | 35/36 | 36/36 | same |
 
 After all ten fixes: `node evals/run.mjs` (the full registry) run once, foreground/backgrounded-to-completion, on a quiet machine (load average ~1.6-2.1, `uptime` checked immediately before starting), 2026-09-13 — **434 suites, 0 failed** (`grep -c` of the runner's own per-suite `ok    <name> (Nms)` completion lines; no `^FAIL` line anywhere in the ~25,500-line transcript; process exit code 0). `npx tsc -b`: clean, 0 errors. `node scripts/check-copy.mjs`: `7 scopes clean, 21 negative controls bit`. `node scripts/check-mirrors.mjs`: `10 marker(s) checked across 330 file(s), 0 disagree`. `node scripts/context.mjs --check`: run after this session's own context appends, see `context/STATE.md`'s session log for its result.
+
+## `wave-22-merges-2026-09-13`
+
+Method: each workstream's own report (suite counts as printed), the main loop's touched-suite reruns on the merged tree, the batch gates (`node scripts/verify-release.mjs`, 25 checks since WS-R170); live apply receipts in the session scratchpad; date 2026-09-13.
+
+| workstream | merged | proof on the merged tree |
+|---|---|---|
+| WS-R168 EmotionOS in the voice (+ follow-up) | 51212fd, 9cac565 | prosody 20, room-speak-plan 125, voicepanel 153, room-doors 2333, studio-entry-css 8 |
+| WS-R163 the activation guard and sealed audio | 85df68c | replica runtime 62, listening test 63, fidelity, room-doors, incidents |
+| WS-R161 Meet opens for any person, text first (167) (+ follow-up) | 052f342, eec9189 | text-ready 30, replica-dialogue, rehearsal-personal 36, personality-dialogue-flow 14 |
+| WS-R167 the owner's own continuity in Meet (170) | 20656ad | meet-continuity 51, room-leak 365, room-relstate, room-cohorts 62 (the exclusion made count-shaped at the merge) |
+| WS-R162 a personal AI's Room publishes (+ follow-up) | 63cb689, 4ea4649 | person-room 17, person-sheet 46, room-about 59, room-publish 39, room-adversarial-creator 253, byte-identity 83, rehearsal-follower 64 |
+| WS-R166 the personal studio in Hindi, tier two | de58910 | studio-locale-personal 33, voice-preview-ui, voicepanel 153; ten suites it broke repaired by WS-R171 |
+| WS-R165 the evals made durable | 6a4874c | launch-scan, history-scan, first-use-refresh 13, room-push 86, source-scan, room-leak in both modes |
+| WS-R169 the mobile app proven | 14e748d | vyakti-app 161, env-manifest, azureweb 31, probe-live, day-one |
+| WS-R164 the first five minutes | 691c6dd | first-five-minutes 10, personal-auth-locale 52, verification-knowledge 14, rehearsal-personal |
+| WS-R170 data safety and the schema mirror | ee7ac84 | rate-limit 94, schema-mirror 15 (2867 objects, 0 missing), room-doors, room-leak, room-export, creator-export 57 |
+| WS-R171 the merge repairs | see the session log | the ten suites the first batch gate named, then the whole registry |
+
+Batch gates: ten merges (ee7ac84) 24 of 25, the eval suite failing on ten suites (feed-meet-teach-cta, feed-meet-mined-cta, feed-meet-return-ui, private-text-rehearsal-ui, conversation-setup-ui, dialogue-history-ui, recorder-lifecycle, mirrorcall, mirrorownerspeaker, studioselftestui), eight of which fail on WS-R166's own branch; after WS-R171, 25 of 25 on dfe4c98. Live database after the wave: migrations 167 (three statements) and 170 (two statements) applied one statement per request, 0 failures; 168, 169 and 171 unused.
