@@ -313,7 +313,7 @@ const ROUTES: Record<string, unknown> = {
         { kind: "door_5xx", door: "room-say", count: 1 },
       ],
       new_kinds: ["door_5xx"],
-      doors_observed: 18, doors_total: 18,
+      doors_observed: 19, doors_total: 19,
     },
     taste_turns_this_week: { n: 14, note: "14 taste turns this week across every apprentice AI" },
     push: { configured: false, vapid_public: null },

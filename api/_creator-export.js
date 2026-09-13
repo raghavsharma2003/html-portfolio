@@ -200,6 +200,20 @@ export const OWNER_LANE_TABLES = Object.freeze([
   // 127 (WS-R101). The recall run's own scored history, readiness's own
   // precedent immediately above restated one instrument over.
   { table: "vy_recall_run", scope: "replica" },
+  // WS-R153 (migration 164). EmotionOS's own vibe: the owner's five-dial
+  // description of their AI's baseline warmth/energy/humour/directness/
+  // formality, versioned. `sentence` is a plain-language line a future
+  // export-summary screen can show for this row without retyping what the
+  // table holds — additive (no other entry above carries one yet), so it
+  // changes nothing about how `creatorExport`/`evals/creator-export/run.mjs`
+  // read this array.
+  {
+    table: "vy_replica_vibe", scope: "replica",
+    sentence: {
+      en: "Your AI's vibe settings (warmth, energy, humour, directness, formality) and their history.",
+      hi: "आपके AI की वाइब सेटिंग्स (गर्मजोशी, ऊर्जा, हास्य, स्पष्टता, औपचारिकता) और उनका इतिहास।",
+    },
+  },
   { table: "vy_replica_funnel_mark", scope: "replica" },
   { table: "vy_replica_drift_report", scope: "replica" },
   { table: "vy_replica_generation", scope: "replica" },

@@ -54,9 +54,20 @@ await check('reference text and identifiers stay data before the policy, never l
   assert.ok(after.tail.includes('safety, consent, instruction hierarchy and evidence boundaries unchanged'));
 });
 await check('names, mixed scripts and explicit requests cannot alter the static policy or interpolate user text', () => {
-  const tail = engine.compile({ ...base, replyLanguagePolicy: POLICY }).tail;
+  // WS-R153: the POLICY BLOCK itself (from HEAD to the end of the tail,
+  // test 3's own `block` extraction restated here) is what this test's own
+  // name promises is invariant to turn text — never a claim that NOTHING
+  // in the whole tail may vary with it. It no longer is: `register.ts`'s
+  // pull-only delivery-register hint is a REAL, separate block that reads
+  // `latestUserText` on purpose (`compiler.ts`'s own register-hint call,
+  // gated on confidence, positioned well before HEAD), so two different
+  // turns can legitimately render two different tails without the POLICY
+  // block moving even one byte.
+  const block = (tail) => tail.slice(tail.indexOf(HEAD));
+  const policyBlock = block(engine.compile({ ...base, replyLanguagePolicy: POLICY }).tail);
   for (const latestUserText of ['Aman and Mira use OHM-3.', '"हिंदी में" is a quoted title.', 'Please explain in English.', 'देवनागरी में उत्तर दें।', 'Roman Hinglish please.', 'नमस्ते', 'yes']) {
-    assert.equal(engine.compile({ ...base, latestUserText, replyLanguagePolicy: POLICY }).tail, tail);
+    const tail = engine.compile({ ...base, latestUserText, replyLanguagePolicy: POLICY }).tail;
+    assert.equal(block(tail), policyBlock);
   }
 });
 await check('voice and directive inputs receive no text policy block', () => {

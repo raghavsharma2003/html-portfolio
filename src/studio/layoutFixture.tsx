@@ -131,6 +131,28 @@ const ROUTES: Record<string, unknown> = {
     limits: { perOwnerPerDay: 4, maxDurationMs: 7_200_000, maxAudioBytes: 536_870_912, globalPerDay: 20 },
   },
   "/api/mirror-call": { contract: null, call: null },
+  // WS-R153 (EmotionOS). One live vibe plus one superseded version, so the
+  // gate exercises both the five segmented controls AND the history list's
+  // own revert row, not merely the empty state the fallback above would give.
+  "/api/replica-vibe": {
+    vibe: {
+      vibe_id: "fixture-vibe-0002", replica_id: "fixture-replica-0001", owner_user_id: "fixture-owner-0001",
+      version: 2, warmth: 3, energy: 1, humour: 2, directness: 2, formality: 1,
+      note: "warmer than default, low energy", created_at: "2026-09-05T09:00:00.000Z", superseded_at: null,
+    },
+    history: [
+      {
+        vibe_id: "fixture-vibe-0002", replica_id: "fixture-replica-0001", owner_user_id: "fixture-owner-0001",
+        version: 2, warmth: 3, energy: 1, humour: 2, directness: 2, formality: 1,
+        note: "warmer than default, low energy", created_at: "2026-09-05T09:00:00.000Z", superseded_at: null,
+      },
+      {
+        vibe_id: "fixture-vibe-0001", replica_id: "fixture-replica-0001", owner_user_id: "fixture-owner-0001",
+        version: 1, warmth: 2, energy: 2, humour: 2, directness: 2, formality: 2,
+        note: "", created_at: "2026-09-01T09:00:00.000Z", superseded_at: "2026-09-05T09:00:00.000Z",
+      },
+    ],
+  },
 };
 
 /* WS-AP's scenarios, layered onto `ROUTES` by `?scenario=`.

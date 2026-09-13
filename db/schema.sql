@@ -8995,3 +8995,28 @@ create table if not exists vy_processing_gpu_child (
  claimed_at timestamptz not null default now(), response_at timestamptz,
  primary key(window_id,job_sha256), unique(window_id,operation)
 );
+
+-- 164 (WS-R153). EmotionOS's own vibe: warmth/energy/humour/directness/
+-- formality, versioned and reversible. No FK on replica_id/owner_user_id
+-- (009's own convention).
+create table if not exists vy_replica_vibe (
+ vibe_id uuid primary key default gen_random_uuid(),
+ replica_id uuid not null,
+ owner_user_id uuid not null,
+ version int not null check (version > 0),
+ warmth smallint not null check (warmth between 0 and 4),
+ energy smallint not null check (energy between 0 and 4),
+ humour smallint not null check (humour between 0 and 4),
+ directness smallint not null check (directness between 0 and 4),
+ formality smallint not null check (formality between 0 and 4),
+ note text not null default '' check (char_length(note) <= 280),
+ created_at timestamptz not null default now(),
+ superseded_at timestamptz
+);
+
+create unique index if not exists vy_replica_vibe_live_ix
+ on vy_replica_vibe(replica_id)
+ where superseded_at is null;
+
+create index if not exists vy_replica_vibe_owner_history_ix
+ on vy_replica_vibe(replica_id, owner_user_id, version desc);

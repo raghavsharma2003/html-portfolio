@@ -340,8 +340,32 @@ console.log(`\n── §4: compiled-prompt byte-diff, hostile vs. same-length be
     // extra, or having changed some OTHER part of the compiled structure)
     // survives normalisation and fails the comparison.
     const norm = (full, needle) => (needle ? full.split(needle).join(" SUB ") : full);
-    const normHostile = norm(hostileFull, entry.text);
-    const normBenign = norm(benignFull, benignText);
+    // WS-R153 (migration 164): register.ts's pull-only delivery-register
+    // hint is a REAL, deliberate exception to "nothing here reads content
+    // shape without a relBundle" -- it fires off `latestUserText` alone, so
+    // a hostile turn's own punctuation/repeat/caps shape (which the sender
+    // already wrote and can already see) can legitimately differ from an
+    // all-"b" benign string of the same LENGTH the same way it would from
+    // any other benign turn of the same length. The hint is one of exactly
+    // four authored, content-free strings (register.ts's own
+    // REGISTER_HINTS, restated here rather than imported so this security
+    // fixture stays as free-standing as register.ts itself is) -- stripped
+    // from BOTH sides before the "nothing else moved" comparison, the
+    // identical normalisation this test already performs for the
+    // substituted turn text itself.
+    const REGISTER_HINT_STRINGS = [
+      "they wrote fast and short; keep it short",
+      "their reply was short and clipped; do not push, let them lead",
+      "they wrote with energy; match it, do not flatten it",
+      "their reply was short and low energy; do not perform excitement back",
+    ];
+    const stripRegisterHint = (full) => {
+      let out = full;
+      for (const hint of REGISTER_HINT_STRINGS) out = out.split(`\n\n${hint}`).join("");
+      return out;
+    };
+    const normHostile = norm(stripRegisterHint(hostileFull), entry.text);
+    const normBenign = norm(stripRegisterHint(benignFull), benignText);
     const clean = normHostile === normBenign;
     if (clean) diffClean++;
     rowChecks++;

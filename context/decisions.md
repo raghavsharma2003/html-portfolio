@@ -24049,3 +24049,35 @@ Preserve the shared inert template but correct its obsolete assertion that OpenR
 **Why.** Eight consecutive git-connected deployments of `codex/handoff206` failed in 7 seconds with "deployment source product is missing or invalid" because the strict writer ran unconditionally. The strict writer stays strict (the deploy-verifier eval's negative control still proves it fails closed on a missing commitment); only the choice of which path a git-connected build takes changed.
 
 **Reversal.** If the release verifier ever compares a git-connected deployment against the wrong source identity, add the commit SHA to the marker schema rather than reinstating the unconditional strict writer.
+
+## `ws-r153-register-surface-features-only-no-keyword-table` (2026-09-13, WS-R153)
+
+**Decision.** `src/engine/register.ts`'s `readRegister` classifies delivery register (rushed, upset, excited, flat, neutral) from surface features alone — length, punctuation, letter-repeats, a whole-word-shout check, laughter tokens, Hindi/Hinglish marker density — and reads no content keyword table of its own. The one keyword-shaped feature it does read (Hindi/Hinglish markers) is a **verbatim port** of `relstate.ts`'s `HINDI_MARKER_WORDS` (the same list `api/consolidate.js:1192` already ports under an identical comment), not an import, so the file stays as free-standing as `moment.ts`/`transcriptStats.ts` already are.
+
+**Why.** `moment.ts` already owns "what a turn is about" from authored keywords (conflict, celebration, silence...); a second, similar-looking keyword table here answering "how was this turn delivered" would drift from it the first time someone edited one table and not the other, and the two questions are genuinely different — register never claims to know *why* someone wrote tersely, only that they did. Surface features are also the only ones that generalise across English, Hindi and Hinglish without a translated keyword list per language.
+
+**Reversal.** If a future measurement shows surface features alone under-perform badly on a register class no amount of feature-tuning fixes (an actual accuracy floor, not a taste preference), add a SEPARATE, narrowly-scoped keyword table for that one class, named for what it detects, never folded into `moment.ts`'s own MOMENT_KEYS.
+
+## `ws-r153-render-gate-refuses-low-confidence-and-neutral-unconditionally` (2026-09-13, WS-R153)
+
+**Decision.** `renderRegisterHint` is the single, exported gate both `compiler.ts` and `evals/emotionos/run.mjs` apply: it renders a hint only when `confidence === "high"` AND `register !== "neutral"`, checked structurally (a fabricated `{register:"neutral", confidence:"high"}` — a shape the real cascade never emits — is still refused, proving the RENDER SITE enforces the rule rather than merely never being asked to break it).
+
+**Why.** `readRegister` is a heuristic over surface text; a wrong LOW-confidence call never reaches the model (the gate refuses it), while a wrong HIGH-confidence one does. Coupling the gate to the classifier's own confidence band, rather than trusting every caller to re-check it, is the same "one gate, read once" discipline `moment.ts`'s `momentGate` already states for T4/T6.
+
+**Reversal.** If a future measurement shows confidence is miscalibrated (high-confidence accuracy measurably below low-confidence accuracy on a real, larger labelled set), the bands themselves need re-tuning in `register.ts`, not a second gate layered on top of this one.
+
+## `ws-r153-vibe-versioned-append-only-never-mutated-in-place` (2026-09-13, WS-R153)
+
+**Decision.** `vy_replica_vibe` (migration 164) is never `UPDATE`d in place. Every SET or REVERT supersedes the current live row (`superseded_at = now()`) and INSERTs a new one in the SAME statement — `vy_recall_run`'s own superseding-CTE shape (`api/_recall-run.js`'s `RECALL_RUN_INSERT_SQL`) restated for a table with no rate limit forcing every write through that shape. A "one-tap revert" is therefore the identical mechanism as an ordinary edit: it reads an old version's own dims and writes them as a brand-new version, never resurrecting or deleting the old row.
+
+**Why.** The brief asks for "reversible history" and "a one-tap revert" as two distinct-sounding features; making revert a distinct code path (an UPDATE that reactivates an old row) would have meant TWO ways this table's live row can change, and two write paths for the same invariant ("exactly one live row per replica") is exactly the shape that drifts the first time only one of them gets a bug fix.
+
+**Reversal.** If the owner's history grows large enough that an unbounded append-only ledger becomes a real cost (measured row counts, not a guess), add a retention sweep that ages out old, superseded versions — never a schema change that allows an UPDATE of a live row.
+
+## `ws-r153-no-relcheck-entry-mirrors-vy-recall-run` (2026-09-13, WS-R153)
+
+**Decision.** `vy_replica_vibe` gets no new entry in `scripts/relcheck.mjs`. It carries no `citations` array (nothing to check for a dangling `vy_episode` reference) and no foreign key at all (009's convention for an owner-keyed table), so there is no referential-integrity predicate for `relcheck` to state. `vy_recall_run` (127) is the identical shape one table over — owner+replica scoped, no citations, no FK — and it carries no `relcheck` entry either, confirmed by grep before this decision was written, not assumed.
+
+**Why.** `relcheck.mjs`'s own job is citation-orphan integrity and `PERSON_TABLES` manifest coverage for person-lane tables; `vy_replica_vibe` is owner-lane (keyed by `replica_id`+`owner_user_id`, never `person_id`) and has nothing of either kind to check. The completeness `relcheck` DOES require — that the table is reachable from erasure — is satisfied by `api/_replica-full-erasure.js`'s own `replica_vibes` CTE, proven directly rather than through this file.
+
+**Reversal.** If a future column on this table adds a `citations` array or an FK-shaped (not-FK) reference to another table, add the matching `relcheck.mjs` check the same way `vy_recall_run` would if it ever grew one.

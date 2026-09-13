@@ -300,6 +300,21 @@ const TARGETS = [
     panels: ".ops-board__panel, .ops-board__room",
     minPanels: 2,
   },
+  // WS-R153. The personal studio's EmotionOS screen (five segmented
+  // controls plus a history list with a one-tap revert) -- the FIRST screen
+  // in the personal studio ("clone" above) with its own Hindi copy, so it
+  // needs its own measured step the same way `studio-hi` needed one for the
+  // creator studio. `?view=emotionos` (CloneExperience.tsx's own `view`
+  // switch); `&lang=` is EmotionOsStudio's own URL-param locale check.
+  {
+    name: "studio:emotionos",
+    fixture: "studio-layout-fixture.html",
+    query: (step) => `step=meet&scenario=voice-ready&view=emotionos&lang=${step}`,
+    steps: ["en", "hi"],
+    mounted: ".emotionos-studio",
+    panels: ".emotionos-studio__form, .emotionos-studio__history",
+    minPanels: 2,
+  },
   {
     name: "room",
     fixture: "room-layout-fixture.html",

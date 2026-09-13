@@ -209,6 +209,10 @@ const FROZEN_DOOR_MODULES_CONTROL = [
 const EXPECTED_DOORS = [
   "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "ops.js", "org.js",
   "payments-webhook.js", "payments.js", "payout-webhook.js", "pulse.js", "readiness.js", "replica.js",
+  // WS-R153 (migration 164): EmotionOS's own owner-bearer door, discovered
+  // through the SAME `_replica.js` anchor `replica.js` itself is — this
+  // entry is what stops it appearing unattacked, per §0's own law.
+  "replica-vibe.js",
   "room-pay.js", "room-publish.js", "room-tg.js", "room-wa.js", "room.js",
 ].sort();
 const FROZEN_EXPECTED_DOORS_CONTROL = [
@@ -396,6 +400,9 @@ const { readEligibleShowcaseCards, dismissFlaggedReply, decideReviewCard, Review
 // none to miss).
 const RECALL_RUN = await import(pathToFileURL(join(API, "_recall-run.js")).href);
 const { runRecallMeasurement } = RECALL_RUN;
+// WS-R153 (migration 164).
+const REPLICA_VIBE = await import(pathToFileURL(join(API, "_replica-vibe.js")).href);
+const { getReplicaVibe, listReplicaVibeHistory, setReplicaVibe, revertReplicaVibe, VIBE_HISTORY_LIMIT_DEFAULT } = REPLICA_VIBE;
 const INVITES = await import(pathToFileURL(join(API, "_invites.js")).href);
 const { issueInvite, requireOperator, InvitesError, hashInviteCode, issueCreatorInvite, myInvites } = INVITES;
 const APPLY = await import(pathToFileURL(join(API, "_apply.js")).href);
@@ -1177,6 +1184,44 @@ console.log("\n── §5: an owner bearer reaching for someone else's replica/o
   okClass("e-owner-bearer", "readiness.js", "the real owner clears the ownership gate (refused later, for having no sources yet, never for ownership)", mine?.code === "recall_set_too_small");
   const stolen = await threw(() => runRecallMeasurement(db, OWNER_B, REPLICA_ID, deps));
   okClass("e-owner-bearer", "readiness.js", "a DIFFERENT owner's bearer against the same replica_id is refused replica_not_found (never reaching the source queries at all)", stolen?.code === "replica_not_found");
+}
+{
+  // WS-R153 (migration 164). The real `api/_replica-vibe.js`, driven with
+  // the full fixture world (`doorsDb`, never a hand-minimal one) so `set`
+  // and `revert` — both real WRITES to `vy_replica_vibe` — are exercised
+  // for real, not merely the ownership SELECT `readiness.js`'s own proof
+  // above is content with.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const mine = await setReplicaVibe(db, OWNER, {
+    replica_id: REPLICA_ID, warmth: 3, energy: 1, humour: 2, directness: 2, formality: 1, note: "owner's own note",
+  });
+  okClass("e-owner-bearer", "replica-vibe.js", "the real owner sets their own vibe", mine?.replica_id === REPLICA_ID && mine?.version === 1);
+  const stolenSet = await threw(() => setReplicaVibe(db, OWNER_B, {
+    replica_id: REPLICA_ID, warmth: 4, energy: 4, humour: 4, directness: 4, formality: 4,
+  }));
+  okClass("e-owner-bearer", "replica-vibe.js", "a DIFFERENT owner's bearer setting a vibe on the same replica_id is refused replica_not_found", stolenSet?.code === "replica_not_found");
+  okClass("e-owner-bearer", "replica-vibe.js", "the REAL owner's vibe is UNCHANGED by the other owner's refused attempt", state.replicaVibes.filter((v) => v.superseded_at == null).length === 1 && state.replicaVibes[0].warmth === 3);
+
+  const mineRead = await getReplicaVibe(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "replica-vibe.js", "the real owner reads their own live vibe", mineRead?.warmth === 3);
+  const stolenRead = await threw(() => getReplicaVibe(db, OWNER_B, REPLICA_ID));
+  okClass("e-owner-bearer", "replica-vibe.js", "a different owner's bearer reading the same replica_id is refused replica_not_found, never another owner's vibe", stolenRead?.code === "replica_not_found");
+
+  const stolenHistory = await threw(() => listReplicaVibeHistory(db, OWNER_B, REPLICA_ID));
+  okClass("e-owner-bearer", "replica-vibe.js", "a different owner's bearer listing history against the same replica_id is refused replica_not_found", stolenHistory?.code === "replica_not_found");
+
+  const stolenRevert = await threw(() => revertReplicaVibe(db, OWNER_B, { replica_id: REPLICA_ID, to_version: 1 }));
+  okClass("e-owner-bearer", "replica-vibe.js", "a different owner's bearer reverting the same replica_id is refused replica_not_found, never another owner's history", stolenRevert?.code === "replica_not_found");
+  okClass("e-owner-bearer", "replica-vibe.js", "the stolen revert attempt wrote NOTHING (no second live row, no version bump)", state.replicaVibes.length === 1);
+
+  // The real owner's own revert, for completeness: sets a second version,
+  // then reverts to version 1 and confirms the LIVE row's dims came back,
+  // as a NEW version (3), never the old row resurrected.
+  await setReplicaVibe(db, OWNER, { replica_id: REPLICA_ID, warmth: 0, energy: 0, humour: 0, directness: 0, formality: 0 });
+  const reverted = await revertReplicaVibe(db, OWNER, { replica_id: REPLICA_ID, to_version: 1 });
+  okClass("e-owner-bearer", "replica-vibe.js", "the real owner's own revert brings version 1's dims back as a NEW version, never the old row resurrected", reverted?.version === 3 && reverted?.warmth === 3);
+  okClass("e-owner-bearer", "replica-vibe.js", "every prior version is retained, never deleted (a real ledger, not a mutable single row)", state.replicaVibes.length === 3);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -3020,6 +3065,17 @@ const OP_COVERAGE = {
   "readiness.js": {
     measure_now: { classes: ["e"] },
   },
+  // WS-R153 (migration 164). All three ops are owner-bearer, no body-
+  // supplied cross-identity id beyond `replica_id` itself (the same shape
+  // `checkins.js`'s `design_create`/`design_list`/`design_pause` above
+  // already carry) — `assertOwned` inside `api/_replica-vibe.js` is the
+  // WHOLE gate, proven directly in §5 below rather than through this
+  // battery's generic fixture world.
+  "replica-vibe.js": {
+    get: { classes: ["e"] },
+    set: { classes: ["e"] },
+    revert: { classes: ["e"] },
+  },
   "account.js": {
     send_otp: { classes: ["h"] },
     verify_otp: { classes: ["h"] },
@@ -4658,6 +4714,21 @@ const OP_INVOKE = {
   },
   "readiness.js": {
     measure_now: (db, body) => runRecallMeasurement(db, OWNER, body.replica_id),
+  },
+  // WS-R153 (migration 164). `get` mirrors the real door's own two-call
+  // shape (live vibe + history) rather than the door's `readReplicaVibe`
+  // convenience wrapper, since that is literally what `api/replica-vibe.js`
+  // itself calls.
+  "replica-vibe.js": {
+    get: async (db, body) => ({
+      vibe: await getReplicaVibe(db, OWNER, body.replica_id),
+      history: await listReplicaVibeHistory(db, OWNER, body.replica_id, body.limit ?? VIBE_HISTORY_LIMIT_DEFAULT),
+    }),
+    set: (db, body) => setReplicaVibe(db, OWNER, {
+      replica_id: body.replica_id, warmth: body.warmth, energy: body.energy,
+      humour: body.humour, directness: body.directness, formality: body.formality, note: body.note,
+    }),
+    revert: (db, body) => revertReplicaVibe(db, OWNER, { replica_id: body.replica_id, to_version: body.to_version }),
   },
 };
 

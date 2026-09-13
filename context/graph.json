@@ -17994,6 +17994,60 @@
       "kind": "measurement",
       "title": "Gate runs on the merged handoff206 tree and the live catalog before and after the apply (2026-09-13)",
       "at": "context/measurements.md#gate-on-the-merged-handoff206-tree-2026-09-13"
+    },
+    {
+      "id": "ws-r153-emotionos-register",
+      "kind": "component",
+      "title": "register.ts: pull-only, LLM-free delivery-register read (rushed/upset/excited/flat/neutral) plus its compiler render gate",
+      "at": "src/engine/register.ts"
+    },
+    {
+      "id": "ws-r153-emotionos-vibe",
+      "kind": "component",
+      "title": "vy_replica_vibe (migration 164): the owner's own five-dial vibe, versioned, plus its decision module and owner-bearer door",
+      "at": "db/migrations/164_replica_vibe.sql"
+    },
+    {
+      "id": "ws-r153-register-surface-features-only-no-keyword-table",
+      "kind": "decision",
+      "title": "register.ts reads surface features only; its one keyword-shaped feature is a verbatim port, never an import (2026-09-13)",
+      "at": "context/decisions.md#ws-r153-register-surface-features-only-no-keyword-table"
+    },
+    {
+      "id": "ws-r153-render-gate-refuses-low-confidence-and-neutral-unconditionally",
+      "kind": "decision",
+      "title": "renderRegisterHint is the one gate: high confidence only, neutral never renders regardless (2026-09-13)",
+      "at": "context/decisions.md#ws-r153-render-gate-refuses-low-confidence-and-neutral-unconditionally"
+    },
+    {
+      "id": "ws-r153-vibe-versioned-append-only-never-mutated-in-place",
+      "kind": "decision",
+      "title": "vy_replica_vibe is never UPDATEd in place; revert writes a new version, never resurrects an old one (2026-09-13)",
+      "at": "context/decisions.md#ws-r153-vibe-versioned-append-only-never-mutated-in-place"
+    },
+    {
+      "id": "ws-r153-no-relcheck-entry-mirrors-vy-recall-run",
+      "kind": "decision",
+      "title": "vy_replica_vibe gets no relcheck.mjs entry, mirroring vy_recall_run's own identical shape (2026-09-13)",
+      "at": "context/decisions.md#ws-r153-no-relcheck-entry-mirrors-vy-recall-run"
+    },
+    {
+      "id": "ws-r153-register-confusion-table",
+      "kind": "measurement",
+      "title": "60 labelled turns, 3 languages: 60/60 (100.0%) after the Devanagari laughter fix, was 59/60 before it (2026-09-13)",
+      "at": "context/measurements.md#ws-r153-register-confusion-table"
+    },
+    {
+      "id": "ws-r153-vibe-render-and-door-battery",
+      "kind": "measurement",
+      "title": "vibe render 37/37, room-doors battery 2305/2305 including 10 new e-owner-bearer proofs against the real decision module (2026-09-13)",
+      "at": "context/measurements.md#ws-r153-vibe-render-and-door-battery"
+    },
+    {
+      "id": "ws-r153-padt-without-combining-marks-breaks-devanagari-laughter",
+      "kind": "rejection",
+      "title": "padT without \\p{M} shattered Devanagari laughter tokens into bare consonants, the same class of bug transcriptStats.ts already documents (2026-09-13)",
+      "at": "context/rejected.md#ws-r153-padt-without-combining-marks-breaks-devanagari-laughter"
     }
   ],
   "edges": [
@@ -30439,6 +30493,41 @@
       "src": "codex-handoff206-adopted-as-the-base",
       "dst": "gate-on-the-merged-handoff206-tree-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r153-emotionos-register",
+      "rel": "constrains",
+      "dst": "ws-r153-render-gate-refuses-low-confidence-and-neutral-unconditionally"
+    },
+    {
+      "src": "ws-r153-render-gate-refuses-low-confidence-and-neutral-unconditionally",
+      "rel": "caused_by",
+      "dst": "ws-r153-register-surface-features-only-no-keyword-table"
+    },
+    {
+      "src": "ws-r153-register-surface-features-only-no-keyword-table",
+      "rel": "measured_by",
+      "dst": "ws-r153-register-confusion-table"
+    },
+    {
+      "src": "ws-r153-register-confusion-table",
+      "rel": "caused_by",
+      "dst": "ws-r153-padt-without-combining-marks-breaks-devanagari-laughter"
+    },
+    {
+      "src": "ws-r153-emotionos-vibe",
+      "rel": "constrains",
+      "dst": "ws-r153-vibe-versioned-append-only-never-mutated-in-place"
+    },
+    {
+      "src": "ws-r153-vibe-versioned-append-only-never-mutated-in-place",
+      "rel": "measured_by",
+      "dst": "ws-r153-vibe-render-and-door-battery"
+    },
+    {
+      "src": "ws-r153-emotionos-vibe",
+      "rel": "constrains",
+      "dst": "ws-r153-no-relcheck-entry-mirrors-vy-recall-run"
     }
   ]
 }

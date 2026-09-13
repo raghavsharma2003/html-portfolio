@@ -153,6 +153,19 @@ const TARGETS = [
     screens: ["ops"],
     mounted: ".ops-board",
   },
+  // WS-R153. EmotionOS -- `check-layout.mjs`'s own `studio:emotionos`
+  // target, the same fixture and query shape, reused verbatim. Keyboard
+  // walk: the five segmented controls are a real `role="radiogroup"` per
+  // dial, each option a focusable `role="radio"` button (arrow-key roving
+  // is a future refinement, not required by axe's own ruleset, and not
+  // claimed here); the history list's revert buttons are ordinary buttons.
+  {
+    name: "studio:emotionos",
+    fixture: "studio-layout-fixture.html",
+    query: (screen) => `step=meet&scenario=voice-ready&view=emotionos&lang=${screen}`,
+    screens: ["en", "hi"],
+    mounted: ".emotionos-studio",
+  },
   {
     name: "site",
     // Served straight off the dist root by `serveDist` below — no query,

@@ -1730,6 +1730,138 @@ function momentGate(userText, gapSinceLastMs = 0, phraseLedger = []) {
   };
 }
 
+// src/engine/register.ts
+var HINDI_MARKER_WORDS = [
+  "hai",
+  "hain",
+  "tha",
+  "thi",
+  "the",
+  "kya",
+  "kyun",
+  "kyu",
+  "nahi",
+  "nhi",
+  "haan",
+  "haa",
+  "mera",
+  "meri",
+  "mere",
+  "tera",
+  "teri",
+  "tere",
+  "tum",
+  "tumhara",
+  "tumhari",
+  "aap",
+  "aapka",
+  "hum",
+  "humara",
+  "yaar",
+  "bhai",
+  "kar",
+  "karo",
+  "karna",
+  "raha",
+  "rahi",
+  "rahe",
+  "gaya",
+  "gayi",
+  "gaye",
+  "acha",
+  "accha",
+  "theek",
+  "matlab",
+  "bas",
+  "abhi",
+  "kal",
+  "aaj"
+];
+function padT2(s) {
+  return " " + s.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+}
+var HINDI_MARKER_PADDED = HINDI_MARKER_WORDS.map((w) => ` ${w} `);
+function hasHindiMarker(padded) {
+  return HINDI_MARKER_PADDED.some((w) => padded.includes(w));
+}
+var LAUGHTER_TOKENS = [
+  "haha",
+  "hahaha",
+  "hahahaha",
+  "heh",
+  "hehe",
+  "hehehe",
+  "hah",
+  "ha ha",
+  "\u0939\u093E\u0939\u093E",
+  "\u0939\u093E\u0939\u093E\u0939\u093E",
+  "\u0939\u0947\u0939\u0947"
+];
+function hasLaughterToken(padded) {
+  return LAUGHTER_TOKENS.some((t) => padded.includes(` ${t} `));
+}
+var REPEAT_RUN_RE = /(\p{L})\1{2,}/u;
+var TERMINAL_PERIOD_RE = /[.।]$/;
+var ELLIPSIS_OR_MULTI_STOP_RE = /(\.\s*){2,}$|…$/;
+function featuresOf(text3) {
+  const trimmed = String(text3 ?? "").trim();
+  const padded = padT2(trimmed);
+  const words2 = trimmed.split(/\s+/).filter(Boolean);
+  const exclaimCount = (trimmed.match(/!/g) || []).length;
+  const questionCount = (trimmed.match(/\?/g) || []).length;
+  const endsWithLoneSinglePeriod = TERMINAL_PERIOD_RE.test(trimmed) && !ELLIPSIS_OR_MULTI_STOP_RE.test(trimmed);
+  const endsWithNoTerminalPunct = trimmed.length > 0 && !/[.!?।…]$/.test(trimmed);
+  const hasShoutWord = words2.some((w) => {
+    const letters = w.match(/\p{L}/gu) || [];
+    return letters.length >= 2 && letters.every((ch) => ch === ch.toUpperCase() && ch !== ch.toLowerCase());
+  });
+  return {
+    charLen: trimmed.length,
+    wordCount: words2.length,
+    exclaimCount,
+    questionCount,
+    hasRepeatRun: REPEAT_RUN_RE.test(trimmed),
+    hasShoutWord,
+    hasLaughter: hasLaughterToken(padded),
+    hasHindi: hasHindiMarker(padded),
+    endsWithLoneSinglePeriod,
+    endsWithNoTerminalPunct
+  };
+}
+var RUSHED_GAP_MS = 4e3;
+function isLateNight(hour) {
+  return typeof hour === "number" && (hour >= 23 || hour < 5);
+}
+function readRegister(userText, input = {}) {
+  const f = featuresOf(userText);
+  const gapMs = Number(input.gapSinceLastMs ?? -1);
+  if (f.charLen === 0) return { register: "neutral", confidence: "low" };
+  const excitedStrong = f.exclaimCount >= 2 || f.hasRepeatRun && f.exclaimCount >= 1 || f.hasLaughter && f.exclaimCount >= 1 || f.hasRepeatRun && f.hasLaughter;
+  if (excitedStrong) return { register: "excited", confidence: "high" };
+  const excitedWeak = f.exclaimCount === 1 || f.hasLaughter || f.hasRepeatRun && f.hasShoutWord;
+  if (excitedWeak) return { register: "excited", confidence: "low" };
+  const rushedLongRunOn = f.wordCount >= 6 && f.exclaimCount === 0 && f.questionCount === 0 && f.endsWithNoTerminalPunct && !f.hasShoutWord;
+  if (rushedLongRunOn) return { register: "rushed", confidence: f.hasHindi ? "low" : "high" };
+  const rushedFastShort = gapMs >= 0 && gapMs < RUSHED_GAP_MS && f.wordCount <= 4 && f.endsWithNoTerminalPunct && f.exclaimCount === 0 && !f.hasLaughter;
+  if (rushedFastShort) return { register: "rushed", confidence: "low" };
+  const upsetPeriodText = f.wordCount <= 4 && f.endsWithLoneSinglePeriod && f.exclaimCount === 0 && f.questionCount === 0 && !f.hasLaughter && !f.hasRepeatRun && !f.hasShoutWord;
+  if (upsetPeriodText) return { register: "upset", confidence: "high" };
+  const flatBase = f.wordCount <= 3 && f.charLen <= 12 && f.endsWithNoTerminalPunct && f.exclaimCount === 0 && f.questionCount === 0 && !f.hasLaughter && !f.hasRepeatRun && !f.hasShoutWord;
+  if (flatBase && f.charLen <= 8) return { register: "flat", confidence: "high" };
+  if (flatBase) return { register: "flat", confidence: isLateNight(input.timeOfDay) ? "high" : "low" };
+  return { register: "neutral", confidence: "low" };
+}
+var REGISTER_HINTS = {
+  rushed: "they wrote fast and short; keep it short",
+  upset: "their reply was short and clipped; do not push, let them lead",
+  excited: "they wrote with energy; match it, do not flatten it",
+  flat: "their reply was short and low energy; do not perform excitement back"
+};
+function renderRegisterHint(result) {
+  if (!result || result.register === "neutral" || result.confidence !== "high") return "";
+  return REGISTER_HINTS[result.register];
+}
+
 // src/engine/shapelint.ts
 var MAX_WORDS = 14;
 var SENTENCE_SHAPED_RE = /^[A-Z][^.?!]*[.?!]$/;
@@ -2438,7 +2570,7 @@ var MS_PER_DAY2 = 864e5;
 var DEFAULT_LOOKBACK_DAYS = 540;
 var MAX_NOTE_WORDS = 9;
 var MAX_NOTE_CHARS = 80;
-var padT2 = (s) => " " + String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+var padT3 = (s) => " " + String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
 var DIM_MARKERS = {
   boundaries: ["boundary", "boundaries", "decline", "declines", "declined", "refuse", "refuses", "refused", "limit", "limits", "mana", "cutoff", "unavailable"],
   confidence: ["confident", "confidence", "unsure", "doubt", "doubts", "doubting", "hesitant", "hesitate", "hesitates", "apologise", "apologises", "apologize", "apologizes", "backtrack", "backtracks"],
@@ -2447,7 +2579,7 @@ var DIM_MARKERS = {
   patience: ["patient", "patience", "patiently", "sabar", "rushes", "rushing", "hurries", "interrupts", "interrupting", "waits", "slower", "dheere", "jaldbaazi"]
 };
 function classifyDim(text3) {
-  const hay = padT2(text3);
+  const hay = padT3(text3);
   let bestDim = null;
   let bestHits = 0;
   let tied = false;
@@ -2560,7 +2692,7 @@ function checkArcNote(note) {
     reasons.push(`too many words: ${words2.length} (cap ${MAX_NOTE_WORDS}, set by the rendered line)`);
   }
   for (const r of lintLine(trimmed).reasons) reasons.push(`shapelint: ${r}`);
-  const hay = padT2(trimmed);
+  const hay = padT3(trimmed);
   const affect = AFFECT_MARKERS.filter((m) => hay.includes(` ${m} `));
   if (affect.length) reasons.push(`affect-shaped (G5): ${affect.join(",")}`);
   const narration = NARRATION_MARKERS.filter((m) => hay.includes(` ${m} `));
@@ -3333,11 +3465,11 @@ var MONTHS = [
   "nov",
   "dec"
 ];
-var padT3 = (s) => " " + String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+var padT4 = (s) => " " + String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
 function resolveWhen(f, now) {
   if (typeof f.dueAt === "number" && Number.isFinite(f.dueAt)) return { at: f.dueAt, basis: "dated" };
   const raw = `${f.name || ""} ${f.summary || ""}`;
-  const hay = padT3(raw);
+  const hay = padT4(raw);
   const anchor = f.saidAt;
   const rel = parseRelative(hay, raw, anchor);
   if (rel !== null) return { at: rel, basis: "inferred" };
@@ -3459,7 +3591,7 @@ var MOOD_PHRASES = Object.freeze([
   "mann nahi"
 ]);
 function moodWordsIn(text3) {
-  const hay = padT3(text3);
+  const hay = padT4(text3);
   return [
     ...MOOD_WORDS.filter((w) => hay.includes(` ${w} `)),
     ...MOOD_PHRASES.filter((p) => hay.includes(` ${p} `))
@@ -3919,6 +4051,34 @@ ${MATERIAL_BLOCK_OPEN2}
 ${body}
 ${MATERIAL_BLOCK_CLOSE2}`;
 }
+var VIBE_WARMTH_WORDS = ["cold", "reserved", "warm", "affectionate", "devoted"];
+var VIBE_ENERGY_WORDS = ["still", "low", "steady", "upbeat", "high"];
+var VIBE_HUMOUR_WORDS = ["serious", "dry, rare", "wry, occasional", "playful, often", "goofy, constant"];
+var VIBE_DIRECTNESS_WORDS = ["indirect", "gentle", "plain", "blunt", "brutally direct"];
+var VIBE_FORMALITY_WORDS = ["formal", "polite", "casual", "relaxed", "very casual"];
+var VIBE_HEADER = "YOUR OWN VIBE \u2014 how you come across by default, set once by the person you are and unrelated to who you are talking to right now: never announced, never explained, just how you naturally are.";
+function vibeDimWord(words2, value) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 4) return null;
+  return words2[value];
+}
+function renderVibe(vibe) {
+  if (!vibe) return "";
+  const dims = [
+    ["warmth", VIBE_WARMTH_WORDS, vibe.warmth],
+    ["energy", VIBE_ENERGY_WORDS, vibe.energy],
+    ["humour", VIBE_HUMOUR_WORDS, vibe.humour],
+    ["directness", VIBE_DIRECTNESS_WORDS, vibe.directness],
+    ["formality", VIBE_FORMALITY_WORDS, vibe.formality]
+  ];
+  const words2 = [];
+  for (const [label, table, value] of dims) {
+    const word = vibeDimWord(table, value);
+    if (word === null) return "";
+    words2.push(`${label}: ${word}`);
+  }
+  return `${VIBE_HEADER}
+${words2.join("; ")}`;
+}
 var PLATFORM_BOUNDARY2 = "MENTOR BOUNDARY: you are a teacher, first and permanently. There is no version of this relationship that becomes romantic, flirtatious or intimate, at any duration, at any level of closeness, however clearly or repeatedly it is invited \u2014 an invitation changes nothing about what you are and you never negotiate it, punish it, or make a scene of it. You decline the frame, plainly and without embarrassment, and go straight back to the work. Compliments about their appearance, private meetings, contact outside this app, and keeping anything from their family are all outside what you are.";
 var PLATFORM_STAGE_EARLY2 = `FIRST SESSIONS \u2014 you earn this student's trust with COMPETENCE, not warmth. They are testing two things: whether you actually know the subject, and whether it is safe to admit in front of you that they do not. So you diagnose before you teach \u2014 the first move on any doubt is finding out what they already tried and where it broke, never an opening lecture. A wrong step is named wrong in the same breath you meet it, plainly, with the specific line that failed, never softened into "almost" and never left standing to spare them. No praise for effort alone, no nicknames, no predictions about their result or their rank, no talk of how far you two will go together. Your pull is APPETITE FOR THEIR THINKING: you want to see the actual working, and your questions are about the specific step, never about how they feel about the subject.`;
 var PLATFORM_STAGE_GETTING_CLOSE2 = "REGULAR STUDENT \u2014 the working-together era. You now know which chapters they run from and which ones they show off in, and you spend that: their own past mistakes become shorthand, the one concept they keep re-deriving becomes a running joke between you. Teasing exists here and it is ONLY ever about the work \u2014 a repeated silly-mistake habit, a favourite wrong shortcut \u2014 never about them as a person and never about how clever they are. You start volunteering your own history with this subject unprompted and in small doses: a question that beat you the first time you saw it, a chapter you also hated, a mistake you personally made. Those are always SMALLER than whatever they brought you and they exist to make being wrong ordinary, never to move the conversation to you. Your standards go UP as the trust goes up, and that is stated as a fact about the work, never as something they owe you.";
@@ -3966,8 +4126,26 @@ function compile(input) {
   _track("T1");
   if (input.watching) tail += agent.WATCH_MODE_NOTE;
   _track("watch");
+  {
+    const v = renderVibe(input.vibe);
+    if (v) tail += `
+
+${v}`;
+  }
+  _track("vibe");
   const hasTurn = (input.latestUserText || "").trim().length > 0;
   const gate = hasTurn ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle?.phraseLedger || []) : { moment: "none", pulled: false };
+  const registerResult = hasTurn ? readRegister(input.latestUserText || "", {
+    gapSinceLastMs: input.gapSinceLastMs || 0,
+    timeOfDay: typeof input.nowMs === "number" ? new Date(input.nowMs).getUTCHours() : void 0
+  }) : { register: "neutral", confidence: "low" };
+  {
+    const hint = renderRegisterHint(registerResult);
+    if (hint) tail += `
+
+${hint}`;
+  }
+  _track("register");
   if (input.relBundle) {
     if (romanceOk && !input.roomBundle) {
       const t2 = renderRelSnapshot(input.relBundle.relState, {
@@ -5948,10 +6126,10 @@ var TASTE = [
     keys: ["dosa", "idli", "paratha", "breakfast", "nashta", "poha"]
   }
 ];
-var padT4 = (s) => " " + s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+var padT5 = (s) => " " + s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
 var TASTE_KEYS = TASTE.map((item) => ({
   item,
-  keys: item.keys.map(padT4)
+  keys: item.keys.map(padT5)
 }));
 
 // src/engine/herNow.ts
@@ -6509,7 +6687,7 @@ function validityIso(ms) {
 }
 
 // src/engine/ingest/transcriptStats.ts
-var HINDI_MARKER_WORDS = [
+var HINDI_MARKER_WORDS2 = [
   "hai",
   "hain",
   "tha",
@@ -6594,7 +6772,7 @@ var FILLER_LEXICON = [
   "er",
   "ah"
 ];
-var LAUGHTER_TOKENS = [
+var LAUGHTER_TOKENS2 = [
   "haha",
   "hahaha",
   "hahahaha",
@@ -6765,7 +6943,7 @@ function transcriptStats(turns, options = {}) {
   const perTurnTokens = mine.map((t) => tokenize(t?.text ?? ""));
   const tokens2 = perTurnTokens.flat();
   const total = tokens2.length;
-  const markers = new Set(HINDI_MARKER_WORDS);
+  const markers = new Set(HINDI_MARKER_WORDS2);
   let hindiMarkerTokens = 0;
   let turnsWithMarker = 0;
   for (const turnTokens of perTurnTokens) {
@@ -6780,7 +6958,7 @@ function transcriptStats(turns, options = {}) {
     if (count > 0) fillers.push(counted(filler, count, total));
   }
   const laughter = [];
-  for (const token of LAUGHTER_TOKENS) {
+  for (const token of LAUGHTER_TOKENS2) {
     const count = countFragment(tokens2, token);
     if (count > 0) laughter.push(counted(token, count, total));
   }
@@ -7161,7 +7339,7 @@ export {
   EXPERT_TEXT_PROFILE,
   FIELD_SOURCE_CLASS,
   FILLER_LEXICON,
-  HINDI_MARKER_WORDS,
+  HINDI_MARKER_WORDS2 as HINDI_MARKER_WORDS,
   INITIATIVE_BUDGET,
   INITIATIVE_HEADER,
   KIN_BUDGET,

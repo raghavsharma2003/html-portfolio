@@ -580,6 +580,8 @@ const API = join(REPO, "api");
 const MIRRORED_EXPECTED_DOORS = [
   "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "ops.js", "org.js",
   "payments-webhook.js", "payments.js", "payout-webhook.js", "pulse.js", "readiness.js", "replica.js",
+  // WS-R153 (migration 164).
+  "replica-vibe.js",
   "room-pay.js", "room-publish.js", "room-tg.js", "room-wa.js", "room.js",
 ].sort();
 

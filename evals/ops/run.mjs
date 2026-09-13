@@ -718,9 +718,11 @@ console.log("\n── §5b: incidentsOverview (the Incidents card) ──");
   // WS-R123, law 4: the derived door count, both halves the SAME literal
   // (`api/_incidents.js#OBSERVED_DOOR_COUNT`) - a completeness badge, not
   // computed from the incident rows seeded above (which is why it is 18/18
-  // even though this fixture seeded only 3 distinct doors).
+  // even though this fixture seeded only 3 distinct doors). WS-R153
+  // (migration 164) added a 19th door (replica-vibe.js); this literal is
+  // the constant's own mirror, updated alongside it.
   ok("incidentsOverview carries the derived door count on both halves, equal (a completeness badge, not a live count)",
-    card.doors_observed === 18 && card.doors_total === 18 && card.doors_observed === card.doors_total);
+    card.doors_observed === 19 && card.doors_total === 19 && card.doors_observed === card.doors_total);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
