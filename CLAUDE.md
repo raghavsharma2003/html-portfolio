@@ -138,7 +138,7 @@ run) bind Vyakti work exactly as they bind Meera's. Migrations: **015 through
 100, 103, 117, 124 and 131, which are unused (WS-R38, WS-R41, WS-R70, WS-R87 and WS-R126 needed no
 schema change);
 066-070 are deliberately left unused** (another agent's unpushed tree already
-occupies those numbers live). **137 and 139 through 162 were applied live on 2026-09-13 (138 and 157 unused); 163 is the next free number.**
+occupies those numbers live). **137, 139 through 164 and 166 were applied live on 2026-09-13 (138, 157 and 165 unused); 167 is the next free number.**
 `context/STATE.md`'s session log carries the live-verification entry for each.
 
 **Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an

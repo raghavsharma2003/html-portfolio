@@ -18174,3 +18174,22 @@ n=60 is small (this is a heuristic classifier's own authoring-time self-check, n
 ## `ws-r153-vibe-render-and-door-battery` (2026-09-13, WS-R153)
 
 Method: `node evals/emotionos/run.mjs` (§3, vibe render: 37 assertions, all pass) and `node evals/room-doors/run.mjs` (full battery, 2305 checks, 0 failed, including 10 new `e-owner-bearer` assertions against the real `api/_replica-vibe.js` driven with the full `doorsDb` fixture world: set/get/history/revert each proven refused for a different owner's bearer with `replica_not_found`, and the real owner's own revert proven to bring an old version's dims back as a NEW version while every prior version is retained). Also `node evals/creator-export/run.mjs` (57 passed), `node evals/room-leak/run.mjs` (341 passed), `node evals/room-export/run.mjs` (48 passed), `node src/engine/__fixtures__/byte-identity.mjs` (83/83), `node evals/persona-invariants.mjs` (654 checks across 3 agents), `node scripts/check-prompt-budget.mjs` (ok), `npx tsc -b --force` (clean), `npx vite build` (clean). All offline, $0, no live DB, no model call. Date 2026-09-13.
+
+## `wave-21-merges-2026-09-13`
+
+Method: each workstream's own report (suite counts as printed by its suites), the main loop's touched-suite reruns on the merged tree, three full gates (`node scripts/verify-release.mjs`) on the batch; live apply receipts in the session scratchpad; date 2026-09-13.
+
+| workstream | merged | proof on the merged tree |
+|---|---|---|
+| WS-R157 the Vyakti mobile app | 01609dc, 0405ab3 | vyakti-app 116 of 116 (its Chromium recording check failed only under load 55) |
+| WS-R151 HumanOS, the person sheet (163) | d581b67 | person-sheet 41, teachersheet 132 |
+| WS-R160 the Room and the landing for any person | 140b8e2 | room-copy 19, site-landing 15, room-taste 42, room-share 56 |
+| WS-R156 voice replies that start fast | 666d420 | room-speak-plan 118, room-doors 2251; time to first audio 5.0x sooner (n=10 per arm, fixed-cost synthesiser) |
+| WS-R152 Deploy for a personal AI | f788c6d | deploy-studio 24 |
+| WS-R154 RelationOS in the Room (no migration) | 7c186b5 | room-relstate 31, room-leak 363, room-doors 2279, room-cohorts 62 |
+| WS-R155 Sounds like you and the listening test (166) | 56a394b | listeningtest 52, voicepreviewui 24 |
+| WS-R158 the personal journey rehearsed | 6be3323 | rehearsal-personal 28 over 3 runs, browser-resource 12 |
+| WS-R159 the personal studio in Hindi | fad2b0f | studio-locale-personal 28, conversation-setup-ui, private-rehearsal-combined |
+| WS-R153 EmotionOS, vibe and register (164) | e41589a | emotionos 37 (60 of 60 labelled turns), room-doors 2305, incidents, ops, lanes |
+
+Full gate on the batch: seven merges 24 of 24 after the four repairs; nine merges 24 of 24 (5d68438, CI green on both workflows); eleven merges 24 of 24 (e41589a). Live database after the wave: migrations 163, 164 and 166 applied one statement per request (3 + 3 + 3 statements, 0 failures), 207 `vy_` tables; 165 unused (WS-R154 needed no schema change).

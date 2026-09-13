@@ -18612,6 +18612,18 @@
       "kind": "rejection",
       "title": "padT without \\p{M} shattered Devanagari laughter tokens into bare consonants, the same class of bug transcriptStats.ts already documents (2026-09-13)",
       "at": "context/rejected.md#ws-r153-padt-without-combining-marks-breaks-devanagari-laughter"
+    },
+    {
+      "id": "wave-21-merged-as-a-batch-under-contention",
+      "kind": "decision",
+      "title": "Wave twenty-one merged under the fast checks with one batch gate per seven, nine and eleven merges (2026-09-13)",
+      "at": "context/decisions.md#wave-21-merged-as-a-batch-under-contention"
+    },
+    {
+      "id": "wave-21-merges-2026-09-13",
+      "kind": "measurement",
+      "title": "Wave twenty-one's ten merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
+      "at": "context/measurements.md#wave-21-merges-2026-09-13"
     }
   ],
   "edges": [
@@ -31577,6 +31589,16 @@
       "src": "ws-r153-emotionos-vibe",
       "rel": "constrains",
       "dst": "ws-r153-no-relcheck-entry-mirrors-vy-recall-run"
+    },
+    {
+      "src": "wave-21-merged-as-a-batch-under-contention",
+      "dst": "wave-21-merges-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave-21-merged-as-a-batch-under-contention",
+      "dst": "wave-21-merge-gate-found-four-cross-workstream-breaks",
+      "rel": "constrains"
     }
   ]
 }

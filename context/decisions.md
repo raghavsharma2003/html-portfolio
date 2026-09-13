@@ -24570,3 +24570,11 @@ into it.
 **Why.** `relcheck.mjs`'s own job is citation-orphan integrity and `PERSON_TABLES` manifest coverage for person-lane tables; `vy_replica_vibe` is owner-lane (keyed by `replica_id`+`owner_user_id`, never `person_id`) and has nothing of either kind to check. The completeness `relcheck` DOES require — that the table is reachable from erasure — is satisfied by `api/_replica-full-erasure.js`'s own `replica_vibes` CTE, proven directly rather than through this file.
 
 **Reversal.** If a future column on this table adds a `citations` array or an FK-shaped (not-FK) reference to another table, add the matching `relcheck.mjs` check the same way `vy_recall_run` would if it ever grew one.
+
+## `wave-21-merged-as-a-batch-under-contention` (2026-09-13, main loop)
+
+**Decision.** Wave twenty-one's ten workstreams were merged one at a time under the fast checks (typecheck, engine bundle, copy law, mirrors, workflow lint, context graph) and each workstream's touched suites, with the full 24-check gate run on the batch rather than after every merge: three full runs in all (seven merges, nine merges, eleven merges plus the repairs), each 24 of 24 when quiet.
+
+**Why.** Ten agents ran their own full gates on the same four-core container at once, holding the load average between 40 and 63 for two hours; a full gate under that load took over an hour and failed on port collisions and browser-timed checks that measure the machine, not the tree (`measurements.md#wave-21-batch-gate-2026-09-13`). Merging under the fast checks kept the wave moving while the load fell, and the batch gate found the four cross-workstream breaks a per-merge gate would have found one at a time.
+
+**Reversal.** If a batch gate ever fails in a way that cannot be attributed to one merge within the batch by the touched-suite evidence, the wave goes back to one full gate per merge; the agents' own full gates are then run serially by the main loop, never ten at once.
