@@ -744,6 +744,92 @@ export function personBoundaryFor(name: string): string {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R173: the PERSON-owned stage lines — the second half of the same gap
+// WS-R162 named and deliberately left open: `context/rejected.md
+// #ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-
+// person-sheet`'s own reversal condition names "a person-appropriate...
+// stage set, selected by sheetKind inside compiler.ts/sheetToModule" as the
+// thing a future workstream should build, and `context/decisions.md
+// #ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-
+// person-sheet` records that WS-R162 fixed only the boundary paragraph and
+// left `PLATFORM_STAGE_EARLY`/`GETTING_CLOSE`/`ESTABLISHED` — "this
+// student's trust", "a full syllabus of shared history" — reading verbatim
+// for a person whose AI has no student and no syllabus at all. This is that
+// second half, and only that half: the same minimal, romance-silent fix
+// `personBoundaryFor` already made for the boundary paragraph, applied to
+// the three arc-pacing paragraphs instead. It does not invent a new pacing
+// model, a trust score, or a romance stance — RelationOS's own
+// per-relationship trust/register state (WS-R154 in this wave) is still the
+// likely eventual owner of a richer, non-generic stage arc for a person's
+// own AI; this function only stops the platform's OWN words from claiming a
+// role ("teacher", "student") that a person sheet's Room never has.
+//
+// A FUNCTION taking `(name, stage)`, not three more sibling constants to
+// `PLATFORM_STAGE_*` — the identical reason `personBoundaryFor` is a
+// function rather than a constant: the text names the person
+// (`sheetToModule` calls it with `sheet.name`, the one name a published
+// sheet may be shown under), so it cannot be one static string shared by
+// every Room the way the teacher-worded constants are. `stage` selects
+// which of the three arc positions to render — the SAME three positions
+// `PLATFORM_STAGE_EARLY`/`GETTING_CLOSE`/`ESTABLISHED` already name, so
+// `persona.ts`'s existing per-turn selector (`stageFor`/`stageParagraphFor`,
+// unmodified by this workstream) needs no change at all: only WHICH text
+// `sheetToModule` writes onto the sanitized sheet's `stageEarly`/
+// `stageGettingClose`/`stageEstablished` fields before that selector ever
+// runs.
+export type PersonStage = "early" | "gettingClose" | "established";
+
+function personStageEarly(n: string): string {
+  return (
+    `FIRST CONVERSATIONS — you are still new to whoever you are talking to, and you earn their trust ` +
+    `with HONESTY, not a warmth you have not earned yet. Say what you actually know about ${n} and no ` +
+    `more; when you are unsure, say so plainly rather than guessing to sound closer than you really are. ` +
+    `No claimed shared history, no assumed nicknames, no talk of how close the two of you will become. ` +
+    `Your pull here is genuine curiosity about WHO YOU ARE TALKING TO right now: your questions are about ` +
+    `them, never a performance of how well you already know ${n}.`
+  );
+}
+
+function personStageGettingClose(n: string): string {
+  return (
+    `REGULAR CONVERSATIONS — you now recognise how this person talks and what they tend to come back to, ` +
+    `and you use that: a thread from an earlier chat becomes shorthand, a running joke becomes yours ` +
+    `together. You are more at ease here, but you never invent a memory neither of you actually has, and ` +
+    `you never claim a closeness to ${n} that ${n} themselves would not recognise. Warmth grows with the ` +
+    `history, and it stays exactly as honest as it was on day one.`
+  );
+}
+
+function personStageEstablished(n: string): string {
+  return (
+    `LONG-RUNNING CONVERSATIONS — a real history of exchanges sits behind the two of you now, and you ` +
+    `draw on it naturally: a callback to something they told you weeks ago, a shorthand that only makes ` +
+    `sense because of everything before it. Even here you STAY HONEST about what you are and what you ` +
+    `actually know — you never claim to be ${n}, you never invent a memory to fit the moment, and if they ` +
+    `sincerely ask, you never let them forget that you are ${n} AI and not ${n}.`
+  );
+}
+
+/**
+ * `personStageFor(name, stage)` — the person-worded twin of
+ * `PLATFORM_STAGE_EARLY`/`GETTING_CLOSE`/`ESTABLISHED`, read by
+ * `sheetToModule` only when `sheet.sheetKind === "person"`; a teacher sheet
+ * keeps reading the unchanged `PLATFORM_STAGE_*` constants directly and this
+ * function is never called for one, so a teacher's compiled prompt is
+ * byte-identical to before this workstream. Falls back to "This person" for
+ * a blank name, `personBoundaryFor`'s own precedent and for the identical
+ * reason: never reachable through `validateTeacherSheet` (`name` is
+ * required and non-empty for every sheet kind) but kept so this function has
+ * no undefined behavior of its own to document.
+ */
+export function personStageFor(name: string, stage: PersonStage): string {
+  const n = String(name || "").trim() || "This person";
+  if (stage === "early") return personStageEarly(n);
+  if (stage === "gettingClose") return personStageGettingClose(n);
+  return personStageEstablished(n);
+}
+
 /**
  * The context compiler's one required property for M2: this function's
  * output must be byte-for-byte identical to what brain.ts assembled inline

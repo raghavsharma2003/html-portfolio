@@ -77,6 +77,13 @@ const {
 } = await import(pathToFileURL(join(API, "_room-publish.js")).href);
 const { publicRoomAboutBySlug, buildRoomAboutHtml } = await import(pathToFileURL(join(API, "_room-about.js")).href);
 const { READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } = await import(pathToFileURL(join(API, "_readiness.js")).href);
+// WS-R173: the card's own read + layout — `evals/room-card/run.mjs` proves
+// the RENDERER; this suite proves the READ (`publicRoomCardBySlug`) against
+// a real, lateral-joined fake db, the SAME shape PART B's own `aboutDb`
+// already uses for the about page's identical join.
+const {
+  publicRoomCardBySlug, cardInputFor, computeCardLayout,
+} = await import(pathToFileURL(join(API, "_room-card.js")).href);
 
 // ═══════════════════════════════════════════════════════════════════════
 // PART A: the publish lock, real code, a fixture db — `evals/room-publish/
@@ -301,7 +308,11 @@ writeFileSync(
   ENTRY,
   `export { sheetToModule } from ${JSON.stringify(join(REPO, "src/engine/agents/fromSheet"))};\n` +
     `export { DEMO_TEACHER } from ${JSON.stringify(join(REPO, "src/engine/agents/characters/demoTeacher"))};\n` +
-    `export { PLATFORM_BOUNDARY, personBoundaryFor } from ${JSON.stringify(join(REPO, "src/engine/compiler"))};\n`,
+    // WS-R173: the stage constants/function join the same bundle — the
+    // second half of the gap PART C's own boundary proof already closes for
+    // the boundary paragraph.
+    `export { PLATFORM_BOUNDARY, personBoundaryFor, PLATFORM_STAGE_EARLY, PLATFORM_STAGE_GETTING_CLOSE, ` +
+    `PLATFORM_STAGE_ESTABLISHED, personStageFor } from ${JSON.stringify(join(REPO, "src/engine/compiler"))};\n`,
 );
 const BUNDLE = join(OUT, "person-room.bundle.mjs");
 execSync(
@@ -310,7 +321,10 @@ execSync(
   { cwd: REPO, stdio: "inherit" },
 );
 const M = await import(pathToFileURL(BUNDLE).href);
-const { sheetToModule, DEMO_TEACHER, PLATFORM_BOUNDARY, personBoundaryFor } = M;
+const {
+  sheetToModule, DEMO_TEACHER, PLATFORM_BOUNDARY, personBoundaryFor,
+  PLATFORM_STAGE_EARLY, PLATFORM_STAGE_GETTING_CLOSE, PLATFORM_STAGE_ESTABLISHED, personStageFor,
+} = M;
 
 // The SAME person this suite already published a Room for and rendered an
 // about page for - "Priya Menon", the SAME name, so this is one coherent
@@ -340,6 +354,123 @@ ok(
 const compiledTeacher = sheetToModule(DEMO_TEACHER);
 const compiledTeacherCore = compiledTeacher.buildSystemPromptParts({ name: "a student", vibe: [], facts: {} }, 5, "text").core;
 ok("a TEACHER sheet's compiled prompt still carries the unchanged PLATFORM_BOUNDARY", compiledTeacherCore.includes(PLATFORM_BOUNDARY));
+
+// ═══════════════════════════════════════════════════════════════════════
+// PART D: the STAGE LINES stop saying "teacher" for a person too - WS-R173,
+// the second half of the same gap `context/rejected.md
+// #ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-
+// person-sheet` named and WS-R162 (PART C above) deliberately left open for
+// only the boundary paragraph. Same three arc positions `persona.ts`'s own
+// `stageFor` selects on messageCount (unmodified by this workstream: < 30
+// early, < 150 getting close, established beyond that).
+// ═══════════════════════════════════════════════════════════════════════
+
+console.log('\n── PART D: the compiled prompt\'s stage lines stop saying "teacher" for a person ──');
+
+const STAGE_CASES = [
+  ["early", 5, PLATFORM_STAGE_EARLY],
+  ["gettingClose", 60, PLATFORM_STAGE_GETTING_CLOSE],
+  ["established", 200, PLATFORM_STAGE_ESTABLISHED],
+];
+// `stageParagraphFor`'s own output lands in the TAIL, not the core
+// (`persona.ts`'s own template: "Relationship stage right now: ..." sits in
+// the `=== RIGHT NOW ===` block `buildSystemPromptParts` returns as `tail`)
+// — checked as `core + tail` below, the same "whole compiled prompt"
+// combination `evals/room-leak/run.mjs`'s own PLATFORM_STAGE_* assertions
+// use, so this proof does not depend on which half of the split a future
+// refactor moves this text into.
+for (const [stage, messageCount, platformText] of STAGE_CASES) {
+  const personParts = sheetToModule(PERSON_SHEET)
+    .buildSystemPromptParts({ name: "a follower", vibe: [], facts: {} }, messageCount, "text");
+  const personFull = personParts.core + personParts.tail;
+  const expectedStage = personStageFor(PERSON_SHEET.name, stage);
+  ok(`${stage} (messageCount ${messageCount}): the compiled prompt carries personStageFor("Priya Menon", "${stage}") verbatim`,
+    personFull.includes(expectedStage));
+  ok(`${stage}: the compiled prompt never carries the teacher-worded PLATFORM_STAGE_* text`,
+    !personFull.includes(platformText));
+
+  // Regression: the SAME messageCount, the teacher path — still the
+  // unchanged platform text, never this workstream's person wording.
+  const teacherParts = sheetToModule(DEMO_TEACHER)
+    .buildSystemPromptParts({ name: "a student", vibe: [], facts: {} }, messageCount, "text");
+  const teacherFull = teacherParts.core + teacherParts.tail;
+  ok(`${stage}: a TEACHER sheet's compiled prompt at the SAME messageCount still carries the unchanged PLATFORM_STAGE_* text`,
+    teacherFull.includes(platformText));
+  ok(`${stage}: a TEACHER sheet's compiled prompt never carries the person-worded stage text`,
+    !teacherFull.includes(expectedStage));
+}
+
+// NEGATIVE CONTROL: `personStageFor` never says "teacher"/"student" at any
+// of the three stages — the platform's own words for a person's AI, checked
+// directly against the function's own output rather than only against
+// whatever the compiled core happens to include elsewhere.
+for (const stage of ["early", "gettingClose", "established"]) {
+  const text = personStageFor("Priya Menon", stage).toLowerCase();
+  ok(`NEGATIVE CONTROL: personStageFor("Priya Menon", "${stage}") never says "teacher" or "student"`,
+    !text.includes("teacher") && !text.includes("student"));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PART E: the Room's PICTURE (the card) — its own read
+// (`publicRoomCardBySlug`, `api/_room-card.js`) against a real,
+// lateral-joined fake db (the SAME shape PART B's own `aboutDb` already
+// uses for the about page's identical join), proving the SAME published
+// person's headline and own disclosure line reach the rendered card.
+// ═══════════════════════════════════════════════════════════════════════
+
+console.log("\n── PART E: the Room's card names the person and carries their own disclosure line ──");
+
+function cardRowFor({ slug, displayName, sheetKind, personLine }) {
+  return {
+    slug, display_name: displayName, one_line_bio: "A short room bio.", default_locale: "en",
+    sheet_kind: sheetKind, person_line: personLine,
+  };
+}
+function cardDb(row) {
+  return async (sql) => {
+    if (sql.includes("from vy_room r") && sql.includes("left join lateral")) return row ? [row] : [];
+    throw new Error(`evals/person-room/run.mjs card fixture: unmatched SQL: ${sql}`);
+  };
+}
+const blockText = (layout, id) => (layout.blocks.find((b) => b.id === id)?.lines || []).join(" ");
+
+const personCardRow = await publicRoomCardBySlug(
+  cardDb(cardRowFor({ slug: personRoom.slug, displayName: "Priya Menon", sheetKind: "person", personLine: PERSON_LINE })),
+  personRoom.slug,
+);
+ok("publicRoomCardBySlug reads the person sheet's own sheet_kind/person_line",
+  personCardRow?.sheet_kind === "person" && personCardRow?.person_line === PERSON_LINE);
+
+const personCardLayout = computeCardLayout(cardInputFor(personCardRow, "og", "https://vyakti.app"));
+ok("the person's card headline names the AI and who made it",
+  blockText(personCardLayout, "name") === "Priya Menon AI, made by Priya Menon");
+ok("the person's card carries their own disclosure line",
+  blockText(personCardLayout, "bio") === PERSON_LINE);
+
+// NEGATIVE CONTROL: a teacher Room, published the identical way, carries no
+// person headline and no person disclosure line on its card at all.
+const teacherCardRow = await publicRoomCardBySlug(
+  cardDb(cardRowFor({ slug: teacherRoom.slug, displayName: "Arjun Sir Physics", sheetKind: "teacher", personLine: null })),
+  teacherRoom.slug,
+);
+const teacherCardLayout = computeCardLayout(cardInputFor(teacherCardRow, "og", "https://vyakti.app"));
+ok("NEGATIVE CONTROL: a teacher Room's card headline is the plain display name, never an AI-made-by phrase",
+  blockText(teacherCardLayout, "name") === "Arjun Sir Physics");
+ok("NEGATIVE CONTROL: a teacher Room's card never carries a person disclosure line, falls back to the room's own bio",
+  blockText(teacherCardLayout, "bio") === teacherCardRow.one_line_bio);
+
+// NEGATIVE CONTROL (brief law 4): an UNPUBLISHED person sheet's Room shows
+// no card text at all — `publicRoomCardBySlug` resolves such a slug to
+// null (the SAME published/unpaused predicate `publicRoomBySlug` and
+// `publicRoomAboutBySlug` already enforce, restated in this function's own
+// WHERE clause), and the identical platform-only card is drawn instead.
+const unpublishedCardRow = await publicRoomCardBySlug(cardDb(null), "priya-menon-draft");
+ok("NEGATIVE CONTROL: an unpublished person sheet's card read resolves to null, same as any other unavailable slug",
+  unpublishedCardRow === null);
+const unpublishedCardLayout = computeCardLayout(cardInputFor(unpublishedCardRow, "og"));
+const unpublishedCardText = unpublishedCardLayout.blocks.flatMap((b) => b.lines).join(" ");
+ok("NEGATIVE CONTROL: an unpublished person sheet's card shows no card text naming the person",
+  !unpublishedCardText.includes("Priya") && !unpublishedCardText.includes(PERSON_LINE));
 
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} CHECKS PASS`);
 process.exitCode = fail ? 1 : 0;

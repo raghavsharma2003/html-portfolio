@@ -9,15 +9,17 @@
 // decision — the read, the layout, the pixels — lives in
 // `api/_room-card.js`, where a fake `db` can reach it.
 //
-// PUBLIC and UNAUTHENTICATED, on purpose: this is the SAME public row
-// `api/room-page.js` already serves to any crawler, drawn as a picture
-// instead of typeset as `<head>` tags — `publicRoomBySlug`'s own four
-// columns, nothing a follower ever said, nothing a follower ever will.
+// PUBLIC and UNAUTHENTICATED, on purpose: the same public predicate
+// `api/room-page.js` already serves to any crawler (published, unpaused),
+// drawn as a picture instead of typeset as `<head>` tags — nothing a
+// follower ever said, nothing a follower ever will. WS-R173: the row this
+// door reads is `publicRoomCardBySlug`'s own (`api/_room-card.js`'s own
+// read, not `resolveRoomPage`'s — that file's own header explains why),
+// carrying `sheet_kind`/`person_line` alongside the same public columns.
 import { q } from "./_db.js";
 import { withDoor } from "./_incidents.js";
 import { allow, ipOf } from "./_ratelimit.js";
-import { resolveRoomPage } from "./_room-page.js";
-import { ROOM_CARD_KINDS, rasterizeRoomCardForRoom, roomCardEtag } from "./_room-card.js";
+import { ROOM_CARD_KINDS, rasterizeRoomCardForRoom, roomCardEtag, publicRoomCardBySlug } from "./_room-card.js";
 // WS-R126 (join from WhatsApp): the ONE env read this door adds, for the
 // poster's own `?channel=whatsapp` variant — `_room-card.js` stays pure
 // (that file's own `whatsappJoinUrl` paragraph states why), so this thin
@@ -59,7 +61,7 @@ async function handler(req, res) {
 
   let row = null;
   try {
-    row = await resolveRoomPage(q, slug);
+    row = await publicRoomCardBySlug(q, slug);
   } catch (error) {
     // Never a shape that differs from "not available" — `api/room-page.js`'s
     // own posture, restated: an error here must read exactly like an
