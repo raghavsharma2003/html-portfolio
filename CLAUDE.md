@@ -91,8 +91,8 @@ may import nothing beyond `./level` and `../engine/diag`.
 `tsc` is separate and why CI runs both.
 
 **This same script also gates Vyakti**, the second product built in this
-repo (see the next section). As of WS-R57 (2026-09-04) it is **21
-checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
+repo (see the next section). As of WS-R57 (2026-09-04) it is **24
+checks without `NEON_URL`** (the wave-era 21 plus Codex's Vercel upload boundary, deploy verifier and motion lint checks; the list is `scripts/verify-release.mjs` itself) (14 plus the room leak battery, `evals/room-leak/run.mjs`,
 the room export completeness battery, `evals/room-export/run.mjs`, the
 room door battery, `evals/room-doors/run.mjs` — every way into a Room
 attacked offline through the real decision modules the thin HTTP doors call
@@ -111,7 +111,7 @@ would and CSP violation reporting captured, plus `npm ci --dry-run` lockfile
 integrity, `npm audit --omit=dev --audit-level=high` (fails, never passes
 silently, if the registry is unreachable) and an install-script scan against
 the named allowlist in `scripts/installScriptAllowlist.mjs` — each added as
-a named gate) and **23 with
+a named gate) and **26 with
 it** (adding the zero-orphan sweep and citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
@@ -138,7 +138,7 @@ run) bind Vyakti work exactly as they bind Meera's. Migrations: **015 through
 100, 103, 117, 124 and 131, which are unused (WS-R38, WS-R41, WS-R70, WS-R87 and WS-R126 needed no
 schema change);
 066-070 are deliberately left unused** (another agent's unpushed tree already
-occupies those numbers live). **137 is the next free number.**
+occupies those numbers live). **137 and 139 through 162 were applied live on 2026-09-13 (138 and 157 unused); 163 is the next free number.**
 `context/STATE.md`'s session log carries the live-verification entry for each.
 
 **Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an

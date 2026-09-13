@@ -17827,3 +17827,18 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `handoff208-config-source-audit` (2026-09-09)
 
 2026-09-09 source audit of _db.js, _auth.js, _replica-storage.js and dev-expert.mjs on handover f1d89527: database, auth and selected private-storage values choose environment before imported config; launcher checks isolated database identity and model destination policy. This is source evidence, not new live authentication/storage/SQL proof. No model calls, provider calls, server restart or credential file changes.
+
+## `gate-on-the-merged-handoff206-tree-2026-09-13`
+
+Method: `node scripts/verify-release.mjs` (24 checks) on the build container, machine otherwise idle unless stated; `node evals/run.mjs` (410 pooled suites plus the port lane) alone; date 2026-09-13.
+
+| run | tree | result |
+|---|---|---|
+| 1 | handoff206 fast-forwarded, deploy scripts fixed, a second registry accidentally running in parallel | 22 of 24: eval suite (46 failed suites), room door battery (2 of 2251: `memory_classify` uncased) |
+| registry alone | plus the browser revision mirror, five suite and manifest fixes | 3 failed of 410: rupturechannel, private-rehearsal-combined, first-use-refresh-ui (25 s, passed alone; flaky under the pool) |
+| 2 | plus the compiler clock fix | 22 of 24: engine bundle stale (expected after a src/engine change), eval suite (primary-intent-recovery only) |
+| 3 | plus the regenerated bundle and the fixture commit-wait | 24 of 24 |
+
+Vercel: eight consecutive git-connected deployments of codex/handoff206 (2026-09-09) ERROR in 7 s at the install phase; the last READY deployment of this branch family was `61385c5`.
+
+Live database (Neon `neondb`, read-only catalog query): 180 `vy_` tables; none of the 26 tables that migrations 137 to 162 and the local-voice reconciliation artifacts 074 and 075 create is present. Codex applied those only to the isolated development database `vyakti_expert_integration_20260906` (198 tables).

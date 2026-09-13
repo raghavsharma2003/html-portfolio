@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 21 checks without NEON_URL; 23 with it
+node scripts/verify-release.mjs      # 24 checks without NEON_URL; 26 with it (2026-09-13)
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -167,14 +167,14 @@ supply-chain half in the same file: `npm ci --dry-run` lockfile integrity,
 `npm audit --omit=dev --audit-level=high` which FAILS rather than passing
 silently if the registry is unreachable, and an install-script scan against
 the named, justified allowlist in `scripts/installScriptAllowlist.mjs`) as
-named gates — and 23 with it, adding the zero-orphan sweep and citation
+named gates, 24 since Codex's Vercel upload boundary, deploy verifier and motion lint checks (2026-09-13) — and 26 with it, adding the zero-orphan sweep and citation
 discipline.
 Migrations 071 through 099, 101 through 123 and 125 through 133 are applied live,
 except 100, 103, 117, 124 and 131, which are unused (WS-R38 needed no new migration, every finding it
 fixed was a missing check in existing JS, never a schema change; WS-R41's
 provider contracts, WS-R70's export and WS-R87's kernel port needed none either, and WS-R126's 131 reasserted a CHECK the live database already carried); 102 (WS-R40, share arrival) and 104
 (the creator-tier charge ledger, WS-R42) were applied live at their merges
-and read back from the catalog. **137 is the next free number.**
+and read back from the catalog. **137 and 139 through 162 were applied live on 2026-09-13 (138 and 157 unused); 163 is the next free number.**
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible

@@ -24033,3 +24033,19 @@ User prioritized the preserved handover and usage limits. Run only the existing 
 ## `handoff208-expert-config-guidance` (2026-09-09)
 
 Preserve the shared inert template but correct its obsolete assertion that OpenRouter is required for all functionality. The user's expert product uses Azure-only model serving. Document existing environment precedence and the static-module requirement, without changing runtime authority or requesting new credentials. Reverse if the supported expert serving configuration changes.
+
+## `codex-handoff206-adopted-as-the-base` (2026-09-13, main loop)
+
+**Decision.** The platform branch `claude/vyakti-cloning-platform-aq05n4` fast-forwards onto Codex's `codex/handoff206` (182 commits over `61385c5`, 1,399 files) and continues from there. The sibling branches `codex/handoff-processing204` and `codex/handoff-voice-comparison106` are older snapshots of the same line (each is handoff206 minus later repairs, plus one experiment the handover already archives) and `codex/handoff-history-20260909` is an object archive, so none of them is merged as product source.
+
+**Why.** handoff206 is the newest tree and carries real components the product needs (the personal studio's Create/Wait/Meet journey, Azure processing repaired and run once, private text rehearsal, text publication, memory correction, migrations 137 to 162). Its own handover is honest that it is not publish-ready, and the main loop measured the same: every Vercel deployment of the branch was in ERROR, the gate was 22 of 24, and the live database carries none of its 23 new tables. Those are repairable on top of it; re-deriving the tree from `61385c5` would discard a week of work for no gain.
+
+**Reversal.** If a Codex change is found to violate a wave-era law (the one door, the three scopes, an FK on a person column, a fixture standing in for runtime evidence) and cannot be repaired in place, the offending change is reverted by a commit that names this decision, never by resetting the branch.
+
+## `vercel-git-connected-builds-skip-the-strict-deploy-marker` (2026-09-13, main loop)
+
+**Decision.** `scripts/vercel-install.sh` runs the strict uploaded-source marker writer only when the authenticated deploy client passed `VYAKTI_SOURCE_COMMITMENT`; a build started by Vercel's own GitHub integration (which carries `VERCEL_GIT_COMMIT_SHA` and no such metadata) prints its commit and lets `scripts/vercel-build.sh` compute the release marker from the checkout, as that script already did for local builds. `scripts/vercel-product.mjs` selects the Vyakti product for the whole `claude/vyakti-cloning-platform-*` branch family again, the rule `vercel-build.sh` documents and the refactor had dropped.
+
+**Why.** Eight consecutive git-connected deployments of `codex/handoff206` failed in 7 seconds with "deployment source product is missing or invalid" because the strict writer ran unconditionally. The strict writer stays strict (the deploy-verifier eval's negative control still proves it fails closed on a missing commitment); only the choice of which path a git-connected build takes changed.
+
+**Reversal.** If the release verifier ever compares a git-connected deployment against the wrong source identity, add the commit SHA to the marker schema rather than reinstating the unconditional strict writer.

@@ -17815,3 +17815,43 @@ Initial --import C:/... invocation failed before test execution with ERR_UNSUPPO
 ## `handoff208-openrouter-required-comment` (2026-09-09)
 
 The shared config template stated OPENROUTER_KEY and NEON_URL were both required for a brain and memory. Applied to the expert studio, this conflicts with its Azure-only serving configuration and would send the next agent toward unnecessary credentials. Corrected comments and local setup guidance; retained legacy exports for their existing callers.
+
+## `playwright-revision-mismatch-hid-the-real-gate-failures` (2026-09-13)
+
+**Tried.** Running the full gate on the merged handoff206 tree on the build container.
+
+**Broke.** The eval suite reported 46 failed suites. 40 of them were Codex's browser-mounted suites, all dying in about 1.5 s with "Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1234/...": the lockfile's Playwright expects browser revision 1234 while the container ships 1194, and those suites call `chromium.launch()` directly instead of the shared launcher that names the installed binary. The six real failures were buried under them.
+
+**Fix.** Environment, not code: revision folders `chromium_headless_shell-1234` and `chromium-1234` under `/opt/pw-browsers` mirroring the installed 1194 builds (symlinks plus the `chrome-headless-shell` binary name). CI installs its own browsers and never saw this. The law stands: a suite that launches a browser should go through `evals/rehearsal/browser.mjs`'s launcher; the 40 direct launches are a wave-twenty-one cleanup candidate.
+
+## `compiler-relationship-renders-ignored-the-callers-clock` (2026-09-13)
+
+**Tried.** `evals/rupture-channel` after the calendar passed 2026-09-13.
+
+**Broke.** The suite pins NOW at 2026-08-22 and opens a rupture two days before it, but `compile()` called `renderRelSnapshot` and `stageForDims` without passing `input.nowMs`, so both fell back to `new Date()` and a fresh rupture rendered as "settled 3w, not currently held". A time bomb: green until the lapse days passed.
+
+**Fix.** `compileClock(input.nowMs)` is passed to both renderers; an absent nowMs keeps the default, so production and the 83 byte-identity fixtures are unchanged. Every eval that pins time must be able to reach the clock of every render it asserts on.
+
+## `frozen-file-merge-controls-break-on-the-next-change` (2026-09-13)
+
+**Tried.** Codex's merge-control suites after the tree moved one commit past the merge they were written for.
+
+**Broke.** `evals/private-rehearsal-combined` asserted `api/_replica-build-intent.js` byte-equal to the file at commit c56cadfe plus one substitution; the file gained an import a day later and the suite failed for a change it was never about. `evals/consolidation/config.mjs` pinned sha256 digests of eight SQL exports "identical to frozen84c"; the communication-memory commit (7e63071) changed two of them on purpose and left the pins. `evals/processing-worker` pinned the exact call text `runVoiceGenomeBuildSweep({ db, maxJobs: 4 })` after processing204 had added `sourceScope`.
+
+**Fix.** The merge control asserts the PROPERTY (both entry points carry the exclusion clause, no bare clause survives) instead of byte-equality; the two digests were re-frozen at 7e63071 with the commit named in the check; the worker regex accepts the real call. A control that freezes a whole file is a control that fails on the next unrelated commit; freeze the property.
+
+## `codex-added-a-room-op-without-casing-it` (2026-09-13)
+
+**Tried.** The door battery on handoff206.
+
+**Broke.** `memory_classify` (the explicit retry of an unconfirmed communication classification, migration 162) was dispatched by `api/room.js` with no OP_COVERAGE entry, so the battery's computed-op-list check failed by name, exactly as it was built to (WS-R44).
+
+**Fix.** Cased with classes a, b, c and an OP_INVOKE through `roomReclassifyRememberedThing` with the fuzz deps; 2251 cases pass. Sibling gaps of the same shape: the GPU observer's ARM fetch was unaccounted in the incidents provider inventory (excluded by name with its reason) and `vy_processing_gpu_authority` (migration 161) was reached by erasure but named nowhere in the creator export's manifest (a deliberate gap, processing-process bookkeeping).
+
+## `recovery-fixture-raced-reacts-commit` (2026-09-13)
+
+**Tried.** `evals/primary-intent-recovery` on Linux Chromium, three runs.
+
+**Broke.** The "pending read deleted: no new request" check changed the mounted props and resolved the pending read in the very next CDP round trip; React schedules an out-of-event state update on its own task, so the component's ref of the current sources was sometimes still the old one when the read resolved, and it posted a new build intent. It passed once under the pooled registry and failed three times alone. The component's guard is right when the change has been committed; the fixture never waited for that.
+
+**Fix.** The fixture waits one animation frame plus a macrotask after the change before resolving. The assertion now tests what it says: a change committed BEFORE the read resolves sends nothing.
