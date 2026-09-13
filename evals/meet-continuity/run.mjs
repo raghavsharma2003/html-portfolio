@@ -56,6 +56,7 @@ const ok = (name, cond, extra = "") => {
 const AUTH = await import(pathToFileURL(join(API, "_room-memory-authority.js")).href);
 const RELSTATE = await import(pathToFileURL(join(API, "_room-relstate.js")).href);
 const DIALOGUE = await import(pathToFileURL(join(API, "_replica-dialogue.js")).href);
+const RUNTIME = await import(pathToFileURL(join(API, "_replica-runtime.js")).href);
 
 const {
   OWNER_MEMORY_BATCH_SQL, OWNER_MEMORY_COMMIT_SQL, OWNER_MEMORY_RECALL_SQL, OWNER_MEMORY_FACTS_SQL,
@@ -71,6 +72,7 @@ const {
   ownerReclassifyRememberedThing, ownerForgetRememberedThing, ownerRelState, ownerRelStateReset,
   createReplicaDialogueHandler,
 } = DIALOGUE;
+const { RUNTIME_STATUS_SQL, OWNED_PRIVATE_RUNTIME_CONTEXT_SQL } = RUNTIME;
 
 const REPLICA = "aa000000-0000-4000-8000-00000000aaaa";
 const OWNER = "bb000000-0000-4000-8000-00000000bbbb";
@@ -399,6 +401,101 @@ console.log("\n── 7. validateRoomMemoryProposal is reused unchanged for the 
   try { validateRoomMemoryProposal(JSON.stringify({ memories: [{ source_id: "5", kind: "user", name: "preference", quote: "never said this at all", communication: null }] }), rows); }
   catch (error) { threw = error; }
   ok("NEGATIVE CONTROL: a quote that is not an exact substring of the source is rejected, exactly as it is for a Room follower", threw?.message === "room_memory_proposal_invalid");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 8. WS-R172: continuity for a text-ready AI — the owner memory ops and
+//    relstate now accept a replica with NO active voice capability at all
+// ═══════════════════════════════════════════════════════════════════════
+console.log("\n── 8. WS-R172: a text-ready replica (no voice) reaches the SAME owner-memory/relstate ops ──");
+{
+  ok("OWNER_MEMORY_AUTHORITY no longer requires lifecycle='active' (WS-R167's own original predicate)",
+    !/r\.lifecycle\s*=\s*'active'/.test(OWNER_MEMORY_BATCH_SQL));
+  ok("OWNER_MEMORY_AUTHORITY requires the SAME lifecycle floor api/_replica-runtime.js#textBlockers already uses (never revoked or purging)",
+    /r\.lifecycle not in \('revoked','purging'\)/.test(OWNER_MEMORY_BATCH_SQL));
+  ok("NEGATIVE CONTROL: the check above is not vacuous — a copy with the old predicate restored fails it",
+    /r\.lifecycle\s*=\s*'active'/.test(OWNER_MEMORY_BATCH_SQL.replace("r.lifecycle not in ('revoked','purging')", "r.lifecycle='active'")));
+
+  const TEXT_READY_AGENT = "ff000000-0000-4000-8000-0000000000fe";
+  const textReadyRow = {
+    replica_id: REPLICA, subject_mode: "self", lifecycle: "enrolling", subject_person_id: OWNER_PERSON, agent_id: TEXT_READY_AGENT,
+    age_verified_at: NOW, identity_verified_at: NOW, liveness_verified_at: NOW, identity_expires_at: new Date(NOW.getTime() + 86_400_000),
+    person_age_tier: "adult_verified", account_person_matches: true, inference_consent: true,
+    profile_version: 1, profile_approved: true, calibration_version: null, calibration_approved: false,
+    genome_version: null, genome_approved: false, genome_latest_version: null, genome_latest_status: null,
+    voice_profile_id: null, voice_ready: false, test_voice: false, qualification_passed: 0,
+    fidelity_status: null, fidelity_score: null, fidelity_computed_at: null,
+    readiness_overall: null, readiness_min_part: null, readiness_unmeasured: 0, readiness_computed_at: null,
+    capability_state: null, capability_activated_at: null, candidate_binding_required: false, candidate_runtime_authorized: true,
+  };
+  const textReadyWrites = async (sql) => {
+    if (/insert into vy_replica_text_capability|from vy_replica_text_capability/.test(sql)) return []; // the ensure-write path, unproven offline (evals/text-ready's own header)
+    return undefined;
+  };
+
+  // memory_facts reaches the real owner-memory door with no active voice
+  // capability at all — `ownedSelfRuntime`'s own new fallback.
+  const dbFacts = async (sql, params) => {
+    const written = await textReadyWrites(sql); if (written !== undefined) return written;
+    if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return []; // no active/private VOICE capability
+    if (sql === RUNTIME_STATUS_SQL) return [textReadyRow];
+    if (sql === OWNER_MEMORY_CONSENT_STATUS_SQL) return [{ memory_on: true }];
+    if (sql === OWNER_MEMORY_FACTS_SQL) {
+      ok("OWNER_MEMORY_FACTS_SQL binds the text-ready replica's own real [replica_id, owner_user_id]", params[0] === REPLICA && params[1] === OWNER);
+      return [];
+    }
+    throw new Error(`WS-R172 text-ready fixture: unmatched SQL: ${sql}`);
+  };
+  const factsForTextReady = await ownerRememberedThings(dbFacts, OWNER, { replica_id: REPLICA });
+  ok("memory_facts reaches the real owner-memory door for a text-ready-only replica, no voice, never a crash", Array.isArray(factsForTextReady.facts));
+
+  // relstate ("How we are") reads the real vy_rel_state row keyed by the
+  // text-ready replica's own agent_id/person_id — never a follower's.
+  const relRow = { honorific: "tu", cs_ratio: null, cs_on_stress: "unknown", trust: 0.4, rupture_open: false, repair_state: "none", ritual_density: 0, pacing_gap_s: null, snapshot_ver: 1, updated_at: NOW.toISOString() };
+  const dbRel = async (sql, params) => {
+    const written = await textReadyWrites(sql); if (written !== undefined) return written;
+    if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return [];
+    if (sql === RUNTIME_STATUS_SQL) return [textReadyRow];
+    if (sql === OWNER_MEMORY_CONSENT_STATUS_SQL) return [{ memory_on: true }];
+    if (sql.includes("select honorific")) {
+      ok("\"How we are\" reads vy_rel_state keyed by the text-ready replica's own real (person_id, agent_id)", params[0] === OWNER_PERSON && params[1] === TEXT_READY_AGENT);
+      return [relRow];
+    }
+    throw new Error(`WS-R172 text-ready relstate fixture: unmatched SQL: ${sql}`);
+  };
+  const stateForTextReady = await ownerRelState(dbRel, OWNER, { replica_id: REPLICA });
+  ok("relstate (\"How we are\") reaches the real owner key for a text-ready-only replica", stateForTextReady.has_state === true && stateForTextReady.honorific === "tu");
+
+  // NEGATIVE CONTROL: a revoked text-ready replica (an agent already
+  // minted, but the replica itself is gone) is still refused — the
+  // loosened lifecycle floor never becomes "any lifecycle at all".
+  const revokedRow = { ...textReadyRow, lifecycle: "revoked" };
+  const dbRevoked = async (sql) => {
+    if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return [];
+    if (sql === RUNTIME_STATUS_SQL) return [revokedRow];
+    throw new Error(`WS-R172 revoked text-ready fixture: no further query should ever be reached: ${sql}`);
+  };
+  let revokedThrew = null;
+  try { await ownerRememberedThings(dbRevoked, OWNER, { replica_id: REPLICA }); }
+  catch (error) { revokedThrew = error; }
+  ok("NEGATIVE CONTROL: a revoked text-ready replica is refused (dialogue_runtime_not_active), never a fabricated success",
+    revokedThrew?.code === "dialogue_runtime_not_active");
+
+  // NEGATIVE CONTROL: a text-ready-eligible replica with NO agent minted
+  // yet is refused too — the loosened lifecycle floor never substitutes
+  // for the agent this whole authority is keyed on.
+  const noAgentRow = { ...textReadyRow, agent_id: null };
+  const dbNoAgent = async (sql) => {
+    if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return [];
+    if (sql === RUNTIME_STATUS_SQL) return [noAgentRow];
+    const written = await textReadyWrites(sql); if (written !== undefined) return written;
+    throw new Error(`WS-R172 no-agent fixture: no further query should ever be reached: ${sql}`);
+  };
+  let noAgentThrew = null;
+  try { await ownerRelState(dbNoAgent, OWNER, { replica_id: REPLICA }); }
+  catch (error) { noAgentThrew = error; }
+  ok("NEGATIVE CONTROL: a text-ready-eligible replica with no agent minted yet is refused, never a fabricated relstate",
+    noAgentThrew?.code === "dialogue_runtime_not_active");
 }
 
 console.log(`\nmeet-continuity: ${pass} passed, ${fail} failed`);

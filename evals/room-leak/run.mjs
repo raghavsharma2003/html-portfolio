@@ -3378,6 +3378,85 @@ console.log("\n── layer 19: RelationOS in the Room (vy_rel_state/vy_rel_even
   boundaryChecks++;
   ok("layer 19 stage-counts: agent B's count carries NONE of agent A's buckets (deep, or any other), never merged across creators",
     !countsB19.some((b) => b.stage === "deep"));
+
+  // ── layer 19 addendum (WS-R172): the owner's own Meet MEMORY (vy_fact,
+  //    OWNER_MEMORY_AUTHORITY), not only relstate above, now reaches a
+  //    text-ready replica (no active voice capability at all,
+  //    `context/decisions.md#ws-r172-owner-memory-and-relstate-accept-a-
+  //    text-ready-replica`) — proves the loosened lifecycle floor
+  //    (`r.lifecycle not in ('revoked','purging')`, WS-R167's own original
+  //    `r.lifecycle='active'`) never widens WHO can read a fact, only WHICH
+  //    lifecycle can, with two different owners' own text-ready replicas
+  //    and a REQUIRED negative control. ──
+  const AUTH19 = await import(pathToFileURL(join(REPO, "api/_room-memory-authority.js")).href);
+  const DIALOGUE19 = await import(pathToFileURL(join(REPO, "api/_replica-dialogue.js")).href);
+  const RUNTIME19 = await import(pathToFileURL(join(REPO, "api/_replica-runtime.js")).href);
+  const { OWNER_MEMORY_BATCH_SQL: BATCH19, OWNER_MEMORY_FACTS_SQL: FACTS19, OWNER_MEMORY_CONSENT_STATUS_SQL: CONSENT19 } = AUTH19;
+  const { ownerRememberedThings: rememberedThings19 } = DIALOGUE19;
+  const { RUNTIME_STATUS_SQL: STATUS19, OWNED_PRIVATE_RUNTIME_CONTEXT_SQL: PRIVATE19, TEXT_CAPABILITY_ENSURE_SQL: ENSURE19 } = RUNTIME19;
+
+  ok("layer 19 addendum static: OWNER_MEMORY_AUTHORITY's lifecycle floor never admits a revoked or purging replica",
+    /r\.lifecycle not in \('revoked','purging'\)/.test(BATCH19));
+  ok("NEGATIVE CONTROL: layer 19 addendum static — the check above is not vacuous (a copy with the old, narrower predicate restored fails it)",
+    !/r\.lifecycle not in \('revoked','purging'\)/.test(BATCH19.replace("r.lifecycle not in ('revoked','purging')", "r.lifecycle='active'")));
+
+  const OWNER_X_19 = "f9000000-0000-4000-8000-0000000000e1";
+  const OWNER_Y_19 = "f9000000-0000-4000-8000-0000000000e2";
+  const REPLICA_X_19 = "f9000000-0000-4000-8000-0000000000f1";
+  const REPLICA_Y_19 = "f9000000-0000-4000-8000-0000000000f2";
+  const AGENT_X_19 = "f9000000-0000-4000-8000-00000000001a";
+  const AGENT_Y_19 = "f9000000-0000-4000-8000-00000000002a";
+  const PERSON_X_19 = "f9000000-0000-4000-8000-00000000001b";
+  const PERSON_Y_19 = "f9000000-0000-4000-8000-00000000002b";
+  const factsWorld19 = {
+    [REPLICA_X_19]: [{ id: "1", body: "owner X's own fact, text-ready, no voice", kind: "user", name: "preference", created_at: "2026-09-01T00:00:00.000Z", communication: null }],
+    [REPLICA_Y_19]: [{ id: "2", body: "owner Y's own fact, text-ready, no voice", kind: "user", name: "preference", created_at: "2026-09-01T00:00:00.000Z", communication: null }],
+  };
+  const runtimeRow19 = (replicaId, agentId, personId) => ({
+    replica_id: replicaId, subject_mode: "self", lifecycle: "enrolling", subject_person_id: personId, agent_id: agentId,
+    age_verified_at: "2026-01-01T00:00:00.000Z", identity_verified_at: "2026-01-01T00:00:00.000Z",
+    liveness_verified_at: "2026-01-01T00:00:00.000Z", identity_expires_at: "2099-01-01T00:00:00.000Z",
+    person_age_tier: "adult_verified", account_person_matches: true, inference_consent: true,
+    profile_version: 1, profile_approved: true, calibration_version: null, calibration_approved: false,
+    genome_version: null, genome_approved: false, genome_latest_version: null, genome_latest_status: null,
+    voice_profile_id: null, voice_ready: false, test_voice: false, qualification_passed: 0,
+    fidelity_status: null, fidelity_score: null, fidelity_computed_at: null,
+    readiness_overall: null, readiness_min_part: null, readiness_unmeasured: 0, readiness_computed_at: null,
+    capability_state: null, capability_activated_at: null, candidate_binding_required: false, candidate_runtime_authorized: true,
+  });
+  function textReadyMemoryDb19(replicaId, ownerId, agentId, personId) {
+    return async (sql, params) => {
+      if (sql === PRIVATE19) return []; // no active/private VOICE capability
+      if (sql === STATUS19) return String(params[0]) === replicaId && String(params[1]) === ownerId ? [runtimeRow19(replicaId, agentId, personId)] : [];
+      if (sql === ENSURE19) return []; // the text-capability write path, unproven offline (evals/text-ready's own header)
+      if (sql === CONSENT19) return [{ memory_on: true }];
+      if (sql === FACTS19) return String(params[0]) === replicaId && String(params[1]) === ownerId ? (factsWorld19[replicaId] || []) : [];
+      throw new Error(`layer 19 addendum fake db: unmatched SQL: ${sql}`);
+    };
+  }
+  const factsForX19 = await rememberedThings19(textReadyMemoryDb19(REPLICA_X_19, OWNER_X_19, AGENT_X_19, PERSON_X_19), OWNER_X_19, { replica_id: REPLICA_X_19 });
+  const factsForY19 = await rememberedThings19(textReadyMemoryDb19(REPLICA_Y_19, OWNER_Y_19, AGENT_Y_19, PERSON_Y_19), OWNER_Y_19, { replica_id: REPLICA_Y_19 });
+  boundaryChecks++;
+  ok("layer 19 addendum: owner X's own text-ready memory_facts read carries HER OWN fact, never owner Y's",
+    factsForX19.facts.some((f) => f.body.includes("owner X")) && leakedTokens(JSON.stringify(factsForX19), ["owner Y"]).length === 0);
+  boundaryChecks++;
+  ok("layer 19 addendum: owner Y's own text-ready memory_facts read carries HIS OWN fact, never owner X's",
+    factsForY19.facts.some((f) => f.body.includes("owner Y")) && leakedTokens(JSON.stringify(factsForY19), ["owner X"]).length === 0);
+  boundaryChecks++;
+  ok("layer 19 addendum: the scan above is not vacuous — both owners' tokens really do coexist in this fake world",
+    leakedTokens(JSON.stringify(factsWorld19), ["owner X", "owner Y"]).length > 0);
+
+  // NEGATIVE CONTROL: a stranger owner_user_id against another owner's real
+  // text-ready replica_id is refused, never a fabricated cross-owner read —
+  // proves the loosened lifecycle predicate never widens WHO the authority
+  // trusts, only WHICH lifecycle it accepts.
+  let crossOwnerThrew19 = null;
+  try {
+    await rememberedThings19(textReadyMemoryDb19(REPLICA_X_19, OWNER_X_19, AGENT_X_19, PERSON_X_19), OWNER_Y_19, { replica_id: REPLICA_X_19 });
+  } catch (error) { crossOwnerThrew19 = error; }
+  boundaryChecks++;
+  ok("NEGATIVE CONTROL: layer 19 addendum — a stranger owner_user_id against another owner's text-ready replica_id is refused, never a fabricated cross-owner read",
+    crossOwnerThrew19?.code === "dialogue_runtime_not_active");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

@@ -222,7 +222,7 @@ export function clientRuntimeStatus(row) {
   };
 }
 
-export const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.subject_person_id,
+export const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.subject_person_id,r.agent_id,
   r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,
   p.age_tier as person_age_tier,
   exists(select 1 from vy_account_person ap
@@ -354,8 +354,28 @@ limit 1`;
 // value or it does not), the exact non-conflicting-independent-CTE shape
 // `vy_replica_vibe`'s own `SET_SQL` (`api/_replica-vibe.js`) already proves
 // for this table's partial unique-active index.
+// WS-R172. The `eligible`/`stale`/`existing`/`created` chain below is
+// UNCHANGED from WS-R161; the two new CTEs (`created_agent`, `bound_agent`)
+// are additive. Why they exist: the owner's own Meet memory and
+// relationship state (`api/_room-memory-authority.js`'s `OWNER_MEMORY_
+// AUTHORITY`, `api/_room-relstate.js`) are scoped by `agent_id`/`person_id`,
+// and until this workstream the ONLY place that ever minted `vy_replica.
+// agent_id` was `activateOwnedRuntime`'s own `created_agent` CTE below in
+// this same file (voice activation) — so a person who never activates a
+// voice could never be minted an agent at all, and this workstream's own
+// brief ("continuity must not wait for a GPU") could not actually hold.
+// Mints the IDENTICAL shape `activateOwnedRuntime`'s own `created_agent`
+// CTE already uses (never a second, differently-worded mint mechanism),
+// gated on the exact same `eligible` set text_ready itself already computes
+// (never a looser rule), and binds it WITHOUT ever touching `lifecycle` or
+// `activated_at` — a text-ready replica must never look voice-active to a
+// caller that only checks `active` (`textBlockers`'s own law, restated here
+// for the one thing it never used to mint). `activateOwnedRuntime`'s own
+// mint is unconditioned except on `s.agent_id is null`, so if THIS mint
+// runs first, a later voice activation reuses the SAME agent rather than
+// minting a second one — no change needed there.
 export const TEXT_CAPABILITY_ENSURE_SQL = `with target as (
-  select r.replica_id,r.owner_user_id,r.subject_mode,r.lifecycle,r.subject_person_id,
+  select r.replica_id,r.owner_user_id,r.subject_mode,r.lifecycle,r.subject_person_id,r.agent_id,r.display_name,
     exists(select 1 from vy_account_person ap
             where ap.auth_user_id=r.owner_user_id and ap.person_id=r.subject_person_id) as account_person_matches,
     exists(select 1 from vy_replica_consent c
@@ -371,8 +391,9 @@ export const TEXT_CAPABILITY_ENSURE_SQL = `with target as (
       order by x.version desc limit 1
    ) pp on true
   where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+  for update of r
 ), eligible as (
-  select replica_id,owner_user_id,profile_version from target
+  select replica_id,owner_user_id,agent_id,display_name,profile_version from target
    where subject_mode='self' and lifecycle not in ('revoked','purging')
      and subject_person_id is not null and account_person_matches and inference_consent
      and profile_version is not null
@@ -385,6 +406,19 @@ export const TEXT_CAPABILITY_ENSURE_SQL = `with target as (
   select c.* from vy_replica_text_capability c
   join eligible e on e.replica_id=c.replica_id and e.owner_user_id=c.owner_user_id and e.profile_version=c.profile_version
    where c.state='active'
+), created_agent as (
+  insert into vy_agent (agent_id,slug,display_name,persona_version,register,status)
+  select gen_random_uuid(),'replica-'||replace(e.replica_id::text,'-',''),e.display_name,
+         'replica-profile/'||e.profile_version::text,
+         jsonb_build_object('runtimePolicy',$3::text,'selfReplica',true),'active'
+    from eligible e
+   where e.agent_id is null
+  returning agent_id
+), bound_agent as (
+  update vy_replica r set agent_id=ca.agent_id,updated_at=now()
+    from eligible e, created_agent ca
+   where r.replica_id=e.replica_id and r.owner_user_id=e.owner_user_id and r.agent_id is null
+  returning r.replica_id,r.agent_id
 ), created as (
   insert into vy_replica_text_capability (replica_id,owner_user_id,profile_version,policy_version,state)
   select replica_id,owner_user_id,profile_version,$3,'active' from eligible
@@ -436,6 +470,28 @@ export async function loadOwnedTextProfile(db, ownerUserId, id) {
   const row = rows[0];
   if (!row) return null;
   return { version: Number(row.version), definition: parsed(row.definition) };
+}
+
+// WS-R172. The identity a text-ready replica's owner-memory and
+// relationship-state ops need and `loadOwnedRuntimeContext` above cannot
+// supply for one with no active VOICE capability: `agent_id`/
+// `subject_person_id`, read through the SAME `RUNTIME_STATUS_SQL`/
+// `textBlockers` pair `ownedRuntimeStatus` already uses as the single
+// source of text-ready eligibility — never a second, differently-worded
+// rule. `agent_id` is required here (not merely present-if-eligible): a
+// caller MUST have already read `ownedRuntimeStatus` (or otherwise caused
+// `ensureOwnedTextCapability`'s own write path to run) so the agent this
+// function requires has actually been minted — `ownedSelfRuntime`
+// (`api/_replica-dialogue.js`) does exactly that ordering. Returns `null`
+// for a not-eligible OR not-yet-minted replica, never a crash.
+export async function loadOwnedTextIdentity(db, ownerUserId, id) {
+  const rows = await db(RUNTIME_STATUS_SQL, [
+    replicaId(id), ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES], FIDELITY_POLICY_VERSION,
+    READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR,
+  ]);
+  const row = rows[0];
+  if (!row || textBlockers(row).length || !row.agent_id) return null;
+  return { replica_id: row.replica_id, owner_user_id: ownerUserId, subject_person_id: row.subject_person_id, agent_id: row.agent_id };
 }
 
 // The exact genome/voice-profile choice a fresh activation would bind: the

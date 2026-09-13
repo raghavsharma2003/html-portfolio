@@ -20,6 +20,7 @@ import {
   compileRelationshipTail,
   compileReplicaRuntimeCore,
   loadOwnedPrivateRuntimeContext as loadOwnedRuntimeContext,
+  loadOwnedTextIdentity,
   loadOwnedTextProfile,
   loadPrivateRelationshipSnapshot,
   openOwnedRuntimeSession,
@@ -65,11 +66,29 @@ function ownerMemoryTail(facts) {
   return `Remembered from earlier private Meet conversations (evidence-backed, never invented):\n${lines.join("\n")}`;
 }
 
+// WS-R172. Law 2 of this workstream's own brief: "the owner memory ops and
+// relstate accept a text-ready replica... nothing about the capability
+// level enters the scope law". A voice-ready replica keeps the exact same
+// `loadOwnedRuntimeContext` path (byte-identical `runtime` shape); a
+// text-ready-only replica (no active VOICE capability) falls back to
+// `ownedRuntimeStatus` — the SAME status read/ensure-write
+// `generateOwnedTextDialogue` already calls, including the agent mint
+// `api/_replica-runtime.js#TEXT_CAPABILITY_ENSURE_SQL` now performs — so a
+// memory/relstate op that is the FIRST thing an owner ever calls (before
+// any text turn) still mints the agent it needs, never a second,
+// differently-timed mint. `loadOwnedTextIdentity` then re-reads the
+// (now-minted) identity through the SAME `textBlockers` eligibility, never
+// a looser or differently-worded rule than `generateOwnedTextDialogue`
+// itself already gates on.
 async function ownedSelfRuntime(db, ownerUserId, replicaIdInput) {
   const rid = replicaId(replicaIdInput);
   const runtime = await loadOwnedRuntimeContext(db, ownerUserId, rid);
-  if (!runtime) fail("dialogue_runtime_not_active");
-  return { rid, runtime };
+  if (runtime) return { rid, runtime };
+  const status = await ownedRuntimeStatus(db, ownerUserId, rid);
+  if (!status || !status.text_ready) fail("dialogue_runtime_not_active");
+  const identity = await loadOwnedTextIdentity(db, ownerUserId, rid);
+  if (!identity) fail("dialogue_runtime_not_active");
+  return { rid, runtime: { replica: identity, capability: null } };
 }
 
 async function ownerMemoryOn(db, rid, ownerUserId) {
@@ -399,10 +418,18 @@ function withApprenticeDisclosure(reply) {
 // that machinery is FK-bound to `vy_replica_runtime_capability`
 // (`db/migrations/023_replica_runtime.sql`), which a text-only replica has
 // none of by design (`textBlockers`'s own header in `_replica-runtime.js`).
-// Building a second, lighter session/turn ledger for text alone is real,
-// named, future scope — not reached this workstream, stated here rather
-// than implied: a text-ready conversation has no server-side memory of its
-// own prior turns between requests.
+// A text-ready turn is still stateless TURN-TO-TURN (no `session_id`, no
+// per-turn history row) — that gap is real, named, future scope, unchanged
+// by this workstream. WS-R172 closes the DIFFERENT, narrower gap this
+// door's own header used to name as open: the owner's extracted Meet
+// memory (`OWNER_MEMORY_RECALL_SQL`) and relationship state
+// (`loadPrivateRelationshipSnapshot`/`compileRelationshipTail`) now reach
+// this compile too, through the SAME `_room-memory-authority.js`/
+// `compileReplicaRuntimeCore`/`compileDialoguePrompt` path the voice-ready
+// door already used (`generateOwnedDialogue` below, unchanged) — a person's
+// AI can now say "you told me earlier" from text alone, never waiting on a
+// GPU (`context/decisions.md#ws-r172-owner-memory-and-relstate-accept-a-
+// text-ready-replica`).
 export async function generateOwnedTextDialogue(db, ownerUserId, rawInput, generator, signal) {
   if (!generator || typeof generator.generate !== "function" || !generator.family || !generator.name || !generator.version || !generator.model)
     fail("dialogue_generator_unavailable", 503);
@@ -418,13 +445,29 @@ export async function generateOwnedTextDialogue(db, ownerUserId, rawInput, gener
   const profile = await loadOwnedTextProfile(db, ownerUserId, rid);
   if (!profile) fail("dialogue_text_not_ready", 409, { blockers: status.text_blockers });
   const vibe = await getReplicaVibe(db, ownerUserId, rid).catch(() => null);
+  // WS-R172. `ownedRuntimeStatus` just above already ran the ensure-write
+  // that mints this replica's agent when it is missing
+  // (`TEXT_CAPABILITY_ENSURE_SQL`), so `identity` below is never null for a
+  // genuinely eligible replica except on a rare concurrent-revoke race —
+  // handled the same honest, non-fatal way a missing relationship snapshot
+  // already is: the reply still completes, without a memory/relstate tail,
+  // never a crash.
+  const identity = await loadOwnedTextIdentity(db, ownerUserId, rid);
+  const [ownerFacts, snapshot] = identity
+    ? await Promise.all([
+        db(OWNER_MEMORY_RECALL_SQL, ownerMemoryAuthority({ replica_id: rid, owner_user_id: ownerUserId })).catch(() => []),
+        loadPrivateRelationshipSnapshot(db, { replica: identity }, { strict: false }),
+      ])
+    : [[], null];
   const core = compileReplicaRuntimeCore(profile.definition, null, message, undefined, vibe);
-  const prompt = compileDialoguePrompt({ core, relationship: "", evidence: "", history: [], message });
+  const relationship = [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts)].filter(Boolean).join("\n\n");
+  const prompt = compileDialoguePrompt({ core, relationship, evidence: "", history: [], message });
   signal?.throwIfAborted();
   const generated = await generator.generate({ prompt, signal });
   const output = validateDialogueOutput(generated?.output);
   return {
     has_continuity: false,
+    has_memory: ownerFacts.length > 0,
     turn_id: randomUUID(),
     session_id: null,
     reply: withApprenticeDisclosure(output.reply),

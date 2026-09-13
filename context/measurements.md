@@ -18594,3 +18594,27 @@ Full registry (`node evals/run.mjs`, no args) run once, alone, in the foreground
 The busy-loop children were spawned by this measurement's own driver (`spawn(process.execPath, ["-e", "<tight Math.sqrt loop for 150s>"])`), their PIDs tracked and killed directly (`SIGKILL` by PID, never by pattern) in a `finally` block once each band's samples were taken. The load-12 target was approached, not hit exactly (mean 10.99, not 12.00) — real sibling contention on this shared machine (other wave-23 agents' own gates) contributed some of the climb alongside the synthetic loop, and the 130s climb window ended before the 1-minute EWMA fully caught up to the 8 children's own steady-state CPU draw; the number reported is what was actually read, not adjusted toward the brief's own round example. A first attempt with 4 children and a 100s window reached only mean 7.85 (ratio 1.96-1.97, `after` 23460-23670ms) and is superseded by the 8-child run above, kept here only as the reason a second round was run rather than silently discarded.
 
 **End-to-end confirmation against the real production check, same session, unplanned.** While this measurement's own synthetic load (plus real sibling contention) held the machine at load1 11.55-11.65 shortly after the band-2 sample above, `node scripts/check-performance.mjs` and `node scripts/check-performance.mjs --json` were each run once, standalone, for an unrelated verification step. Both refused correctly: `FAIL  performance budgets: not measurable at load 11.60 (ceiling 8, 4 cores, ratio 2.90) -- rerun once the machine is quieter`, and the JSON form carried `"load": {"load1": 11.55, "cores": 4, "ratio": 2.8875, "ceiling": 8, "exceeded": true}` with `results: []` (no budget measurement attempted) — the law-4 behaviour proven live, not only against the mocked negative controls in `evals/gate-load/run.mjs` (node id `gate-load-suite-2026-09-13`: 26/26 checks, deterministic, injected `loadavg`/`cpus`, no real machine load required).
+
+## `ws-r172-continuity-for-a-text-ready-ai-2026-09-13`
+
+Method: `node evals/<suite>/run.mjs` (or the file's own path) run standalone in the worktree after `node scripts/write-config.mjs --stub`, offline, $0, no DB, no network, no model call except where a browser-driven suite is named; date 2026-09-13.
+
+| suite | result |
+|---|---|
+| text-ready (extended: sections 6-7, agent-minted memory tail, `loadOwnedTextIdentity`) | 42 pass, 0 fail |
+| meet-continuity (extended: section 8, the loosened lifecycle floor over the real owner-memory/relstate ops) | 60 pass, 0 fail |
+| room-leak (extended: layer 19 addendum, two owners' own text-ready memory facts, cross-owner negative control) | 371 pass, 0 fail (336,323 retrieval row-scenario checks, 606 boundary checks) |
+| rehearsal/personal.mjs (extended: a two-turn text-ready continuity walk through a real Chromium, real doors) | 61 pass, 0 fail |
+| replica-dialogue | 47 pass |
+| replica-runtime | 62 pass |
+| room-relstate | 31 pass |
+| room-cohorts | 63 pass |
+| room-memory-authority | 29 controls |
+| room-memory-correction | 7 controls |
+| room-dormancy | 64 pass |
+| dialogue-unicode (a hand-rolled `_replica-runtime.js` stub needed a third `loadOwnedTextIdentity` export added, same pattern as its own two prior WS-R161 additions) | 13 groups pass |
+| room-doors (the full battery) | 2333 pass, 0 fail |
+| personality-flow28, teacher-sheet-adoption, private-sql-literal, context-claim-grounding, dialogue-history, provider-budget, identity-challenge, room-publish, candidate-activation(-runtime x2), candidate-materializer-worker, candidate-qualification-service, correction-candidate-worker, readiness, fidelity, person-model, private-continuity, azure-dialogue-adapter, room-expert-runtime, agent/raw-isolation, consolidation/config, consolidation/room-caller, dialogue-history-ui, conversation-setup-ui, expert-answer-render, studio-locale-personal | all pass unchanged, run standalone as every suite that scans a touched file |
+| `npx tsc --noEmit`, `node scripts/check-copy.mjs`, `node scripts/check-prompt-budget.mjs`, `node scripts/check-schema-mirror.mjs`, `npx vite build` | all pass |
+
+Not measured: the SQL text of `TEXT_CAPABILITY_ENSURE_SQL`'s new agent-mint CTEs against a real Postgres server (no `NEON_URL` in this environment — `offline-mocks-cannot-type-check-sql`, CLAUDE.md); every new statement is listed in this workstream's final report for the main loop to `EXPLAIN` live. No migration was needed (no schema change): `vy_agent` and `vy_replica.agent_id` already existed; only application-level SQL changed.

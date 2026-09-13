@@ -19242,6 +19242,30 @@
       "kind": "rejection",
       "title": "first-five-minutes, dialogue-history-ui, feedback-dataset-ui failed once at load 17-62 (ten siblings gating concurrently); confirmed unrelated by zero file overlap and Playwright-timeout/assertion-race failure shape",
       "at": "context/rejected.md#ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file"
+    },
+    {
+      "id": "ws-r172-owner-memory-and-relstate-accept-a-text-ready-replica",
+      "kind": "decision",
+      "title": "The owner's Meet memory (OWNER_MEMORY_AUTHORITY) and relstate accept a text-ready replica; ownedSelfRuntime falls back to a text identity",
+      "at": "context/decisions.md#ws-r172-owner-memory-and-relstate-accept-a-text-ready-replica"
+    },
+    {
+      "id": "ws-r172-the-agent-mint-moves-earlier-to-text-ready",
+      "kind": "decision",
+      "title": "TEXT_CAPABILITY_ENSURE_SQL now mints and binds vy_replica.agent_id the same shape activateOwnedRuntime uses, without ever touching lifecycle/activated_at",
+      "at": "context/decisions.md#ws-r172-the-agent-mint-moves-earlier-to-text-ready"
+    },
+    {
+      "id": "ws-r172-owner-memory-and-relstate-would-be-unreachable-without-an-earlier-agent-mint",
+      "kind": "rejection",
+      "title": "Loosening OWNER_MEMORY_AUTHORITY's lifecycle predicate alone would have shipped an authority no text-ready-only replica could ever reach: agent_id was only ever minted at voice activation",
+      "at": "context/rejected.md#ws-r172-owner-memory-and-relstate-would-be-unreachable-without-an-earlier-agent-mint"
+    },
+    {
+      "id": "ws-r172-continuity-for-a-text-ready-ai-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R172's own suite results: text-ready, meet-continuity, room-leak and a real-browser two-turn continuity walk, plus every dependent suite unchanged",
+      "at": "context/measurements.md#ws-r172-continuity-for-a-text-ready-ai-2026-09-13"
     }
   ],
   "edges": [
@@ -32792,6 +32816,36 @@
       "src": "ws-r173-touched-suites-2026-09-13",
       "dst": "ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file",
       "rel": "caused_by"
+    },
+    {
+      "src": "ws-r172-owner-memory-and-relstate-accept-a-text-ready-replica",
+      "dst": "ws-r161-two-capability-levels-text-ready-and-voice-ready",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r172-owner-memory-and-relstate-accept-a-text-ready-replica",
+      "dst": "ws-r167-owner-memory-epoch-is-a-consent-window",
+      "rel": "supersedes"
+    },
+    {
+      "src": "ws-r172-the-agent-mint-moves-earlier-to-text-ready",
+      "dst": "ws-r172-owner-memory-and-relstate-would-be-unreachable-without-an-earlier-agent-mint",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r172-owner-memory-and-relstate-would-be-unreachable-without-an-earlier-agent-mint",
+      "dst": "ws-r161-text-ready-dialogue-is-stateless-no-session-no-turn-history",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r172-owner-memory-and-relstate-accept-a-text-ready-replica",
+      "dst": "ws-r172-continuity-for-a-text-ready-ai-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r172-the-agent-mint-moves-earlier-to-text-ready",
+      "dst": "ws-r172-continuity-for-a-text-ready-ai-2026-09-13",
+      "rel": "measured_by"
     }
   ]
 }

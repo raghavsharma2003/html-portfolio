@@ -146,6 +146,13 @@ const { freshRehearsalCreatorState, rehearsalCreatorDb } = await import(
 const { personModelReadiness } = await import(pathToFileURL(join(ROOT, "api/_person-model.js")).href);
 const { clientRuntimeStatus, OWNED_TEXT_PROFILE_SQL } = await import(pathToFileURL(join(ROOT, "api/_replica-runtime.js")).href);
 const { TEXT_APPRENTICE_DISCLOSURE } = await import(pathToFileURL(join(ROOT, "api/_replica-dialogue.js")).href);
+// WS-R172: continuity for a text-ready AI — the owner's own Meet memory
+// door's exact SQL constants, matched by reference below exactly as
+// `OWNED_TEXT_PROFILE_SQL` already is one line up.
+const {
+  OWNER_MEMORY_CONSENT_STATUS_SQL, OWNER_MEMORY_CONSENT_GRANT_SQL, OWNER_MEMORY_CONSENT_REVOKE_SQL,
+  OWNER_MEMORY_RECALL_SQL, OWNER_MEMORY_FACTS_SQL,
+} = await import(pathToFileURL(join(ROOT, "api/_room-memory-authority.js")).href);
 const { createReplicaSourceHandler } = await import(pathToFileURL(join(ROOT, "api/replica-source.js")).href);
 // WS-R162 (brief law 5): the Room-publish door and the about page it feeds -
 // imported directly, the SAME "real module, fake db" shape every import
@@ -548,6 +555,48 @@ function personalPatterns(state, sql, params, has) {
     return approved ? [{ version: approved.version, definition: approved.definition }] : [];
   }
 
+  // WS-R172. `api/_room-memory-authority.js`'s owner-memory door, matched
+  // by EXACT reference (imported above) — the same discipline this file's
+  // own `OWNED_TEXT_PROFILE_SQL` comparison one block down already uses.
+  // `state.memoryConsents`/`state.ownerFacts` are new, local fixture state,
+  // reusing the SAME shape `state.consents`/`state.personProfiles` already
+  // establish for the rest of this walk.
+  if (sql === OWNER_MEMORY_CONSENT_STATUS_SQL) {
+    const [rid, ownerUserId] = params.map(String);
+    const on = (state.memoryConsents || []).some((c) => c.replica_id === rid && c.owner_user_id === ownerUserId && !c.revoked_at);
+    return [{ memory_on: on }];
+  }
+  if (sql === OWNER_MEMORY_CONSENT_GRANT_SQL) {
+    const [rid, ownerUserId, receiptHash] = params;
+    const replica = state.replicas.find((r) => r.replica_id === String(rid) && r.owner_user_id === String(ownerUserId) && r.subject_mode === "self" && !["revoked", "purging"].includes(r.lifecycle));
+    if (!replica) return [];
+    state.memoryConsents ??= [];
+    for (const c of state.memoryConsents) {
+      if (c.replica_id === String(rid) && c.owner_user_id === String(ownerUserId) && !c.revoked_at) c.revoked_at = new Date().toISOString();
+    }
+    const row = { consent_id: randomUUID(), replica_id: String(rid), owner_user_id: String(ownerUserId), receipt_hash: receiptHash, granted_at: new Date().toISOString(), revoked_at: null };
+    state.memoryConsents.push(row);
+    return [{ consent_id: row.consent_id, granted_at: row.granted_at }];
+  }
+  if (sql === OWNER_MEMORY_CONSENT_REVOKE_SQL) {
+    const [rid, ownerUserId] = params.map(String);
+    const revoked = [];
+    for (const c of state.memoryConsents || []) {
+      if (c.replica_id === rid && c.owner_user_id === ownerUserId && !c.revoked_at) { c.revoked_at = new Date().toISOString(); revoked.push({ consent_id: c.consent_id }); }
+    }
+    return revoked;
+  }
+  if (sql === OWNER_MEMORY_RECALL_SQL || sql === OWNER_MEMORY_FACTS_SQL) {
+    const [rid, ownerUserId] = params.map(String);
+    const replica = state.replicas.find((r) => r.replica_id === rid && r.owner_user_id === ownerUserId && !["revoked", "purging"].includes(r.lifecycle));
+    if (!replica) return [];
+    const memoryOn = (state.memoryConsents || []).some((c) => c.replica_id === rid && c.owner_user_id === ownerUserId && !c.revoked_at);
+    if (!memoryOn) return [];
+    return (state.ownerFacts || [])
+      .filter((f) => f.replica_id === rid && f.owner_user_id === ownerUserId && !f.retracted_at && !f.superseded_by)
+      .map((f) => ({ id: f.id, body: f.body, kind: f.kind, name: f.name, created_at: f.created_at, communication: f.communication }));
+  }
+
   // api/_replica-runtime.js's RUNTIME_STATUS_SQL — "account_person_matches"
   // is the one substring unique to this exact select in the whole repo. Fed
   // to the REAL, imported `clientRuntimeStatus` below, so Deploy's own
@@ -571,6 +620,13 @@ function personalPatterns(state, sql, params, has) {
       .sort((a, b) => b.version - a.version)[0];
     return [{
       replica_id: replica.replica_id, subject_mode: replica.subject_mode, lifecycle: replica.lifecycle,
+      // WS-R172: `agent_id`, read straight off the fixture's own replica row
+      // — this walk's own "record"/"DEPLOY, continued" sections are what
+      // license `selfReplica.agent_id` to exist at all before real voice
+      // activation (this file's own comment where it is first seeded), so
+      // this branch is honest either way: `null` before that line runs,
+      // the real seeded value after.
+      agent_id: replica.agent_id || null,
       subject_person_id: replica.subject_person_id || null, age_verified_at: null, identity_verified_at: null, liveness_verified_at: null,
       identity_expires_at: null, person_age_tier: null,
       account_person_matches: Boolean(replica.subject_person_id), inference_consent: inferenceConsent,
@@ -1320,6 +1376,97 @@ async function main() {
       throw new Error("unmatched SQL");
     }, "no-such-room-slug");
     ok("NEGATIVE CONTROL: an unrelated unknown slug's about page still resolves to null", unknownAboutRow === null);
+
+    // ── MEET (text-ready): continuity without a voice (WS-R172) ──────────
+    // The owner's own memory ("It remembers") and relationship state now
+    // reach a text-ready replica through the SAME `_room-memory-authority.js`/
+    // `_room-relstate.js` ops the voice-ready path already used (WS-R167) —
+    // `ownedSelfRuntime`'s own new fallback (`context/decisions.md
+    // #ws-r172-owner-memory-and-relstate-accept-a-text-ready-replica`). This
+    // walk's own `selfReplica.agent_id` is real by this point (seeded two
+    // steps up, for `createRoom`) — the exact identity this workstream's own
+    // agent mint (`TEXT_CAPABILITY_ENSURE_SQL`) would have produced for a
+    // never-recorded replica; this rehearsal takes the SAME fixture-level
+    // license this file's own header already grants training/inference
+    // consent above, since the mint's own SQL shape is unproven offline
+    // (`evals/text-ready/run.mjs`'s own header). Two real turns through the
+    // real door, memory toggled on for real, and a SECOND fact seeded
+    // directly into fixture state (consolidation itself stays unwired,
+    // `context/decisions.md#ws-r167-owner-memory-consolidation-left-
+    // unmetered`, unchanged by this workstream) to prove the compiled
+    // PROMPT for turn two really does carry a fact from turn one, through
+    // the fake model seam `setFakeDialogueReply` already gives this walk
+    // read access to.
+    tStep = Date.now();
+    const memoryToggleOnResponse = await fetch(`${url}/api/replica-dialogue`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "memory_toggle", replica_id: rid, on: true }),
+    });
+    const memoryToggleOnBody = await memoryToggleOnResponse.json().catch(() => ({}));
+    ok("Meet (text-ready continuity): memory_toggle on succeeds through the real door", memoryToggleOnResponse.status === 200 && memoryToggleOnBody.memory_on === true, JSON.stringify(memoryToggleOnBody));
+
+    setFakeDialogueReply(() => ({
+      reply: "Good to meet you. Tell me more whenever you like.",
+      delivery: { mode: "warm", pace: "natural", intensity: 0.4, language_hint: "", nonverbals: [] },
+    }));
+    const continuityTurn1 = await fetch(`${url}/api/replica-dialogue`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ replica_id: rid, message: "I switched to a morning schedule this month." }),
+    });
+    const continuityTurn1Body = await continuityTurn1.json().catch(() => ({}));
+    ok("Meet (text-ready continuity): turn one completes through the real door", continuityTurn1.status === 200 && typeof continuityTurn1Body.turn?.reply === "string", JSON.stringify(continuityTurn1Body));
+    ok("Meet (text-ready continuity): turn one honestly reports no memory yet (consolidation is not wired to run automatically)", continuityTurn1Body.turn?.has_memory === false);
+    setFakeDialogueReply(null);
+
+    state.ownerFacts ??= [];
+    const seededFactBody = "switched to a morning schedule this month";
+    state.ownerFacts.push({
+      id: "9001", replica_id: rid, owner_user_id: ownerId, kind: "user", name: "preference",
+      body: seededFactBody, communication: null, created_at: new Date().toISOString(), retracted_at: null, superseded_by: null,
+    });
+
+    const memoryFactsResponse = await fetch(`${url}/api/replica-dialogue`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "memory_facts", replica_id: rid }),
+    });
+    const memoryFactsBody = await memoryFactsResponse.json().catch(() => ({}));
+    ok("Meet (text-ready continuity): \"It remembers\" shows the seeded fact for a text-ready replica, no voice ever reached", memoryFactsResponse.status === 200 && (memoryFactsBody.facts || []).some((f) => f.body === seededFactBody), JSON.stringify(memoryFactsBody));
+
+    let turn2SawFact = false;
+    setFakeDialogueReply((prompt) => {
+      turn2SawFact = prompt.messages?.[0]?.content?.includes(seededFactBody) || false;
+      return { reply: "You mentioned the morning schedule already, glad it's working.", delivery: { mode: "warm", pace: "natural", intensity: 0.4, language_hint: "", nonverbals: [] } };
+    });
+    const continuityTurn2 = await fetch(`${url}/api/replica-dialogue`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ replica_id: rid, message: "Do you remember what I told you about my schedule?" }),
+    });
+    const continuityTurn2Body = await continuityTurn2.json().catch(() => ({}));
+    ok("Meet (text-ready continuity): turn two's real compiled prompt carries the fact from turn one", turn2SawFact);
+    ok("Meet (text-ready continuity): turn two reports has_memory:true", continuityTurn2Body.turn?.has_memory === true, JSON.stringify(continuityTurn2Body));
+    setFakeDialogueReply(null);
+
+    // NEGATIVE CONTROL: memory off never leaks the same fact into a turn's
+    // own compile.
+    const memoryToggleOffResponse = await fetch(`${url}/api/replica-dialogue`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "memory_toggle", replica_id: rid, on: false }),
+    });
+    ok("NEGATIVE CONTROL: memory_toggle off succeeds", memoryToggleOffResponse.status === 200);
+    let turn3SawFact = false;
+    setFakeDialogueReply((prompt) => {
+      turn3SawFact = prompt.messages?.[0]?.content?.includes(seededFactBody) || false;
+      return { reply: "Tell me again, I'm starting fresh.", delivery: { mode: "warm", pace: "natural", intensity: 0.4, language_hint: "", nonverbals: [] } };
+    });
+    const continuityTurn3 = await fetch(`${url}/api/replica-dialogue`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ replica_id: rid, message: "Do you remember what I told you?" }),
+    });
+    const continuityTurn3Body = await continuityTurn3.json().catch(() => ({}));
+    ok("NEGATIVE CONTROL: memory off, the same fact never reaches a turn's own compile", !turn3SawFact);
+    ok("NEGATIVE CONTROL: memory off, has_memory reports false honestly", continuityTurn3Body.turn?.has_memory === false, JSON.stringify(continuityTurn3Body));
+    setFakeDialogueReply(null);
+    timings.meetTextReadyContinuityMs = Date.now() - tStep;
 
     // NEGATIVE CONTROL 3: a revoked replica shows the erased state.
     const revokeResponse = await fetch(`${url}/api/replica`, {
