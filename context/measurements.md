@@ -18573,3 +18573,15 @@ Method: each workstream's own report (suite counts as printed), the main loop's 
 | WS-R171 the merge repairs | see the session log | the ten suites the first batch gate named, then the whole registry |
 
 Batch gates: ten merges (ee7ac84) 24 of 25, the eval suite failing on ten suites (feed-meet-teach-cta, feed-meet-mined-cta, feed-meet-return-ui, private-text-rehearsal-ui, conversation-setup-ui, dialogue-history-ui, recorder-lifecycle, mirrorcall, mirrorownerspeaker, studioselftestui), eight of which fail on WS-R166's own branch; after WS-R171, 25 of 25 on dfe4c98. Live database after the wave: migrations 167 (three statements) and 170 (two statements) applied one statement per request, 0 failures; 168, 169 and 171 unused.
+
+#### ws-r174-person-room-wall-clocks-2026-09-13
+
+Wall clock of `node evals/rehearsal/person-room.mjs` / `--full`, measured with `Date.now()` deltas printed by the suite itself (`walkEnMs`/`walkHiMs`, each locale's own fresh fixture server + Chromium walk end to end: sign-in through Deploy, "Set up your Room", a blocked publish, a real publish, a second browser context joining `/r/<slug>`, reading the about page and getting one reply), on this worktree (`ws-r174`), machine shared with nine other sibling workstreams at the time of measurement (`/proc/loadavg` 1-minute figure noted per run — this is NOT an isolated-machine number, and the spread below is mostly that contention, not the suite's own variance):
+
+| run | loadavg (1m) | en (ms) | hi (ms) |
+|---|---|---|---|
+| 1 | ~15 (moderate) | 8,686 | not run (`--full` omitted) |
+| 2 | ~15 (moderate) | 11,086 | 10,467 |
+| 3 | ~57 (heavy, ten siblings building/testing concurrently) | 13,175 | 13,799 |
+
+n=3 for the English walk, n=2 for the Hindi walk (run 1 omitted `--full`, the gate's own default). Method: three separate process invocations, same worktree, same tree, no isolation from sibling load — the honest number this shared four-core machine can give mid-wave. `npx vite build`'s own cost (7-20s per run, PRE_POOL_SUITES-serial, not counted in the walk clocks above) is excluded on purpose, the same convention `evals/rehearsal/creator.mjs`'s own wall-clock section uses (its `harness.startHarness`'s `build` step is likewise excluded from `clocks.browserWalkEn`).

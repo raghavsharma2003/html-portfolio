@@ -3221,6 +3221,43 @@ const suites = {
   // call, no GPU. Chromium only (never `playwright install` — `/opt/pw-
   // browsers` is pre-installed); gracefully skips (exit 0) if none is found.
   "rehearsal-personal": "rehearsal/personal.mjs",
+  // WS-R174 (wave twenty-three). A personal AI's Room, walked in Chromium,
+  // from Deploy to a visitor's first reply. WS-R162 proved the publish lock
+  // clears for a person sheet at the door level; WS-R152 mounted the real
+  // `RoomStudio` inside the personal studio's Deploy screen — but nobody had
+  // clicked through it for a person AI, and this walk found the real reason:
+  // `ExpertSharePanel.tsx` only ever rendered `DeployStudio` on
+  // `voiceWorkspaceReady` (a completed VOICE pipeline), never on `textReady`
+  // (an approved HumanOS sheet, no voice at all), so a text-ready person had
+  // NO route to Deploy/RoomStudio through the real UI at all — fixed here
+  // (`src/studio/ExpertSharePanel.tsx`, `src/studio/CloneExperience.tsx`),
+  // see `context/rejected.md#ws-r174-expertsharepanel-showed-deploy-only-
+  // for-voiceworkspaceready-never-textready`. REAL, through the browser,
+  // against the real built `studio.html`/`room.html` and the real
+  // `api/replica.js`, `api/replica-consent.js`, `api/replica-runtime.js`,
+  // `api/room-publish.js`, `api/room.js` and `api/room-about.js` handlers
+  // over a fixture db: the studio discovering a seeded text-ready replica;
+  // the Share tab opening Deploy; "Set up your Room"; a first "Publish your
+  // Room" refused with the real, named `room_disclosure_not_approved`
+  // blocker on screen; a second publish succeeding once the person's own
+  // sheet is (fixture-)published; a SECOND browser context opening
+  // `/r/<slug>`, joining, reading the about page (the person's own
+  // disclosure line, never "teacher"), and getting a real reply from the
+  // fake seam — in English and Hindi (`--full`/`REHEARSAL_FULL=1`; the
+  // English walk alone is the gate's own budget). THREE NEGATIVE CONTROLS:
+  // an unpublished person sheet keeps Deploy's honest blocker; a signed-out
+  // attempt to speak in the Room is refused (401, room_session_invalid)
+  // before any reply logic runs; the visitor never sees the teacher wording.
+  // A real, pre-existing fixture gap found along the way and worked around
+  // on this suite's own state (not the shared fixture file): `doorsPatterns`'
+  // own `insert into vy_room` matcher mints a non-UUID-shaped `room_id` for
+  // a truly new room, which `_room-surface.js#publicKnowledgeScope`'s real
+  // UUID validator refuses the moment a follower actually speaks — this
+  // suite's own follower "say" step is the first in this repo to create a
+  // brand-new room AND drive a real conversation in it end to end. Offline,
+  // deterministic, $0, no DB, no network beyond 127.0.0.1, no model call, no
+  // GPU. Chromium only; gracefully skips (exit 0) if none is found.
+  "rehearsal-person-room": "rehearsal/person-room.mjs",
   // WS-R159: the PERSONAL studio in Hindi. `src/studio/copy.ts` / `hiCopy.ts`
   // (a NEW, separate registry from `src/studio-locale`'s `src/creatorStudio/
   // copy.ts` -- the two studios are different products since Codex's
