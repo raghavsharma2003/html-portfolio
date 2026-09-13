@@ -73,6 +73,49 @@ check("page errors retain missing-measurement findings", () => {
   const value = result([measured(), measured({ lcpMs: 0 }), measured()]); value.crashed = "fixture page error";
   assert.deepEqual(refuses(value).findings.map((finding) => finding.metric), ["LCP measurement", "page error"]);
 });
+// WS-R177: `/studio` and `studio-hi`'s own tighter TBT ceiling
+// (`result.tbtBudget`), the identical override shape WS-R139 already
+// proved for `jsBudget` — never a change to the shared 300ms `BUDGETS.tbtMs`
+// every other target still uses. The negative controls that mutate the
+// actual source live further down, alongside the file's other actual-source
+// mutants, once `code` (the actual file text, import-path-rewritten) exists.
+check("a target-specific TBT budget wins over the shared 300ms one", () => {
+  const value = result(); value.tbtBudget = 150; value.median.tbtMs = 200;
+  const tested = outcome(value);
+  assert.equal(tested.exitCode, 1);
+  assert.deepEqual(tested.findings.map((finding) => finding.metric), ["TBT"]);
+  assert.match(tested.findings[0].detail, /200ms > 150ms budget/);
+});
+check("a target-specific TBT budget passes exactly at its own ceiling, not the shared one", () => {
+  const value = result(); value.tbtBudget = 150; value.median.tbtMs = 150;
+  assert.deepEqual(evaluateBudgets(value), []);
+});
+check("a target with no tbtBudget still uses the shared 300ms ceiling unchanged", () => {
+  const value = result(); value.median.tbtMs = 200; // over 150, under 300 — must still pass
+  assert.deepEqual(evaluateBudgets(value), []);
+});
+// WS-R177: the load-average context threaded into the TBT finding's own
+// `detail` string ("the check records the load average it ran under in
+// its ... finding text") — optional, defaulting to absent, so every call
+// above with one argument stays byte-for-byte unaffected (proven by the
+// checks above, none of which pass a second argument).
+check("a TBT finding carries the load average when the caller supplies one", () => {
+  const value = result(); value.median.tbtMs = 400;
+  const tested = evaluateBudgets(value, { loadAverage: 12.34 });
+  assert.equal(tested.length, 1);
+  assert.match(tested[0].detail, /400ms > 300ms budget/);
+  assert.match(tested[0].detail, /load average 12\.34/);
+});
+check("a TBT finding carries no load average text when the caller supplies none", () => {
+  const value = result(); value.median.tbtMs = 400;
+  const tested = evaluateBudgets(value);
+  assert.equal(tested.length, 1);
+  assert.doesNotMatch(tested[0].detail, /load average/);
+});
+check("a passing TBT measurement generates no finding regardless of load average", () => {
+  const value = result(); value.median.tbtMs = 40;
+  assert.deepEqual(evaluateBudgets(value, { loadAverage: 40 }), []);
+});
 check("Hindi wire field and 800ms boundary remain compatible with honest DOM label", () => {
   const value = result(); value.target = "studio-hi";
   value.median.hindiChunkWaitMs = 800; value.median.firstHindiPaintMs = 800;
@@ -156,4 +199,27 @@ check("actual-source reset-clock mutant falsifies the late-paint budget", () => 
   value.median.lcpMs = reset.perf.lcp;
   assert.equal(outcome(value).exitCode, 0, "mutant incorrectly admits the real 3388ms paint");
 });
+
+// WS-R177's two negative controls, using the same actual-source `code`
+// (already import-path-rewritten above) every other mutant in this file
+// mutates further rather than re-deriving its own copy.
+const tbtBudgetLine = "const tbtBudget = result.tbtBudget ?? BUDGETS.tbtMs;";
+assert.equal(code.split(tbtBudgetLine).length, 2, "actual tbtBudget override line must match exactly once");
+const withoutTbtBudgetOverride = code.replace(tbtBudgetLine, "const tbtBudget = BUDGETS.tbtMs;");
+const tbtBudgetMutant = await import(`data:text/javascript;base64,${Buffer.from(withoutTbtBudgetOverride).toString("base64")}`);
+check("negative control: dropping the tbtBudget override falsely passes a target that set one", () => {
+  const value = result(); value.tbtBudget = 150; value.median.tbtMs = 200;
+  assert.equal(outcome(value, tbtBudgetMutant.evaluateBudgets).exitCode, 0, "mutant incorrectly admits a 200ms TBT against a 150ms target budget");
+});
+
+const tbtFindingPush = 'findings.push({ metric: "TBT", detail: tbtFindingDetail(m.tbtMs, tbtBudget, loadAverage) });';
+assert.equal(code.split(tbtFindingPush).length, 2, "actual TBT finding push must match exactly once");
+const droppedLoadAverage = code.replace(tbtFindingPush, 'findings.push({ metric: "TBT", detail: tbtFindingDetail(m.tbtMs, tbtBudget, null) });');
+const loadAverageMutant = await import(`data:text/javascript;base64,${Buffer.from(droppedLoadAverage).toString("base64")}`);
+check("negative control: a TBT finding that drops the supplied load average loses its context", () => {
+  const value = result(); value.median.tbtMs = 400;
+  const tested = loadAverageMutant.evaluateBudgets(value, { loadAverage: 12.34 });
+  assert.doesNotMatch(tested[0].detail, /load average/, "mutant should have silently dropped the load average this proof is written to catch");
+});
+
 console.log(`${checks} performance measurement checks passed; no browser or timing benchmark run.`);

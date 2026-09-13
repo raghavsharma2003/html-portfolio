@@ -18573,3 +18573,24 @@ Method: each workstream's own report (suite counts as printed), the main loop's 
 | WS-R171 the merge repairs | see the session log | the ten suites the first batch gate named, then the whole registry |
 
 Batch gates: ten merges (ee7ac84) 24 of 25, the eval suite failing on ten suites (feed-meet-teach-cta, feed-meet-mined-cta, feed-meet-return-ui, private-text-rehearsal-ui, conversation-setup-ui, dialogue-history-ui, recorder-lifecycle, mirrorcall, mirrorownerspeaker, studioselftestui), eight of which fail on WS-R166's own branch; after WS-R171, 25 of 25 on dfe4c98. Live database after the wave: migrations 167 (three statements) and 170 (two statements) applied one statement per request, 0 failures; 168, 169 and 171 unused.
+
+## `ws-r177-studio-tbt-on-a-quiet-machine-2026-09-13` (WS-R177)
+
+Method: real built `dist/` (`npx vite build`, api/_config.js written with `node scripts/write-config.mjs --stub`), `node scripts/check-performance.mjs --target /studio` and `--target studio-hi`, run 5 times each (1 with `--diagnostics --json` for longtask attribution, 4 plain `--json`), n=12 observed runs per target (4 batches x RUNS=3), 2026-09-13. `uptime`/`/proc/loadavg` read immediately before and after the sweep: 1-minute average ranged 0.54-2.07 throughout (single-digit, well under ws-common's "load under 4" quiet-machine bar).
+
+| target | metric | median | p90 | min | max | budget (before this session) |
+|---|---|---|---|---|---|---|
+| `/studio` | TBT | 104.5ms | 126ms | 73ms | 176ms | 300ms (shared) |
+| `/studio` | LCP | 1722ms | 1796ms | 1556ms | 1800ms | 2500ms |
+| `studio-hi` | TBT | 164.5ms | 176ms | 133ms | 205ms | 300ms (shared) |
+| `studio-hi` | LCP | 1628ms | 1680ms | 1520ms | 1736ms | 2500ms |
+| `studio-hi` | first Hindi DOM paint | 493.45ms | 724.9ms | 458.2ms | 752ms | 800ms (unchanged this session) |
+| `studio-hi` | Hindi chunk wait | 1.5ms (single diagnostic run) | — | — | — | 800ms (unchanged this session) |
+
+Raw TBT runs, `/studio`: `[104, 105, 95, 176, 107, 73, 100, 112, 126, 102, 110, 94]`. Raw TBT runs, `studio-hi`: `[176, 146, 169, 205, 153, 134, 167, 148, 162, 173, 170, 133]`. `--diagnostics` longtask attribution on both targets showed exactly two longtasks per run (`self`/`unknown`, `containerType: window`, no `containerSrc`) clustered at ~920ms and ~1050-1070ms after navigation start — Chromium's own opaque attribution for cross-origin/minified script, not a named component; consistent with React + ReactDOM's own mount/hydrate cost (`jsx-runtime-<hash>.js`, 182KB raw / 57KB gzip, confirmed by string search to contain `createRoot`/`react-dom` — see `context/rejected.md#ws-r177-studio-entry-chunk-graph-already-minimal-nothing-to-cut`).
+
+JS/font transfer measured well under budget on both targets: `/studio` 69.7-71.4KB JS, 82-84KB font (of 180KB/120KB budgets); `studio-hi` 73.5KB JS, 84KB font.
+
+Confirmation runs after this session's own code change (instrumentation and budgets only, no product file touched, so these are the same distribution, not a new measurement of a different build): `/studio` single run TBT 108ms, LCP 1724ms, 1-minute load average 1.32 (printed by the gate's own new load-average line); `studio-hi` single run (`--json`) TBT 166ms, `loadAverage: { oneMinuteBeforeRun: 1.73, oneMinuteAfterRun: 1.85 }`.
+
+Conclusion this measurement supports: on a quiet machine, both studio targets pass the OLD shared 300ms TBT budget with roughly 40-75% of the budget unused; every prior report of a TBT miss on these two targets in `context/rejected.md` (`context/decisions.md#ws-r49-performance-budgets-are-a-throttled-simulation-not-a-device`'s own reversal note; the WS-R91/WS-R107/WS-R113 session-contention entries; the wave-22 entry at 306ms) measured under a documented load average of 11-49, not a quiet machine. See `context/decisions.md#ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement` and `#ws-r177-load-average-recorded-in-the-performance-gates-own-output`.

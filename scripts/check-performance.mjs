@@ -81,6 +81,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
+import { loadavg } from "node:os";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -238,7 +239,17 @@ const TARGETS = [
   // header), which is the REAL cost this target measures — the same
   // fixture, the same `?screen=join` state, only the locale moves.
   { name: "room-hi", path: "/r/anjali?screen=join&lang=hi", label: "Room join screen, Hindi (room-layout-fixture.html data)", jsBudget: 105 * 1024 },
-  { name: "/studio", path: "/studio", label: "Studio, signed out" },
+  // WS-R177: a per-target TBT ceiling, the same override shape WS-R139
+  // already established for `jsBudget` above (`result.tbtBudget ?? BUDGETS.tbtMs`
+  // in `evaluateBudgets`) — never a change to the SHARED 300ms budget, which
+  // still governs the other six targets this workstream did not measure.
+  // Set from `context/measurements.md#ws-r177-studio-tbt-on-a-quiet-machine-2026-09-13`:
+  // n=12 (4 batches x 3 runs), load average 0.5-2.1 throughout (quiet, per
+  // `ws-common.md`'s "load under 4"). `/studio` measured median 104.5ms,
+  // p90 126ms, max 176ms — 220ms leaves 25% headroom over the worst
+  // observed run, tight enough to catch a real regression long before it
+  // reaches the old 300ms ceiling.
+  { name: "/studio", path: "/studio", label: "Studio, signed out", tbtBudget: 220 },
   // WS-R82 built this target when the shell (chrome, AuthGate) rendered
   // identically to `/studio` regardless of `?lang=hi` — `StudioApp.tsx`'s
   // `AuthGate` sat BEFORE `StudioLocaleProvider` ever mounted, so no Hindi
@@ -255,7 +266,12 @@ const TARGETS = [
   // first Devanagari DOM text mutation relative to first paint —
   // see `measureOnce`'s own comment for exactly what each captures and why
   // both are kept rather than one replacing the other.
-  { name: "studio-hi", path: "/studio?lang=hi", label: "Studio, signed out, Hindi (?lang=hi)" },
+  // WS-R177: same override, own number — Hindi DOM text costs `studio-hi`
+  // roughly 60ms more TBT than `/studio` in the same measurement (Devanagari
+  // layout/paint work `firstHindiPaintMs` already tracks separately). n=12
+  // measured median 164.5ms, p90 176ms, max 205ms; 260ms leaves 27% headroom
+  // over the worst observed run.
+  { name: "studio-hi", path: "/studio?lang=hi", label: "Studio, signed out, Hindi (?lang=hi)", tbtBudget: 260 },
   // WS-R66: the creator's public page — a stranger's search result, cold
   // cache, on the same phone the four targets above already model. Static
   // server-rendered HTML with zero client script, so this target exists
@@ -687,7 +703,27 @@ function evaluateLcpMeasurements(runs) {
   }]);
 }
 
-export function evaluateBudgets(result) {
+// WS-R177. `loadAverage` (a single number, the 1-minute `os.loadavg()`
+// reading `main()` took around the measurement loop — see its own comment)
+// is OPTIONAL and defaults to `null`, so every existing call site and every
+// fixture in `evals/performance-measurements.mjs` that calls
+// `evaluateBudgets(result)` with one argument is byte-for-byte unaffected.
+// When a caller DOES pass it, a TBT finding's `detail` carries it inline —
+// "the check records the load average it ran under in its ... finding
+// text" — because TBT is the one metric this repo has repeatedly measured
+// as load-sensitive (`context/rejected.md`'s "TBT finding under load"
+// pattern, named at least four times: WS-R86, WS-R93, WS-R153, the
+// wave-22 merge gate) while LCP/JS/font/CLS have not shown the same
+// pattern here. This never suppresses or softens the finding — the build
+// still fails — it only makes a busy-machine result legible AS busy,
+// rather than indistinguishable from a real regression.
+function tbtFindingDetail(tbtMs, budget, loadAverage) {
+  const base = `${Math.round(tbtMs)}ms > ${budget}ms budget`;
+  if (loadAverage === null || loadAverage === undefined) return base;
+  return `${base} (1-minute load average ${loadAverage.toFixed(2)} during this run — TBT is the metric this repo has repeatedly measured as load-sensitive; rerun on a quiet machine, load average under 4, before treating this as a regression)`;
+}
+
+export function evaluateBudgets(result, { loadAverage = null } = {}) {
   const m = result.median;
   // Validate every run: a good median must never hide an unobserved paint.
   const findings = evaluateLcpMeasurements(result.runs);
@@ -701,8 +737,15 @@ export function evaluateBudgets(result) {
   if (m.cls > BUDGETS.cls) {
     findings.push({ metric: "CLS", detail: `${m.cls.toFixed(3)} > ${BUDGETS.cls} budget` });
   }
-  if (m.tbtMs > BUDGETS.tbtMs) {
-    findings.push({ metric: "TBT", detail: `${Math.round(m.tbtMs)}ms > ${BUDGETS.tbtMs}ms budget` });
+  // WS-R177: a target-specific ceiling (today only `/studio` and
+  // `studio-hi`) wins over the shared one when set — the identical
+  // `?? BUDGETS.<x>` override shape WS-R139 already established for
+  // `jsBudget` just below, restated for TBT rather than inventing a second
+  // pattern. `result.tbtBudget` is `undefined` on every other target, so
+  // this is a no-op there.
+  const tbtBudget = result.tbtBudget ?? BUDGETS.tbtMs;
+  if (m.tbtMs > tbtBudget) {
+    findings.push({ metric: "TBT", detail: tbtFindingDetail(m.tbtMs, tbtBudget, loadAverage) });
   }
   // WS-R139: a target-specific ceiling (the two Room targets) wins over the
   // shared one when set — `result.jsBudget` is `undefined` everywhere else,
@@ -901,15 +944,27 @@ async function main() {
     return prerequisiteFailure("no chromium binary available");
   }
 
+  // WS-R177: sampled immediately before and after the measurement loop
+  // itself (never before browser launch, which is fixed overhead unrelated
+  // to CPU contention DURING measurement) so `loadAverage` reflects what
+  // this run actually competed against. The 1-minute figure is used
+  // (`loadavg()[0]`) rather than 5- or 15-minute, since a sibling worktree's
+  // own gate run is usually shorter than 5 minutes and a longer window would
+  // wash out real contention. The WORSE (higher) of the two readings is
+  // reported: a machine that got busier partway through the loop should
+  // read as busy, not as quiet-because-it-started-quiet.
+  const loadAverageBefore = loadavg()[0];
   const results = [];
   for (const target of targets) {
     results.push(await measureTarget(browser, target, diagnostics, profile));
   }
+  const loadAverageAfter = loadavg()[0];
+  const loadAverage = Math.max(loadAverageBefore, loadAverageAfter);
 
   await browser.close();
   server.close();
 
-  const allFindings = results.flatMap((r) => evaluateBudgets(r).map((f) => ({ target: r.target, ...f })));
+  const allFindings = results.flatMap((r) => evaluateBudgets(r, { loadAverage }).map((f) => ({ target: r.target, ...f })));
 
   // WS-R59: one more target, folded into the SAME pass/fail — not printed
   // as, and not counted as, a second named gate. `--target` above only ever
@@ -928,19 +983,23 @@ async function main() {
       throttle: THROTTLE,
       budgets: { ...BUDGETS, hindiChunkWaitMs: HINDI_CHUNK_WAIT_BUDGET_MS, firstHindiPaintMs: FIRST_HINDI_PAINT_BUDGET_MS },
       viewport: VIEWPORT, runs: RUNS, results, install,
+      // WS-R177: always present, pass or fail, so a result read later (or a
+      // sibling's CI log) can tell a real regression from this machine
+      // having been busy without re-running anything.
+      loadAverage: { oneMinuteBeforeRun: loadAverageBefore, oneMinuteAfterRun: loadAverageAfter },
       ...(profile ? { profiling: "CPU sampling enabled; attribution diagnostic, not an ordinary release measurement" } : {}),
       staticFindings: hindiPreloadFindings,
     }, null, 2));
   } else {
     printReport(results);
     if (outcome.findings.length) {
-      console.log(`FAIL  performance budgets: ${outcome.findings.length} finding(s)`);
+      console.log(`FAIL  performance budgets: ${outcome.findings.length} finding(s) (1-minute load average ${loadAverage.toFixed(2)} around this run)`);
       for (const f of outcome.findings) console.log(`        ${f.target.padEnd(20)} ${f.metric}: ${f.detail}`);
     }
   }
   if (outcome.exitCode) return outcome.exitCode;
   if (!asJson) {
-    console.log(`  ok    performance budgets: ${results.length} target(s) x ${RUNS} runs, all within budget (${THROTTLE.cpuRate}x CPU, ${(THROTTLE.downloadBps * 8 / 1024 / 1024).toFixed(1)}Mbps/${(THROTTLE.uploadBps * 8 / 1024).toFixed(0)}Kbps/${THROTTLE.latencyMs}ms)${install.skipped ? "" : "; installable Room: worker registers, precache complete, no /api/ URL ever cached"}`);
+    console.log(`  ok    performance budgets: ${results.length} target(s) x ${RUNS} runs, all within budget (${THROTTLE.cpuRate}x CPU, ${(THROTTLE.downloadBps * 8 / 1024 / 1024).toFixed(1)}Mbps/${(THROTTLE.uploadBps * 8 / 1024).toFixed(0)}Kbps/${THROTTLE.latencyMs}ms; 1-minute load average ${loadAverage.toFixed(2)})${install.skipped ? "" : "; installable Room: worker registers, precache complete, no /api/ URL ever cached"}`);
   }
   return 0;
 }
