@@ -5,6 +5,15 @@
 // sheet ... The static registry stays for Maya/Kabir; the dynamic loader is
 // additive." This is that loader.
 //
+// ── WS-R151: a row can be a TEACHER's sheet or a PERSON's ─────────────────
+// migration 163 adds `sheet_kind` to `vy_teacher_sheet`; this module does not
+// branch on it at all. `sheetToModule` (`src/engine/agents/fromSheet.ts`)
+// already renders either kind through the same five-material-field path and
+// the same platform-owned arc override, so "a teacher clone is a clone of a
+// real, named, living person" below is equally true, word for word, of a
+// person's own AI — only `fromSheet.ts`'s VALIDATOR (the publish-time half,
+// not this loader) knows the difference between the two.
+//
 // ── it constructs, it does not re-implement ───────────────────────────────
 // The module is built by `sheetToModule` out of api/_engine.gen.js — the same
 // function `agents/teacher.ts` spells out statically, bundled from the real
@@ -85,7 +94,7 @@ function sheetError(code, status = 409, details) {
 async function publishedRow(slug, timeoutMs) {
   const rows = await q(
     `select s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
-            s.consent_artifact_id, s.published_at, a.slug
+            s.consent_artifact_id, s.published_at, s.sheet_kind, a.slug
        from vy_teacher_sheet s
        join vy_agent a on a.agent_id = s.agent_id
       where a.slug = $1
@@ -183,6 +192,10 @@ export async function loadTeacherAgent(slug, timeoutMs = 10_000) {
       agent_id: row.agent_id,
       version: row.version,
       published_at: row.published_at,
+      // WS-R151 (migration 163): the DB column, for a caller that wants the
+      // kind without parsing `sheet` — the loader itself never branches on
+      // it, since `sheetToModule` already renders either kind the same way.
+      sheet_kind: row.sheet_kind,
     },
   };
 }

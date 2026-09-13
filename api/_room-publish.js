@@ -475,13 +475,40 @@ const runtimeActive = (owner, replica) => `exists (
  *  restated as a predicate: `status='published'` AND a consent artifact on
  *  file. This is not a second opinion about whether the AI may speak;
  *  `resolveRoom` already refuses everyone if this is false. It exists here
- *  so `published_at` cannot say "open" while every visitor is refused. */
+ *  so `published_at` cannot say "open" while every visitor is refused.
+ *
+ *  WS-R151: unchanged, on purpose. This predicate never named a `sheet_kind`
+ *  and does not gain one — it already accepts a published sheet of EITHER
+ *  kind (migration 163), because "published, with consent on file" is the
+ *  whole of what `resolveRoom` and `api/_teachersheet.js`'s loader ever
+ *  required, for a teacher's sheet or a person's alike. */
 const disclosureApproved = (agent) => `exists (
       select 1 from vy_teacher_sheet s
        where s.agent_id = (${agent})::uuid
          and s.status = 'published'
          and s.consent_artifact_id is not null
     )`;
+
+/**
+ * WS-R151: the disclosure a person's own Room can show carries their own
+ * one-line, when the published sheet backing it is a person sheet (migration
+ * 163's `sheetKind`). A teacher sheet's disclosure is untouched by this —
+ * this returns "" for anything that is not `sheetKind === "person"`, so a
+ * teacher Room's disclosure stays byte-identical to before this workstream.
+ *
+ * Deliberately NOT wired into `api/_room-about.js`'s or `api/_room-card.js`'s
+ * rendered disclosure card in this workstream: both are outside this brief's
+ * own Build list, and `api/_room-about.js`'s own header states its public
+ * page "renders no other creator words at all" beyond the creator's name —
+ * changing that is a decision for whichever workstream owns that page, not a
+ * side effect of HumanOS existing. This function is the READ half law 5 asks
+ * for (`personDisclosureLine`, tested in `evals/person-sheet`), ready for
+ * that caller; see `context/decisions.md` for the open item this leaves.
+ */
+export function personDisclosureLine(sheet) {
+  if (!sheet || sheet.sheetKind !== "person") return "";
+  return String(sheet.personLine || "").trim();
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // OP: publish

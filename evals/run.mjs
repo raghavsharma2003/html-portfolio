@@ -249,6 +249,23 @@ const suites = {
   // Standalone, offline, deterministic, $0, no DB. Re-bundles from the real
   // source on every run.
   teachersheet: "teachersheet.mjs",
+  // WS-R151 (HumanOS, migration 163). `vy_teacher_sheet` now holds a
+  // TEACHER's compiled sheet or a PERSON's, and `fromSheet.ts`'s validator
+  // branches on `sheetKind`. This suite proves: a minimal person sheet
+  // (only the fields the brief requires) publishes clean with none of the
+  // teacher-only pedagogy; `crisisLines`/`escalationRoute` still gate a
+  // person sheet even though the brief's own required-fields list omits
+  // them (safety-driven, see `fromSheet.ts`'s header); every person-only
+  // shape rule (the one-line's length and dash ban, the values count, the
+  // never-say rule count or the exact "none" sentinel, `personTalk`'s
+  // enums) has its own negative control; `sheetToModule` on a person sheet
+  // does not throw and its material block carries the five authored fields;
+  // and `api/_room-publish.js`'s `personDisclosureLine` reads a person
+  // sheet's one line and only a person sheet's.
+  //
+  // Standalone, offline, deterministic, $0, no DB. Re-bundles from the real
+  // source on every run, the same as `teachersheet` above.
+  "person-sheet": "person-sheet/run.mjs",
   // WS-F (Gurukul ingestion). The statistical pass, the phrase-bank rule, the
   // draft assembler's honesty, and the studio endpoint's dispatch.
   //

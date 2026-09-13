@@ -5198,6 +5198,32 @@ var SUBJECT_VALUES = /* @__PURE__ */ new Set(["physics", "chemistry", "maths"]);
 var VERBALISM_MAX_WORDS = 3;
 var VERBALISM_MAX_ITEMS = 12;
 var MIN_IDENTIFIER_DIGITS = 3;
+var PERSON_ALWAYS_REQUIRED_STRING_FIELDS = [
+  "slug",
+  "name",
+  "version",
+  "identityWho",
+  "identityLife",
+  "lifeTexture",
+  "tasteTopics",
+  "curiosityTopics",
+  "crisisLines",
+  "escalationRoute",
+  "consentArtifactId"
+];
+var PERSON_LINE_MAX = 140;
+var BANNED_DASHES = /[\u2013\u2014]/;
+var PERSON_VALUES_MIN = 3;
+var PERSON_VALUES_MAX = 7;
+var PERSON_VALUE_MAX_WORDS = 6;
+var PERSON_NEVER_SAY_MIN = 3;
+var PERSON_NEVER_SAY_MAX_WORDS = 12;
+var PERSON_NEVER_SAY_NONE = "none";
+var PERSON_TALK_REGISTERS = /* @__PURE__ */ new Set(["formal", "mixed", "casual"]);
+var PERSON_TALK_SCRIPTS = /* @__PURE__ */ new Set(["roman-hinglish", "devanagari", "english"]);
+function wordCount(value) {
+  return value.split(/\s+/).filter(Boolean).length;
+}
 var digitsOf2 = (s) => s.replace(/\D+/g, "");
 var HELPLINE_DIGITS = new Set(PUBLISHED_HELPLINES.map(digitsOf2));
 function helplineNumbersIn(text3) {
@@ -5234,11 +5260,8 @@ function validateTeacherSheet(sheet) {
     return { ok: false, errors: [{ field: "<sheet>", code: "not-an-object" }] };
   }
   const s = sheet;
-  const requiredStrings = [
-    ...CHARACTER_STRING_FIELDS,
-    ...ARC_OVERRIDE_FIELDS,
-    ...TEACHER_STRING_FIELDS
-  ];
+  const isPerson = s.sheetKind === "person";
+  const requiredStrings = isPerson ? PERSON_ALWAYS_REQUIRED_STRING_FIELDS : [...CHARACTER_STRING_FIELDS, ...ARC_OVERRIDE_FIELDS, ...TEACHER_STRING_FIELDS];
   for (const f of requiredStrings) {
     const v = s[f];
     if (typeof v !== "string") {
@@ -5249,22 +5272,24 @@ function validateTeacherSheet(sheet) {
       push(f, arc ? "arc-override-missing" : "empty");
     }
   }
-  for (const f of TEACHER_ARRAY_FIELDS) {
-    const v = s[f];
-    if (!Array.isArray(v) || v.length === 0) push(f, "missing-or-empty-array");
-    else if (v.some((x) => typeof x !== "string" || !x.trim())) push(f, "non-string-row");
-  }
-  if (!Array.isArray(s.analogyBank)) push("analogyBank", "missing-or-empty-array");
-  else if (s.analogyBank.some(
-    (a) => !a || typeof a !== "object" || typeof a.topic !== "string" || typeof a.anchor !== "string"
-  )) {
-    push("analogyBank", "not-a-topic-anchor-pair");
-  }
-  if (!SUBJECT_VALUES.has(String(s.subjectDomain))) push("subjectDomain", "not-a-subject", String(s.subjectDomain));
-  if (!PACE_VALUES.has(String(s.pacePreference))) push("pacePreference", "not-a-pace", String(s.pacePreference));
-  for (const f of ["strictness", "warmth"]) {
-    const v = s[f];
-    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 4) push(f, "not-a-0-4-dial", String(v));
+  if (!isPerson) {
+    for (const f of TEACHER_ARRAY_FIELDS) {
+      const v = s[f];
+      if (!Array.isArray(v) || v.length === 0) push(f, "missing-or-empty-array");
+      else if (v.some((x) => typeof x !== "string" || !x.trim())) push(f, "non-string-row");
+    }
+    if (!Array.isArray(s.analogyBank)) push("analogyBank", "missing-or-empty-array");
+    else if (s.analogyBank.some(
+      (a) => !a || typeof a !== "object" || typeof a.topic !== "string" || typeof a.anchor !== "string"
+    )) {
+      push("analogyBank", "not-a-topic-anchor-pair");
+    }
+    if (!SUBJECT_VALUES.has(String(s.subjectDomain))) push("subjectDomain", "not-a-subject", String(s.subjectDomain));
+    if (!PACE_VALUES.has(String(s.pacePreference))) push("pacePreference", "not-a-pace", String(s.pacePreference));
+    for (const f of ["strictness", "warmth"]) {
+      const v = s[f];
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 4) push(f, "not-a-0-4-dial", String(v));
+    }
   }
   if (!(s.voiceCloneId === null || typeof s.voiceCloneId === "string")) {
     push("voiceCloneId", "not-a-string-or-null", typeof s.voiceCloneId);
@@ -5300,14 +5325,74 @@ function validateTeacherSheet(sheet) {
       if (/[.?!]$/.test(item)) push(f, "phrase-bank-terminal-punctuation", item);
     }
   }
-  for (const p of validateCloneLife(s.life)) {
-    push(p.field, p.code, p.detail);
+  if (!isPerson) {
+    for (const p of validateCloneLife(s.life)) {
+      push(p.field, p.code, p.detail);
+    }
+    for (const row of cloneLifeRows(s.life)) {
+      const violation = lintLine(row);
+      if (violation.reasons.length) push("life", "recitable-shape", `${row} \u2014 ${violation.reasons.join("; ")}`);
+      const mood = moodWordsIn(row);
+      if (mood.length) push("life", "mood-word-in-life-note", `${row} \u2014 ${mood.join(", ")}`);
+    }
   }
-  for (const row of cloneLifeRows(s.life)) {
-    const violation = lintLine(row);
-    if (violation.reasons.length) push("life", "recitable-shape", `${row} \u2014 ${violation.reasons.join("; ")}`);
-    const mood = moodWordsIn(row);
-    if (mood.length) push("life", "mood-word-in-life-note", `${row} \u2014 ${mood.join(", ")}`);
+  if (isPerson) {
+    const line = s.personLine;
+    if (typeof line !== "string" || !line.trim()) {
+      push("personLine", "person-line-missing");
+    } else {
+      if (line.length > PERSON_LINE_MAX) push("personLine", "person-line-too-long", String(line.length));
+      if (BANNED_DASHES.test(line)) push("personLine", "person-line-banned-dash");
+    }
+    const values = Array.isArray(s.personValues) ? s.personValues.map((v) => String(v).trim()).filter(Boolean) : null;
+    if (!values) {
+      push("personValues", "person-values-missing-or-not-array");
+    } else if (values.length < PERSON_VALUES_MIN || values.length > PERSON_VALUES_MAX) {
+      push("personValues", "person-values-out-of-range", String(values.length));
+    }
+    for (const v of values ?? []) {
+      if (wordCount(v) > PERSON_VALUE_MAX_WORDS) push("personValues", "person-value-too-long", v);
+      const violation = lintLine(v);
+      if (violation.reasons.length) push("personValues", "recitable-shape", `${v} \u2014 ${violation.reasons.join("; ")}`);
+    }
+    const neverSay = Array.isArray(s.personNeverSay) ? s.personNeverSay.map((v) => String(v).trim()).filter(Boolean) : null;
+    const isNoneSentinel = !!neverSay && neverSay.length === 1 && neverSay[0] === PERSON_NEVER_SAY_NONE;
+    if (!neverSay || neverSay.length === 0) {
+      push("personNeverSay", "person-never-say-missing");
+    } else if (!isNoneSentinel) {
+      if (neverSay.length < PERSON_NEVER_SAY_MIN) {
+        push("personNeverSay", "person-never-say-too-few", String(neverSay.length));
+      }
+      for (const rule of neverSay) {
+        if (rule === PERSON_NEVER_SAY_NONE) {
+          push("personNeverSay", "person-never-say-none-not-alone");
+          continue;
+        }
+        if (wordCount(rule) > PERSON_NEVER_SAY_MAX_WORDS) push("personNeverSay", "person-value-too-long", rule);
+        const violation = lintLine(rule);
+        if (violation.reasons.length) push("personNeverSay", "recitable-shape", `${rule} \u2014 ${violation.reasons.join("; ")}`);
+      }
+    }
+    const talk = s.personTalk;
+    if (!talk || typeof talk !== "object" || Array.isArray(talk)) {
+      push("personTalk", "person-talk-missing");
+    } else {
+      const t = talk;
+      if (!PERSON_TALK_REGISTERS.has(String(t.register))) {
+        push("personTalk", "person-talk-register-invalid", String(t.register));
+      }
+      if (!PERSON_TALK_SCRIPTS.has(String(t.scriptBaseline))) {
+        push("personTalk", "person-talk-script-invalid", String(t.scriptBaseline));
+      }
+      if (t.codeSwitchNote !== void 0 && typeof t.codeSwitchNote !== "string") {
+        push("personTalk", "person-talk-code-switch-note-not-a-string");
+      } else if (typeof t.codeSwitchNote === "string" && t.codeSwitchNote.trim()) {
+        const violation = lintLine(t.codeSwitchNote);
+        if (violation.reasons.length) {
+          push("personTalk", "recitable-shape", `${t.codeSwitchNote} \u2014 ${violation.reasons.join("; ")}`);
+        }
+      }
+    }
   }
   return { ok: errors.length === 0, errors };
 }
@@ -6296,8 +6381,8 @@ function parseTextReply(raw, expertAnswer) {
   raw = raw.replace(/\[\s*voicenote\s*:\s*((?:[^\][]|\[[^\][]*\])*?)\s*\]/gi, (_m, body) => {
     const said = body.replace(/\s+/g, " ").trim();
     const words2 = said.replace(/\[[^\][]*\]/g, " ").replace(/\s+/g, " ").trim();
-    const wordCount = words2 ? words2.split(" ").length : 0;
-    const looksLikeDirection = wordCount <= 2 && !/[.!?…,]/.test(words2) && /^[a-z ]+$/i.test(words2) && /\b(softly|gently|quietly|warmly|sadly|happily|excited|laughing|laughs|giggles|giggling|sighs|sighing|whispers|whispering|crying|smiling|serious|calm|tired|sleepy|cheerful|teasing|playful|concerned|worried)\b/i.test(
+    const wordCount2 = words2 ? words2.split(" ").length : 0;
+    const looksLikeDirection = wordCount2 <= 2 && !/[.!?…,]/.test(words2) && /^[a-z ]+$/i.test(words2) && /\b(softly|gently|quietly|warmly|sadly|happily|excited|laughing|laughs|giggles|giggling|sighs|sighing|whispers|whispering|crying|smiling|serious|calm|tired|sleepy|cheerful|teasing|playful|concerned|worried)\b/i.test(
       words2
     );
     if (!out.voice && words2 && !looksLikeDirection) out.voice = { text: said };

@@ -215,4 +215,54 @@ export interface TeacherSheet extends CharacterSheet {
    *  invalidated in the SAME transaction as revocation, or the voice outlives
    *  the consent (`cache-outlives-the-voice`). */
   voiceCloneId: string | null;
+
+  // ── WS-R151: HumanOS, the person sheet (migration 163) ──────────────────
+  //
+  // `vy_teacher_sheet` now holds a TEACHER's compiled sheet (everything
+  // above, unchanged) or a PERSON's — any human who is not a teacher, and has
+  // no subject, doubt ladder or board verbalisms to author. Same row shape,
+  // same `sheet` jsonb, same publish gate; only `fromSheet.ts`'s validator
+  // branches on `sheetKind`, and only the five fields below exist because a
+  // person sheet has them and a teacher sheet has never needed them.
+  //
+  // Optional, all four — a bare `?`, not `| undefined` on a required key —
+  // so every teacher sheet that ever existed before this workstream (no
+  // `sheetKind` property at all) is still a perfectly well-typed
+  // `TeacherSheet`, and `fromSheet.ts`'s validator treats an absent
+  // `sheetKind` as `"teacher"`, exactly matching migration 163's own column
+  // default. Nothing about the required fields above moves.
+
+  /** Which validator/publish shape this row is. Mirrors the `sheet_kind`
+   *  column (migration 163); this is the sheet's own CLAIM, read the same
+   *  defensive way `consentArtifactId` already is elsewhere in this file —
+   *  never trusted past `fromSheet.ts`'s validator. Absent means "teacher",
+   *  the column's own default, so no existing sheet needs an edit. */
+  sheetKind?: "teacher" | "person";
+
+  /** `sheetKind === "person"` only: the disclosure-length "who this is" line
+   *  a follower reads before anything else — telegraphic, never a line the
+   *  AI would say out loud (it is shown text, not compiled into a prompt).
+   *  <=140 chars (the same bound `api/_room-publish.js`'s room bio uses),
+   *  copy-gated: no em dash, no en dash. */
+  personLine?: string;
+  /** `sheetKind === "person"` only: 3-7 short values, never sentence-shaped —
+   *  the same `never a line the AI could say` law every other content field
+   *  in this file already carries. */
+  personValues?: readonly string[];
+  /** `sheetKind === "person"` only: at least 3 short never-say rules, or the
+   *  single-item sentinel `["none"]` for an explicit "nothing I won't
+   *  discuss" — a decision a studio renders as a switch, never a fourth
+   *  free-text row that happens to say "none". */
+  personNeverSay?: readonly string[];
+  /** `sheetKind === "person"` only: how they talk day to day — independent
+   *  of the register BULLETS above, which are companion-arc voice tuning a
+   *  person sheet does not fill. */
+  personTalk?: {
+    register: "formal" | "mixed" | "casual";
+    scriptBaseline: "roman-hinglish" | "devanagari" | "english";
+    /** free telegraphic note on when/how they code-switch; optional even on
+     *  a published person sheet — a person who does not code-switch has
+     *  nothing to say here, and that is a complete answer, not a gap. */
+    codeSwitchNote?: string;
+  };
 }

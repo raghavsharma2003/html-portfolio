@@ -86,6 +86,16 @@ const TARGETS = [
     screens: ["capture", "voice", "enrich"],
     mounted: ".vx-shell",
   },
+  // WS-R151: HumanOS, the person sheet. See `check-layout.mjs`'s own
+  // `studio:humanos` target for why this is the first enrich subview with
+  // its own deep link (`enrichView=humanos`, CloneExperience.tsx, additive).
+  {
+    name: "studio:humanos",
+    fixture: "studio-layout-fixture.html",
+    query: () => "step=meet&scenario=voice-ready&view=enrich&enrichView=humanos",
+    screens: ["humanos"],
+    mounted: ".humanos-studio",
+  },
   {
     name: "room",
     fixture: "room-layout-fixture.html",

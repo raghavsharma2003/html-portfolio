@@ -169,6 +169,19 @@ const TARGETS = [
     steps: ["capture", "voice", "enrich"], mounted: ".vx-shell",
     panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu", minPanels: 1,
   },
+  // WS-R151: HumanOS, the person sheet. No earlier enrich subview
+  // (describe/files/video) has its own target either — this is the first,
+  // because the brief for this screen names it explicitly. `enrichView=
+  // humanos` (CloneExperience.tsx's own new deep link, additive — every
+  // other URL still opens the enrich menu unchanged) reaches the screen
+  // straight past the menu the same way `clone`'s own "enrich" step reaches
+  // the menu itself.
+  {
+    name: "studio:humanos", fixture: "studio-layout-fixture.html",
+    query: () => "step=meet&scenario=voice-ready&view=enrich&enrichView=humanos",
+    steps: ["humanos"], mounted: ".humanos-studio",
+    panels: ".humanos-card", minPanels: 3,
+  },
   {
     name: "studio",
     fixture: "creator-layout-fixture.html",

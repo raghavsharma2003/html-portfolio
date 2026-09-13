@@ -355,6 +355,81 @@ const VERBALISM_MAX_ITEMS = 12;
  *  "24x7" or an "under-18" must not be read as a helpline, and a "1098" must. */
 const MIN_IDENTIFIER_DIGITS = 3;
 
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R151: HumanOS, the person sheet (migration 163, `sheet_kind` column)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// `sheetToModule` above needs NO branch at all: the five material fields
+// (`MATERIAL_FIELDS`) and the platform-owned arc override
+// (`PLATFORM_BOUNDARY`/`PLATFORM_STAGE_*`, applied unconditionally) already
+// work for ANY sheet regardless of kind — this is `context/rejected.md
+// #ws-r111-boundary-and-stage-fields-not-material-blocked`'s own reversal
+// path, already taken up by WS-R121, not something this workstream had to
+// build. `validateTeacherSheet` below is the one function that needs to know
+// the difference: a person did not author 24 pedagogy fields, a subject, a
+// doubt ladder or an exam track, and the brief's own words are "teacher-only
+// arrays may be empty for sheet_kind = 'person'" — extended here to every
+// teacher-only STRING field, the dials and the analogy-pair shape, for the
+// identical reason a required-but-blank pedagogy STRING is exactly as
+// meaningless for a person as a required-but-empty pedagogy ARRAY.
+//
+// Two fields stay required regardless of kind, and are deliberately NOT on
+// the brief's own person-requirements list: `crisisLines` and
+// `escalationRoute`. This repo has already cost itself the crisis helplines
+// once from a silent truncation (CLAUDE.md, AGENTS.md), and
+// `evals/persona-invariants.mjs`'s own header says its floor invariants run
+// "agent-agnostic... asks the registry for every registered agent" — the
+// STATIC registry only (`registry.listAgents()`). A dynamically loaded sheet
+// (teacher OR person, `api/_teachersheet.js`'s `sheetToModule` path) is
+// invisible to that gate, so `validateTeacherSheet` is the ONLY net a
+// published person sheet's crisis-line coverage has; the AgentModule's
+// `CRISIS_LINES` is `sheet.crisisLines` verbatim (`sheetToModule` above), and
+// a sheet that skipped it would ship a published Room with none. "The
+// publish floor stays Readiness's" (the brief's own words) is true of the
+// fields this file already treats as platform-owned regardless of the sheet
+// (`ARC_OVERRIDE_FIELDS` — overwritten by `PLATFORM_BOUNDARY`/`PLATFORM_STAGE_*`
+// at compile time no matter what a sheet carries) and of Readiness's own
+// room-level checks (`api/_readiness.js`); it is not true of a field with no
+// other floor under it at all, which is exactly what `crisisLines` and
+// `escalationRoute` are once `TEACHER_STRING_FIELDS` stops being required.
+const PERSON_ALWAYS_REQUIRED_STRING_FIELDS = [
+  "slug", "name", "version",
+  "identityWho", "identityLife", "lifeTexture", "tasteTopics", "curiosityTopics",
+  "crisisLines", "escalationRoute", "consentArtifactId",
+] as const;
+
+/** 140 chars — the same bound `api/_room-publish.js`'s `ROOM_BIO_MAX` uses
+ *  for an owner's Room bio. A "one line" is a one line at the same length
+ *  everywhere in this product. */
+export const PERSON_LINE_MAX = 140;
+
+/** Copy-gated: the same two dash characters CLAUDE.md and
+ *  `scripts/check-copy.mjs` ban from every user-visible string in this repo,
+ *  checked here at the DATA layer because a sheet field is not a source file
+ *  the copy scanner ever reads. */
+const BANNED_DASHES = /[\u2013\u2014]/;
+
+const PERSON_VALUES_MIN = 3;
+const PERSON_VALUES_MAX = 7;
+const PERSON_VALUE_MAX_WORDS = 6;
+const PERSON_NEVER_SAY_MIN = 3;
+const PERSON_NEVER_SAY_MAX_WORDS = 12;
+
+/** The explicit opt-out sentinel (brief law 2: "at least three never-say
+ *  rules or an explicit 'none'"). Lowercase and exact, so it is a decision a
+ *  studio renders as a switch, never a fourth free-text row that happens to
+ *  say "none". */
+export const PERSON_NEVER_SAY_NONE = "none";
+
+const PERSON_TALK_REGISTERS = new Set(["formal", "mixed", "casual"]);
+const PERSON_TALK_SCRIPTS = new Set(["roman-hinglish", "devanagari", "english"]);
+
+/** Word-count helper shared by every person-only length cap below — the same
+ *  "how many words" measure the phrase-bank rule above already uses. */
+function wordCount(value: string): number {
+  return value.split(/\s+/).filter(Boolean).length;
+}
+
 const digitsOf = (s: string) => s.replace(/\D+/g, "");
 const HELPLINE_DIGITS = new Set(PUBLISHED_HELPLINES.map(digitsOf));
 
@@ -420,13 +495,21 @@ export function validateTeacherSheet(sheet: unknown): SheetValidation {
     return { ok: false, errors: [{ field: "<sheet>", code: "not-an-object" }] };
   }
   const s = sheet as Record<string, unknown>;
+  // WS-R151: the sheet's own claim (mirrors migration 163's `sheet_kind`
+  // column; the column is never read here — this function takes a sheet, not
+  // a row). Absent means "teacher", exactly matching the column's own
+  // `not null default 'teacher'`, so every sheet saved before this
+  // workstream validates exactly as it always did.
+  const isPerson = s.sheetKind === "person";
 
   // ── 1. every required field present and correctly typed ────────────────
-  const requiredStrings = [
-    ...CHARACTER_STRING_FIELDS,
-    ...ARC_OVERRIDE_FIELDS,
-    ...TEACHER_STRING_FIELDS,
-  ];
+  // A person sheet requires only identity basics, the five material fields
+  // and the two fields this file's header explains are required regardless
+  // of kind (`PERSON_ALWAYS_REQUIRED_STRING_FIELDS`); a teacher sheet keeps
+  // every field it always required, byte for byte.
+  const requiredStrings: readonly string[] = isPerson
+    ? PERSON_ALWAYS_REQUIRED_STRING_FIELDS
+    : [...CHARACTER_STRING_FIELDS, ...ARC_OVERRIDE_FIELDS, ...TEACHER_STRING_FIELDS];
   for (const f of requiredStrings) {
     const v = s[f];
     if (typeof v !== "string") {
@@ -441,35 +524,42 @@ export function validateTeacherSheet(sheet: unknown): SheetValidation {
     }
   }
 
-  for (const f of TEACHER_ARRAY_FIELDS) {
-    const v = s[f];
-    if (!Array.isArray(v) || v.length === 0) push(f, "missing-or-empty-array");
-    else if (v.some((x) => typeof x !== "string" || !x.trim())) push(f, "non-string-row");
-  }
+  // ── 2. teacher-only pedagogy shape: arrays, the analogy pairs, the
+  //      subject/pace/strictness/warmth dials. None of it applies to a
+  //      person (brief law 2: "teacher-only arrays may be empty for
+  //      sheet_kind = 'person'", extended here to the dials and the analogy
+  //      pairs for the identical reason). ─────────────────────────────────
+  if (!isPerson) {
+    for (const f of TEACHER_ARRAY_FIELDS) {
+      const v = s[f];
+      if (!Array.isArray(v) || v.length === 0) push(f, "missing-or-empty-array");
+      else if (v.some((x) => typeof x !== "string" || !x.trim())) push(f, "non-string-row");
+    }
 
-  if (!Array.isArray(s.analogyBank)) push("analogyBank", "missing-or-empty-array");
-  else if (
-    s.analogyBank.some(
-      (a) =>
-        !a || typeof a !== "object" ||
-        typeof (a as { topic?: unknown }).topic !== "string" ||
-        typeof (a as { anchor?: unknown }).anchor !== "string",
-    )
-  ) {
-    push("analogyBank", "not-a-topic-anchor-pair");
-  }
+    if (!Array.isArray(s.analogyBank)) push("analogyBank", "missing-or-empty-array");
+    else if (
+      s.analogyBank.some(
+        (a) =>
+          !a || typeof a !== "object" ||
+          typeof (a as { topic?: unknown }).topic !== "string" ||
+          typeof (a as { anchor?: unknown }).anchor !== "string",
+      )
+    ) {
+      push("analogyBank", "not-a-topic-anchor-pair");
+    }
 
-  if (!SUBJECT_VALUES.has(String(s.subjectDomain))) push("subjectDomain", "not-a-subject", String(s.subjectDomain));
-  if (!PACE_VALUES.has(String(s.pacePreference))) push("pacePreference", "not-a-pace", String(s.pacePreference));
-  for (const f of ["strictness", "warmth"] as const) {
-    const v = s[f];
-    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 4) push(f, "not-a-0-4-dial", String(v));
+    if (!SUBJECT_VALUES.has(String(s.subjectDomain))) push("subjectDomain", "not-a-subject", String(s.subjectDomain));
+    if (!PACE_VALUES.has(String(s.pacePreference))) push("pacePreference", "not-a-pace", String(s.pacePreference));
+    for (const f of ["strictness", "warmth"] as const) {
+      const v = s[f];
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 4) push(f, "not-a-0-4-dial", String(v));
+    }
   }
   if (!(s.voiceCloneId === null || typeof s.voiceCloneId === "string")) {
     push("voiceCloneId", "not-a-string-or-null", typeof s.voiceCloneId);
   }
 
-  // ── 2. crisis lines — the strictest gate in the spec (§4.1) ────────────
+  // ── 3. crisis lines — the strictest gate in the spec (§4.1) ────────────
   // Non-empty, and every actionable number in it (and in `escalationRoute`,
   // which routes a distressed minor the same way) present in honesty.ts's
   // PUBLISHED_HELPLINES. The coupling is the whole point: the honesty gate
@@ -488,7 +578,7 @@ export function validateTeacherSheet(sheet: unknown): SheetValidation {
     }
   }
 
-  // ── 3. register bullets keep their slot shape (§4.2, exempt half) ───────
+  // ── 4. register bullets keep their slot shape (§4.2, exempt half) ───────
   for (const f of REGISTER_BULLET_FIELDS) {
     const v = s[f];
     if (typeof v === "string" && v.trim() && !v.startsWith("- ")) {
@@ -496,7 +586,7 @@ export function validateTeacherSheet(sheet: unknown): SheetValidation {
     }
   }
 
-  // ── 4. shapelint over the content rows (§4.2) ──────────────────────────
+  // ── 5. shapelint over the content rows (§4.2) ──────────────────────────
   // The allowlist carries only `crisisLines` — the one class where verbatim is
   // the point (shapelint.ts:70-75) — and `crisisLines` is not in the lintable
   // set anyway, which is the same statement made twice on purpose.
@@ -507,7 +597,7 @@ export function validateTeacherSheet(sheet: unknown): SheetValidation {
     }
   }
 
-  // ── 5. the phrase-bank rule (§4.3), shape half only ────────────────────
+  // ── 6. the phrase-bank rule (§4.3), shape half only ────────────────────
   // `boardVerbalisms` and `exSlangRepeat` are the two fields the core
   // deliberately licenses for REPETITION (persona.ts:131), which is exactly
   // what makes them the phrase bank `recited-prompt` measured at 4/5 turns.
@@ -526,7 +616,7 @@ export function validateTeacherSheet(sheet: unknown): SheetValidation {
     }
   }
 
-  // ── 6. the clone's background life (WS-Q) ──────────────────────────────
+  // ── 7. the clone's background life (WS-Q) ──────────────────────────────
   //
   // Three checks, and they are three because each catches a different way this
   // field ships broken while looking filled:
@@ -544,14 +634,98 @@ export function validateTeacherSheet(sheet: unknown): SheetValidation {
   //    sixteen-year-old, on every single turn, with no cause in the
   //    conversation. It is the exact failure `inner.ts` made unrepresentable
   //    for Meera, arriving through the one door a sheet can open.
-  for (const p of validateCloneLife(s.life)) {
-    push(p.field, p.code, p.detail);
+  // Teacher only. WS-R151's own brief never gives a person a life editor, and
+  // `cloneNowAt`/`renderCloneNow` (cloneLife.ts) both render "" for an
+  // all-empty shape rather than throwing — measured, not assumed: see this
+  // workstream's own `context/decisions.md` entry on the empty-life render
+  // path. Leaving this unrequired for a person costs their compiled prompt
+  // nothing it would otherwise have had; it is deferred to whichever
+  // workstream gives a person an authored background life, not silently
+  // broken today.
+  if (!isPerson) {
+    for (const p of validateCloneLife(s.life)) {
+      push(p.field, p.code, p.detail);
+    }
+    for (const row of cloneLifeRows(s.life as never)) {
+      const violation = lintLine(row);
+      if (violation.reasons.length) push("life", "recitable-shape", `${row} — ${violation.reasons.join("; ")}`);
+      const mood = moodWordsIn(row);
+      if (mood.length) push("life", "mood-word-in-life-note", `${row} — ${mood.join(", ")}`);
+    }
   }
-  for (const row of cloneLifeRows(s.life as never)) {
-    const violation = lintLine(row);
-    if (violation.reasons.length) push("life", "recitable-shape", `${row} — ${violation.reasons.join("; ")}`);
-    const mood = moodWordsIn(row);
-    if (mood.length) push("life", "mood-word-in-life-note", `${row} — ${mood.join(", ")}`);
+
+  // ── 8. the person-only fields (WS-R151, brief law 2) ────────────────────
+  if (isPerson) {
+    // personLine: "one line (140 chars, copy-gated)".
+    const line = s.personLine;
+    if (typeof line !== "string" || !line.trim()) {
+      push("personLine", "person-line-missing");
+    } else {
+      if (line.length > PERSON_LINE_MAX) push("personLine", "person-line-too-long", String(line.length));
+      if (BANNED_DASHES.test(line)) push("personLine", "person-line-banned-dash");
+    }
+
+    // personValues: "values (three to seven short items)" — never sentence-
+    // shaped, the same law every other content field in this file carries.
+    const values = Array.isArray(s.personValues)
+      ? s.personValues.map((v) => String(v).trim()).filter(Boolean)
+      : null;
+    if (!values) {
+      push("personValues", "person-values-missing-or-not-array");
+    } else if (values.length < PERSON_VALUES_MIN || values.length > PERSON_VALUES_MAX) {
+      push("personValues", "person-values-out-of-range", String(values.length));
+    }
+    for (const v of values ?? []) {
+      if (wordCount(v) > PERSON_VALUE_MAX_WORDS) push("personValues", "person-value-too-long", v);
+      const violation = lintLine(v);
+      if (violation.reasons.length) push("personValues", "recitable-shape", `${v} — ${violation.reasons.join("; ")}`);
+    }
+
+    // personNeverSay: "at least three never-say rules or an explicit 'none'".
+    const neverSay = Array.isArray(s.personNeverSay)
+      ? s.personNeverSay.map((v) => String(v).trim()).filter(Boolean)
+      : null;
+    const isNoneSentinel = !!neverSay && neverSay.length === 1 && neverSay[0] === PERSON_NEVER_SAY_NONE;
+    if (!neverSay || neverSay.length === 0) {
+      push("personNeverSay", "person-never-say-missing");
+    } else if (!isNoneSentinel) {
+      if (neverSay.length < PERSON_NEVER_SAY_MIN) {
+        push("personNeverSay", "person-never-say-too-few", String(neverSay.length));
+      }
+      for (const rule of neverSay) {
+        if (rule === PERSON_NEVER_SAY_NONE) {
+          // The sentinel mixed in among real rules is a shape error a studio
+          // must show, not a silent partial opt-out.
+          push("personNeverSay", "person-never-say-none-not-alone");
+          continue;
+        }
+        if (wordCount(rule) > PERSON_NEVER_SAY_MAX_WORDS) push("personNeverSay", "person-value-too-long", rule);
+        const violation = lintLine(rule);
+        if (violation.reasons.length) push("personNeverSay", "recitable-shape", `${rule} — ${violation.reasons.join("; ")}`);
+      }
+    }
+
+    // personTalk: register / script baseline / code-switch note.
+    const talk = s.personTalk;
+    if (!talk || typeof talk !== "object" || Array.isArray(talk)) {
+      push("personTalk", "person-talk-missing");
+    } else {
+      const t = talk as Record<string, unknown>;
+      if (!PERSON_TALK_REGISTERS.has(String(t.register))) {
+        push("personTalk", "person-talk-register-invalid", String(t.register));
+      }
+      if (!PERSON_TALK_SCRIPTS.has(String(t.scriptBaseline))) {
+        push("personTalk", "person-talk-script-invalid", String(t.scriptBaseline));
+      }
+      if (t.codeSwitchNote !== undefined && typeof t.codeSwitchNote !== "string") {
+        push("personTalk", "person-talk-code-switch-note-not-a-string");
+      } else if (typeof t.codeSwitchNote === "string" && t.codeSwitchNote.trim()) {
+        const violation = lintLine(t.codeSwitchNote);
+        if (violation.reasons.length) {
+          push("personTalk", "recitable-shape", `${t.codeSwitchNote} — ${violation.reasons.join("; ")}`);
+        }
+      }
+    }
   }
 
   return { ok: errors.length === 0, errors };
