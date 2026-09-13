@@ -57,7 +57,11 @@ import { availableParallelism, cpus } from "node:os";
 // `ensureBuilt()`, the identical hazard this file's own header already
 // names for `rehearsal-follower`/`rehearsal-creator`), so it belongs here
 // for the same reason, not a new one.
-export const PRE_POOL_SUITES = ["rehearsal-follower", "rehearsal-creator", "rehearsal-personal"];
+// `first-five-minutes` (WS-R164) imports evals/rehearsal/personal.mjs, whose
+// module body runs `npx vite build` on the shared dist/, so it is a dist/
+// writer too: pooled beside the browser suites it timed out on the first
+// wave-22 batch gate and passed alone twice (the merge log, 2026-09-13).
+export const PRE_POOL_SUITES = ["rehearsal-follower", "rehearsal-creator", "rehearsal-personal", "first-five-minutes"];
 
 /** Suites that bind one FIXED loopback port. Never run two of these at once
  * even though their ports differ today — the lane, not the port numbers, is
