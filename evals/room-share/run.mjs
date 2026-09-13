@@ -178,8 +178,13 @@ console.log("\n── 1. the unfurl: published, paused, unknown ──");
   const published = await resolveRoomPage(db, SLUG);
   ok("a published Room resolves to its own row", published?.slug === SLUG);
   const html = buildRoomPageHtml(published, { origin: "https://vyakti-silk.vercel.app", slug: SLUG });
-  ok("the title carries the creator's own name", html.includes("<title>Anjali AI</title>"));
-  ok("og:title matches", html.includes('<meta property="og:title" content="Anjali AI" />'));
+  // WS-R160: the title now says who made this AI and where it runs, not
+  // only whose it is - `api/_room-page.js`'s own `roomAiTitleLine`, restated
+  // here as the exact expected bytes rather than re-imported, this suite's
+  // own existing posture for every other literal it asserts against.
+  ok("the title carries the person's own name, who made it, and the platform",
+    html.includes("<title>Anjali AI, made by Anjali, on Vyakti</title>"));
+  ok("og:title matches", html.includes('<meta property="og:title" content="Anjali AI, made by Anjali, on Vyakti" />'));
   const firstLine = roomDisclosureCard("Anjali", "en").split("\n")[0];
   ok("og:description is the disclosure card's FIRST sentence only", html.includes(`content="${firstLine}"`));
   ok("no third sentence of the card leaks into the description",

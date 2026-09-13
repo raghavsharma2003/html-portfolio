@@ -172,7 +172,12 @@ const TARGETS = [
     // directly so the page is judged on every branch, not only that one.
     fixture: null,
     query: () => "",
-    screens: ["/vyakti"],
+    // WS-R160: `site/vyakti.html` gained a Hindi `.locale` block (the same
+    // `?lang=hi` toggle `site/suites.html` already carries) in this same
+    // workstream - the second screen is that Hindi wrapper, reached with a
+    // literal query string the way `fixture === null`'s own `urlsFor`
+    // treats every screen in this target: the screen string IS the path.
+    screens: ["/vyakti", "/vyakti?lang=hi"],
     mounted: "main h1",
   },
 ];

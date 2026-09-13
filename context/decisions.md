@@ -24049,3 +24049,143 @@ Preserve the shared inert template but correct its obsolete assertion that OpenR
 **Why.** Eight consecutive git-connected deployments of `codex/handoff206` failed in 7 seconds with "deployment source product is missing or invalid" because the strict writer ran unconditionally. The strict writer stays strict (the deploy-verifier eval's negative control still proves it fails closed on a missing commitment); only the choice of which path a git-connected build takes changed.
 
 **Reversal.** If the release verifier ever compares a git-connected deployment against the wrong source identity, add the commit SHA to the marker schema rather than reinstating the unconditional strict writer.
+
+## ws-r160-creator-becomes-the-person-or-you (2026-09-13, WS-R160)
+
+**Decision.** Every user-visible "creator" string in the Room, its transparency
+page, its crawler head and the landing became "the person" (when the sentence
+names a role generically) or a second-person "you"/"your" (when the sentence
+already addresses the Room's owner directly, which most of `src/room/copy.ts`
+already did). "follower" is UNCHANGED everywhere: the brief's own law 2 keeps
+it exactly where it names the paid relationship (subscription states, the
+account page, "a paid follower"), and every site that already used "follower"
+for that purpose keeps doing so. The full replacement table, every hit found
+by grepping `creator`/`teacher`/`student`/`doubt`/`class`/`lesson`/`subject`
+across `src/room/copy.ts`, `hiCopy.ts`, `hiTalkCopy.ts`, `api/_room-about.js`,
+`api/_room-page.js`, `api/_room-card.js`, `api/_room-taste.js`,
+`api/_room-surface.js` and `site/vyakti.html`:
+
+| file | old string | new string |
+|---|---|---|
+| `src/room/copy.ts` | `unavailable.body`: "...the creator may have paused it." | "...the person may have paused it." |
+| `src/room/copy.ts` | `flag.done`: "Flagged. Sent to the creator's review." | "Flagged. Sent for review." |
+| `src/room/copy.ts` | `pay.priceNotSet`: "The creator has not set a price..." | "A price has not been set..." |
+| `src/room/copy.ts` | `account.subscriptionNoCancel`: "...Contact the creator to cancel." | "...Contact the person to cancel." |
+| `src/room/copy.ts` | `account.subscriptionStates.halted`: "...contact the creator if it keeps failing." | "...contact the person if it keeps failing." |
+| `src/room/copy.ts` | `checkins.empty`: "This creator has not set up any check-ins yet." | "No check-ins have been set up here yet." |
+| `src/room/copy.ts` | `referral.note`: "...the creator only sees that a friend was brought in..." | "...only \"a friend was brought in\" is ever shown..." |
+| `src/room/hiTalkCopy.ts` / `hiCopy.ts` | the Hindi mirror of each string above | "क्रिएटर" replaced with "इस व्यक्ति"/"व्यक्ति", or the clause restructured to drop the noun the same way its English twin did |
+| `api/_room-about.js` | `scopeBody`, `creatorViewLabel`, `creatorViewBody`, `retentionWithPolicy`, `retentionNoPolicy`, `referralBody` (both locales) | "the creator" -> "the person"/"this person"; `aria-labelledby="about-creator-view-title"` -> `about-person-view-title` (an id, not copy, renamed for consistency since `evals/room-about/run.mjs` names no dependency on the old id) |
+| `api/_room-page.js` | `PLATFORM_DESCRIPTION`: "a creator's own material" | "a person's own material" |
+| `site/vyakti.html` | hero h1, meta description/og:description, both "for X" section headings, footer sentence | rewritten under `#ws-r160-landing-three-screens-map-to-the-three-os-names` below |
+
+`src/room/copy.ts`'s `join.ageWhy` ("A student app with the right protections
+is a different product") was reviewed and kept: it names a DIFFERENT,
+hypothetical product to explain an age gate, never describing this Room as
+teacher/student-shaped, so it is accurate for a person's Room exactly as it
+was for a creator's. `api/_room-surface.js`'s `loadTeacherAgent`,
+`readRoomExpertTeacher`, `teacherSnapshot` and similar are internal function
+and variable names, not user-visible strings, and are out of this
+workstream's scope (renaming them belongs to whichever workstream changes
+what they do). `api/_room-card.js` was read in full and contains no
+"creator"/"teacher"/"student"/"doubt"/"class"/"lesson"/"subject" in a drawn
+string (only in comments); it needed no edit.
+
+**Rationale.** The Room and its landing are read by strangers who are not
+paying customers of anything yet; if the FIRST thing this product tells them
+uses a word that presupposes an audience they may not have, the words say a
+narrower product than the owner intends (`docs/gurukul/waves/wave-21`'s own
+common brief, owner intent 2026-09-13).
+
+**Reversal.** If R151 lands `sheet_kind` and the product decides a teacher-
+specific Room should say "teacher" again on a screen a stranger reads (not
+merely the creator studio), reopen this table per string rather than
+reverting it wholesale — most of these sentences are equally true of a
+teacher's Room and a personal AI's Room.
+
+## ws-r160-landing-three-screens-map-to-the-three-os-names (2026-09-13, WS-R160)
+
+**Decision.** `site/vyakti.html`'s two "for the creator" / "for the
+follower" sections became three: **Build it** (HumanOS: identity, values,
+style, knowledge, never-say rules, voice), **Test it, tweak it** (EmotionOS:
+vibe, warmth, energy, humour, how it reads and responds to the person it is
+talking to), **Deploy it** (RelationOS: private memory per relationship,
+trust, register, check-ins). The mapping is deliberate, not arbitrary: HumanOS
+is what a person GIVES their AI (built), EmotionOS is how it FEELS when
+tested and corrected (tweaked), RelationOS is how it BEHAVES once it is
+talking to other people (deployed). True facts the old sections already had a
+right to state (Readiness is one number, the interview, the review queue, the
+apprentice line, "it remembers them specifically", "nobody else ever sees
+it", "free means free") were kept and re-homed under whichever new section
+their content actually matches, never invented or reworded to sound more
+impressive. One new claim was added under Test/EmotionOS ("whether it sounds
+like you is measured, not promised") and it is phrased as a design
+commitment, never a number: `context/STATE.md`'s own honest state is that no
+owner-facing likeness screen exists yet, only the backend measurement
+(`vy_voice_fidelity`, `api/_fidelity.js`) that this sentence is true of today.
+
+**Rationale.** The brief's own words: "the landing tells the owner's story in
+three screens (build your AI, test and tweak it, deploy it; HumanOS,
+RelationOS, EmotionOS as its three promises)". Reusing the page's own already-
+vetted true sentences under the new frame keeps the page honest without
+re-deriving what WS-R10 already established as sayable.
+
+**Reversal.** If a future owner-facing likeness SCORE ships (R155, "Sounds
+like you and the listening test"), the EmotionOS claim above may state the
+real number the same way `pay`/`quota` copy already states real numbers
+elsewhere in this product — never before that screen exists.
+
+## ws-r160-landing-goes-bilingual (2026-09-13, WS-R160)
+
+**Decision.** `site/vyakti.html` gained `site/suites.html`'s own
+`.locale`/`data-set-lang`/`?lang=hi` mechanism verbatim rather than a new one:
+two full `<div class="locale" id="loc-en"|"loc-hi">` subtrees (nav, main,
+footer each duplicated), English visible by default, the toggle button in
+each nav, ids in the Hindi block suffixed `-hi` to avoid duplicate-id
+collisions (`suites.html`'s own `#pricing-hi`/`#talk-hi` precedent), and the
+apply form wired twice through one parameterised `wireApplyForm` function
+(`suites.html`'s own `wireStartForm` precedent) rather than a second,
+drifting copy of the submit handler.
+
+**Rationale.** Two known-good bilingual shapes already exist in this repo
+(`suites.html`'s own, and the Room's own copy-table split); reusing one
+exactly is strictly better than inventing a third for a single page, and it
+is what let `scripts/check-layout.mjs`'s existing `suites` target's shape
+(`mounted: ".locale:not([hidden])"`) be copied verbatim into a new `vyakti`
+target rather than re-derived.
+
+**Reversal.** If this page ever needs a THIRD locale, `suites.html`'s own
+comment already states the constraint this shape has: every id doubles per
+locale, so a third locale is a linear cost in ids and DOM size, not a `switch`
+statement. If that cost becomes real, revisit toward one DOM subtree with a
+runtime string table (`src/room/copy.ts`'s own shape) instead of duplicated
+markup.
+
+## ws-r160-taste-name-falls-back-to-room-display-name (2026-09-13, WS-R160)
+
+**Decision.** `api/_room-taste.js`'s `roomTaste` now computes its disclosure
+name as `roomNameFor(resolved.sheet) || resolved.room.display_name || ""`
+rather than `roomNameFor(resolved.sheet)` alone. `resolved.room.display_name`
+is `vy_room`'s own copy of the name, independent of what kind of sheet backs
+the Room, so this is "the person sheet's one line" fallback the brief's law 4
+names, expressed with the ONE field every sheet kind today already guarantees
+rather than a field a not-yet-landed migration (R151, migration 163) would
+own. Proven in `evals/room-taste/run.mjs`'s new §7 (a nameless sheet) and
+`evals/room-copy/run.mjs`'s §4 (identical disclosure/name whether or not the
+sheet carries teacher-shaped fields, with a required negative control that a
+genuinely different name DOES change the disclosure).
+
+**Rationale.** `resolveRoom` (`api/_room-surface.js`) still hard-requires a
+published `vy_teacher_sheet` row via `loadTeacherAgent` — a personal AI
+cannot open a Room at all today (`context/STATE.md`'s own honest state,
+R152's open item). Given that constraint, the only sheet shape this file can
+actually be handed today is a teacher sheet, which always validates a
+non-empty `name`. This fallback is therefore not yet reachable in production;
+it is a defensive correctness fix (an empty-name sheet would otherwise render
+a disclosure card naming nobody) that becomes load-bearing the day R151/R152
+let a non-teacher-shaped sheet reach this function.
+
+**Reversal.** Once R151 lands a dedicated per-sheet-kind one-line identity
+field, prefer it over `display_name` here IF it can differ from the Room's
+own name in a way that matters (e.g. a nickname); until then the two are the
+same fact by construction and this fallback needs no further change.

@@ -17855,3 +17855,74 @@ The shared config template stated OPENROUTER_KEY and NEON_URL were both required
 **Broke.** The "pending read deleted: no new request" check changed the mounted props and resolved the pending read in the very next CDP round trip; React schedules an out-of-event state update on its own task, so the component's ref of the current sources was sometimes still the old one when the read resolved, and it posted a new build intent. It passed once under the pooled registry and failed three times alone. The component's guard is right when the change has been committed; the fixture never waited for that.
 
 **Fix.** The fixture waits one animation frame plus a macrotask after the change before resolving. The assertion now tests what it says: a change committed BEFORE the read resolves sends nothing.
+
+## `ws-r160-boundary-li-bare-text-node-reads-as-unfilled-grid-track` (2026-09-13, WS-R160)
+
+**What was tried.** `site/vyakti.html`'s `#boundary` section's four `<li>`
+rows used `<li><span aria-hidden="true">&check;</span> the sentence...</li>`:
+a CSS grid (`grid-template-columns: 18px minmax(0,1fr)`) on the `<li>`, one
+real `<span>` child for the checkmark, and the row's own sentence left as a
+bare text node after it — pre-existing markup, copied unchanged from the
+page's own WS-R10 version, and never before checked because `site/vyakti.html`
+had no `scripts/check-layout.mjs` target until this workstream added one.
+
+**What specifically broke.** The new `vyakti` layout target failed with 24
+"TRACK" findings (one per `<li>` per viewport per locale): the checker's own
+`g.children` count (element children ONLY, `scripts/check-layout.mjs`'s own
+comment: "a pseudo-element does not appear in `children` but DOES occupy a
+track") saw exactly one filled track (the checkmark span) against two
+declared tracks, and flagged the second track's width (up to 535px on
+tablet) as wasted — a bare text node renders as a real anonymous grid item in
+every browser, so the row was never visually broken, but the checker's own
+heuristic cannot see that and a real, different bug (a grid reserving a
+column for a child that used to exist and was removed) looks identical to it
+from the DOM's point of view.
+
+**Fix.** Wrapped every row's sentence in its own `<span>` (`<li><span
+aria-hidden="true">&check;</span><span>the sentence...</span></li>`), giving
+the grid two real element children. Zero visual change (the anonymous box the
+text node used to become is now a real `<span>` occupying the identical
+grid cell); the finding is gone.
+
+**Reversal.** None needed for this fix, but the underlying gap is general: any
+future two-column-grid `<li>`/`<div>` whose second "column" is a bare text
+node will trip this same finding the day it is FIRST covered by a layout
+target, however old the markup is. `scripts/check-layout.mjs`'s own comment
+already names the intended failure mode (a removed child, stale CSS); a truly
+non-vacuous fix to the checker itself would need to distinguish "the second
+column is an anonymous text box" (fine) from "the second column is genuinely
+empty" (a bug) — out of this workstream's scope, noted here so the next
+session does not re-diagnose the same false-positive shape as a text-node
+problem from scratch.
+
+## `ws-r160-negative-control-checked-raw-source-with-comments-still-in-it` (2026-09-13, WS-R160)
+
+**What was tried.** `evals/site-landing/run.mjs`'s first draft counted
+`HumanOS`/`EmotionOS`/`RelationOS` occurrences and checked for "creator"
+against the raw `<div class="locale">` block text, including its own HTML
+comments (the per-section `<!-- ══ 2. build it: HumanOS ═... -->` markers this
+same file's own header comment adds, and the WS-R10/WS-R160 changelog comment
+at the top of `site/vyakti.html` which narrates history using the word
+"creator" on purpose).
+
+**What specifically broke.** Every "exactly once" count read 2 instead of 1
+(the marker comment plus the real `<b>HumanOS</b>` mention), and the
+whole-file "no creator" check failed outright against the page's OWN
+changelog comment explaining that "creator" is gone from user-visible
+strings — the check was punishing the exact sentence documenting the fix. A
+first cut of the NEGATIVE CONTROL for that same check (`poisoned =
+SOURCE.replace(...)`) was also silently vacuous: asserting `/creator/i.test
+(poisoned)` would have passed even with NO mutation at all, because the raw
+`SOURCE` already contains "creator" in its own comments.
+
+**Fix.** Every §1/§2 check strips `<!--[\s\S]*?-->` before counting or
+scanning, matching `scripts/check-copy.mjs`'s own doctrine that comments are
+house prose and exempt. The negative control for §2 was rewritten to mutate
+and assert against the COMMENT-STRIPPED body, not raw `SOURCE`, so it can
+actually fail when the fix is undone.
+
+**Reversal.** None; this is the same "comments are not copy" rule every other
+suite in this registry that scans HTML/TS source already applies
+(`scripts/check-copy.mjs`'s own PASS 1/PASS 2 split). Any FUTURE suite that
+greps a `.html` file's raw text for a banned word must strip comments first
+or risk this exact false positive/vacuous-negative-control pair.
