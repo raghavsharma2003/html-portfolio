@@ -18226,3 +18226,18 @@ Method: each suite run directly (`node evals/<suite>/run.mjs` or `node evals/<fi
 | `scripts/check-copy.mjs` | 7 scopes clean, 21 negative controls bit |
 | `npx tsc -b --force` | clean |
 | `npx vite build` | clean |
+
+## `ws-r163-voice-activation-guard-and-audio-door-measurements` (2026-09-13, WS-R163)
+
+Method: offline, $0, no live DB, no Azure, no network beyond 127.0.0.1/npm, date 2026-09-13.
+
+- `node evals/replica-runtime/run.mjs`: 62 of 62 (was 50 before this workstream; 12 new checks for `ownedVoiceActivationCandidate`, `guardOwnedRuntimeVoiceActivation` and `guardedActivateOwnedRuntime`, including the two end-to-end law-4 paths — a real recorded loss blocking with no audit row, and an explicit override allowing it while logging the override naming the blocked generation — and the negative control proving a blocked guard never reaches `activateOwnedRuntime`'s own atomic write).
+- `node evals/listening-test/run.mjs`: 63 of 63 (was 52; 11 new checks for `api/_replica-generation-audio.js#ownedSealedGenerationAudio`, four of them explicit negative controls: another owner's generation, a forged replica id, an unsealed/swept generation, a malformed generation id, and a signed-out caller — each refusing with the SAME `generation_audio_not_available`/`valid_*_required` codes rather than a distinguishable one).
+- `node evals/fidelity/run.mjs`: 62 of 62, `node evals/teacher-sheet-adoption.mjs`: 10 of 10, unchanged from before this workstream — both directly exercise the UNCHANGED `activateOwnedRuntime`, proving the wrapper design (`decisions.md#ws-r163-voice-activation-guard-wired-through-a-wrapper-not-inline`) left them untouched rather than merely unbroken by luck.
+- `node evals/room-doors/run.mjs`: 2333 of 2333, 0 failed — run specifically to confirm the new GET-only `api/replica-generation-audio.js` (no `req.body` read anywhere in its source) is correctly excluded from §0's door discovery and needs no `EXPECTED_DOORS` entry.
+- `node evals/incidents/run.mjs`: 132 of 132 — confirms `OBSERVED_DOOR_COUNT` needed no change for the same reason.
+- `node evals/room-leak/run.mjs`: 363 of 363. `node evals/room-export/run.mjs`: 48 of 48. `node scripts/check-mirrors.mjs`: 10 markers, 0 disagree. `node scripts/check-vercel-upload-boundary.mjs`: ok. `node scripts/check-copy.mjs`: 7 scopes clean, 21 negative controls bit.
+- `npx tsc --noEmit -p .`: clean. `npx vite build`: clean.
+- `node scripts/check-layout.mjs --only studio`: ok, 1742 prose blocks across 13 named screens including `studio:listening:default`.
+- `node scripts/check-accessibility.mjs --only studio`: ok, 0 critical/serious across 40 pages, 0 keyboard findings.
+- Full `node scripts/verify-release.mjs` (no `NEON_URL`): see the session log entry in `STATE.md` for the terminal summary line.

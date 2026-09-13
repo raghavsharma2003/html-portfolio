@@ -54,6 +54,11 @@
   color: var(--ink);
 }
 
+.lt-player {
+  width: 100%;
+  max-width: 100%;
+}
+
 .lt-playback-note {
   font-size: var(--text-small);
   line-height: var(--leading-snug);

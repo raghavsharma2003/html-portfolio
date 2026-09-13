@@ -9,10 +9,13 @@ import {
   clientRuntimeStatus,
   compileRelationshipTail,
   compileReplicaRuntimeCore,
+  guardOwnedRuntimeVoiceActivation,
+  guardedActivateOwnedRuntime,
   loadOwnedRuntimeContext,
   loadPrivateRelationshipSnapshot,
   openOwnedRuntimeSession,
   ownedRuntimeStatus,
+  ownedVoiceActivationCandidate,
   runtimeBlockers,
 } from "../../api/_replica-runtime.js";
 import { beginOwnedPrivateGeneration } from "../../api/_replica-generation.js";
@@ -378,5 +381,146 @@ ok("client sends opaque replica id and bearer token but no provider id", /\/api\
 ok("replica cascade explicitly forbids device-voice fallback", (speechClient.match(/if \(replicaVoiceRequested\(opts\)\) return onEnd\?\.\(\);/g) || []).length >= 2);
 const productionSpeech = readFileSync(join(ROOT, "api/replica-speech.js"), "utf8");
 ok("production endpoint has no fake-adapter override", !/allowFake|allowTestAdapters\s*:\s*true/.test(productionSpeech));
+
+// ── WS-R163: law 4 wired to the runtime's own activation path ─────────────
+// api/_replica-calibration.js#guardOwnedVoiceActivation was left unwired by
+// WS-R155 on purpose (its own doc comment says so). This proves the wiring:
+// the cheap fast paths cost one query, a real voice change resolves through
+// the real sealed-generation and verdict tables, and a block never lets the
+// underlying activation query run at all (context/rejected.md and
+// context/decisions.md carry the reversal condition for this wiring).
+const CANDIDATE_VP = "51000000-0000-4000-8000-000000000051";
+const CURRENT_VP = "52000000-0000-4000-8000-000000000052";
+const CAND_GEN = "53000000-0000-4000-8000-000000000053";
+const CURR_GEN = "54000000-0000-4000-8000-000000000054";
+const CAND_SHA = "1".repeat(64);
+const CURR_SHA = "2".repeat(64);
+const REF_SHA = "3".repeat(64);
+
+{
+  const calls = [];
+  const candidate = await ownedVoiceActivationCandidate(async (sql, params) => {
+    calls.push({ sql, params });
+    return [{ candidate_voice_profile_id: CANDIDATE_VP, current_voice_profile_id: CURRENT_VP }];
+  }, OWNER, RID);
+  ok("the candidate preview binds replica and owner, and resolves both sides in one query",
+    calls.length === 1 && calls[0].params[0] === RID && calls[0].params[1] === OWNER
+    && candidate.candidate_voice_profile_id === CANDIDATE_VP && candidate.current_voice_profile_id === CURRENT_VP);
+  ok("the candidate preview shares its genome/voice-profile selection text with the real activation SQL",
+    /order by x\.version desc limit 1/.test(calls[0].sql)
+    && /lower\(x\.provider\) not in \('fake','test','fixture','deterministic-fake'\)/.test(calls[0].sql));
+}
+
+{
+  const calls = [];
+  const decision = await guardOwnedRuntimeVoiceActivation(async (sql, params) => {
+    calls.push(sql);
+    return [{ candidate_voice_profile_id: null, current_voice_profile_id: null }];
+  }, OWNER, RID);
+  ok("no ready voice candidate at all is allowed after exactly one query", decision.allowed === true && decision.reason === "no_voice_candidate" && calls.length === 1);
+}
+{
+  const calls = [];
+  const decision = await guardOwnedRuntimeVoiceActivation(async (sql) => {
+    calls.push(sql);
+    return [{ candidate_voice_profile_id: CANDIDATE_VP, current_voice_profile_id: null }];
+  }, OWNER, RID);
+  ok("a first-ever activation (nothing active yet) is allowed after exactly one query", decision.allowed === true && decision.reason === "no_active_capability_yet" && calls.length === 1);
+}
+{
+  const calls = [];
+  const decision = await guardOwnedRuntimeVoiceActivation(async (sql) => {
+    calls.push(sql);
+    return [{ candidate_voice_profile_id: CANDIDATE_VP, current_voice_profile_id: CANDIDATE_VP }];
+  }, OWNER, RID);
+  ok("reactivating the already-active voice is allowed after exactly one query", decision.allowed === true && decision.reason === "candidate_is_current_primary" && calls.length === 1);
+}
+
+// Two distinct queries legitimately match /from vy_replica_generation/: this
+// wrapper's own voice_profile_id -> generation lookup (checked on its own
+// text below) and guardOwnedVoiceActivation's own generation_id -> sha
+// lookup (already proven by evals/listening-test/run.mjs). Both are
+// satisfied by the same two rows keyed by generation id OR voice profile
+// id, since the fixture generation ids and voice profile ids never collide.
+function realVoiceChangeDb({ verdictRows = [], auditInserts }) {
+  return async (sql, params) => {
+    if (/as candidate_voice_profile_id/.test(sql)) return [{ candidate_voice_profile_id: CANDIDATE_VP, current_voice_profile_id: CURRENT_VP }];
+    if (/from vy_replica_generation/.test(sql)) return [
+      { voice_profile_id: CANDIDATE_VP, generation_id: CAND_GEN, audio_sha256: CAND_SHA },
+      { voice_profile_id: CURRENT_VP, generation_id: CURR_GEN, audio_sha256: CURR_SHA },
+    ];
+    if (/from vy_replica_processing_artifact/.test(sql)) return [{ sha256: REF_SHA }];
+    if (/from vy_replica_calibration/.test(sql)) return verdictRows;
+    if (/insert into vy_replica_audit/.test(sql)) { auditInserts.push({ sql, params }); return []; }
+    throw new Error(`unexpected statement in realVoiceChangeDb: ${sql}`);
+  };
+}
+{
+  let generationSql = "";
+  await guardOwnedRuntimeVoiceActivation(async (sql) => {
+    if (/as candidate_voice_profile_id/.test(sql)) return [{ candidate_voice_profile_id: CANDIDATE_VP, current_voice_profile_id: CURRENT_VP }];
+    if (/from vy_replica_generation/.test(sql)) { generationSql = sql; return []; }
+    return [];
+  }, OWNER, RID);
+  ok("this wrapper's own sealed-generation lookup requires the owner's own sealed voice previews with a real content hash",
+    /state='sealed'/.test(generationSql) && /purpose='voice_preview'/.test(generationSql) && /audio_sha256 is not null/.test(generationSql));
+}
+
+{
+  const auditInserts = [];
+  const decision = await guardOwnedRuntimeVoiceActivation(realVoiceChangeDb({ auditInserts }), OWNER, RID);
+  ok("a genuine voice change with no listening verdict on record is allowed, end to end through the real tables",
+    decision.allowed === true && decision.reason === "no_verdict_on_record" && auditInserts.length === 0);
+}
+{
+  const auditInserts = [];
+  const verdictRows = [{ version: 5, winner_artifact_id: CURR_GEN }];
+  const decision = await guardOwnedRuntimeVoiceActivation(realVoiceChangeDb({ verdictRows, auditInserts }), OWNER, RID);
+  ok("NEGATIVE, end to end: the currently-active voice's own listening win blocks the losing candidate, and logs nothing",
+    decision.allowed === false && decision.reason === "candidate_lost_latest_verdict" && auditInserts.length === 0);
+}
+{
+  const auditInserts = [];
+  const verdictRows = [{ version: 5, winner_artifact_id: CURR_GEN }];
+  const decision = await guardOwnedRuntimeVoiceActivation(realVoiceChangeDb({ verdictRows, auditInserts }), OWNER, RID, true);
+  ok("end to end with an explicit override: the same loss is now allowed and the override is logged, naming the blocking generation",
+    decision.allowed === true && decision.overridden === true
+    && auditInserts.length === 1 && auditInserts[0].sql.includes("voice.activation.override")
+    && auditInserts[0].params.some((value) => typeof value === "string" && value.includes(CURR_GEN)));
+}
+
+{
+  const activationCalls = [];
+  await assert.rejects(
+    () => guardedActivateOwnedRuntime(async (sql, params) => {
+      activationCalls.push(sql);
+      if (/as candidate_voice_profile_id/.test(sql)) return [{ candidate_voice_profile_id: CANDIDATE_VP, current_voice_profile_id: CURRENT_VP }];
+      if (/from vy_replica_generation/.test(sql)) return [
+        { voice_profile_id: CANDIDATE_VP, generation_id: CAND_GEN, audio_sha256: CAND_SHA },
+        { voice_profile_id: CURRENT_VP, generation_id: CURR_GEN, audio_sha256: CURR_SHA },
+      ];
+      if (/from vy_replica_processing_artifact/.test(sql)) return [{ sha256: REF_SHA }];
+      if (/from vy_replica_calibration/.test(sql)) return [{ version: 5, winner_artifact_id: CURR_GEN }];
+      throw new Error(`the real activation query must never run once the guard has blocked: ${sql}`);
+    }, OWNER, RID),
+    (error) => error.code === "voice_activation_blocked_by_listening_verdict" && error.status === 409 && error.details.blocked_by === CURR_GEN,
+  );
+  ok("NEGATIVE: a blocked guard refuses activation before the atomic capability write ever runs, no partial capability created", true);
+}
+{
+  const activationCalls = [];
+  const guarded = await guardedActivateOwnedRuntime(async (sql, params) => {
+    activationCalls.push(sql);
+    if (/as candidate_voice_profile_id/.test(sql)) return [{ candidate_voice_profile_id: null, current_voice_profile_id: null }];
+    if (sql.includes('as adoption_status')) return [{ adoption_status: 'no_private_draft' }];
+    return [{ capability_id: CAP, replica_id: RID, state: "active", genome_version: 3, profile_version: 7, calibration_version: 2, activated_at: "2026-08-24T00:00:00.000Z" }];
+  }, OWNER, RID, { override: false });
+  ok("an allowed guard delegates unchanged to the real activation query, and the door sees the same result activateOwnedRuntime would return",
+    guarded.active === true && guarded.versions.calibration === 2
+    && activationCalls.some((sql) => sql.includes('created_capability as')));
+}
+
+ok("the door imports the guarded activation entry point, not the raw one, and threads the caller's override through",
+  /guardedActivateOwnedRuntime/.test(route) && /guardedActivateOwnedRuntime\(q, user\.id, body\.replica_id, \{ override: Boolean\(body\.override\) \}\)/.test(route));
 
 console.log(`\n${checks} replica runtime checks passed`);
