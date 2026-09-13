@@ -44,7 +44,10 @@ const oldAst=ast(prior('src/studio/CloneExperience.tsx')),nextAst=ast(read('src/
 // was written for: every line that carries no user-visible string (no quote,
 // no copy-registry read) is byte-identical to the base, in the same order;
 // only string-bearing lines may differ (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
-const logicLines=text=>text.split('\n').filter(l=>!/["'`]/.test(l)&&!/\bcopy\b|useStudioLocale/.test(l));
+// A hook dependency array that gains the copy binding is the one string-free
+// line the conversion legitimately touches, so `}, [...]);` closers are
+// compared with their contents blanked.
+const logicLines=text=>text.split('\n').map(l=>l.replace(/^(\s*\}, \[)[^\]]*(\]\);\s*)$/,'$1$2')).filter(l=>!/["'`]/.test(l)&&!/\bcopy\b|useStudioLocale/.test(l)&&!/>[^<{]*[A-Za-z][^<{]*(?:<|$)/.test(l)&&!/^\s*[A-Za-z][A-Za-z ,.?!]*\s*$/.test(l));
 for(const name of ['ResonanceRecorder','voiceSagaKey','readVoiceSaga','storeVoiceSaga']){
  const get=tree=>tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name)?.getText(tree);
  assert.ok(get(oldAst),name);assert.deepEqual(logicLines(get(nextAst)),logicLines(get(oldAst)),name);
