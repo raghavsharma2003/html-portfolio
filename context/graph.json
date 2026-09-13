@@ -19476,6 +19476,12 @@
       "kind": "rejection",
       "title": "measureTarget never copied target.tbtBudget onto its result; every offline fixture built result by hand and never caught it, only a live gate run did",
       "at": "context/rejected.md#ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget"
+    },
+    {
+      "id": "teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled",
+      "kind": "rejection",
+      "title": "teacher-sheet-publication-ui asserted a Node-side pending count on the tick the button disabled; the batch gate lost that race once in the pool (2026-09-13)",
+      "at": "context/rejected.md#teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled"
     }
   ],
   "edges": [
@@ -33261,6 +33267,11 @@
       "src": "ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement",
       "dst": "ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget",
       "rel": "caused_by"
+    },
+    {
+      "src": "teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled",
+      "dst": "ws-r181-load-aware-barriers-and-a-load-ceiling",
+      "rel": "constrains"
     }
   ]
 }
