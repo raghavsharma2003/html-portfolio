@@ -1,5 +1,6 @@
 // Mounted actual editors and publication component; localhost synthetic API only.
 import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
+import { boundedWaitMs } from "../lib/bounded-wait.mjs";
 import assert from 'node:assert/strict';
 import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import {join,resolve,extname} from 'node:path';
@@ -13,7 +14,13 @@ import {fixture,owner,replica,agent,row} from './fixtures.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url)),art=join(root,'scratchpad/teacher-sheet-publication-mounted',String(Date.now()));mkdirSync(art,{recursive:true});
 const sheet={...(await loadFixtureAgent(root)).SHEET,slug:'publication-fixture'};
 const f=fixture({agentId:agent,rows:[row(sheet)]}),initial=await reviewOwnedTeacherSheetPublication(f.db,owner,replica);
-let review,mode,posts,reads,loadedSheet,draftReads,pending=[],browser,server;const checks=[],errors=[];
+let review,mode,posts,reads,loadedSheet,draftReads,pending=[],browser,server;
+// The button disables on the client's own click state BEFORE the request it
+// dispatched reaches this fake server, so the pending count is polled with a
+// load-scaled bound (WS-R181's shared core), never asserted on the same tick
+// the button went disabled: the 2026-09-13 batch gate lost exactly that race
+// once, in the pool at 1440px (`0 !== 1`), while the suite passed alone.
+const awaitPending=async(n)=>{const deadline=Date.now()+boundedWaitMs(5000);while(pending.length<n&&Date.now()<deadline)await new Promise(r=>setTimeout(r,20));assert.equal(pending.length,n);};const checks=[],errors=[];
 const check=name=>{checks.push(name);console.log('PASS '+name);};
 // blob from commit 43230e5e94d2086bfaf8b974fbb041862736b28c, moved to a
 // committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
@@ -63,11 +70,11 @@ try{
   }
   for(const pendingMode of ['pending-read','pending-post']){
    await open();if(pendingMode==='pending-read'){mode=pendingMode;await region().getByRole('button',{name:'Review saved sheet',exact:true}).click();}else{await inspect();mode=pendingMode;await publish();}
-   await page.waitForFunction(()=>document.querySelector('.teacher-sheet-publication button')?.disabled===true);assert.equal(pending.length,1);mode='normal';const before=reads.length;await load();pending.shift()();await page.waitForLoadState('networkidle');assert.equal(reads.length,before);assert.equal(await region().getByRole('checkbox').count(),0);assert.equal(await region().getByRole('link').count(),0);assert.equal(posts.length,pendingMode==='pending-post'?1:0);
+   await page.waitForFunction(()=>document.querySelector('.teacher-sheet-publication button')?.disabled===true);await awaitPending(1);mode='normal';const before=reads.length;await load();pending.shift()();await page.waitForLoadState('networkidle');assert.equal(reads.length,before);assert.equal(await region().getByRole('checkbox').count(),0);assert.equal(await region().getByRole('link').count(),0);assert.equal(posts.length,pendingMode==='pending-post'?1:0);
   }check(`${width}: loading identical draft invalidates pending publication GET and POST completion without follow-up requests`);
   for(const loadMode of ['pending-load','failed-load']){
    await open();await inspect();await publish();await region().getByText('This teaching sheet is published.',{exact:true}).waitFor();mode=loadMode;
-   if(loadMode==='pending-load'){await page.locator('.section-heading button').click();await page.waitForFunction(()=>document.querySelector('.section-heading button')?.disabled===true);assert.equal(pending.length,1);assert.equal(await region().getByRole('link').count(),0);assert.equal(await region().getByRole('button').isDisabled(),true);pending.shift()();}else await load();
+   if(loadMode==='pending-load'){await page.locator('.section-heading button').click();await page.waitForFunction(()=>document.querySelector('.section-heading button')?.disabled===true);await awaitPending(1);assert.equal(await region().getByRole('link').count(),0);assert.equal(await region().getByRole('button').isDisabled(),true);pending.shift()();}else await load();
    await page.waitForLoadState('networkidle');await region().getByRole('button',{name:'Review saved sheet',exact:true}).waitFor();assert.equal(await region().getByRole('link').count(),0);assert.equal(reads.length,2);assert.equal(posts.length,1);
   }check(`${width}: pending or failed draft load cannot retain published continuation or dispatch another publication`);
   if(process.argv.includes('--load-only')){await context.close();continue;}
@@ -84,9 +91,9 @@ try{
   await open('?hi=1');await region().getByRole('button').click();await region().getByRole('checkbox').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:join(art,`${width}-hindi-review.png`),fullPage:true});check(`${width}: Hindi publication review fits viewport`);
   if(width===390){
    for(const mutation of ['hide','scope','edit','callback']){
-    await open('?leaf=1');mode='pending-read';await region().getByRole('button').click();await page.waitForFunction(()=>document.querySelector('.teacher-sheet-publication button')?.disabled===true);await page.evaluate(name=>window.publicationProbe[name](),mutation);assert.equal(pending.length,1);pending.shift()();await page.waitForLoadState('networkidle');assert.equal(await region().getByRole('checkbox').count(),0);assert.equal(posts.length,0);check(`pending GET ${mutation}: no stale review or publish`);
+    await open('?leaf=1');mode='pending-read';await region().getByRole('button').click();await page.waitForFunction(()=>document.querySelector('.teacher-sheet-publication button')?.disabled===true);await page.evaluate(name=>window.publicationProbe[name](),mutation);await awaitPending(1);pending.shift()();await page.waitForLoadState('networkidle');assert.equal(await region().getByRole('checkbox').count(),0);assert.equal(posts.length,0);check(`pending GET ${mutation}: no stale review or publish`);
    }
-   await open('?leaf=1');await inspect();mode='pending-post';await publish();await page.evaluate(()=>window.publicationProbe.scope());assert.equal(pending.length,1);pending.shift()();await page.waitForLoadState('networkidle');assert.equal(reads.length,1);assert.equal(await region().getByText('This teaching sheet is published.',{exact:true}).count(),0);check('pending POST scope change: no old readback or state resurrection');
+   await open('?leaf=1');await inspect();mode='pending-post';await publish();await page.evaluate(()=>window.publicationProbe.scope());await awaitPending(1);pending.shift()();await page.waitForLoadState('networkidle');assert.equal(reads.length,1);assert.equal(await region().getByText('This teaching sheet is published.',{exact:true}).count(),0);check('pending POST scope change: no old readback or state resurrection');
    for(const mutate of [r=>r.replica_id='foreign',r=>r.review.sheet_id+='\n',r=>r.consent_basis='verified_active_grant',r=>r.sheet.consent_artifact_id=null,r=>r.errors=[{}],r=>r.sheet.draft=[]]){
     await open('?leaf=1');mutate(review);const outcome=await page.evaluate(()=>window.publicationProbe.read().then(()=> 'accepted',e=>e.message));assert.equal(outcome,'teacher_sheet_publication_response_invalid');assert.equal(posts.length,0);
    }check('actual client refuses six malformed/foreign/false-authority response controls');
