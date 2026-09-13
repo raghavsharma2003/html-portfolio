@@ -84,16 +84,26 @@ import {
   rememberMirrorCallEnd,
   type MirrorCallRecoveryIntent,
 } from "./mirrorCallRecovery";
+import { useStudioLocale } from "./localeContext";
+import type { MirrorCallStudioCopy } from "./copy";
 
 type TabKey = "call" | "review";
 
-const KIND_LABEL: Record<MirrorCallDelta["kind"], string> = {
-  phrase_habit: "Phrase habit",
-  register: "Register",
-  boundary: "Boundary",
-  fact: "Fact",
-  delivery: "Delivery",
+// WS-R166: kind labels moved to the copy registry
+// (`src/studio/copy.ts#MirrorCallStudioCopy.kindLabel`); this map is the
+// SERVER key (`MirrorCallDelta["kind"]`) to the copy object's own field name,
+// never re-typed prose.
+const KIND_FIELD: Record<MirrorCallDelta["kind"], keyof MirrorCallStudioCopy["kindLabel"]> = {
+  phrase_habit: "phraseHabit",
+  register: "register",
+  boundary: "boundary",
+  fact: "fact",
+  delivery: "delivery",
 };
+function kindLabel(kind: MirrorCallDelta["kind"], copy: MirrorCallStudioCopy): string {
+  const field = KIND_FIELD[kind];
+  return (field && copy.kindLabel[field]) || kind;
+}
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -122,10 +132,12 @@ function sessionForMirrorCallRecovery(value: MirrorCallRecoveryIntent): MirrorCa
 }
 
 function Caption({ line, children }: { line: CaptionLine; children?: ReactNode }) {
+  const { t } = useStudioLocale();
+  const copy = t.mirrorCallStudio.caption;
   return (
     <article className={`mirror-caption mirror-caption-${line.kind}`}>
       <span className="mirror-caption-who">
-        {line.kind === "owner" ? "You" : line.kind === "clone" ? "Your clone" : line.kind === "dropped" ? "Missed" : "Call"}
+        {line.kind === "owner" ? copy.you : line.kind === "clone" ? copy.yourClone : line.kind === "dropped" ? copy.missed : copy.call}
       </span>
       <p>{line.text}</p>
       {children}
@@ -144,6 +156,8 @@ export default function MirrorCallStudio({
   stopped: boolean;
   onAuthError: (cause: unknown) => void;
 }) {
+  const { t } = useStudioLocale();
+  const copy = t.mirrorCallStudio;
   const [state, dispatch] = useReducer(callReducer, INITIAL_CALL_STATE);
   const [tab, setTab] = useState<TabKey>("call");
   const [micLevel, setMicLevel] = useState(0);
@@ -191,7 +205,7 @@ export default function MirrorCallStudio({
           return;
         }
         if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-        const friendly = friendlyError(cause, "The Mirror Call backend could not be reached");
+        const friendly = friendlyError(cause, copy.contexts.backendUnreachable);
         dispatch({ type: "FAIL", message: `${friendly.headline}. ${friendly.detail}` });
       }
     })();
@@ -291,7 +305,7 @@ export default function MirrorCallStudio({
       setRecoveryIntent(rememberMirrorCallEnd(current, result.ended_at));
     }
     setRecoveryNotice(recovered
-      ? "Recovered the saved end receipt. No recording was stored in this browser."
+      ? copy.recovery.recoveredEndReceipt
       : "");
   }
 
@@ -314,7 +328,7 @@ export default function MirrorCallStudio({
       await captureRef.current?.close();
       captureRef.current = null;
       setWarmStartedAt(null);
-      fail(cause, "The Mirror Call could not start");
+      fail(cause, copy.contexts.couldNotStart);
     } finally {
       setBusy(false);
     }
@@ -333,7 +347,7 @@ export default function MirrorCallStudio({
       const result = await endMirrorCall(token, state.session.session_id);
       settleEndResult(result, false);
     } catch (cause) {
-      failEnd(cause, "The call could not be ended cleanly");
+      failEnd(cause, copy.contexts.couldNotEndCleanly);
     } finally {
       await captureRef.current?.close();
       captureRef.current = null;
@@ -346,7 +360,7 @@ export default function MirrorCallStudio({
     const fence = endFenceRef.current;
     if (busy || micFenceRef.current.active || turnFenceRef.current.active || !fence.tryEnter()) return;
     setBusy(true);
-    setRecoveryNotice("Recovering the saved end receipt. No microphone or audio is being restored.");
+    setRecoveryNotice(copy.recovery.recovering);
     const session = sessionForMirrorCallRecovery(intent);
     dispatch({ type: "CONNECT" });
     dispatch({ type: "SESSION_OPEN", session });
@@ -356,8 +370,8 @@ export default function MirrorCallStudio({
       const result = await endMirrorCall(token, intent.sessionId);
       settleEndResult(result, true);
     } catch (cause) {
-      setRecoveryNotice("The saved end receipt could not be recovered yet. The session id is kept in this tab so you can try again.");
-      failEnd(cause, "The call end receipt could not be recovered");
+      setRecoveryNotice(copy.recovery.recoverFailed);
+      failEnd(cause, copy.contexts.couldNotRecoverEndReceipt);
     } finally {
       fence.leave();
       setBusy(false);
@@ -389,7 +403,7 @@ export default function MirrorCallStudio({
             pending,
             new Promise<never>((_, reject) => {
               timer = window.setTimeout(
-                () => reject(new Error("Microphone permission did not finish within 30 seconds.")),
+                () => reject(new Error(copy.mic.permissionTimeout)),
                 30_000,
               );
             }),
@@ -400,7 +414,7 @@ export default function MirrorCallStudio({
           // permission prompt after our bound, close that late stream rather
           // than retaining a microphone the owner is no longer using.
           void pending.then((late) => late.close()).catch(() => {});
-          const friendly = friendlyError(cause, "The microphone could not open");
+          const friendly = friendlyError(cause, copy.mic.micCouldNotOpen);
           setMicError(`${friendly.headline}. ${friendly.detail}`);
           return;
         } finally {
@@ -415,7 +429,7 @@ export default function MirrorCallStudio({
         capture.begin();
         dispatch({ type: "CAPTURE_START" });
       } catch (cause) {
-        const friendly = friendlyError(cause, "The microphone could not open");
+        const friendly = friendlyError(cause, copy.mic.micCouldNotOpen);
         setMicError(`${friendly.headline}. ${friendly.detail}`);
       }
     } finally {
@@ -437,7 +451,7 @@ export default function MirrorCallStudio({
       }
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      const friendly = friendlyError(cause, "The speaker check could not be saved");
+      const friendly = friendlyError(cause, copy.contexts.speakerCheckCouldNotBeSaved);
       setSpeakerAttestationError(`${friendly.headline}. ${friendly.detail}`);
     } finally {
       setSpeakerAttestationBusy(null);
@@ -467,7 +481,7 @@ export default function MirrorCallStudio({
       }
     } catch (cause) {
       dispatch({ type: "SPEAK_END" });
-      fail(cause, "That window could not be sent");
+      fail(cause, copy.contexts.windowCouldNotBeSent);
     } finally {
       fence.leave();
     }
@@ -513,7 +527,7 @@ export default function MirrorCallStudio({
     try {
       dispatch({ type: "DELTAS_SYNCED", deltas: await listMirrorCallDeltas(token, state.session.session_id) });
     } catch (cause) {
-      fail(cause, "The proposed changes could not be refreshed");
+      fail(cause, copy.contexts.proposedChangesCouldNotBeRefreshed);
     }
   }
 
@@ -529,7 +543,7 @@ export default function MirrorCallStudio({
       dispatch({ type: "CHIP_RESULT", delta });
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      const friendly = friendlyError(cause, `This change could not be ${action === "accept" ? "applied" : "dismissed"}`);
+      const friendly = friendlyError(cause, copy.contexts.changeCouldNotBeTemplate.replace("{action}", action === "accept" ? copy.changeApplied : copy.changeDismissed));
       dispatch({ type: "CHIP_FAILED", deltaId: chip.delta.delta_id, message: friendly.detail });
     }
   }
@@ -544,7 +558,7 @@ export default function MirrorCallStudio({
       });
       dispatch({ type: "RATE_TURN", turnId, rating, deltas: saved.deltas });
     } catch (cause) {
-      fail(cause, "That rating could not be saved");
+      fail(cause, copy.contexts.ratingCouldNotBeSaved);
     }
   }
 
@@ -555,7 +569,7 @@ export default function MirrorCallStudio({
       correctionRef.current.begin();
       setRecording({ turnId });
     } catch (cause) {
-      fail(cause, "The microphone could not open for a re-record");
+      fail(cause, copy.contexts.micCouldNotOpenForRerecord);
     }
   }
 
@@ -575,7 +589,7 @@ export default function MirrorCallStudio({
       });
       dispatch({ type: "RATE_TURN", turnId, rating: "down", deltas: saved.deltas });
     } catch (cause) {
-      fail(cause, "That re-record could not be saved");
+      fail(cause, copy.contexts.reRecordCouldNotBeSaved);
     } finally {
       await capture.close();
       correctionRef.current = null;
@@ -596,133 +610,94 @@ export default function MirrorCallStudio({
     : warmStartedAt + 8 * 60_000;
 
   const availability = useMemo(() => {
-    if (state.phase === "checking") return {
-      title: "Checking call availability",
-      phase: "Verifying the deployed call routes before showing Start call.",
-      range: "No finish estimate is shown until the server answers.",
-      next: "This check is running now.",
-      leave: "Keep this page open for the availability check.",
-    };
-    if (state.phase === "reply_unavailable") return {
-      title: "Calls are waiting on us",
-      phase: "The private call route is online, but its conversational reply service is not configured.",
-      range: "There is no start estimate yet.",
-      next: "Vyakti needs to restore the reply service before a call can begin.",
-      leave: "You can leave this page. Recording is off, and no new call session will be created.",
-    };
-    if (state.phase === "idle" && recoveryIntent) return {
-      title: "Recovering the previous call",
-      phase: "This tab found a saved session id and is replaying the same idempotent end request.",
-      range: "No audio, transcript, caption, proposal, or speaker decision was stored in this browser.",
-      next: "The saved end receipt is being requested now.",
-      leave: "Keep this tab open until the recovered receipt or a named retry appears.",
-    };
-    if (state.phase === "idle") return {
-      title: "Available to start",
-      phase: "The call routes are present. The GPU is requested only after you press Start call.",
-      range: "A cold voice GPU has an observed 2 to 8 minute start range. A warm GPU connects faster.",
-      next: "No GPU is running for this call yet.",
-      leave: "Start when you have time to keep this tab open through the connection step.",
-    };
-    if (state.phase === "connecting") return {
-      title: "Opening the private call",
-      phase: "Creating the server session and checking its signed voice-runtime readiness.",
-      range: "The server has not returned a GPU estimate yet.",
-      next: "The next state comes from the session response.",
-      leave: "Keep this tab open. The browser does not ask for microphone access until you press Talk.",
-    };
+    const a = copy.availability;
+    if (state.phase === "checking") return a.checking;
+    if (state.phase === "reply_unavailable") return a.replyUnavailable;
+    if (state.phase === "idle" && recoveryIntent) return a.recovering;
+    if (state.phase === "idle") return a.idle;
+    if (state.phase === "connecting") return a.connecting;
     if (state.phase === "warming") return {
-      title: observedHighAt !== null && now > observedHighAt ? "GPU start is beyond the observed range" : "Voice GPU is starting",
-      phase: "The call session exists and the server is waiting for its private voice runtime.",
+      title: observedHighAt !== null && now > observedHighAt ? a.warming.titleBeyondRange : a.warming.titleNormal,
+      phase: a.warming.phase,
       range: serverReadySeconds == null
-        ? "Observed cold-start range: 2 to 8 minutes."
-        : `Observed cold-start range: 2 to 8 minutes. The server's current estimate is about ${Math.max(1, Math.ceil(serverReadySeconds / 60))} ${Math.ceil(serverReadySeconds / 60) === 1 ? "minute" : "minutes"}, but that does not shorten the observed range.`,
-      next: "Next server readiness check within 6 seconds. The server estimate is refreshed from that response.",
-      leave: observedHighAt == null
-        ? "You may switch tabs or apps, but keep this tab open so the call can become ready."
-        : `${now > observedHighAt ? "The observed eight-minute window has passed; we are still checking." : `A useful time to return is around ${clock(observedHighAt)}, the high end of the observed range.`} You may switch tabs or apps, but keep this tab open. Reloading ends this call setup.`,
+        ? a.warming.rangeNoEstimate
+        : a.warming.rangeWithEstimateTemplate
+          .replace("{n}", String(Math.max(1, Math.ceil(serverReadySeconds / 60))))
+          .replace("{unit}", Math.ceil(serverReadySeconds / 60) === 1 ? a.warming.minuteSingular : a.warming.minutePlural),
+      next: a.warming.next,
+      leave: (observedHighAt == null
+        ? a.warming.leaveNoObservedHigh
+        : (now > observedHighAt ? a.warming.leaveBeyondWindow : a.warming.leaveWithinWindowTemplate.replace("{time}", clock(observedHighAt)))
+      ) + (observedHighAt == null ? "" : a.warming.leaveSuffix),
     };
     if (state.phase === "live") return {
-      title: "Call ready now",
+      title: a.live.title,
       phase: state.turnPhase === "capturing"
-        ? "Recording locally. Nothing is sent until you press Send this window."
+        ? a.live.phaseCapturing
         : state.turnPhase === "uploading"
-          ? "Sending and transcribing the window you approved."
+          ? a.live.phaseUploading
           : state.turnPhase === "thinking"
-            ? "The clone is preparing its reply."
+            ? a.live.phaseThinking
             : state.turnPhase === "speaking"
-              ? "Playing the protected clone reply."
-              : "Ready for your next voice window. The microphone is off until you press Talk.",
-      range: "Turn completion has no measured range on this deployment, so no countdown is shown.",
-      next: state.turnPhase === "idle" ? "Waiting for you." : "This turn updates when its current server phase finishes.",
-      leave: state.turnPhase === "idle" ? "Keep this tab open for the live call." : "Keep this tab open until the current turn finishes.",
+              ? a.live.phaseSpeaking
+              : a.live.phaseIdle,
+      range: a.live.range,
+      next: state.turnPhase === "idle" ? a.live.nextIdle : a.live.nextTurn,
+      leave: state.turnPhase === "idle" ? a.live.leaveIdle : a.live.leaveTurn,
     };
-    if (state.phase === "ending") return {
-      title: "Ending the call",
-      phase: "Saving the end receipt and moving untouched proposals to Review later.",
-      range: "No measured completion range is available for this step.",
-      next: "The server response closes the session.",
-      leave: "Keep this tab open until the end receipt appears.",
-    };
+    if (state.phase === "ending") return a.ending;
     if (state.phase === "ended") return {
-      title: "Call ended",
-      phase: "The end receipt is saved. Unaccepted proposals remain unapplied in Review later.",
-      range: "The live call is complete.",
-      next: state.ended?.finetune.queued
-        ? "The server recorded a call-learning request. Check Activity for whether its runner is connected before expecting it to finish."
-        : "No call-learning request was recorded.",
-      leave: speakerChoicePending
-        ? "Choose who spoke before starting another call. Reloading this tab restores this question from the server."
-        : "You may leave now. Review items remain available when you return.",
+      title: a.ended.title,
+      phase: a.ended.phase,
+      range: a.ended.range,
+      next: state.ended?.finetune.queued ? a.ended.nextQueued : a.ended.nextNotQueued,
+      leave: speakerChoicePending ? a.ended.leaveChoosePending : a.ended.leaveMayLeave,
     };
     if (recoveryIntent) return {
-      title: "Call recovery paused",
-      phase: state.error || "The end receipt did not reach this tab.",
-      range: "The server may already have ended the call. Starting a new call would not resolve that ambiguity.",
-      next: "Press Recover end receipt to replay the same session end safely.",
-      leave: "The content-free session id remains in this tab. No audio is stored here.",
+      title: a.recoveryPaused.title,
+      phase: state.error || copy.recoveryPausedPhaseFallback,
+      range: a.recoveryPaused.range,
+      next: a.recoveryPaused.next,
+      leave: a.recoveryPaused.leave,
     };
     return {
-      title: "Call stopped",
-      phase: state.error || "The call did not continue.",
-      range: "A stopped call has no completion estimate.",
-      next: "Start another call when you are ready.",
-      leave: "Nothing is recording or progressing silently in this call.",
+      title: a.stopped.title,
+      phase: state.error || copy.stoppedPhaseFallback,
+      range: a.stopped.range,
+      next: a.stopped.next,
+      leave: a.stopped.leave,
     };
-  }, [now, observedHighAt, recoveryIntent, serverReadySeconds, speakerChoicePending, state.ended?.finetune.queued, state.error, state.phase, state.turnPhase]);
+  }, [now, observedHighAt, recoveryIntent, serverReadySeconds, speakerChoicePending, state.ended?.finetune.queued, state.error, state.phase, state.turnPhase, copy]);
 
   const speakerAttestationCard = state.phase === "ended" && speakerAttestation &&
     speakerAttestation.state !== "not_available" ? (
       <aside className="mirror-speaker-attestation" aria-busy={speakerAttestationBusy !== null}>
         {speakerAttestation.state === "attested" ? (
           <div role="status" aria-live="polite">
-            <strong>Speaker check saved</strong>
+            <strong>{copy.speaker.savedHeading}</strong>
             <p>
-              {speakerAttestation.attested_windows} microphone window
-              {speakerAttestation.attested_windows === 1 ? "" : "s"} can now be checked for cited memory proposals.
-              Each proposal still waits for your review. Your clone voice did not change.
+              {copy.speaker.savedBodyTemplate
+                .replace("{n}", String(speakerAttestation.attested_windows))
+                .replace("{plural}", speakerAttestation.attested_windows === 1 ? "" : "s")}
             </p>
           </div>
         ) : speakerAttestation.state === "excluded" ? (
           <div role="status" aria-live="polite">
-            <strong>These recordings will stay out of memory learning</strong>
-            <p>Your clone voice is unchanged. You can start another call when you have a clean recording.</p>
+            <strong>{copy.speaker.excludedHeading}</strong>
+            <p>{copy.speaker.excludedBody}</p>
           </div>
         ) : speakerAttestation.state === "consent_required" ? (
           <div role="status">
-            <strong>This call cannot enter memory learning</strong>
+            <strong>{copy.speaker.consentRequiredHeading}</strong>
             <p>
-              One or more permissions used for capture, storage, transcription, or learning is no longer active.
-              The recording stays out of claim proposals and does not change your clone voice.
+              {copy.speaker.consentRequiredBody}
             </p>
           </div>
         ) : (
           <fieldset>
-            <legend>Were you the only person speaking into your microphone?</legend>
+            <legend>{copy.speaker.questionLegend}</legend>
             <p>
-              Choose Yes only if every recorded window was you. This choice is final for this call. The clone's generated playback is excluded and
-              never counts as your speech. This only allows cited memory proposals to be prepared. Each proposal
-              still waits for your review, and this does not change the clone voice.
+              {copy.speaker.questionBody}
             </p>
             <div className="mirror-speaker-actions">
               <button
@@ -730,14 +705,14 @@ export default function MirrorCallStudio({
                 disabled={speakerAttestationBusy !== null}
                 onClick={() => void answerSpeakerAttestation("only_me")}
               >
-                {speakerAttestationBusy === "only_me" ? "Saving..." : "Yes, only me"}
+                {speakerAttestationBusy === "only_me" ? copy.speaker.saving : copy.speaker.yesOnlyMe}
               </button>
               <button
                 className="button" type="button"
                 disabled={speakerAttestationBusy !== null}
                 onClick={() => void answerSpeakerAttestation("not_sure_or_other_people")}
               >
-                {speakerAttestationBusy === "not_sure_or_other_people" ? "Saving..." : "No or not sure"}
+                {speakerAttestationBusy === "not_sure_or_other_people" ? copy.speaker.saving : copy.speaker.noOrNotSure}
               </button>
             </div>
           </fieldset>
@@ -752,40 +727,37 @@ export default function MirrorCallStudio({
     <section className="mirror-call" aria-labelledby="mirror-call-title">
       <div className="mirror-call-head">
         <div>
-          <p className="eyebrow">Mirror Call</p>
-          <h2 id="mirror-call-title">Talk to your clone and correct it while it listens.</h2>
+          <p className="eyebrow">{copy.header.eyebrow}</p>
+          <h2 id="mirror-call-title">{copy.header.heading}</h2>
           <p>
-            Your side goes up in windows of up to 30 seconds. The deployed learner can suggest cited phrase or
-            slang patterns, and show advisory observations about fillers, laughter, stretched speech, and
-            code-switching. Only a cited proposal you tap Accept on can reach your sheet; everything else stays
-            in Review later.
+            {copy.header.body}
           </p>
         </div>
         <span className={`mirror-state mirror-state-${state.phase}`}>
-          {state.phase === "checking" && "CHECKING"}
-          {state.phase === "backend_absent" && "NOT DEPLOYED"}
-          {state.phase === "reply_unavailable" && "WAITING ON US"}
-          {state.phase === "idle" && "READY"}
-          {state.phase === "connecting" && "CONNECTING"}
-          {state.phase === "warming" && "GPU WARMING"}
-          {state.phase === "live" && "LIVE"}
-          {state.phase === "ending" && "ENDING"}
-          {state.phase === "ended" && "ENDED"}
-          {state.phase === "failed" && "STOPPED"}
+          {state.phase === "checking" && copy.stateBadge.checking}
+          {state.phase === "backend_absent" && copy.stateBadge.notDeployed}
+          {state.phase === "reply_unavailable" && copy.stateBadge.waitingOnUs}
+          {state.phase === "idle" && copy.stateBadge.ready}
+          {state.phase === "connecting" && copy.stateBadge.connecting}
+          {state.phase === "warming" && copy.stateBadge.gpuWarming}
+          {state.phase === "live" && copy.stateBadge.live}
+          {state.phase === "ending" && copy.stateBadge.ending}
+          {state.phase === "ended" && copy.stateBadge.ended}
+          {state.phase === "failed" && copy.stateBadge.stopped}
         </span>
       </div>
 
-      <div className="mirror-tabs" role="tablist" aria-label="Mirror Call">
+      <div className="mirror-tabs" role="tablist" aria-label={copy.tabs.ariaLabel}>
         <button
           type="button" role="tab" id="mirror-tab-call" aria-controls="mirror-panel-call"
           aria-selected={tab === "call"} className={tab === "call" ? "active" : ""}
           onClick={() => setTab("call")}
-        >Call</button>
+        >{copy.tabs.call}</button>
         <button
           type="button" role="tab" id="mirror-tab-review" aria-controls="mirror-panel-review"
           aria-selected={tab === "review"} className={tab === "review" ? "active" : ""}
           onClick={() => setTab("review")}
-        >Review later{deferred.length ? ` · ${deferred.length}` : ""}</button>
+        >{copy.tabs.reviewLater}{deferred.length ? copy.tabs.countSuffixTemplate.replace("{n}", String(deferred.length)) : ""}</button>
       </div>
 
       {state.phase !== "backend_absent" ? (
@@ -793,9 +765,9 @@ export default function MirrorCallStudio({
           <strong>{availability.title}</strong>
           <p>{availability.phase}</p>
           <dl>
-            <div><dt>Observed range</dt><dd>{availability.range}</dd></div>
-            <div><dt>Next check</dt><dd>{availability.next}</dd></div>
-            <div><dt>Leave or return</dt><dd>{availability.leave}</dd></div>
+            <div><dt>{copy.availabilityLabels.observedRange}</dt><dd>{availability.range}</dd></div>
+            <div><dt>{copy.availabilityLabels.nextCheck}</dt><dd>{availability.next}</dd></div>
+            <div><dt>{copy.availabilityLabels.leaveOrReturn}</dt><dd>{availability.leave}</dd></div>
           </dl>
         </aside>
       ) : null}
@@ -806,24 +778,21 @@ export default function MirrorCallStudio({
 
       {state.phase === "backend_absent" ? (
         <div className="mirror-absent" role="status">
-          <strong>The Mirror Call backend is not deployed on this environment.</strong>
+          <strong>{copy.backendAbsent.heading}</strong>
           <p>
-            This tab talks to <code>/api/mirror-call</code>, which answered nothing here ({state.absentDetail}).
-            There is no offline demo of a Mirror Call on purpose: a simulated call would look exactly like a
-            working one.
+            {copy.backendAbsent.bodyBefore}<code>/api/mirror-call</code>{copy.backendAbsent.bodyAfterTemplate.replace("{detail}", state.absentDetail || "")}
           </p>
-          <small>What is missing: {["create", "end", "ingest_window", "deltas", "delta_action", "turn_feedback"].join(", ")}.</small>
+          <small>{copy.backendAbsent.missingTemplate.replace("{list}", ["create", "end", "ingest_window", "deltas", "delta_action", "turn_feedback"].join(", "))}</small>
         </div>
       ) : null}
 
       {state.phase === "reply_unavailable" ? (
         <div className="mirror-capability-unavailable" role="status" aria-live="polite">
-          <strong>Voice calls are not available yet.</strong>
+          <strong>{copy.replyUnavailable.heading}</strong>
           <p>
-            Your microphone and clone are not the problem. Vyakti's conversational reply service is not ready
-            in this environment, so this screen will not start or record a call.
+            {copy.replyUnavailable.body}
           </p>
-          <small>No call session or GPU start is requested while this service is unavailable.</small>
+          <small>{copy.replyUnavailable.note}</small>
         </div>
       ) : null}
 
@@ -836,28 +805,28 @@ export default function MirrorCallStudio({
                   the screen cannot keep, and a disabled one is a dead control
                   with no explanation next to it. */}
               {state.phase === "checking" ? (
-                <span className="mirror-note">Checking whether this environment has the call backend.</span>
+                <span className="mirror-note">{copy.controls.checkingNote}</span>
               ) : state.phase === "reply_unavailable" ? (
                 state.session ? (
                   <button className="button danger-button" type="button" disabled={busy} onClick={() => void end()}>
-                    {busy ? "Ending..." : "End call setup"}
+                    {busy ? copy.controls.endingCallSetup : copy.controls.endCallSetup}
                   </button>
                 ) : null
               ) : state.phase === "failed" && recoveryIntent ? (
                 <button className="button primary-button" type="button" disabled={busy} onClick={() => void recoverEndReceipt(recoveryIntent)}>
-                  {busy ? "Recovering receipt..." : "Recover end receipt"}
+                  {busy ? copy.controls.recoveringReceipt : copy.controls.recoverEndReceipt}
                 </button>
               ) : canConnect(state) ? (
                 <button className="button primary-button" type="button" disabled={busy || speakerChoicePending} onClick={() => void connect()}>
-                  {speakerChoicePending ? "Finish the speaker check above" : state.phase === "ended" ? "Start another call" : "Start the call"}
+                  {speakerChoicePending ? copy.controls.finishSpeakerCheck : state.phase === "ended" ? copy.controls.startAnotherCall : copy.controls.startTheCall}
                 </button>
               ) : (
                 <button className="button danger-button" type="button" disabled={!canEnd(state) || busy || micOpening} onClick={() => void end()}>
                   {state.phase === "ending"
-                    ? "Ending..."
+                    ? copy.controls.ending
                     : state.turnPhase === "uploading" || state.turnPhase === "thinking" || state.turnPhase === "speaking"
-                      ? "Finish this reply before ending"
-                      : "End call"}
+                      ? copy.controls.finishReplyBeforeEnding
+                      : copy.controls.endCall}
                 </button>
               )}
             </div>
@@ -869,8 +838,8 @@ export default function MirrorCallStudio({
                 </div>
                 {state.turnPhase === "capturing" ? (
                   <div className="mirror-mic-actions">
-                    <button className="button primary-button" type="button" onClick={() => void sendWindow()}>Send this window</button>
-                    <button className="text-button" type="button" onClick={cancelWindow}>Discard</button>
+                    <button className="button primary-button" type="button" onClick={() => void sendWindow()}>{copy.mic2.sendThisWindow}</button>
+                    <button className="text-button" type="button" onClick={cancelWindow}>{copy.mic2.discard}</button>
                   </div>
                 ) : (
                   <button
@@ -878,22 +847,22 @@ export default function MirrorCallStudio({
                     disabled={!canCapture(state) || micOpening}
                     onClick={() => void startTalking()}
                   >
-                    {micOpening ? "Opening microphone..." : state.turnPhase === "uploading" ? "Transcribing..." : state.turnPhase === "thinking" ? "Your clone is answering..." : state.turnPhase === "speaking" ? "Your clone is speaking..." : "Talk"}
+                    {micOpening ? copy.mic2.openingMicrophone : state.turnPhase === "uploading" ? copy.mic2.transcribing : state.turnPhase === "thinking" ? copy.mic2.cloneAnswering : state.turnPhase === "speaking" ? copy.mic2.cloneSpeaking : copy.mic2.talk}
                   </button>
                 )}
                 <small>
                   {state.turnPhase === "capturing"
-                    ? "Recording. The window is capped at 30 seconds. It is sent when you say so, or cut at the cap."
-                    : "One window at a time: your side, then its side. This is the cascade lane, not a duplex call."}
+                    ? copy.mic2.capturingNote
+                    : copy.mic2.turnTakingNote}
                 </small>
                 {autoCutNotice ? (
                   <p className="mirror-autocut" role="status">
-                    The 30-second cap cut this window. Send it and say the rest in the next one. Nothing was quietly dropped.
+                    {copy.mic2.autoCutNote}
                   </p>
                 ) : null}
-                {micError ? <p className="mirror-autocut" role="alert">{micError} Tap Talk to try again.</p> : null}
+                {micError ? <p className="mirror-autocut" role="alert">{micError}{copy.mic2.micErrorSuffix}</p> : null}
                 {!state.voiceAvailable ? (
-                  <p className="mirror-note">Captions only on this environment. The clone's voice route is not deployed.</p>
+                  <p className="mirror-note">{copy.mic2.voiceUnavailableNote}</p>
                 ) : null}
               </div>
             ) : null}
@@ -904,24 +873,24 @@ export default function MirrorCallStudio({
                   {line.kind === "clone" && line.turnId ? (
                     <div className="mirror-turn-feedback">
                       <button
-                        type="button" aria-label="This sounded like me"
+                        type="button" aria-label={copy.thread.soundedLikeMe}
                         className={state.ratedTurns[line.turnId] === "up" ? "rated" : ""}
                         onClick={() => void rate(line.turnId!, "up")}
                       >👍</button>
                       <button
-                        type="button" aria-label="This did not sound like me"
+                        type="button" aria-label={copy.thread.didNotSoundLikeMe}
                         className={state.ratedTurns[line.turnId] === "down" ? "rated" : ""}
                         onClick={() => void rate(line.turnId!, "down")}
                       >👎</button>
                       {MIRROR_AUDIO_CORRECTIONS_SUPPORTED && (recording?.turnId === line.turnId ? (
-                        <button className="text-button" type="button" onClick={() => void finishCorrection()}>Stop and send</button>
+                        <button className="text-button" type="button" onClick={() => void finishCorrection()}>{copy.thread.stopAndSend}</button>
                       ) : (
                         <button className="text-button" type="button" disabled={!!recording} onClick={() => void startCorrection(line.turnId!)}>
-                          I'd say it like this
+                          {copy.thread.idSayItLikeThis}
                         </button>
                       ))}
                       <MirrorTextCorrection onSave={async (note) => {
-                        if (!state.session) throw new Error("The call is no longer open");
+                        if (!state.session) throw new Error(copy.callNoLongerOpen);
                         const saved = await saveMirrorCallTurnFeedback(token, { sessionId: state.session.session_id, turnId: line.turnId!, rating: "down", note });
                         dispatch({ type: "RATE_TURN", turnId: line.turnId!, rating: "down", deltas: saved.deltas });
                       }} />
@@ -930,8 +899,8 @@ export default function MirrorCallStudio({
                 </Caption>
               )) : (
                 <div className="mirror-empty">
-                  <strong>Nothing has been said yet.</strong>
-                  <p>Your clone answers what you say and never opens a call on its own.</p>
+                  <strong>{copy.thread.emptyHeading}</strong>
+                  <p>{copy.thread.emptyBody}</p>
                 </div>
               )}
             </div>
@@ -939,14 +908,14 @@ export default function MirrorCallStudio({
             {state.error ? (
               <div className="runtime-error" role="alert">
                 <span>{state.error}</span>
-                <button type="button" onClick={() => dispatch({ type: "RESET" })}>Dismiss</button>
+                <button type="button" onClick={() => dispatch({ type: "RESET" })}>{copy.dismiss}</button>
               </div>
             ) : null}
           </div>
 
           <aside className="mirror-side">
             <div className="mirror-fidelity">
-              <span className="metric-label">Voice fidelity</span>
+              <span className="metric-label">{copy.fidelity.heading}</span>
               {/* TWO meters. They move for different reasons and the note
                   between them says which — a single climbing number beside a
                   clone that mechanically cannot have changed is the honesty
@@ -961,18 +930,18 @@ export default function MirrorCallStudio({
                     <span style={{ transform: `scaleX(${meter.ofCeiling ?? 0})` }} />
                   </div>
                   <div className="mirror-fidelity-legend">
-                    <span>{meter.ceiling === null ? "no printed ceiling" : `ceiling ${meter.ceiling.toFixed(4)}`}</span>
-                    <span>{meter.ofCeiling === null ? "\u2014" : `${percent(meter.ofCeiling)} of ceiling`}</span>
+                    <span>{meter.ceiling === null ? copy.fidelity.noPrintedCeiling : copy.fidelity.ceilingTemplate.replace("{n}", meter.ceiling.toFixed(4))}</span>
+                    <span>{meter.ofCeiling === null ? "\u2014" : copy.fidelity.ofCeilingTemplate.replace("{pct}", percent(meter.ofCeiling))}</span>
                     {meter.kind === "measurement" ? (
                       <>
-                        <span>{meter.windows} window{meter.windows === 1 ? "" : "s"}</span>
-                        <span>{Math.round(meter.seconds)}s pooled</span>
-                        {meter.confidence !== null ? <span>{percent(meter.confidence)} confidence</span> : null}
+                        <span>{(meter.windows === 1 ? copy.fidelity.windowSingularTemplate : copy.fidelity.windowPluralTemplate).replace("{n}", String(meter.windows))}</span>
+                        <span>{copy.fidelity.secondsPooledTemplate.replace("{n}", String(Math.round(meter.seconds)))}</span>
+                        {meter.confidence !== null ? <span>{copy.fidelity.confidenceTemplate.replace("{pct}", percent(meter.confidence))}</span> : null}
                       </>
                     ) : (
                       <>
-                        <span>{meter.seconds ? `${Math.round(meter.seconds)}s window` : "no window yet"}</span>
-                        <span>{meter.selections} re-selection{meter.selections === 1 ? "" : "s"}</span>
+                        <span>{meter.seconds ? copy.fidelity.windowSecondsTemplate.replace("{n}", String(Math.round(meter.seconds))) : copy.fidelity.noWindowYet}</span>
+                        <span>{(meter.selections === 1 ? copy.fidelity.reselectionSingularTemplate : copy.fidelity.reselectionPluralTemplate).replace("{n}", String(meter.selections))}</span>
                       </>
                     )}
                   </div>
@@ -985,63 +954,64 @@ export default function MirrorCallStudio({
               <p className="mirror-fidelity-caveat">{FIDELITY_CAVEAT}</p>
               {state.reference ? (
                 <small>
-                  Reference set: {state.reference.consented_windows} consented window
-                  {state.reference.consented_windows === 1 ? "" : "s"}, {Math.round(state.reference.total_seconds)}s.
+                  {(state.reference.consented_windows === 1 ? copy.fidelity.referenceSetSingularTemplate : copy.fidelity.referenceSetPluralTemplate)
+                    .replace("{n}", String(state.reference.consented_windows))
+                    .replace("{sec}", String(Math.round(state.reference.total_seconds)))}
                 </small>
               ) : null}
               {state.droppedWindows ? (
                 <small className="mirror-dropped-count">
-                  {state.droppedWindows} window{state.droppedWindows === 1 ? "" : "s"} did not make it through transcription.
+                  {(state.droppedWindows === 1 ? copy.fidelity.droppedSingularTemplate : copy.fidelity.droppedPluralTemplate).replace("{n}", String(state.droppedWindows))}
                 </small>
               ) : null}
             </div>
 
             <div className="mirror-rail">
               <div className="mirror-rail-head">
-                <span className="metric-label">Proposed changes</span>
+                <span className="metric-label">{copy.rail.heading}</span>
                 <small>
-                  {proposed.length} waiting{pending.length ? ` · ${pending.length} will roll into Review later if you end now` : ""}
-                  {state.chipBudget.overflowed ? ` · ${state.chipBudget.overflowed} held back by the ${CHIPS_PER_MINUTE}-per-minute cap` : ""}
+                  {copy.rail.waitingTemplate.replace("{n}", String(proposed.length))}{pending.length ? copy.rail.rollIntoReviewTemplate.replace("{n}", String(pending.length)) : ""}
+                  {state.chipBudget.overflowed ? copy.rail.heldBackTemplate.replace("{n}", String(state.chipBudget.overflowed)).replace("{cap}", String(CHIPS_PER_MINUTE)) : ""}
                 </small>
                 {/* The rail is pushed by window results, so this is a repair
                     control, not the main path: a chip mined from a window
                     whose response was lost would otherwise be invisible until
                     the end-of-call sweep. */}
-                {live ? <button className="text-button" type="button" onClick={() => void refreshChips()}>Refresh</button> : null}
+                {live ? <button className="text-button" type="button" onClick={() => void refreshChips()}>{copy.rail.refresh}</button> : null}
               </div>
               {proposed.length ? proposed.map((chip) => (
                 <article key={chip.delta.delta_id} className={`mirror-chip mirror-chip-${chip.status} mirror-chip-ev-${evidenceStrength(chip.delta)}`}>
                   <span className="mirror-chip-kind">
-                    {KIND_LABEL[chip.delta.kind] || chip.delta.kind}
+                    {kindLabel(chip.delta.kind, copy)}
                     {/* The evidence count, on every chip. One call is ~1,800-2,300
                         owner words, under every stylometric floor, so an n=1 chip
                         has to LOOK weaker than an n=9 one (adoption delta A4). */}
-                    <em>heard {chip.delta.evidence.occurrences_this_call}x</em>
+                    <em>{copy.rail.heardTemplate.replace("{n}", String(chip.delta.evidence.occurrences_this_call))}</em>
                   </span>
                   <p className="mirror-chip-proposal">{chip.delta.proposal}</p>
-                  <p className="mirror-chip-citation">Because you said “{chip.delta.citation.quote}”</p>
+                  <p className="mirror-chip-citation">{copy.rail.becauseYouSaidTemplate.replace("{quote}", chip.delta.citation.quote)}</p>
                   <p className="mirror-chip-evidence">{evidenceLine(chip.delta)}</p>
                   <div className="mirror-chip-actions">
                     <button type="button" disabled={chip.status !== "proposed"} onClick={() => void actionChip(chip, "accept")}>
-                      {chip.status === "accepting" ? "Applying..." : "Accept"}
+                      {chip.status === "accepting" ? copy.rail.applying : copy.rail.accept}
                     </button>
                     <button type="button" disabled={chip.status !== "proposed"} onClick={() => void actionChip(chip, "reject")}>
-                      {chip.status === "rejecting" ? "Dismissing..." : "Reject"}
+                      {chip.status === "rejecting" ? copy.rail.dismissing : copy.rail.reject}
                     </button>
                   </div>
                   {chip.error ? <p className="mirror-chip-error" role="alert">{chip.error}</p> : null}
                 </article>
               )) : (
                 <p className="mirror-rail-empty">
-                  {live ? "Nothing mined from this call yet. Chips appear as you talk, each quoting what produced it." : "Chips appear during a call."}
+                  {live ? copy.rail.emptyLive : copy.rail.emptyIdle}
                 </p>
               )}
               {actioned.length ? (
                 <div className="mirror-rail-actioned">
-                  <span className="metric-label">Actioned this call</span>
+                  <span className="metric-label">{copy.rail.actionedThisCall}</span>
                   {actioned.map((chip) => (
                     <p key={chip.delta.delta_id} className={chipIsApplied(chip) ? "applied" : "dismissed"}>
-                      {chipIsApplied(chip) ? "Applied" : chip.status === "accepted" ? "Accepted, not yet on the sheet" : "Rejected"} · {chip.delta.proposal}
+                      {chipIsApplied(chip) ? copy.rail.applied : chip.status === "accepted" ? copy.rail.acceptedNotOnSheet : copy.rail.rejected} · {chip.delta.proposal}
                     </p>
                   ))}
                 </div>
@@ -1054,28 +1024,31 @@ export default function MirrorCallStudio({
       {tab === "review" && state.phase !== "backend_absent" ? (
         <div className="mirror-review" id="mirror-panel-review" role="tabpanel" aria-labelledby="mirror-tab-review">
           <p>
-            Nothing here was applied. These are the chips you did not action before the call ended, plus any the
-            {" "}{CHIPS_PER_MINUTE}-per-minute rail cap held back so the call did not turn into a stream of questions.
-            They went to the ordinary review queue, exactly like a delta mined from an upload.
+            {copy.review.intro.replace("{cap}", String(CHIPS_PER_MINUTE))}
           </p>
           {deferred.length ? deferred.map((chip) => (
             <article key={chip.delta.delta_id} className="mirror-chip mirror-chip-deferred">
-              <span className="mirror-chip-kind">{KIND_LABEL[chip.delta.kind] || chip.delta.kind}</span>
+              <span className="mirror-chip-kind">{kindLabel(chip.delta.kind, copy)}</span>
               <p className="mirror-chip-proposal">{chip.delta.proposal}</p>
-              <p className="mirror-chip-citation">Because you said “{chip.delta.citation.quote}”</p>
+              <p className="mirror-chip-citation">{copy.rail.becauseYouSaidTemplate.replace("{quote}", chip.delta.citation.quote)}</p>
               <p className="mirror-chip-evidence">{evidenceLine(chip.delta)}</p>
               <span className="mirror-chip-state">
-                {chip.overflow ? "Never shown · held back by the rail cap · not applied" : "Not applied · review later"}
+                {chip.overflow ? copy.review.neverShown : copy.review.notAppliedReviewLater}
               </span>
             </article>
-          )) : <p className="mirror-rail-empty">Nothing is waiting for review.</p>}
+          )) : <p className="mirror-rail-empty">{copy.review.emptyWaiting}</p>}
           {state.ended ? (
             <div className="mirror-end-summary">
-              <span>{state.ended.accepted_count} accepted · {state.ended.rejected_count} rejected · {state.ended.deferred.length} deferred</span>
+              <span>
+                {copy.review.summaryTemplate
+                  .replace("{accepted}", String(state.ended.accepted_count))
+                  .replace("{rejected}", String(state.ended.rejected_count))
+                  .replace("{deferred}", String(state.ended.deferred.length))}
+              </span>
               <small>
                 {state.ended.finetune.queued
-                  ? "The server recorded a voice-learning request. This is not a completion claim; Activity must show its runner as connected before it can run."
-                  : `No fine-tune was queued${state.ended.finetune.reason ? ` (${state.ended.finetune.reason.replaceAll("_", " ")})` : ""}.`}
+                  ? copy.review.finetuneQueued
+                  : copy.review.finetuneNotQueuedTemplate.replace("{reason}", state.ended.finetune.reason ? ` (${state.ended.finetune.reason.replaceAll("_", " ")})` : "")}
               </small>
             </div>
           ) : null}

@@ -952,7 +952,12 @@ section("route identity boundary");
 
 section("client warmup budget");
 {
-  const client = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8");
+  // WS-R166 moved the panel's strings into src/studio/copy.ts; the copy-shaped
+  // checks read the panel plus its English block (evals/voice-preview-ui.mjs
+  // states the rule).
+  const copyTable = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+  const copyStart = copyTable.indexOf("const EN_VOICE_PREVIEW_PANEL");
+  const client = `${readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8")}\n${copyTable.slice(copyStart, copyTable.indexOf("\n};\n", copyStart) + 4)}`;
   const clientApi = readFileSync(join(ROOT, "src/studio/voicePanelApi.ts"), "utf8");
   check("the client observes the durable intent for the life of the open page instead of stopping at a retry cap",
     !/MAX_AUTO_RETRIES/.test(client) && /window\.setTimeout\(\(\) => void runIntent/.test(client) &&

@@ -137,15 +137,30 @@ await installStudioCopy("hi");
 
 // ── 2. THE STATIC SCAN ───────────────────────────────────────────────────
 {
-  // Every file this workstream actually converted (law 2: existing
+  // Every file WS-R159 or WS-R166 actually converted (law 2: existing
   // components import the copy table; no component keeps a literal English
   // sentence). `VoiceField.tsx` renders no text at all (a pure SVG dial) and
   // `PersonalStudioEntry.tsx` already read every string it shows through the
-  // pre-existing `personalAuthCopy.ts` registry before this workstream
-  // started — both included here as CONVERTED (zero findings expected)
-  // rather than left off the list, `localeContext.tsx`/`Localized.tsx`'s own
+  // pre-existing `personalAuthCopy.ts` registry before WS-R159 started —
+  // both included here as CONVERTED (zero findings expected) rather than
+  // left off the list, `localeContext.tsx`/`Localized.tsx`'s own
   // creatorStudio precedent for a file with no literal English text of its
-  // own.
+  // own. WS-R166 (this session) closed the tier-two allowlist WS-R159 left
+  // open down to the one legal-text carve-out
+  // (`context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist`):
+  // `CloneExperience.tsx`'s own shell and menus, `CloneVerificationJourney.tsx`,
+  // `VoicePreviewPanel.tsx`, `MirrorCallStudio.tsx` and `ContextLockerPanel.tsx`
+  // all moved from TIER_2_ALLOWLIST into TIER_1_FILES this session. The
+  // zero-literal-English scan below (`literalEnglishTextNodes`) is this
+  // suite's own operational floor, restated from WS-R159: it proves every
+  // JSX text node of three or more words routes through the copy table.
+  // What it does NOT prove: `CloneExperience.tsx`'s own deep imperative
+  // status/error strings reached only from event-handler catch branches
+  // (`submitRecording`/`reissueSavedRecording`/`continueAgreement`) ARE
+  // converted (`context/decisions.md#ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files`
+  // records that this session went further than the scanner's own floor for
+  // that file specifically, because `upload.message` renders directly on
+  // the primary "Securing your recording." screen).
   const TIER_1_FILES = [
     "ExpertSharePanel.tsx",
     "QuickVoiceCapture.tsx",
@@ -153,20 +168,22 @@ await installStudioCopy("hi");
     "PersonModelStudio.tsx",
     "VoiceField.tsx",
     "PersonalStudioEntry.tsx",
+    "CloneExperience.tsx",
+    "CloneVerificationJourney.tsx",
+    "VoicePreviewPanel.tsx",
+    "MirrorCallStudio.tsx",
+    "ContextLockerPanel.tsx",
   ];
 
-  // Every OTHER file this brief named, one line each with the reason it was
-  // not converted this session. See
-  // context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist for the
-  // full argument and context/rejected.md for what was tried and rejected.
+  // The one file this brief named that stays unconverted, with the reason.
+  // See context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist for
+  // the full argument and context/rejected.md for what was tried and
+  // rejected. `StudioApp.tsx` is deliberately NOT here: this brief's law 2
+  // never named it, and WS-R159 already logged its own partial state
+  // (wrapped in `StudioLocaleProvider`, own language switch) as a standing,
+  // separately-tracked gap this suite does not gate.
   const TIER_2_ALLOWLIST = {
     "VideoEnrollPanel.tsx": "ATTESTATION_COPY is the same five-statement YouTube channel-ownership/rights/audio-extraction consent ceremony (owns_or_controls_channel, is_rights_holder_of_uploads, authorizes_audio_extraction_for_own_replica, understands_tos_exposure_is_not_copyright_permission, understands_revocation_stops_extraction) the creatorStudio wave already carved out of src/creatorStudio/VideoEnrollPanel.tsx for the identical reason (context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted): a mistranslation in rights-attestation text carries real legal weight and no legal review of Hindi wording was in scope for this session. Left whole and unconverted, extending that standing decision to the personal studio's own copy of the same screen.",
-    "CloneExperience.tsx": "The main journey shell (1,225 lines): the Feed/Meet/Add-more/Evolve/Talk/Share tab chrome, headlines (\"Meet {name}.\", \"Choose what becomes you.\") and the tab switch labels. Renders the four converted panels above as children, so they speak Hindi under `StudioLocaleProvider` regardless of this file's own state, but the surrounding chrome is time-boxed out of this session (WS-R52/WS-R61/WS-R71's own precedent: convert a bounded set of files per session, document the rest, let the next wave continue the tier).",
-    "CloneVerificationJourney.tsx": "The identity/liveness verification screen (566 lines), not reached this session; time-boxed the same way as CloneExperience.tsx.",
-    "VoicePreviewPanel.tsx": "The voice preview lab (797 lines), not reached this session; time-boxed the same way as CloneExperience.tsx.",
-    "MirrorCallStudio.tsx": "The live voice-call studio (1,086 lines), not reached this session; time-boxed the same way as CloneExperience.tsx.",
-    "ContextLockerPanel.tsx": "The context/knowledge locker (635 lines), not reached this session; time-boxed the same way as CloneExperience.tsx.",
-    "StudioApp.tsx": "The signed-in shell (2,707 lines): wrapped this session in `StudioLocaleProvider` and given the shell's own language switch (`LanguageSwitch.tsx`, law 3), but its own remaining inline strings (the legacy internal-test-studio header, the wizard rail labels, `TEACHER_COPY`/`GENERIC_COPY`/`TEST_COPY`) are not converted; the structural wrap was necessary infrastructure, the bulk conversion is time-boxed out of this session the same way as CloneExperience.tsx.",
   };
 
   const NAMED_FILES = [...TIER_1_FILES, ...Object.keys(TIER_2_ALLOWLIST)];

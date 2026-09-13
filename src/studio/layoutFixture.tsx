@@ -30,6 +30,34 @@ import "./clone-experience.css";
 import "./clone-verification-journey.css";
 import type { ConsentReceipt, Replica, ReplicaSource, SourceKind, VoiceBuildIntent } from "./types";
 import { installLoopbackMockMicrophone } from "./wavCapture";
+import { loadStudioCopy, STUDIO_COPY_TABLE } from "./copy";
+
+declare global {
+  interface Window {
+    __STUDIO_HI_STRINGS__?: [string, string][];
+  }
+}
+
+/** WS-R166. `src/creatorStudio/layoutFixture.tsx`'s own `flattenHiStrings`
+ *  (itself restating `src/room/layoutFixture.tsx`'s), one fixture over: the
+ *  PERSONAL studio's own copy table (`./copy`, a different registry from
+ *  the creator studio's since Codex's handoff206 rename), so the glyph
+ *  probe's `studio-hi:personal` target reaches real Hindi glyphs from the
+ *  fixture that actually renders this screen
+ *  (`context/rejected.md#ws-159-creatorstudio-hi-glyph-probe-targets-the-wrong-fixture`
+ *  found the creator-side instance of this same bug: the probe navigating
+ *  to the wrong fixture file entirely). Not shared as a common helper on
+ *  purpose — `layoutFixture.tsx`'s own header at WS-R52 already established
+ *  one tiny copy per fixture over a cross-fixture import. */
+function flattenHiStrings(node: unknown, prefix: string, out: [string, string][]): void {
+  if (typeof node === "string") {
+    out.push([prefix, node]);
+  } else if (Array.isArray(node)) {
+    node.forEach((v, i) => flattenHiStrings(v, `${prefix}[${i}]`, out));
+  } else if (node && typeof node === "object") {
+    for (const [k, v] of Object.entries(node)) flattenHiStrings(v, prefix ? `${prefix}.${k}` : k, out);
+  }
+}
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", ""]);
 
@@ -653,7 +681,20 @@ if (!LOOPBACK.has(window.location.hostname)) {
   installFixtureUploadTransport();
   seedAuth();
   if (new URLSearchParams(window.location.search).get("mockMic") === "1") installLoopbackMockMicrophone();
-  // No StrictMode. Its double render is right for finding effect bugs and wrong
-  // for a layout gate, which wants one settled paint to measure.
-  ReactDOM.createRoot(root).render(<StudioApp />);
+  // WS-R166: the Hindi table is its own chunk (`./copy`, the WS-R159 shape
+  // restated for the personal studio); install it through the app's own
+  // loader BEFORE the glyph list is built or the app mounts, so the gate's
+  // `__STUDIO_HI_STRINGS__` is the real table regardless of which `?lang=`
+  // this particular page load requests -- `src/creatorStudio/layoutFixture.tsx`'s
+  // own header, restated for this fixture.
+  void loadStudioCopy("hi").then(() => {
+    window.__STUDIO_HI_STRINGS__ = (() => {
+      const out: [string, string][] = [];
+      flattenHiStrings(STUDIO_COPY_TABLE.hi, "", out);
+      return out;
+    })();
+    // No StrictMode. Its double render is right for finding effect bugs and wrong
+    // for a layout gate, which wants one settled paint to measure.
+    ReactDOM.createRoot(root).render(<StudioApp />);
+  });
 }

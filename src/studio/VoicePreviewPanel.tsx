@@ -23,6 +23,8 @@ import { requestVoicePanelPreview, type VoicePanelFailed, type VoicePanelPending
 import { disabledReason, type DisabledReason } from "./blockerClass";
 import { DisabledAction } from "./BlockerNotice";
 import { voicePreviewBlockReason, type WizardInput } from "./wizardModel";
+import { useStudioLocale } from "./localeContext";
+import type { VoicePreviewPanelCopy } from "./copy";
 
 const MAX_TEXT = 280;
 
@@ -30,31 +32,22 @@ const MAX_TEXT = 280;
 // rewrite. Kept under the cap so the counter never opens on a violation.
 type PreviewLanguage = "hi" | "hi-latn" | "en";
 
-const LANGUAGE_OPTIONS: ReadonlyArray<{
+// WS-R166: labels/help are studio-chrome and now come from the locale
+// registry (`copy.ts#VoicePreviewPanelCopy.languageOptions`); `inputLanguage`
+// is a BCP-47 tag fed to the textarea's own `lang` attribute, not prose, so
+// it stays a plain constant.
+function languageOptions(copy: VoicePreviewPanelCopy): ReadonlyArray<{
   id: PreviewLanguage;
   label: string;
   help: string;
   inputLanguage: string;
-}> = [
-  {
-    id: "hi",
-    label: "Hindi",
-    help: "Write Hindi in Devanagari. Familiar English terms can stay in English.",
-    inputLanguage: "hi",
-  },
-  {
-    id: "hi-latn",
-    label: "Hinglish",
-    help: "Write natural Roman Hindi and English. The whole line is planned once so language switches keep one rhythm.",
-    inputLanguage: "hi-Latn",
-  },
-  {
-    id: "en",
-    label: "English",
-    help: "Write the exact English line you want the draft to say.",
-    inputLanguage: "en",
-  },
-];
+}> {
+  return [
+    { id: "hi", label: copy.languageOptions.hi.label, help: copy.languageOptions.hi.help, inputLanguage: "hi" },
+    { id: "hi-latn", label: copy.languageOptions.hiLatn.label, help: copy.languageOptions.hiLatn.help, inputLanguage: "hi-Latn" },
+    { id: "en", label: copy.languageOptions.en.label, help: copy.languageOptions.en.help, inputLanguage: "en" },
+  ];
+}
 
 const WELCOME: Record<PreviewLanguage, string> = {
   hi: "नमस्ते। मैं आपकी आवाज़ से बना एक डिजिटल प्रतिबिंब हूँ। ज़िंदगी हर दिन बदलती है, जैसे पेड़ों के बीच सुबह की रोशनी नया रास्ता खोजती है। मैं आपकी कहानियाँ सुनने, आपके विचार सँभालने और समय के साथ आपके और करीब आने के लिए यहाँ हूँ।",
@@ -186,41 +179,42 @@ function VoiceLikenessCard({
   likeness: VoiceLikenessSummary | null;
   lastListeningTest: VoiceListeningHistoryEntry | null;
 }) {
+  const { t } = useStudioLocale();
+  const copy = t.voicePreviewPanel.likeness;
   if (!likeness) return null;
   const { fidelity } = likeness;
   const measured = fidelity.status === "pass" || fidelity.status === "warn" || fidelity.status === "fail";
   return (
-    <section className="voice-likeness" aria-label="Sounds like you">
-      <h3>Sounds like you</h3>
+    <section className="voice-likeness" aria-label={copy.ariaLabel}>
+      <h3>{copy.heading}</h3>
       {measured && fidelity.score?.mean != null ? (
         <p className="voice-likeness-score">
-          <strong>{Math.round(fidelity.score.mean * 100)} out of 100</strong>
-          {fidelity.computed_at ? `, measured on ${formatLikenessDate(fidelity.computed_at)}.` : "."}
-          {fidelity.stale ? " Your voice changed since this was measured, so a fresh score is due." : ""}
+          <strong>{copy.scoreTemplate.replace("{n}", String(Math.round(fidelity.score.mean * 100)))}</strong>
+          {fidelity.computed_at ? copy.measuredOnTemplate.replace("{date}", formatLikenessDate(fidelity.computed_at)) : "."}
+          {fidelity.stale ? copy.stale : ""}
         </p>
       ) : (
-        <p className="voice-likeness-score">{fidelity.trigger || "Not measured yet."}</p>
+        <p className="voice-likeness-score">{fidelity.trigger || copy.notMeasuredYet}</p>
       )}
       {lastListeningTest ? (
         <p className="voice-likeness-preference">
-          {listeningTestWasTie(lastListeningTest)
-            ? `In your last listening test on ${formatLikenessDate(lastListeningTest.created_at)}, you rated both samples the same.`
-            : `In your last listening test on ${formatLikenessDate(lastListeningTest.created_at)}, you preferred one sample over the other.`}
+          {(listeningTestWasTie(lastListeningTest) ? copy.tieTemplate : copy.preferredTemplate)
+            .replace("{date}", formatLikenessDate(lastListeningTest.created_at))}
         </p>
       ) : (
-        <p className="voice-likeness-preference">You have not run a listening test yet.</p>
+        <p className="voice-likeness-preference">{copy.noListeningTestYet}</p>
       )}
     </section>
   );
 }
 
-function stageLabel(pending: VoicePanelPending): string {
+function stageLabel(pending: VoicePanelPending, copy: VoicePreviewPanelCopy["stage"]): string {
   if (pending.state === "processing") {
-    if (/protect|watermark|seal/u.test(`${pending.phase} ${pending.stage}`)) return "Protecting your preview";
-    return "Generating your preview";
+    if (/protect|watermark|seal/u.test(`${pending.phase} ${pending.stage}`)) return copy.protecting;
+    return copy.generating;
   }
-  if (/queue|admission/u.test(`${pending.phase} ${pending.stage}`)) return "Waiting for the voice runtime";
-  return "Waking the voice runtime";
+  if (/queue|admission/u.test(`${pending.phase} ${pending.stage}`)) return copy.waitingForRuntime;
+  return copy.wakingRuntime;
 }
 
 export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAuthError, onManageSources, testEnvironment = false }: {
@@ -237,6 +231,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
   onManageSources?: () => void;
   testEnvironment?: boolean;
 }) {
+  const { t } = useStudioLocale();
+  const copy = t.voicePreviewPanel;
   const [review, setReview] = useState<ReplicaReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [likeness, setLikeness] = useState<VoiceLikenessSummary | null>(null);
@@ -421,8 +417,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
       }
       if (cause instanceof ReplicaApiError && /^(voice_allocation_|voice_app_)/.test(String(cause.data?.error || ''))) {
         clearPersistedIntent(replicaId);
-        setPhase({ kind: 'error', headline: 'Voice preview is not ready yet',
-          detail: cause.data?.error === 'voice_allocation_not_configured' ? 'We are finishing the voice connection. No preview has started.' : 'We need to check this voice attempt before trying again.', canRetry: false });
+        setPhase({ kind: 'error', headline: copy.error.voiceNotReadyHeadline,
+          detail: cause.data?.error === 'voice_allocation_not_configured' ? copy.error.connectionDetail : copy.error.attemptCheckDetail, canRetry: false });
         return;
       }
       const connectionInterrupted = !navigator.onLine || cause instanceof TypeError ||
@@ -436,8 +432,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
           phase: "connection_wait",
           stage: "connection_wait",
           message: hasServerReceipt
-            ? "The last server check did not finish. Your saved preview request has not been replaced."
-            : "The server did not return a request receipt yet. Your exact line is saved in this browser.",
+            ? copy.pending.lastCheckUnfinished
+            : copy.pending.noReceiptYet,
           intentId: intent.intentId ?? "",
           generationId: null,
           attempt: 0,
@@ -457,7 +453,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     } finally {
       requestInFlightRef.current = false;
     }
-  }, [draft, onAuthError, replicaId, token]);
+  }, [draft, onAuthError, replicaId, token, copy]);
 
   // Restore the immutable request snapshot. Replaying the same POST observes
   // the same durable server intent and can return the same sealed WAV; it does
@@ -563,7 +559,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     void runIntent(remoteIntent, true);
   }
 
-  const selectedLanguage = LANGUAGE_OPTIONS.find((option) => option.id === language) ?? LANGUAGE_OPTIONS[0];
+  const currentLanguageOptions = languageOptions(copy);
+  const selectedLanguage = currentLanguageOptions.find((option) => option.id === language) ?? currentLanguageOptions[0];
 
   function focusComposer() {
     textRef.current?.focus();
@@ -581,17 +578,19 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     : 0;
   const pendingElapsed = phase.kind === "pending" ? elapsedLabel(Date.now() - pendingStartedAt) : "0:00";
   const announcement = !online && busy
-    ? "Connection lost. Your preview request remains saved and this page will reconnect automatically."
+    ? copy.announcement.connectionLost
     : phase.kind === "pending"
-      ? `${stageLabel(phase.pending)}. ${phase.joined ? "This page joined the existing preview request." : "Your request is saved and this page is checking its server state."}`
+      ? copy.announcement.pendingTemplate
+        .replace("{stage}", stageLabel(phase.pending, copy.stage))
+        .replace("{note}", phase.joined ? copy.announcement.joinedNote : copy.announcement.savedCheckingNote)
       : phase.kind === "submitting"
-        ? "Connecting to your existing preview request."
+        ? copy.announcement.connectingExisting
         : phase.kind === "ready"
-          ? "Your protected voice preview is ready to play."
+          ? copy.announcement.ready
           : phase.kind === "failed"
-            ? "This preview request stopped. Regenerate once to start a new request."
+            ? copy.announcement.stopped
           : phase.kind === "error"
-            ? `Preview stopped. ${phase.headline}`
+            ? copy.announcement.errorTemplate.replace("{headline}", phase.headline)
             : "";
 
   // ── why the button is dead, in the button's own box ─────────────────────
@@ -616,8 +615,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
   const reason: DisabledReason | null = loading
     ? disabledReason(
       "us",
-      "We are still checking whether you have a draft voice.",
-      "This takes a moment. The button turns on by itself when the check comes back.",
+      copy.reasons.checkingDraftHeadline,
+      copy.reasons.checkingDraftDetail,
     )
     : !draft
       ? voicePreviewBlockReason(wizardInput)
@@ -625,29 +624,29 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         ? disabledReason(
           "us",
           phase.kind === "pending"
-            ? `${stageLabel(phase.pending)}. This is one durable request, even when several tabs are watching it.`
-            : "We are connecting to your existing preview request.",
+            ? copy.reasons.busyPendingTemplate.replace("{stage}", stageLabel(phase.pending, copy.stage))
+            : copy.reasons.busyConnecting,
           online
-            ? "It checks while this page is open. If you leave, the request stays saved and checking resumes when you return."
-            : "Your device is offline. The request stays saved and this page reconnects automatically.",
+            ? copy.reasons.busyOnlineDetail
+            : copy.reasons.busyOfflineDetail,
         )
         : !online
           ? disabledReason(
             "you",
-            "This device is offline, so it cannot start a preview.",
-            "Reconnect to the internet. Your line stays here.",
+            copy.reasons.offlineHeadline,
+            copy.reasons.offlineDetail,
           )
         : !text.trim()
           ? disabledReason(
             "you",
-            "The box is empty, so there is nothing to say.",
-            "Type a line for your clone to read aloud.",
+            copy.reasons.emptyHeadline,
+            copy.reasons.emptyDetail,
           )
           : overLimit
             ? disabledReason(
               "you",
-              `That is longer than the ${MAX_TEXT} characters a preview can take.`,
-              "Shorten it and the button turns on.",
+              copy.reasons.overLimitTemplate.replace("{max}", String(MAX_TEXT)),
+              copy.reasons.overLimitDetail,
             )
             : null;
 
@@ -655,45 +654,43 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     <section className="hear-voice" aria-labelledby="hear-voice-title">
       <div className="section-heading">
         <div>
-          {!testEnvironment && <p className="eyebrow">Your voice</p>}
-          <h2 id="hear-voice-title">Preview my voice</h2>
+          {!testEnvironment && <p className="eyebrow">{copy.eyebrow}</p>}
+          <h2 id="hear-voice-title">{copy.heading}</h2>
         </div>
         <p>
-          {testEnvironment
-            ? "Type a line and hear the current draft in Hindi, Hinglish, or English."
-            : "A private draft, generated from your own consented recording. Every clip opens with the spoken AI disclosure and carries an inaudible watermark. Previewing does not activate anything and does not let anyone else hear it."}
+          {testEnvironment ? copy.introTest : copy.introLive}
         </p>
       </div>
 
       <VoiceLikenessCard likeness={likeness} lastListeningTest={listeningHistory[0] ?? null} />
 
       {draft && (
-        <section className="voice-lineage" aria-label="Voice draft sources">
+        <section className="voice-lineage" aria-label={copy.lineage.ariaLabel}>
           <div className="voice-lineage-title">
-            <span>Voice draft v{draft.version}</span>
+            <span>{copy.lineage.versionTemplate.replace("{version}", String(draft.version))}</span>
             <strong>
               {lineage.some((item) => item.source?.voice_role === "primary")
-                ? "Primary voice: your main recording"
+                ? copy.lineage.primaryVoiceLabel
                 : lineage.length
-                  ? "Choose which recording should drive the voice"
-                : "Source details are still loading"}
+                  ? copy.lineage.chooseRecordingLabel
+                : copy.lineage.sourceDetailsLoading}
             </strong>
           </div>
           {lineage.length > 0 && (
             <ul>
               {lineage.map(({ sourceId, source, reference }) => (
                 <li key={sourceId}>
-                  <span>{source?.voice_role === "primary" ? "Primary voice" : source?.kind === "video" ? "Supporting video" : source?.kind === "audio" ? "Supporting audio" : "Supporting source"}</span>
-                  <strong>{source?.voice_role === "primary" ? "Your main recording" : source?.kind === "video" ? "Uploaded video" : source?.kind === "audio" ? "Uploaded audio" : "Supporting context"}</strong>
+                  <span>{source?.voice_role === "primary" ? copy.lineage.rolePrimary : source?.kind === "video" ? copy.lineage.roleVideo : source?.kind === "audio" ? copy.lineage.roleAudio : copy.lineage.roleSource}</span>
+                  <strong>{source?.voice_role === "primary" ? copy.lineage.kindPrimary : source?.kind === "video" ? copy.lineage.kindVideo : source?.kind === "audio" ? copy.lineage.kindAudio : copy.lineage.kindContext}</strong>
                   <small>
                     {reference?.duration_ms
-                      ? `${Math.max(1, Math.round(reference.duration_ms / 1000))} sec voice reference`
-                      : "Voice reference selected"}
-                    {source?.created_at ? ` · added ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(source.created_at))}` : ""}
+                      ? copy.lineage.referenceSecondsTemplate.replace("{n}", String(Math.max(1, Math.round(reference.duration_ms / 1000))))
+                      : copy.lineage.referenceSelected}
+                    {source?.created_at ? copy.lineage.addedOnTemplate.replace("{date}", new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(source.created_at))) : ""}
                   </small>
                   <details className="voice-lineage-technical">
-                    <summary>Technical reference</summary>
-                    <small>Private source {sourceId.slice(0, 6).toUpperCase()}</small>
+                    <summary>{copy.lineage.technicalReference}</summary>
+                    <small>{copy.lineage.privateSourceTemplate.replace("{code}", sourceId.slice(0, 6).toUpperCase())}</small>
                   </details>
                 </li>
               ))}
@@ -701,7 +698,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
           )}
           {onManageSources && (
             <button className="voice-lineage-manage" type="button" onClick={onManageSources}>
-              Manage sources
+              {copy.lineage.manageSources}
             </button>
           )}
         </section>
@@ -710,8 +707,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
       <div className="hear-voice-body">
         <div className="hear-voice-compose">
           <fieldset className="voice-preview-language">
-            <legend>Preview language</legend>
-            {LANGUAGE_OPTIONS.map((option) => (
+            <legend>{copy.languageLegend}</legend>
+            {currentLanguageOptions.map((option) => (
               <button
                 key={option.id}
                 type="button"
@@ -727,7 +724,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
           <p className="voice-preview-language-help" id="hear-voice-language-help">{selectedLanguage.help}</p>
 
           <label className="voice-preview-script" htmlFor="hear-voice-text">
-            <span>Your line</span>
+            <span>{copy.yourLine}</span>
             <textarea
               ref={textRef}
               id="hear-voice-text"
@@ -743,7 +740,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               }}
             />
             <small id="hear-voice-counter" className={overLimit ? "hear-voice-over" : ""}>
-              {MAX_TEXT - Array.from(text).length} characters left{testEnvironment ? "." : ". The spoken AI disclosure is added for you."}
+              {copy.charactersLeftTemplate.replace("{n}", String(MAX_TEXT - Array.from(text).length))}{testEnvironment ? "." : copy.disclosureAddedSuffix}
             </small>
           </label>
 
@@ -760,18 +757,18 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               disabled={busy}
               onChange={toggleApplyVibe}
             />
-            <span>Hear the vibe</span>
+            <span>{copy.vibe.toggle}</span>
           </label>
           <p className="voice-preview-vibe-help">
             {applyVibe
-              ? "This preview uses your current EmotionOS vibe - pace, pauses and energy."
-              : "Off: this preview uses the plain voice, with no vibe styling."}
+              ? copy.vibe.helpOn
+              : copy.vibe.helpOff}
           </p>
 
           {remoteIntent && !busy && (
             <div className="hear-voice-remote">
-              <span>Another tab started a preview while you were editing here.</span>
-              <button type="button" onClick={joinRemoteIntent}>Join that preview</button>
+              <span>{copy.remoteIntentNote}</span>
+              <button type="button" onClick={joinRemoteIntent}>{copy.joinThatPreview}</button>
             </div>
           )}
 
@@ -788,12 +785,12 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               onClick={() => { if (!reason) startPreview((phase.kind === "ready" || phase.kind === "failed") && !settledInputChanged); }}
             >
               {phase.kind === "submitting"
-                ? "Connecting"
+                ? copy.button.connecting
                 : phase.kind === "pending"
-                  ? stageLabel(phase.pending)
+                  ? stageLabel(phase.pending, copy.stage)
                   : phase.kind === "ready" || phase.kind === "failed"
-                    ? settledInputChanged ? "Preview updated line" : "Regenerate preview"
-                    : "Preview my voice"}
+                    ? settledInputChanged ? copy.button.previewUpdatedLine : copy.button.regeneratePreview
+                    : copy.button.previewMyVoice}
             </button>
           </DisabledAction>
         </div>
@@ -802,106 +799,116 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         <div className={`hear-voice-stage hear-voice-stage-${phase.kind}`} aria-busy={busy}>
           {phase.kind === "ready" ? (
             <>
-              <p className="hear-voice-state ready">Ready</p>
-              <h3>Listen to this take</h3>
-              <audio controls preload="metadata" src={phase.url}>Your browser cannot play this protected WAV.</audio>
-              {phase.vibeApplied && <p className="voice-preview-vibe-confirmed">Shaped by your current vibe.</p>}
+              <p className="hear-voice-state ready">{copy.ready.readyLabel}</p>
+              <h3>{copy.ready.listenHeading}</h3>
+              <audio controls preload="metadata" src={phase.url}>{copy.ready.audioFallback}</audio>
+              {phase.vibeApplied && <p className="voice-preview-vibe-confirmed">{copy.vibe.confirmed}</p>}
               {phase.transformationCount > 0 && (
                 <details className="hear-voice-pronunciation-plan">
-                  <summary>{phase.transformationCount} Hindi speech spellings applied</summary>
-                  <p>Spoken as: <span lang="hi">{phase.spokenText}</span></p>
-                  <small>Your original text stays unchanged. Plan {phase.textPlanSha256.slice(0, 10)} is saved with this preview.</small>
+                  <summary>{copy.ready.pronunciationSummaryTemplate.replace("{n}", String(phase.transformationCount))}</summary>
+                  <p>{copy.ready.spokenAsPrefix}<span lang="hi">{phase.spokenText}</span></p>
+                  <small>{copy.ready.planNoteTemplate.replace("{plan}", phase.textPlanSha256.slice(0, 10))}</small>
                 </details>
               )}
               {!testEnvironment && <dl className="hear-voice-proof">
-                <div><dt>Disclosure</dt><dd>Spoken, on every clip</dd></div>
-                <div><dt>Watermark</dt><dd>PerTh, verified before release</dd></div>
+                <div><dt>{copy.ready.disclosureLabel}</dt><dd>{copy.ready.disclosureValue}</dd></div>
+                <div><dt>{copy.ready.watermarkLabel}</dt><dd>{copy.ready.watermarkValue}</dd></div>
               </dl>}
               <div className="hear-voice-correction">
-                <strong>Not right yet?</strong>
-                <span>Edit the line for a new intent, or use Regenerate preview for another take of these exact words.</span>
-                <button className="review-refresh" type="button" onClick={focusComposer}>Edit the line</button>
+                <strong>{copy.ready.notRightYet}</strong>
+                <span>{copy.ready.correctionNote}</span>
+                <button className="review-refresh" type="button" onClick={focusComposer}>{copy.ready.editTheLine}</button>
               </div>
               <small>
-                Receipt {phase.generationId.slice(0, 8)} · request {phase.intentId.slice(0, 8)} · model {phase.modelCommitment.slice(0, 10)}
-                {phase.reused ? ". This is the protected result already sealed for this request." : ""}
+                {copy.ready.receiptTemplate
+                  .replace("{generationId}", phase.generationId.slice(0, 8))
+                  .replace("{intentId}", phase.intentId.slice(0, 8))
+                  .replace("{modelCommitment}", phase.modelCommitment.slice(0, 10))}
+                {phase.reused ? copy.ready.reusedNote : ""}
               </small>
             </>
           ) : phase.kind === "pending" ? (
             <>
               <p className={`hear-voice-state ${phase.pending.state === "warming" ? "warming" : "working"}`}>
-                {phase.pending.state === "warming" ? "Runtime starting" : "Audio processing"}
+                {phase.pending.state === "warming" ? copy.pending.runtimeStarting : copy.pending.audioProcessing}
               </p>
-              <h3>{stageLabel(phase.pending)}</h3>
+              <h3>{stageLabel(phase.pending, copy.stage)}</h3>
               <p className="hear-voice-message">{phase.pending.message}</p>
               {!online && (
                 <p className="hear-voice-connection">
-                  This phone is offline. The request and latest server state are saved. This page checks again after you reconnect.
+                  {copy.pending.offlineNote}
                 </p>
               )}
               {phase.joined && (
-                <p className="hear-voice-observer">This page joined the preview already started from another tab or an earlier visit.</p>
+                <p className="hear-voice-observer">{copy.pending.joinedFromAnotherTab}</p>
               )}
-              <div className="hear-voice-wait-metrics" aria-label="Voice runtime wait">
-                <div><span>Elapsed</span><strong>{pendingElapsed}</strong></div>
-                <div><span>Observed range</span><strong>{OBSERVED_COLD_LOW_SECONDS / 60} to {OBSERVED_COLD_HIGH_SECONDS / 60} min</strong></div>
-                <div><span>Return around</span><strong>{clock(pendingReturnAt)}</strong></div>
+              <div className="hear-voice-wait-metrics" aria-label={copy.pending.waitMetricsAriaLabel}>
+                <div><span>{copy.pending.elapsedLabel}</span><strong>{pendingElapsed}</strong></div>
+                <div><span>{copy.pending.observedRangeLabel}</span><strong>{copy.pending.observedRangeTemplate.replace("{low}", String(OBSERVED_COLD_LOW_SECONDS / 60)).replace("{high}", String(OBSERVED_COLD_HIGH_SECONDS / 60))}</strong></div>
+                <div><span>{copy.pending.returnAroundLabel}</span><strong>{clock(pendingReturnAt)}</strong></div>
               </div>
               <p className="hear-voice-attempt">
                 {Date.now() > pendingReturnAt
-                  ? "This is beyond the observed cold-start window. The same request is still being checked; starting over will not make it faster."
+                  ? copy.pending.beyondWindowNote
                   : phase.pending.reused
-                    ? "The server found this exact request and attached this page to it. No second generation was created."
-                    : `The server saved this request. ${online ? `Next check in about ${remaining} seconds.` : "Checks resume after reconnect."}`}
+                    ? copy.pending.reusedRequestNote
+                    : online ? copy.pending.savedRequestOnlineTemplate.replace("{n}", String(remaining)) : copy.pending.savedRequestOfflineNote}
               </p>
-              <p className="hear-voice-leave">You can leave this page after a request number appears. Returning resumes the same saved request.</p>
+              <p className="hear-voice-leave">{copy.pending.leaveNote}</p>
               <details className="hear-voice-request-details">
-                <summary>Request details</summary>
+                <summary>{copy.pending.requestDetails}</summary>
                 <small className="hear-voice-request-receipt">
                   {phase.pending.intentId
-                    ? `Saved request ${phase.pending.intentId.slice(0, 8)} · started ${clock(phase.pending.startedAt)} · server attempt ${Math.max(1, phase.pending.attempt)}`
-                    : `Request snapshot saved · started ${clock(phase.pending.startedAt)}`}
+                    ? copy.pending.savedRequestReceiptTemplate
+                      .replace("{id}", phase.pending.intentId.slice(0, 8))
+                      .replace("{started}", clock(phase.pending.startedAt))
+                      .replace("{attempt}", String(Math.max(1, phase.pending.attempt)))
+                    : copy.pending.requestSnapshotTemplate.replace("{started}", clock(phase.pending.startedAt))}
                 </small>
                 <small>
                   {phase.pending.intentId
-                    ? "Closing this page pauses browser checks. The request and latest server state stay saved, and the same request resumes when you return. The line and language stay locked while this page checks it."
-                    : "Keep this page open until the server returns a saved request number. Your exact line is safe in this browser, and this page checks again automatically."}
+                    ? copy.pending.closingPausesNote
+                    : copy.pending.keepOpenNote}
                 </small>
               </details>
             </>
           ) : phase.kind === "submitting" ? (
             <>
-              <p className="hear-voice-state working">Connecting</p>
-              <h3>Finding this preview request</h3>
-              <p className="hear-voice-message">{testEnvironment ? "The server is finding or creating one request for these exact words." : "The server is finding or creating one request for these exact words, voice draft and language."}</p>
-              <small>If another tab already started it, this page joins that request. It does not create another audio generation.</small>
+              <p className="hear-voice-state working">{copy.submitting.stateLabel}</p>
+              <h3>{copy.submitting.heading}</h3>
+              <p className="hear-voice-message">{testEnvironment ? copy.submitting.messageTest : copy.submitting.messageLive}</p>
+              <small>{copy.submitting.note}</small>
             </>
           ) : phase.kind === "failed" ? (
             <>
-              <p className="hear-voice-state failed">Request closed</p>
-              <h3>This preview stopped</h3>
-              <p className="hear-voice-message">The server ended this request before a protected clip was sealed. This is our side, not something you did.</p>
-              <small>Edit the line to make a different request, or use Regenerate preview once for a new take of these exact words.</small>
+              <p className="hear-voice-state failed">{copy.failed.stateLabel}</p>
+              <h3>{copy.failed.heading}</h3>
+              <p className="hear-voice-message">{copy.failed.body}</p>
+              <small>{copy.failed.note}</small>
               <small className="hear-voice-request-receipt">
-                Request {phase.failure.intentId.slice(0, 8)} / stopped {clock(phase.failure.updatedAt)} / attempt {Math.max(1, phase.failure.attempt)} / code {phase.failure.errorCode}
+                {copy.failed.receiptTemplate
+                  .replace("{intentId}", phase.failure.intentId.slice(0, 8))
+                  .replace("{updatedAt}", clock(phase.failure.updatedAt))
+                  .replace("{attempt}", String(Math.max(1, phase.failure.attempt)))
+                  .replace("{errorCode}", phase.failure.errorCode)}
               </small>
             </>
           ) : phase.kind === "error" ? (
             <>
-              <p className="hear-voice-state failed">Did not work</p>
-              <h3>Preview stopped</h3>
+              <p className="hear-voice-state failed">{copy.error.stateLabel}</p>
+              <h3>{copy.error.heading}</h3>
               <p className="hear-voice-message">{phase.headline}</p>
               <small>{phase.detail}</small>
               {phase.canRetry && onManageSources && (
-                <button className="review-refresh" type="button" onClick={onManageSources}>Check voice sources</button>
+                <button className="review-refresh" type="button" onClick={onManageSources}>{copy.error.checkVoiceSources}</button>
               )}
             </>
           ) : (
             <>
-              <p className="hear-voice-state idle">Nothing generated yet</p>
-              <h3>Your take appears here</h3>
-              <p className="hear-voice-message">Choose the language, write one natural line, and generate the current draft.</p>
-              <p className="hear-voice-first-wait">The GPU starts only after you press Preview. The first run after a quiet period has an observed 2 to 8 minute cold-start range. After that it is usually much faster while the runtime stays warm.</p>
+              <p className="hear-voice-state idle">{copy.idle.stateLabel}</p>
+              <h3>{copy.idle.heading}</h3>
+              <p className="hear-voice-message">{copy.idle.body}</p>
+              <p className="hear-voice-first-wait">{copy.idle.firstWaitNote}</p>
             </>
           )}
         </div>

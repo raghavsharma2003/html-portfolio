@@ -51,6 +51,8 @@ import type {
   ContextLockerView,
   ContextSpeaker,
 } from "./contextLockerApi";
+import { useStudioLocale } from "./localeContext";
+import type { ContextLockerPanelCopy } from "./copy";
 const ContextProposalReview = lazy(() => import("./ContextProposalReview"));
 
 // An explicit action may replace its focused control. Recover only that lost
@@ -90,68 +92,13 @@ function useActionFocus() {
   };
 }
 
-const REASON_COPY: Record<string, string> = {
-  // refusals — files
-  pdf_no_text_layer: "This PDF is a scan. There is no text in it to read, only pictures of text. We have no OCR, so we would rather say so than store it empty.",
-  pdf_text_layer_unreadable: "We found text in this PDF but it does not read as language. The fonts use an encoding we cannot map. Export it as text or DOCX instead.",
-  pdf_encrypted: "This PDF is password-protected. Remove the password and try again.",
-  pdf_unsupported_filter: "This PDF compresses its text in a way we do not read.",
-  pdf_malformed: "This file is not a readable PDF.",
-  docx_malformed: "This file is not a readable Word document.",
-  docx_encrypted: "This Word document is password-protected.",
-  docx_no_text: "This Word document has no text in its body.",
-  doc_legacy_binary_unsupported: "The old .doc format is not read. Save it as .docx and try again.",
-  rtf_unsupported: "RTF is not read. Save it as .docx or plain text.",
-  odt_unsupported: "OpenDocument is not read. Export as .docx or text.",
-  pages_unsupported: "Pages files are not read. Export as .docx or a PDF with real text in it.",
-  epub_unsupported: "EPUB is not read.",
-  archive_unsupported: "We do not unpack archives. Upload the files inside it.",
-  csv_unsupported: "A spreadsheet is not prose. Mining it would put column headers in your phrasing.",
-  spreadsheet_unsupported: "A spreadsheet is not prose.",
-  slides_unsupported: "Slides are titles and fragments, not how you talk. Export the speaker notes if that is what you meant.",
-  structured_data_unsupported: "Structured data is not prose.",
-  html_upload_unsupported: "Paste the page's link instead. An uploaded HTML file has no source to cite.",
-  text_not_utf8: "This file is not UTF-8 text. Re-save it as UTF-8.",
-  text_unreadable: "This file does not read as language.",
-  format_unsupported: "We do not read this file type.",
-  image_format_unsupported: "Use a PNG, JPEG, or WebP image. Other image containers are not read yet.",
-  image_dimensions_unreadable: "We could not verify this image's pixel dimensions, so no image evidence was kept.",
-  image_dimensions_invalid: "This image reports invalid pixel dimensions.",
-  image_malformed: "This is not a readable image.",
-  extracted_text_too_large: "This document is longer than one item may be. Split it and upload the parts. We do not trim anything silently.",
-  file_too_large: "This file is larger than one upload may be.",
-  chat_export_third_party_consent_required: "This is a chat export, so it contains someone else's private messages. Tick the box above and add it again. We only ever mine your own messages, and theirs are read only to tell them apart.",
-  chat_export_too_many_speakers: "This is a large group chat, mostly other people's words. Export a one-to-one chat instead.",
-  whatsapp_export_unparseable: "This looks like a chat export but no line in it matched a message. Export the chat again 'Without media' and upload the .txt unchanged.",
-  // refusals — links
-  link_unparseable: "That is not a link.",
-  link_scheme_unsupported: "Only https links are read.",
-  link_host_not_public: "We only read links on public websites.",
-  article_fetch_not_configured: "This deployment cannot read links yet. Upload the text instead.",
-  article_fetch_failed: "We could not load that page.",
-  article_no_text: "That page had no readable text.",
-  article_unreadable: "That page did not read as language.",
-  // routing
-  channel_lane: "This is YouTube. It belongs to the channel lane, which asks you to confirm the channel is yours before reading a single video.",
-  voice_evidence_lane: "This is audio. It belongs to the voice lane, which carries the consent your voice needs.",
-  // mined-nothing reasons
-  not_owner_authored_no_style_evidence: "Read, but not used for how you talk, because it is not your own writing. Mark it as yours if it is.",
-  speaker_unattributed_no_style_evidence: "Read. Tell us which of these people is you and we will mine only your messages.",
-  declared_speaker_not_in_export: "Nobody by that name sends messages in this export.",
-  no_candidates_cleared_held_out: "Read, but nothing in it repeated often enough to be worth proposing. That is normal for a short document.",
-  citation_integrity_failed: "Read, but the proposals could not be traced back to the text they came from, so none were kept.",
-  proposal_already_exists: "Suggestions are already saved privately.",
-  image_ocr_not_configured: "Stored privately with an exact image hash and pixel region. OCR and visual interpretation are not connected, so no claim was made from it.",
-  context_source_permissions_required: "Record source capture and private storage permission before adding this file.",
-  context_private_storage_failed: "Private storage could not retain this file. Nothing was claimed from it. Try again.",
-  context_locker_response_invalid: "Private context returned an unreadable response. Nothing was added. Try again.",
-  // quotas
-  context_item_quota_exhausted: "Your locker is full. Remove something to add more.",
-  context_byte_quota_exhausted: "Your locker is out of space. Remove something to add more.",
-  replica_not_found: "That clone is not yours.",
-};
-
-const copyFor = (code: string) => REASON_COPY[code] ?? code;
+// WS-R166: the reason map moved to the copy registry
+// (`src/studio/copy.ts#ContextLockerPanelCopy.reasons`,
+// `context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist`'s own
+// allowlist, closed one file at a time) so both locales carry it; `copyFor`
+// now takes that map as a parameter rather than closing over a module-level
+// English-only constant.
+const copyFor = (code: string, reasons: Record<string, string>) => reasons[code] ?? code;
 
 const KB = 1024;
 const humanBytes = (n: number) =>
@@ -207,9 +154,9 @@ function ContextLockerScope({
   onProposals,
   onItemCount,
   onTeachSource,
-  teachSourceLabel = "Teach your AI",
+  teachSourceLabel,
   onTestSource,
-  testSourceLabel = "Test this source",
+  testSourceLabel,
 }: {
   token: string;
   replicaId: string;
@@ -230,6 +177,10 @@ function ContextLockerScope({
   onTestSource?: (source: { replicaId: string; itemId: string }) => void;
   testSourceLabel?: string;
 }) {
+  const { t } = useStudioLocale();
+  const copy = t.contextLockerPanel;
+  const resolvedTeachSourceLabel = teachSourceLabel ?? copy.teachYourAi;
+  const resolvedTestSourceLabel = testSourceLabel ?? copy.testThisSource;
   const [view, setView] = useState<ContextLockerView | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -263,7 +214,7 @@ function ContextLockerScope({
       reviewTrigger.current = event.currentTarget;
       if (openItemId === item.item_id) closeReview();
       else setReviewItem({ replicaId, itemId: item.item_id });
-    }}>View phrases</button> : null;
+    }}>{copy.viewPhrases}</button> : null;
 
   const fail = useCallback(
     (e: unknown) => {
@@ -271,9 +222,9 @@ function ContextLockerScope({
         onAuthError?.(e);
         return;
       }
-      setError(e instanceof Error ? e.message : "request failed");
+      setError(e instanceof Error ? e.message : copy.errorFallback);
     },
-    [onAuthError],
+    [onAuthError, copy.errorFallback],
   );
 
   const load = useCallback(async () => {
@@ -390,13 +341,13 @@ function ContextLockerScope({
     && item.status === "extracted" && item.extracted_chars > 0
     && item.consent_scope === "own_context"
     && ["text", "markdown", "pdf", "docx"].includes(item.format) ? (
-      <span className="context-result-actions" role="group" aria-label="Writing attribution">
+      <span className="context-result-actions" role="group" aria-label={copy.writingAttributionAriaLabel}>
         <button type="button" className="button" disabled={busy || item.authorship === "mine"}
           aria-pressed={item.authorship === "mine"}
-          onClick={event => void remine(item.item_id, { authorship: "mine" }, event.currentTarget)}>My writing</button>
+          onClick={event => void remine(item.item_id, { authorship: "mine" }, event.currentTarget)}>{copy.myWriting}</button>
         <button type="button" className="button" disabled={busy || item.authorship === "not_mine"}
           aria-pressed={item.authorship === "not_mine"}
-          onClick={event => void remine(item.item_id, { authorship: "not_mine" }, event.currentTarget)}>Reference only</button>
+          onClick={event => void remine(item.item_id, { authorship: "not_mine" }, event.currentTarget)}>{copy.referenceOnly}</button>
       </span>
     ) : null;
 
@@ -426,17 +377,15 @@ function ContextLockerScope({
     <section id="context-locker" className="stage-section context-locker" aria-labelledby="context-locker-title">
       <header className="section-heading">
         <div>
-          <h2 id="context-locker-title">Bring your context</h2>
+          <h2 id="context-locker-title">{copy.heading}</h2>
           <p className="field-note">
-            Everything you have already written about yourself, or that is already about you. Drop the
-            files in, paste the links. Each one tells you what it became, and anything we cannot
-            honestly read, we say so instead of quietly keeping it.
+            {copy.intro}
           </p>
         </div>
       </header>
 
       {error && (
-        <p className="field-note context-locker-error" role="alert">{copyFor(error.replaceAll(" ", "_"))}</p>
+        <p className="field-note context-locker-error" role="alert">{copyFor(error.replaceAll(" ", "_"), copy.reasons)}</p>
       )}
 
       <div
@@ -445,12 +394,9 @@ function ContextLockerScope({
         onDragLeave={() => setDragging(false)}
         onDrop={drop}
       >
-        <p className="context-dropzone-title">Drop your files here</p>
+        <p className="context-dropzone-title">{copy.dropzoneTitle}</p>
         <p className="field-note">
-          Text, Markdown, Word documents, PDFs with real text, WhatsApp chat exports, and PNG, JPEG, or WebP images.
-          Up to {view ? humanBytes(view.limits.max_item_bytes) : "a few MB"} each.
-          Audio goes to the voice lane and YouTube goes to the channel lane. Paste those and we will
-          point you there rather than doing it twice.
+          {copy.dropzoneBodyTemplate.replace("{size}", view ? humanBytes(view.limits.max_item_bytes) : copy.fewMb)}
         </p>
         <button
           type="button"
@@ -458,7 +404,7 @@ function ContextLockerScope({
           disabled={busy}
           onClick={() => fileInput.current?.click()}
         >
-          {busy ? "Reading…" : "Choose files"}
+          {busy ? copy.reading : copy.chooseFiles}
         </button>
         <input
           ref={fileInput}
@@ -480,22 +426,21 @@ function ContextLockerScope({
           onChange={(event) => setAcknowledged(event.target.checked)}
         />
         <span>
-          If I upload a chat export, I understand it contains another person's private messages, that
-          only MY messages are ever used, and that theirs are read only to tell the two apart.
+          {copy.chatConsentNote}
         </span>
       </label>}
 
       <label className="field">
-        <span>Or paste links, one per line</span>
+        <span>{copy.pasteLinksLabel}</span>
         <textarea
           rows={3}
           value={links}
-          placeholder={"https://example.com/an-interview-with-me\nhttps://example.com/my-essay"}
+          placeholder={copy.linksPlaceholder}
           onChange={(event) => setLinks(event.target.value)}
         />
       </label>
       <button type="button" className="button" disabled={busy || !links.trim()} onClick={() => void sendLinks()}>
-        Add links
+        {copy.addLinks}
       </button>
 
       {recent.length > 0 && (
@@ -503,8 +448,8 @@ function ContextLockerScope({
           {recent.map((row) => (
             <li key={row.key} className={`context-result is-${row.item?.status ?? "error"}`}>
               <span className="context-result-name">{row.label}</span>
-              <span className="context-result-state">{stateLabel(row)}</span>
-              <span className="field-note">{stateDetail(row)}</span>
+              <span className="context-result-state">{stateLabel(row, copy)}</span>
+              <span className="field-note">{stateDetail(row, copy)}</span>
               {row.item && reviewButton(row.item)}
 
               {row.item && row.item.status === "extracted"
@@ -519,7 +464,7 @@ function ContextLockerScope({
                       disabled={busy}
                       onClick={() => void remine(row.item!.item_id, { owner_speaker: speaker.name })}
                     >
-                      I am {speaker.name} ({speaker.messages})
+                      {copy.iAmSpeakerTemplate.replace("{name}", speaker.name).replace("{count}", String(speaker.messages))}
                     </button>
                   ))}
                 </span>
@@ -536,31 +481,31 @@ function ContextLockerScope({
           <button type="button" className="button primary-button" data-teach-source={teachableSource.item_id}
             disabled={busy || loading} onClick={() => {
               if (mounted.current && !busy && !loading) onTeachSource({ replicaId, itemId: teachableSource.item_id });
-            }}>{teachSourceLabel}</button>
+            }}>{resolvedTeachSourceLabel}</button>
         </div>
       ) : null}
 
-      {openItemId && <Suspense fallback={<p role="status">Opening phrases</p>}>
+      {openItemId && <Suspense fallback={<p role="status">{copy.openingPhrases}</p>}>
         <ContextProposalReview key={`${replicaId}:${openItemId}`} token={token} replicaId={replicaId}
           itemId={openItemId} regionId={reviewRegionId} onClose={closeReview} onAuthError={onAuthError} />
       </Suspense>}
 
-      <h3 ref={lockerHeading} tabIndex={-1} className="context-list-title">In your locker</h3>
+      <h3 ref={lockerHeading} tabIndex={-1} className="context-list-title">{copy.inYourLocker}</h3>
       {loading && !view ? (
-        <p className="field-note" role="status">Loading…</p>
+        <p className="field-note" role="status">{copy.loadingEllipsis}</p>
       ) : items.length === 0 ? (
-        <p className="field-note">Nothing yet.</p>
+        <p className="field-note">{copy.nothingYet}</p>
       ) : (
         <ul className="context-results">
           {items.map((item) => (
             <li key={item.item_id} className={`context-result is-${item.status}`}>
               <span className="context-result-name">{item.source_name || item.source_url}</span>
-              <span className="context-result-state">{stateLabel({ key: item.item_id, item, label: "" })}</span>
+              <span className="context-result-state">{stateLabel({ key: item.item_id, item, label: "" }, copy)}</span>
               <span className="field-note">
-                {item.format} · {item.extracted_chars ? `${item.extracted_chars.toLocaleString()} characters` : humanBytes(item.byte_size)}
-                {item.owner_speaker ? ` · your messages as ${item.owner_speaker}` : ""}
+                {item.format} · {item.extracted_chars ? copy.charactersTemplate.replace("{n}", item.extracted_chars.toLocaleString()) : humanBytes(item.byte_size)}
+                {item.owner_speaker ? ` · ${copy.yourMessagesAsTemplate.replace("{name}", item.owner_speaker)}` : ""}
               </span>
-              <span className="field-note">{stateDetail({ key: item.item_id, item, label: "" })}</span>
+              <span className="field-note">{stateDetail({ key: item.item_id, item, label: "" }, copy)}</span>
               {attributionControls(item)}
               <span className="context-result-actions">
                 {onTestSource && item.kind === "file" && ["extracted", "mined"].includes(item.status) && item.extracted_chars > 0
@@ -568,7 +513,7 @@ function ContextLockerScope({
                   && ["text", "markdown", "pdf", "docx"].includes(item.format) ?
                   <button type="button" className="button" data-test-source={item.item_id} disabled={busy || loading} onClick={() => {
                     if (mounted.current && !busy && !loading) onTestSource({ replicaId, itemId: item.item_id });
-                  }}>{testSourceLabel}</button> : null}
+                  }}>{resolvedTestSourceLabel}</button> : null}
                 {reviewButton(item)}
                 <button
                   type="button"
@@ -588,7 +533,7 @@ function ContextLockerScope({
                       .finally(() => { if (mounted.current) setBusy(false); });
                   }}
                 >
-                  Remove
+                  {copy.remove}
                 </button>
               </span>
             </li>
@@ -598,7 +543,11 @@ function ContextLockerScope({
 
       {quota && (
         <p className="field-note">
-          {quota.items} of {quota.max_items} items · {humanBytes(quota.bytes)} of {humanBytes(quota.max_bytes)}.
+          {copy.quotaTemplate
+            .replace("{items}", String(quota.items))
+            .replace("{maxItems}", String(quota.max_items))
+            .replace("{bytes}", humanBytes(quota.bytes))
+            .replace("{maxBytes}", humanBytes(quota.max_bytes))}
         </p>
       )}
     </section>
@@ -612,24 +561,26 @@ export function isTeachableContextSource(item: ContextItem | null | undefined): 
 }
 
 /** The five states, and nothing else. */
-function stateLabel(row: Row): string {
-  if (!row.item) return "Not added";
+function stateLabel(row: Row, copy: ContextLockerPanelCopy): string {
+  if (!row.item) return copy.states.notAdded;
   if (row.item.status === "mined") {
-    return row.proposed ? `${row.proposed} suggestion${row.proposed === 1 ? "" : "s"}` : "Suggestions saved";
+    return row.proposed
+      ? (row.proposed === 1 ? copy.states.suggestionSingularTemplate : copy.states.suggestionPluralTemplate).replace("{n}", String(row.proposed))
+      : copy.states.suggestionsSaved;
   }
-  if (row.item.status === "refused") return "Not read";
-  if (row.item.status === "routed") return "Belongs elsewhere";
-  if (row.item.status === "extracted") return "Read";
-  return "Working…";
+  if (row.item.status === "refused") return copy.states.notRead;
+  if (row.item.status === "routed") return copy.states.belongsElsewhere;
+  if (row.item.status === "extracted") return copy.states.read;
+  return copy.states.working;
 }
 
 /** Every state carries its reason. `copyFor` falls back to the raw code rather
  *  than to silence, so an unmapped server code is visible instead of missing. */
-function stateDetail(row: Row): string {
-  if (!row.item) return copyFor(row.error || "request_failed");
-  if (row.item.status === "refused") return copyFor(row.item.refusal_reason);
-  if (row.item.status === "routed") return copyFor(row.item.routed_to);
-  if (row.item.status === "mined") return "Phrase suggestions are saved privately.";
-  if (row.item.status === "extracted") return copyFor(row.item.mine_skip_reason || "no_candidates_cleared_held_out");
+function stateDetail(row: Row, copy: ContextLockerPanelCopy): string {
+  if (!row.item) return copyFor(row.error || "request_failed", copy.reasons);
+  if (row.item.status === "refused") return copyFor(row.item.refusal_reason, copy.reasons);
+  if (row.item.status === "routed") return copyFor(row.item.routed_to, copy.reasons);
+  if (row.item.status === "mined") return copy.phraseSuggestionsSavedPrivately;
+  if (row.item.status === "extracted") return copyFor(row.item.mine_skip_reason || "no_candidates_cleared_held_out", copy.reasons);
   return "";
 }

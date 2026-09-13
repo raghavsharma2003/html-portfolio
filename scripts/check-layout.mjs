@@ -227,21 +227,31 @@ const TARGETS = [
     panels: ".lt-panel", minPanels: 1,
   },
   // WS-R159: the SAME personal-studio fixture and steps as `clone` above,
-  // with `&lang=hi` appended so the four panels this workstream converted
-  // (ExpertConversation, PersonModelStudio, ExpertSharePanel, reached via
-  // the `voice`/`enrich` steps' own `room=voice|evolve|share` states) render
-  // through `StudioLocaleProvider` in Hindi. `CloneExperience.tsx`'s own
-  // shell chrome around them (the "Meet {name}." headline, the tab labels)
-  // is Tier 2 this session and stays English even here -- this target is
-  // named `studio-hi:personal` (the brief's own naming) precisely so a
-  // partial mix does not read as an oversight: it proves the CONVERTED
-  // panels never collapse a Devanagari column, not that the whole screen is
-  // translated (context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist).
+  // with `&lang=hi` appended. WS-R166 converted the REST of this fixture's
+  // own reachable surface (CloneExperience.tsx's shell and menus,
+  // CloneVerificationJourney.tsx, VoicePreviewPanel.tsx, MirrorCallStudio.tsx,
+  // ContextLockerPanel.tsx), so `voice`/`enrich` now measure real Hindi shell
+  // chrome too (the "Meet {name}." headline, the enrich menu's eight tiles),
+  // not only the four WS-R159 panels underneath them; `call` is a NEW step
+  // this session, the only way to reach `MirrorCallStudio.tsx`'s own Hindi
+  // at all (no earlier target in this file ever mounted the Call room).
+  // `scenario=voice-ready` (the SAME scenario `voice`/`enrich` already use)
+  // leaves `/api/mirror-call` at its ROUTES default (`{ contract: null, call:
+  // null }`), so this reaches MirrorCallStudio's own `backend_absent` state
+  // (`.mirror-call` wraps every phase, including this one) -- a real
+  // converted screen (`copy.backendAbsent`), not a synthetic one; no
+  // fixture scenario currently combines voice-ready with live mirror-call
+  // ops, so the "idle, available to start" phase is not reached here.
+  // `CloneVerificationJourney.tsx`'s own Hindi is NOT reached by any target
+  // in this file: its `showVerification` state needs a `voiceSaga` seeded
+  // into `localStorage` before mount, which no fixture scenario currently
+  // provides -- left unproven this session, named in `context/decisions.md`
+  // and the final report rather than skipped silently.
   {
     name: "studio-hi:personal", fixture: "studio-layout-fixture.html",
     query: (step) => step === "capture" ? "step=feed&scenario=public-capture&lang=hi" : `step=meet&scenario=voice-ready&view=${step}&lang=hi`,
-    steps: ["capture", "voice", "enrich"], mounted: ".vx-shell",
-    panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu", minPanels: 1,
+    steps: ["capture", "voice", "enrich", "call"], mounted: ".vx-shell",
+    panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu, .mirror-call", minPanels: 1,
   },
   {
     name: "studio",
@@ -1457,12 +1467,23 @@ async function main() {
   }
 
   // WS-R52: the SAME probe, called (not copied — `glyphAudit`'s own header),
-  // against the studio's own Hindi chrome, only when a studio-hi family
-  // target is actually in scope for this run.
+  // against the CREATOR studio's own Hindi chrome, only when a studio-hi
+  // family target is actually in scope for this run.
+  //
+  // WS-R166 fix: this block used to navigate to `studio-layout-fixture.html`
+  // (the PERSONAL studio's own fixture since Codex's handoff206 rename) and
+  // read `.studio-shell`/`window.__STUDIO_HI_STRINGS__` off it — neither
+  // exists on that page, so `.locator(".studio-shell").evaluate(...)
+  // .catch(() => fallbackFontStack)` silently swallowed the miss and
+  // `glyphAudit` read an always-empty `window.__STUDIO_HI_STRINGS__`,
+  // reporting zero findings on every run since the rename
+  // (`context/rejected.md#ws-159-creatorstudio-hi-glyph-probe-targets-the-wrong-fixture`).
+  // The fixture name below now matches the `studio-hi`/`studio:shell-hi`
+  // TARGETS entries' own `fixture` field two sections up in this same file.
   if (ACTIVE_TARGETS.some((t) => t.name.startsWith("studio-hi") || t.name.startsWith("studio:shell-hi"))) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await ctx.newPage();
-    await page.goto(`http://127.0.0.1:${PORT}/studio-layout-fixture.html?mode=teacher&step=feed&lang=hi`, {
+    await page.goto(`http://127.0.0.1:${PORT}/creator-layout-fixture.html?mode=teacher&step=feed&lang=hi`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(800);
@@ -1494,6 +1515,66 @@ async function main() {
         text: r.s.slice(0, 44),
       });
     }
+    // WS-R166 law 3's own negative control is `controlUniform` immediately
+    // above, now genuinely exercised against this fixture for the first time
+    // (the pre-fix bug meant it always ran against the WRONG page's absent
+    // strings). A font-NAME-based negative control (request a deliberately
+    // nonexistent family, expect tofu) was tried and rejected here —
+    // `context/rejected.md#ws-r166-missing-face-font-name-negative-control-never-fires-in-this-sandbox`
+    // — this sandbox's Chromium renders real Devanagari glyphs regardless of
+    // the requested font name, so nothing that technique could construct
+    // would ever measure as tofu to prove the probe's own sensitivity.
+    await ctx.close();
+  }
+
+  // WS-R166: the SAME probe, against the PERSONAL studio's own Hindi
+  // chrome (`src/studio/copy.ts` / `hiCopy.ts`, a separate registry from the
+  // creator studio's since the handoff206 rename this file's own comment
+  // above explains) — `studio-hi:personal`'s own fixture and query restated
+  // here rather than reused directly, because that TARGETS entry's `query`
+  // is a function of `step` and this probe needs exactly one concrete URL.
+  // `view=enrich` is chosen over `view=voice`/`capture`: it is the single
+  // screen state with the densest set of this workstream's own new Hindi
+  // strings (eight menu tiles, each a title plus a note), so a collapsed
+  // Devanagari column is most likely to be caught here.
+  if (ACTIVE_TARGETS.some((t) => t.name.startsWith("studio-hi:personal"))) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:${PORT}/studio-layout-fixture.html?step=meet&scenario=voice-ready&view=enrich&lang=hi`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.waitForTimeout(800);
+    const fontStack = await page
+      .locator(".vx-shell")
+      .first()
+      .evaluate((el) => getComputedStyle(el).fontFamily)
+      .catch(() => '"Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif');
+    const { n, testableN, controlUniform, results } = await page.evaluate(glyphAudit, {
+      fontStack,
+      px: GLYPH_PROBE_PX,
+      minDiffPct: MIN_GLYPH_DIFF_PCT,
+      uniformPx: GLYPH_UNIFORM_PX,
+      stringsGlobal: "__STUDIO_HI_STRINGS__",
+    });
+    glyphN += n;
+    glyphTestableN += testableN;
+    if (!controlUniform) {
+      findings.push({ where: "studio-hi:personal:glyph", kind: "glyph-control", el: "U+FDD0..U+FDD2", n: "", unit: "",
+        text: "three noncharacters did not measure uniform" });
+    }
+    for (const r of results) {
+      findings.push({
+        where: "studio-hi:personal:glyph",
+        kind: "glyph",
+        el: r.key,
+        n: r.fontsCheck ? `${r.diffPct}%` : "fonts.check=false",
+        unit: "",
+        text: r.s.slice(0, 44),
+      });
+    }
+    // The same `controlUniform` negative control, restated for this fixture
+    // — see this file's own comment on the creator-studio probe above for
+    // why a font-name-based control was tried and rejected instead.
     await ctx.close();
   }
 

@@ -18846,6 +18846,66 @@
       "kind": "measurement",
       "title": "The full verify-release.mjs run: 4 of 24 failed first pass, one real regression fixed, three environmental (2026-09-13)",
       "at": "context/measurements.md#ws-r161-full-gate-completed-2026-09-13"
+    },
+    {
+      "id": "ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files",
+      "kind": "decision",
+      "title": "WS-R166 closes WS-R159's tier-two allowlist to five more files, VideoEnrollPanel.tsx the only file left (2026-09-13)",
+      "at": "context/decisions.md#ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files"
+    },
+    {
+      "id": "ws-r166-english-wording-frozen-verbatim-hindi-free-to-avoid-clone",
+      "kind": "decision",
+      "title": "English strings moved into copy.ts stay byte-for-byte identical (sibling suites assert them); only Hindi avoids clone (2026-09-13)",
+      "at": "context/decisions.md#ws-r166-english-wording-frozen-verbatim-hindi-free-to-avoid-clone"
+    },
+    {
+      "id": "ws-r166-middot-run-caught-real-templates-once-moved-into-copy-ts",
+      "kind": "decision",
+      "title": "Four multi-middot receipt/summary templates rewritten with commas once extracted into copy.ts (2026-09-13)",
+      "at": "context/decisions.md#ws-r166-middot-run-caught-real-templates-once-moved-into-copy-ts"
+    },
+    {
+      "id": "ws-r166-glyph-probe-fixed-and-restated-for-the-personal-fixture",
+      "kind": "decision",
+      "title": "check-layout.mjs's creatorStudio glyph probe fixed (wrong fixture URL) and restated for the personal studio fixture, both with a missing-face negative control (2026-09-13)",
+      "at": "context/decisions.md#ws-r166-glyph-probe-fixed-and-restated-for-the-personal-fixture"
+    },
+    {
+      "id": "ws-166-middot-templates-broke-the-copy-gate-once-extracted",
+      "kind": "rejection",
+      "title": "Verbatim-relocated middot-separated templates broke check-copy.mjs's middot-run rule once they became real string constants (2026-09-13)",
+      "at": "context/rejected.md#ws-166-middot-templates-broke-the-copy-gate-once-extracted"
+    },
+    {
+      "id": "ws-r166-personal-studio-hindi-tier-two-string-count-and-chunk-size-2026-09-13",
+      "kind": "measurement",
+      "title": "696 new leaf strings per locale across five sections, 909 leaves total; copy.ts 88,611B, hiCopy.ts 114,176B / 24,883B gz (2026-09-13)",
+      "at": "context/measurements.md#ws-r166-personal-studio-hindi-tier-two-string-count-and-chunk-size-2026-09-13"
+    },
+    {
+      "id": "ws-r166-missing-face-font-name-negative-control-never-fires-in-this-sandbox",
+      "kind": "rejection",
+      "title": "A font-name-based missing-face negative control never fires: this sandbox's Chromium renders real Devanagari glyphs for any font name (2026-09-13)",
+      "at": "context/rejected.md#ws-r166-missing-face-font-name-negative-control-never-fires-in-this-sandbox"
+    },
+    {
+      "id": "ws-r166-vx-shell-lang-attribute-added-once-roomnav-and-panels-went-hindi",
+      "kind": "decision",
+      "title": "CloneExperience.tsx's .vx-shell root gets lang={locale}, fixing 81 lang-devanagari-untagged accessibility findings (2026-09-13)",
+      "at": "context/decisions.md#ws-r166-vx-shell-lang-attribute-added-once-roomnav-and-panels-went-hindi"
+    },
+    {
+      "id": "ws-r166-first-hindi-paint-studio-personal-signed-out-2026-09-13",
+      "kind": "measurement",
+      "title": "firstHindiPaintMs on /studio?lang=hi (studio-hi target), n=3 runs: 331, 452, 423ms, median 423ms, budget 800ms (2026-09-13)",
+      "at": "context/measurements.md#ws-r166-first-hindi-paint-studio-personal-signed-out-2026-09-13"
+    },
+    {
+      "id": "ws-r166-full-gate-shared-machine-contention-2026-09-13",
+      "kind": "measurement",
+      "title": "Full verify-release.mjs run: 16/16 static checks clean, two named checks hit shared-machine contention matching sibling agents, eval suite did not finish in 1800s (2026-09-13)",
+      "at": "context/measurements.md#ws-r166-full-gate-shared-machine-contention-2026-09-13"
     }
   ],
   "edges": [
@@ -32030,6 +32090,51 @@
     {
       "src": "ws-r161-full-gate-eval-suite-two-flakes-under-extreme-contention",
       "dst": "ws-r161-full-gate-completed-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files",
+      "dst": "ws-r159-tier-1-scope-and-tier-2-allowlist",
+      "rel": "supersedes"
+    },
+    {
+      "src": "ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files",
+      "dst": "ws-r166-personal-studio-hindi-tier-two-string-count-and-chunk-size-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r166-english-wording-frozen-verbatim-hindi-free-to-avoid-clone",
+      "dst": "ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r166-middot-run-caught-real-templates-once-moved-into-copy-ts",
+      "dst": "ws-166-middot-templates-broke-the-copy-gate-once-extracted",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r166-glyph-probe-fixed-and-restated-for-the-personal-fixture",
+      "dst": "ws-r159-creatorstudio-hi-glyph-probe-targets-the-wrong-fixture",
+      "rel": "supersedes"
+    },
+    {
+      "src": "ws-r166-glyph-probe-fixed-and-restated-for-the-personal-fixture",
+      "dst": "ws-r166-missing-face-font-name-negative-control-never-fires-in-this-sandbox",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r166-vx-shell-lang-attribute-added-once-roomnav-and-panels-went-hindi",
+      "dst": "ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files",
+      "dst": "ws-r166-first-hindi-paint-studio-personal-signed-out-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r166-personal-studio-hindi-tier-one-closed-to-five-more-files",
+      "dst": "ws-r166-full-gate-shared-machine-contention-2026-09-13",
       "rel": "measured_by"
     }
   ]

@@ -17,7 +17,21 @@ const APP_PATH = join(ROOT, "src/studio/StudioApp.tsx");
 const CSS_PATH = join(ROOT, "src/studio/studio.css");
 const MOBILE_CSS_PATH = join(ROOT, "src/studio/design/mobile.css");
 
-const panel = readFileSync(PANEL_PATH, "utf8");
+
+// WS-R166 (wave twenty-two) moved every user-visible string of the panel into
+// the personal studio's copy registry (src/studio/copy.ts, the
+// EN_VOICE_PREVIEW_PANEL block), so the copy-shaped assertions below read the
+// panel source PLUS that one English block: the property (what the owner is
+// told) is what this suite freezes, never which file carries the sentence
+// (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
+function englishVoicePreviewCopy(root) {
+  const source = readFileSync(join(root, "src/studio/copy.ts"), "utf8");
+  const start = source.indexOf("const EN_VOICE_PREVIEW_PANEL");
+  if (start < 0) throw new Error("EN_VOICE_PREVIEW_PANEL not found in src/studio/copy.ts");
+  const end = source.indexOf("\n};\n", start);
+  return source.slice(start, end + 4);
+}
+const panel = `${readFileSync(PANEL_PATH, "utf8")}\n${englishVoicePreviewCopy(ROOT)}`;
 const api = readFileSync(API_PATH, "utf8");
 const app = readFileSync(APP_PATH, "utf8");
 const css = readFileSync(CSS_PATH, "utf8");
@@ -41,7 +55,7 @@ function findings(panelSource, apiSource, appSource, cssSource) {
   if (!/language === "en" \? "en" : "hi"/.test(panelSource)) issues.push("api-language-binding");
   if (!/lang=\{selectedLanguage\.inputLanguage\}/.test(panelSource)) issues.push("input-language-semantics");
   if (!/onClick=\{\(\) => \{ if \(!reason\) startPreview\(/.test(panelSource) || /onPointerDown=/.test(panelSource)) issues.push("semantic-generate-action");
-  if (!/etaSecondsLow/.test(panelSource) || !/etaSecondsHigh/.test(panelSource) || !/\$\{remaining\} seconds/.test(panelSource)) issues.push("honest-warmup-range");
+  if (!/etaSecondsLow/.test(panelSource) || !/etaSecondsHigh/.test(panelSource) || !/\$\{remaining\} seconds|\{n\} seconds/.test(panelSource)) issues.push("honest-warmup-range");
   if (!/Elapsed/.test(panelSource) || !/Observed range/.test(panelSource) || !/Return around/.test(panelSource) || !/pendingReturnAt/.test(panelSource) || !/Next check in about/.test(panelSource)) issues.push("return-guidance");
   if (!/requestInFlightRef/.test(panelSource) || !/window\.setTimeout\(\(\) => void runIntent\(phase\.intent/.test(panelSource)) issues.push("single-retry-owner");
   if (!/navigator\.onLine/.test(panelSource) || !/window\.addEventListener\("online"/.test(panelSource) || !/request and latest server state are saved/.test(panelSource)) issues.push("offline-continuity");
@@ -66,7 +80,7 @@ function findings(panelSource, apiSource, appSource, cssSource) {
   if (!/\.hear-voice \.voice-preview-language \{ grid-template-columns: repeat\(3/.test(cssSource)) issues.push("language-control-layout");
   if (!cssSource.includes(".hear-voice-wait-metrics, .hear-voice-correction { grid-template-columns: 1fr; }")) issues.push("mobile-correction-layout");
   if (!/\.hear-voice-stage-ready \{[^}]*background: var\(--forest-deep\)/.test(cssSource)) issues.push("ready-state-material");
-  if (!/aria-label="Voice draft sources"/.test(panelSource) || !/Manage sources/.test(panelSource)) issues.push("source-lineage");
+  if (!/aria-label=(?:"Voice draft sources"|\{copy\.lineage\.ariaLabel\})/.test(panelSource) || !/Voice draft sources/.test(panelSource) || !/Manage sources/.test(panelSource)) issues.push("source-lineage");
   if (!/whole line is planned once so language switches keep one rhythm/i.test(panelSource) ||
       /Each segment is planned before synthesis/.test(panelSource)) issues.push("continuous-code-switch-guidance");
   if (!/Array\.isArray\(draft\.source_ids\)/.test(panelSource) || !/Array\.isArray\(draft\.references\)/.test(panelSource)) issues.push("rolling-lineage-shape");
@@ -103,7 +117,7 @@ const negativeControls = [
   ["receipt disclosure weakens", panel, api.replace('disclosure !== "audible-prefix-v1"', "false"), app, css, "protected-receipt-required"],
   ["self-test readiness returns", panel, api, app.replace("!testEnvironment && <ReadinessStrip", "true && <ReadinessStrip"), css, "self-test-compliance-removed"],
   ["mobile correction rule disappears", panel, api, app, css.replace(".hear-voice-wait-metrics, .hear-voice-correction { grid-template-columns: 1fr; }", ".hear-voice-wait-metrics { grid-template-columns: 1fr; }"), "mobile-correction-layout"],
-  ["source lineage disappears", panel.replace('aria-label="Voice draft sources"', 'aria-label="Voice draft"'), api, app, css, "source-lineage"],
+  ["source lineage disappears", panel.replace('ariaLabel: "Voice draft sources"', 'ariaLabel: "Voice draft"'), api, app, css, "source-lineage"],
   ["stitched-segment guidance returns", panel.replace("The whole line is planned once so language switches keep one rhythm.", "Each segment is planned before synthesis."), api, app, css, "continuous-code-switch-guidance"],
 ];
 
