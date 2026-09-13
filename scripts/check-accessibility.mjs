@@ -127,6 +127,7 @@ const TARGETS = [
     fixture: "studio-layout-fixture.html",
     query: () => "step=meet&scenario=voice-ready&view=voice&listening=1",
     screens: ["default"],
+    mounted: ".vx-shell",
   },
   // WS-R159. `clone`'s own fixture and screens with `&lang=hi` appended --
   // `check-layout.mjs`'s own `studio-hi:personal` target, the same query
