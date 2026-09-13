@@ -833,6 +833,46 @@ const TABLE_ROLES = {
   // on delete cascade`, `vy_room_follower_whatsapp_chat`'s own precedent
   // (128) restated: a full replica erasure reaches it through that FK alone.
   vy_room_follower_month_note: { owners: ["_room-month-note.js", "_room-surface.js"] },
+  // WS-R154 ("RelationOS in the Room"). NOT one of `roomPersonEntries`' own
+  // auto-discovered tables at all (no `room_id` column exists on either —
+  // migration 009's composite key is `(agent_id, person_id)`, the dyad key
+  // this workstream's own `context/decisions.md#ws-r154-no-migration-165`
+  // rests on): added here BY NAME, `vy_room_referral`'s own precedent
+  // restated for a pair of tables that predate the Room product entirely and
+  // were NEVER under this battery's watch before (`staticReachProblems` only
+  // ever iterates `TABLE_ROLES`'s own keys) — every owner below is a REAL,
+  // PRE-EXISTING toucher this workstream found by running the scan, not one
+  // this workstream added: `api/_room-relstate.js` is the only NEW file.
+  //   `_room-relstate.js` — this workstream's own file: the compiled reply's
+  //     relBundle, the follower's own "How we are" read, and the follower's
+  //     own rupture-reset write, every statement scoped by BOTH dims
+  //     (`evals/room-leak/run.mjs`'s own layer 19 static check).
+  //   `memory.js` — Meera's DM-side writers (honorific/trust/rupture/repair/
+  //     code-switch, `refreshDerivedDims`, the forget cascade's
+  //     `rebuildRelState`) and the account-wide export's column manifest.
+  //   `consolidate.js` — the nightly dyadic consolidator's own hysteresis
+  //     writers (honorific/trust/rupture/repair moves per SPEC §6.2).
+  //   `_room.js` — Meera's MULTIPARTY group room (a DIFFERENT product from
+  //     the Room this workstream builds, `_room-surface.js`'s own header:
+  //     "api/_room.js already exists and is a different thing"): a read-only
+  //     LEFT JOIN for Hindi kin-address rendering, and its own local
+  //     PERSON_TABLES-style manifest entry.
+  //   `export.js` — the account-wide export's own column manifest
+  //     (`{ vy_rel_event: "id", vy_rel_state: "person_id" }`), read-only.
+  //   `_replica-runtime.js` — a single existence check ("has a snapshot ever
+  //     been derived for this agent/person") inside the self-replica
+  //     activation flow, read-only.
+  vy_rel_event: { owners: ["_room-relstate.js", "memory.js", "consolidate.js", "_room.js", "export.js"] },
+  // `api/_room-cohorts.js` (the creator studio's stage-counts card,
+  // `readOwnedRoomCohorts`) is deliberately NOT listed here at all: it never
+  // names `vy_rel_state` in its own source — it calls `_room-relstate.js`'s
+  // own `roomRelStateStageCounts` (n>=5 floored in the SQL itself, aggregate-
+  // only by construction) rather than querying the table directly, the SAME
+  // "a decision in a handler is a decision no offline eval can reach"
+  // delegation `roomForget`/`roomExport` already use one file over — so
+  // this table's ENTIRE static surface is the owners below, real and
+  // complete.
+  vy_rel_state: { owners: ["_room-relstate.js", "memory.js", "consolidate.js", "_room.js", "export.js", "_replica-runtime.js"] },
 };
 // Every line naming a guarded table in a file that is neither an owner nor an
 // aggregate-only reader must be ONE of: a comment (block or line), a DELETE,

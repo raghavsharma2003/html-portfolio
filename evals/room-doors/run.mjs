@@ -333,6 +333,8 @@ const {
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
   roomDisclosureCard, roomSettings, roomSettingsReviewed, roomSetQuietHours,
   roomRememberedThings, roomCorrectRememberedThing, roomForgetRememberedThing, roomReclassifyRememberedThing,
+  // WS-R154 ("RelationOS in the Room").
+  roomRelState, roomRelStateReset,
   flagReply, unflagReply, followerFlags,
   // WS-R100 (migration 126). The follower's own receipt.
   roomReceipt, roomReceipts,
@@ -2836,6 +2838,13 @@ const OP_COVERAGE = {
     // 2026-09-09, migration 162): the same session + bearer/person match and
     // the same attacker-controlled fact id as memory_correct/memory_forget.
     memory_classify: { classes: ["a", "b", "c"] },
+    // WS-R154 ("RelationOS in the Room"). No body-supplied person/follower
+    // id on either — `roomRelState`/`roomRelStateReset` (`api/_room-
+    // surface.js`) both go through `selfScope`, exactly `settings`/
+    // `settings_reviewed`'s own shape two rows up: the predicate is the
+    // scope, so there is no class c to attack.
+    relstate: { classes: ["a", "b"] },
+    relstate_reset: { classes: ["a", "b"] },
     // WS-R131 (migration 134). "Set once, in your account" - the SAME
     // classes and shape as settings_reviewed immediately above: goes
     // through selfScope, no body-supplied person/follower id at all
@@ -4517,6 +4526,8 @@ const OP_INVOKE = {
     }, fuzzDeps),
     memory_forget: (db, body) => roomForgetRememberedThing(db, { session: body.session, factId: body.fact_id }, fuzzDeps),
     memory_classify: (db, body) => roomReclassifyRememberedThing(db, { session: body.session, factId: body.fact_id }, fuzzDeps),
+    relstate: (db, body) => roomRelState(db, { session: body.session }, fuzzDeps),
+    relstate_reset: (db, body) => roomRelStateReset(db, { session: body.session }, fuzzDeps),
     set_quiet_hours: (db, body) => roomSetQuietHours(db, {
       session: body.session, timezone: body.timezone, quietFrom: body.quiet_from, quietTo: body.quiet_to,
     }, fuzzDeps),

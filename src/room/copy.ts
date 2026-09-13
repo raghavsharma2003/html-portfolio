@@ -711,6 +711,38 @@ const EN = {
     remembered: (n: number) => `${n} thing${n === 1 ? "" : "s"} you asked to be remembered.`,
     empty: "No monthly note yet - check back after your first full month here.",
   },
+
+  /** WS-R154 ("RelationOS in the Room"). "How we are" - a NEW, closed
+   *  section (this file's own append-only rule), shown only while memory is
+   *  on (`account.memoryOn`'s own predicate). `stage`/`honorific`/`rupture`
+   *  are keyed by the exact enum values `stageForDims`/`RelState.honorific`/
+   *  `ruptureStance` return (`src/engine/relstate.ts`), read directly by
+   *  `AccountPage.tsx` rather than guessed at here - a key added there
+   *  without a matching key here fails at the type level, never silently. */
+  relState: {
+    title: "How we are",
+    none: "It does not have a read on how you two are yet - keep talking and it will.",
+    stage: {
+      new: "Still getting to know you.",
+      warming: "Warming up.",
+      settled: "Settled into a rhythm.",
+      close: "Close.",
+      deep: "Deep, unhurried trust.",
+    },
+    honorific: {
+      tu: "It talks to you the most familiar way (tu).",
+      tum: "It talks to you the everyday way (tum).",
+      aap: "It talks to you the more formal way (aap).",
+    },
+    ruptureOpen: "There is a rupture it is still holding onto.",
+    ruptureSettled: (ageLabel: string) => `A rupture from ${ageLabel} ago has settled - it is not holding it against you, but it has not forgotten either.`,
+    resetTitle: "Start fresh",
+    resetNote: "This closes the rupture above. It does not erase that it happened - only that it is holding it against you right now.",
+    resetAction: "Start fresh",
+    resetDone: "Done - it is no longer holding that against you.",
+    resetNothingOpen: "There is nothing open to reset right now.",
+    resetError: "Could not do that. Try again.",
+  },
 };
 
 export type RoomCopy = typeof EN;

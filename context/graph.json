@@ -17994,6 +17994,48 @@
       "kind": "measurement",
       "title": "Gate runs on the merged handoff206 tree and the live catalog before and after the apply (2026-09-13)",
       "at": "context/measurements.md#gate-on-the-merged-handoff206-tree-2026-09-13"
+    },
+    {
+      "id": "api-room-relstate",
+      "kind": "component",
+      "title": "api/_room-relstate.js: the Room dyad's relationship state (relBundle, How we are, Start fresh, owner stage counts)",
+      "at": "api/_room-relstate.js"
+    },
+    {
+      "id": "ws-r154-no-migration-165",
+      "kind": "decision",
+      "title": "RelationOS in the Room ships with no migration: vy_rel_state/vy_rel_event already scope by (agent_id, person_id), which already equals (room_id, follower)",
+      "at": "context/decisions.md#ws-r154-no-migration-165"
+    },
+    {
+      "id": "ws-r154-scoped-to-compile-not-expert-text",
+      "kind": "decision",
+      "title": "relBundle wires into engine.compile() only, not compileExpertText()",
+      "at": "context/decisions.md#ws-r154-scoped-to-compile-not-expert-text"
+    },
+    {
+      "id": "ws-r154-owner-stage-counts-use-the-raw-flag",
+      "kind": "decision",
+      "title": "The owner's stage-counts card buckets on the raw rupture_open flag, never the lapsing ruptureStance",
+      "at": "context/decisions.md#ws-r154-owner-stage-counts-use-the-raw-flag"
+    },
+    {
+      "id": "ws-r154-reset-citations-are-chained-never-fabricated",
+      "kind": "decision",
+      "title": "The follower's rupture-reset event chains citations from the event it supersedes, never fabricating one",
+      "at": "context/decisions.md#ws-r154-reset-citations-are-chained-never-fabricated"
+    },
+    {
+      "id": "ws-r154-relationos-in-the-room-suite-counts",
+      "kind": "measurement",
+      "title": "Suite counts for WS-R154: room-relstate 31/0, room-leak 363/0 (+35), room-doors 2279/0 (+24), room-cohorts 62/0 (+2), room-export 48/0 unmodified, tsc clean",
+      "at": "context/measurements.md#ws-r154-relationos-in-the-room-suite-counts"
+    },
+    {
+      "id": "ws-r154-both-predicates-regex-missed-insert-and-aggregate-shapes",
+      "kind": "rejection",
+      "title": "A static scanner written against one SQL statement shape (WHERE predicates) misclassified this file's own INSERT and aggregate statements as unscoped",
+      "at": "context/rejected.md#ws-r154-both-predicates-regex-missed-insert-and-aggregate-shapes"
     }
   ],
   "edges": [
@@ -30439,6 +30481,56 @@
       "src": "codex-handoff206-adopted-as-the-base",
       "dst": "gate-on-the-merged-handoff206-tree-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r154-no-migration-165",
+      "dst": "pk-is-an-arbiter",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r154-no-migration-165",
+      "dst": "relstate-zero-rows",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r154-no-migration-165",
+      "dst": "ws-r154-relationos-in-the-room-suite-counts",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r154-owner-stage-counts-use-the-raw-flag",
+      "dst": "ws-r154-relationos-in-the-room-suite-counts",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r154-scoped-to-compile-not-expert-text",
+      "dst": "api-room-relstate",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r154-owner-stage-counts-use-the-raw-flag",
+      "dst": "api-room-relstate",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r154-reset-citations-are-chained-never-fabricated",
+      "dst": "api-room-relstate",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r154-no-migration-165",
+      "dst": "api-room-relstate",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r154-both-predicates-regex-missed-insert-and-aggregate-shapes",
+      "dst": "api-room-relstate",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r154-reset-citations-are-chained-never-fabricated",
+      "dst": "rupture-never-closes",
+      "rel": "caused_by"
     }
   ]
 }

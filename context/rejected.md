@@ -17855,3 +17855,13 @@ The shared config template stated OPENROUTER_KEY and NEON_URL were both required
 **Broke.** The "pending read deleted: no new request" check changed the mounted props and resolved the pending read in the very next CDP round trip; React schedules an out-of-event state update on its own task, so the component's ref of the current sources was sometimes still the old one when the read resolved, and it posted a new build intent. It passed once under the pooled registry and failed three times alone. The component's guard is right when the change has been committed; the fixture never waited for that.
 
 **Fix.** The fixture waits one animation frame plus a macrotask after the change before resolving. The assertion now tests what it says: a change committed BEFORE the read resolves sends nothing.
+
+## `ws-r154-both-predicates-regex-missed-insert-and-aggregate-shapes` (2026-09-13)
+
+**Tried.** `evals/room-leak/run.mjs`'s new layer 19 static check, first draft: every SQL statement naming `vy_rel_event`/`vy_rel_state` must satisfy `/person_id\s*=\s*\(\$\d+\)::uuid/.test(text) && /agent_id\s*=\s*\(\$\d+\)::uuid/.test(text)` (a literal WHERE-predicate shape, `column = ($n)::uuid`).
+
+**Broke.** `api/_room-relstate.js`'s own `insert into vy_rel_event (person_id, agent_id, ...) values (($1)::uuid, ($2)::uuid, ...)` binds both ids as VALUES-list positions, never as `column = value`, so the check flagged this file's OWN, correct, dyad-scoped insert as unscoped. Running the suite (not merely reasoning about the regex) is what caught it: `node evals/room-leak/run.mjs` failed one real assertion on the very first run.
+
+**Fix.** Split the check by statement shape: an AGGREGATE statement (detected by `having count(*) >= 5`) must bind `agent_id` alone and never `person_id`; every other (per-follower) statement must name both `person_id` and `agent_id` as whole-word substrings AND bind at least two separate `::uuid`-cast parameters — a looser but still meaningful test that accepts both the WHERE-predicate and the INSERT-VALUES shape. Two negative controls (a person_id-only string, an agent_id-only string) prove the looser check still catches a missing half; a third proves the aggregate check still catches `person_id` sneaking into that statement.
+
+**Rule generalized.** A static scanner written against ONE observed statement shape in a file with more than one shape (a per-row read/write plus an aggregate) will pass on the shape it was written against and silently misclassify every other shape — run the scanner against the real file before trusting the regex, the same lesson `context/rejected.md#ws-r108-table-copy-as-a-keyed-object-failed-the-leak-batterys-static-reach-layer` already states for a different scanner in the same battery.

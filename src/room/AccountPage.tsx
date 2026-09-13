@@ -41,6 +41,8 @@ import {
   forgetRememberedThing,
   lastMonthNote,
   setQuietHours,
+  fetchRoomRelState,
+  resetRoomRelState,
   type RoomFlag,
   type RoomForgetReceipt,
   type RoomSettings,
@@ -49,7 +51,14 @@ import {
   type RoomMonthNote,
   type RoomRememberedThing,
   type RoomMemoryClassification,
+  type RoomRelState,
 } from "./roomApi";
+// WS-R154: the client TypeScript bundle, imported directly the way
+// `src/components/MoreSheet.tsx` already imports `bandTrust`/`bandPacing`
+// from the same module for Meera's own closeness card (relstate.ts's own
+// "GAP 4" comment) - one set of coarse bands, computed once, never guessed
+// at a second time in a copy string or a threshold typed here.
+import { stageForDims, ruptureStance, honorificAgeLabel, type RelState } from "../engine/relstate";
 import { listCheckinDesignsAndPushKey, setTelegramCheckins, browserTimezone } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
 import { activateOnKey } from "./RoomApp";
@@ -121,6 +130,29 @@ function formatMonthLabel(monthKey: string, locale: RoomLocale): string {
   }
 }
 
+/** WS-R154. `stageForDims`/`ruptureStance` (`../engine/relstate`) both take
+ *  a full `RelState`, but the server's `RoomRelState` response carries only
+ *  the four fields either function actually reads (`trust`, `rupture_open`,
+ *  `repair_state`, plus `honorific` for this page's own second line). The
+ *  rest are filled with the schema's own defaults - never read by either
+ *  function (grep confirms it before this comment was written), so a
+ *  default here can never silently substitute for a real value. */
+function toRelStateShape(r: RoomRelState): RelState {
+  return {
+    person_id: "",
+    honorific: r.honorific ?? "tum",
+    cs_ratio: null,
+    cs_on_stress: "unknown",
+    trust: r.trust ?? 0.3,
+    rupture_open: r.rupture_open ?? false,
+    repair_state: r.repair_state ?? "none",
+    ritual_density: 0,
+    pacing_gap_s: null,
+    snapshot_ver: 0,
+    updated_at: "",
+  };
+}
+
 interface Props {
   session: string;
   copy: RoomCopy;
@@ -165,6 +197,11 @@ interface Props {
    *  either. `null` renders the empty state; omitted renders nothing until
    *  the (never-firing, on a fixture) effect would have resolved. */
   fixtureMonthNote?: RoomMonthNote | null;
+  /** WS-R154. `fixtureMonthNote`'s own seam, one card over - no network
+   *  reaches `fetchRoomRelState` from the fixture either. Populated with an
+   *  OPEN rupture so the layout/accessibility gates render every string in
+   *  this section at least once, "Start fresh" button included. */
+  fixtureRelState?: RoomRelState;
   /** WS-R139. True once `copy`'s REST section (`dormancy`/`referral`/
    *  `payReceipt`/`exportReadable`/`subscriptionMandate`/`referralReward`/
    *  `quietHours` — `copy.ts`'s own header) is installed for `locale` —
@@ -203,6 +240,7 @@ export default function AccountPage({
   fixtureReferralUrl,
   fixtureReferralProgress,
   fixtureMonthNote,
+  fixtureRelState,
   restReady,
 }: Props) {
   const [settings, setSettings] = useState<RoomSettings | null>(fixtureSettings ?? null);
@@ -240,6 +278,14 @@ export default function AccountPage({
   const rememberedClassifyTrigger = useRef<HTMLButtonElement | null>(null);
   const [returnRememberedHeadingFocus, setReturnRememberedHeadingFocus] = useState(false);
   const rememberedHeading = useRef<HTMLHeadingElement | null>(null);
+  // WS-R154 ("RelationOS in the Room"). `undefined` before the read resolves
+  // (renders nothing, `monthNote`'s own "before the effect fires" state one
+  // field below); `{has_state:false,...}` is the honest "nothing yet" answer,
+  // never an error - `relstate-zero-rows` measured this as the common case.
+  const [relState, setRelState] = useState<RoomRelState | undefined>(fixtureRelState);
+  const [relStateReload, setRelStateReload] = useState(0);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetMessage, setResetMessage] = useState<"" | "done" | "nothing_open" | "error">("");
   // WS-R100 (migration 126). The follower's own receipts - the subscription
   // panel's own list, `flags`' own state shape one field up.
   const [receipts, setReceipts] = useState<RoomReceiptRow[]>([]);
@@ -321,6 +367,40 @@ export default function AccountPage({
       .finally(() => { if (live) setRememberedLoading(false); });
     return () => { live = false; };
   }, [session, auth, remembers, fixtureSettings, rememberedReload]);
+
+  // WS-R154. Same shape as the `remembered` effect immediately above: no
+  // network under a fixture, cleared (not fetched) while memory is off - the
+  // account page's own reflection of law 3, "their choice is the predicate."
+  useEffect(() => {
+    if (fixtureRelState !== undefined) return;
+    if (!auth || !remembers) {
+      setRelState(undefined);
+      return;
+    }
+    let live = true;
+    fetchRoomRelState(session, auth.accessToken)
+      .then((result) => { if (live) setRelState(result); })
+      .catch(() => { if (live) setRelState(undefined); });
+    return () => { live = false; };
+  }, [session, auth, remembers, fixtureRelState, relStateReload]);
+
+  const resetRelState = useCallback(async () => {
+    if (!auth || resetBusy) return;
+    setResetBusy(true);
+    setResetMessage("");
+    try {
+      const result = await resetRoomRelState(session, auth.accessToken);
+      // "no_record" (no cited event to chain from - see `api/_room-relstate.js`)
+      // reads identically to "nothing_open" from here: either way nothing was
+      // open to close, and that is the honest, complete story a follower needs.
+      setResetMessage(result.reset ? "done" : "nothing_open");
+      setRelStateReload((value) => value + 1);
+    } catch {
+      setResetMessage("error");
+    } finally {
+      setResetBusy(false);
+    }
+  }, [session, auth, resetBusy]);
 
   useEffect(() => {
     if (!returnRememberedFocusId || editingRememberedId !== null) return;
@@ -939,6 +1019,62 @@ export default function AccountPage({
                 </li>
               ))}
             </ul>
+          )}
+        </>
+      )}
+
+      {remembers && relState && (
+        <>
+          <h3 className="room-checkins-subhead">{copy.relState.title}</h3>
+          {!relState.has_state ? (
+            <p className="room-fine">{copy.relState.none}</p>
+          ) : (
+            (() => {
+              const shaped = toRelStateShape(relState);
+              const meta = {
+                lastRuptureMoveAt: relState.last_rupture_move_at ?? null,
+                warmEpisodesSinceRupture: relState.warm_episodes_since_rupture ?? 0,
+              };
+              const stage = stageForDims(shaped, meta);
+              const stance = ruptureStance({
+                ruptureOpen: shaped.rupture_open,
+                repairState: shaped.repair_state,
+                lastMoveAt: meta.lastRuptureMoveAt,
+                warmEpisodesSince: meta.warmEpisodesSinceRupture,
+              });
+              return (
+                <>
+                  <p className="room-fine">{copy.relState.stage[stage]}</p>
+                  <p className="room-fine">{copy.relState.honorific[shaped.honorific]}</p>
+                  {stance === "open" && (
+                    <>
+                      <p className="room-fine">{copy.relState.ruptureOpen}</p>
+                      <h3 className="room-checkins-subhead">{copy.relState.resetTitle}</h3>
+                      <p className="room-fine">{copy.relState.resetNote}</p>
+                      {resetMessage === "done" && <p className="room-fine" role="status">{copy.relState.resetDone}</p>}
+                      {resetMessage === "nothing_open" && <p className="room-fine" role="status">{copy.relState.resetNothingOpen}</p>}
+                      {resetMessage === "error" && <p className="room-fine" role="alert">{copy.relState.resetError}</p>}
+                      <div className="room-actions">
+                        <button
+                          type="button"
+                          className="room-btn"
+                          disabled={resetBusy || !auth}
+                          onPointerDown={() => void resetRelState()}
+                          onKeyDown={activateOnKey(() => void resetRelState())}
+                        >
+                          {resetBusy ? copy.pay.working : copy.relState.resetAction}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {stance === "settled" && (
+                    <p className="room-fine">
+                      {copy.relState.ruptureSettled(honorificAgeLabel(relState.last_rupture_move_at ?? null))}
+                    </p>
+                  )}
+                </>
+              );
+            })()
           )}
         </>
       )}

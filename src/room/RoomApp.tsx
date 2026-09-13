@@ -99,6 +99,7 @@ import {
   type RoomQuota,
   type RoomReferralProgress,
   type RoomMonthNote,
+  type RoomRelState,
   type RoomSettings,
   type RoomThread,
   type RoomTurn,
@@ -164,6 +165,9 @@ interface Props {
   /** WS-R137 (migration 136). `fixtureReferralProgress`'s own seam, one
    *  card over — `AccountPage.tsx`'s own header on `undefined` vs `null`. */
   fixtureMonthNote?: RoomMonthNote | null;
+  /** WS-R154 ("RelationOS in the Room"). `fixtureMonthNote`'s own seam, one
+   *  card over — `AccountPage.tsx`'s own header on why. */
+  fixtureRelState?: RoomRelState;
   /** WS-R43. The Room's own layout battery: three screens no fixture reached
    *  before ("Hindi glyphs unverified" since WS-R24 — no session had ever
    *  rendered the cap-reached card, the forget receipt, or either dialog in a
@@ -214,6 +218,7 @@ export default function RoomApp({
   fixtureReferralUrl,
   fixtureReferralProgress,
   fixtureMonthNote,
+  fixtureRelState,
   fixtureCapped,
   fixtureCapOffer,
   fixturePhase,
@@ -1736,6 +1741,7 @@ export default function RoomApp({
             fixtureReferralUrl={fixtureReferralUrl}
             fixtureReferralProgress={fixtureReferralProgress}
             fixtureMonthNote={fixtureMonthNote}
+            fixtureRelState={fixtureRelState}
           />
         </Suspense>
       )}

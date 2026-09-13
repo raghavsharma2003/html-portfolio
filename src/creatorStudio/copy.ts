@@ -644,6 +644,16 @@ interface RoomStudioCopy {
   // (`api/_funnel.js`'s own honest sentence, n>=5 floored) rendered as-is,
   // never re-derived client side.
   friendReferralTitle: string;
+  // WS-R154 ("RelationOS in the Room"). The owner's stage-counts card, sat
+  // beside the week-six cohort card - `stageWords` keyed by the exact enum
+  // `stageForDims` (`src/engine/relstate.ts`) returns, floored at n>=5
+  // server side (`api/_room-relstate.js`'s own `roomRelStateStageCounts`),
+  // never a follower's identity or a number below the floor.
+  relStageTitle: string;
+  relStageIntro: string;
+  relStageNone: string;
+  relStageWords: Record<"new" | "warming" | "settled" | "close" | "deep", string>;
+  relStageFloorNote: string;
 }
 
 // ── roomStudioMandate: RoomStudio.tsx's tier card (WS-R125, migration 130) ─
@@ -2799,6 +2809,19 @@ const EN: StudioCopy = {
     noticeDormancyOn: "A quiet follower is forgotten {n} days after their last visit, with a notice first.",
     noticeDormancyOff: "Turned off. Every follower's conversation is kept forever again.",
     friendReferralTitle: "Friends brought this week",
+    relStageTitle: "How close your followers are",
+    relStageIntro:
+      "A rough read on how settled each follower's relationship with your AI is, in counts only - never a name, " +
+      "never a message, and never a count below five people.",
+    relStageNone: "Not enough followers yet for even one count that would not identify someone.",
+    relStageWords: {
+      new: "Still getting to know it",
+      warming: "Warming up",
+      settled: "Settled into a rhythm",
+      close: "Close",
+      deep: "Deep, unhurried trust",
+    },
+    relStageFloorNote: "Any group of fewer than five followers is left out entirely, on purpose.",
   },
 
   videoLinkMount: {

@@ -457,6 +457,23 @@ async function render() {
         built_at: "2026-09-01T06:00:00.000Z",
         delivered_channels: ["web_push"],
       }}
+      // WS-R154: "RelationOS in the Room" - no network reaches
+      // `fetchRoomRelState` from this fixture either. An OPEN rupture (never
+      // "settled"/"none") so the layout and accessibility gates render every
+      // string this section can show, "Start fresh" button included - the
+      // same reasoning `fixtureReferralProgress` above states for its own
+      // never-reached-before content.
+      fixtureRelState={{
+        has_state: true,
+        memory_on: true,
+        honorific: "tum",
+        trust: 0.4,
+        rupture_open: true,
+        repair_state: "open",
+        last_honorific_move_at: "2026-08-01T00:00:00.000Z",
+        last_rupture_move_at: "2026-09-05T00:00:00.000Z",
+        warm_episodes_since_rupture: 1,
+      }}
       // WS-R43: the three screens no fixture reached before.
       fixtureCapped={screen === "capped"}
       fixtureCapOffer={screen === "capped" ? FIXTURE_CAP_OFFER : null}

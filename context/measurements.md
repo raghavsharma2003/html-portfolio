@@ -17842,3 +17842,21 @@ Method: `node scripts/verify-release.mjs` (24 checks) on the build container, ma
 Vercel: eight consecutive git-connected deployments of codex/handoff206 (2026-09-09) ERROR in 7 s at the install phase; the last READY deployment of this branch family was `61385c5`.
 
 Live database (Neon `neondb`, read-only catalog query): 180 `vy_` tables; none of the 26 tables that migrations 137 to 162 and the local-voice reconciliation artifacts 074 and 075 create is present. Codex applied those only to the isolated development database `vyakti_expert_integration_20260906` (198 tables).
+
+## `ws-r154-relationos-in-the-room-suite-counts` (2026-09-13, WS-R154)
+
+Method: each suite run directly with `node evals/<name>/run.mjs` on the worktree build container, no live database, no network, no model call; date 2026-09-13.
+
+| suite | result | note |
+|---|---|---|
+| `evals/room-relstate/run.mjs` (new) | 31 passed, 0 failed | byte-identity law, field mapping, memory-off predicate (zero queries), citation chaining + negative control, `compile()` composition, wiring negative control |
+| `evals/room-leak/run.mjs` | 363 passed, 0 failed | was 328 before this workstream (layer 19 adds 35: 8 static incl. 3 negative controls, 15 per-follower dynamic, 12 stage-counts dynamic) |
+| `evals/room-doors/run.mjs` | 2279 passed, 0 failed | was 2255; +24 = 2 new ops (`relstate`, `relstate_reset`) x 12 body-shape fuzz classes |
+| `evals/room-cohorts/run.mjs` | 62 passed, 0 failed | was 60; +2 for the widened `readOwnedRoomCohorts` (`relstate_stage_counts` field, updated §4 fake-db classifier) |
+| `evals/room-export/run.mjs` | 48 passed, 0 failed | unmodified — confirms the generic `PERSON_TABLES`/`agent:true` mechanism already reached `vy_rel_state`/`vy_rel_event` with zero code change |
+| `evals/room/run.mjs`, `room-adversarial`, `room-adversarial-creator`, `room-locale`, `room-paid-tier`, `phase-gate` | all green (67, 223, 253, 54, 38, 50 passed / 0 failed each) | spot-checked because each drives `roomSay` end to end; none needed a fixture change |
+| `node scripts/check-layout.mjs --only room` | ok | 242 prose blocks judged across `room:account`/`room-hi:account` among others; 284 Hindi strings glyph-checked; the new "How we are"/"Start fresh" section rendered via `layoutFixture.tsx`'s `fixtureRelState` (an OPEN rupture, so every string including the reset button renders at least once) |
+| `node node_modules/typescript/bin/tsc -b --force` | 0 errors | whole project, after fixing one real gap: `fixtureRelState` had to be threaded through `RoomApp.tsx`'s own props to reach `AccountPage.tsx`, not just added to the leaf component |
+| `node scripts/check-prompt-budget.mjs` | ok (pre-existing WARNs only) | unaffected — Room fixtures carry no `relBundle` |
+
+Not measured (owed to a live database): whether the layer 19/room-relstate scanners' assumptions about the LIVE `vy_rel_state`/`vy_rel_event` schema (column names, the composite primary key) match what migrations 137-162 actually applied — the worktree's `db/schema.sql` was read directly rather than queried live, since this workstream may not touch the live database.
