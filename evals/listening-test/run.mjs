@@ -31,6 +31,7 @@ import {
   validateListeningRating,
 } from "../../api/_replica-calibration.js";
 import { ownedVoiceLikenessSummary } from "../../api/_replica-voice-preview.js";
+import { OWNED_SEALED_GENERATION_AUDIO_SQL, ownedSealedGenerationAudio } from "../../api/_replica-generation-audio.js";
 import { AXES as SEALED_HARNESS_AXES } from "../voice-listening-benchmark/lib.mjs";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
@@ -296,5 +297,77 @@ const relcheckText = readFileSync(join(ROOT, "scripts/relcheck.mjs"), "utf8");
 ok("relcheck proves winner_artifact_id resolves to the owner's own sealed generation, since no FK does", /winner_artifact_id/.test(relcheckText) && /g\.state='sealed'/.test(relcheckText));
 const doorText = readFileSync(join(ROOT, "api/replica-calibration.js"), "utf8");
 ok("the calibration door exposes both the new op and the composed read", doorText.includes('"listening_submit"') && doorText.includes("ownedVoiceLikenessSummary") && doorText.includes("ownedVoiceListeningHistory"));
+
+// ── 11. WS-R163: the sealed-generation audio door ──────────────────────────
+// The other open item WS-R155 left: no endpoint served a past sealed
+// generation's bytes, so the listening test's players showed "not available
+// yet". api/_replica-generation-audio.js#ownedSealedGenerationAudio is the
+// decision; the SQL is the gate, so every clause below is asserted against
+// the REAL query text, never a paraphrase of it.
+ok("the audio SQL binds generation, replica and owner all three, and excludes a revoked or purging replica",
+  /g\.generation_id=\$1::uuid and g\.replica_id=\$2::uuid and g\.owner_user_id=\$3::uuid/.test(OWNED_SEALED_GENERATION_AUDIO_SQL)
+  && /r\.lifecycle not in \('revoked','purging'\)/.test(OWNED_SEALED_GENERATION_AUDIO_SQL));
+ok("the audio SQL requires a SEALED voice_preview generation with a real, undeleted stored result",
+  /g\.state='sealed' and g\.purpose='voice_preview'/.test(OWNED_SEALED_GENERATION_AUDIO_SQL)
+  && /g\.preview_result_object_path<>'' and g\.preview_result_deleted_at is null/.test(OWNED_SEALED_GENERATION_AUDIO_SQL));
+
+{
+  const AUDIO_GEN = "60000000-0000-4000-8000-000000000061";
+  const AUDIO_BYTES = Buffer.from("fixture-wav-bytes");
+  let readCalls = [];
+  const readObject = async (locator) => { readCalls.push(locator); return { mime: "audio/wav", body: AUDIO_BYTES, byteSize: AUDIO_BYTES.length }; };
+  const db = async (sql, params) => {
+    ok("the door queries through the real, asserted SQL text, not a paraphrase", sql === OWNED_SEALED_GENERATION_AUDIO_SQL);
+    return [{
+      generation_id: AUDIO_GEN, replica_id: RID, owner_user_id: OWNER,
+      preview_result_storage_bucket: "vyakti-replica-private", preview_result_object_path: `${OWNER}/${RID}/derived/voice-preview/${AUDIO_GEN}.wav`,
+    }];
+  };
+  const audio = await ownedSealedGenerationAudio(db, OWNER, RID, AUDIO_GEN, { readObject });
+  ok("the owner's own sealed voice-preview generation streams back through the same signed-read seam uploads use",
+    audio.mime === "audio/wav" && audio.body === AUDIO_BYTES && audio.byteSize === AUDIO_BYTES.length
+    && readCalls.length === 1 && readCalls[0].storageBucket === "vyakti-replica-private" && readCalls[0].objectPath.includes(AUDIO_GEN));
+}
+
+// NEGATIVE CONTROLS. A db returning no row (as the real SQL's WHERE would
+// for each of these) must refuse with the SAME honest 404, never a crash and
+// never a distinguishable code an attacker could use to enumerate ids.
+for (const [name, ownerArg, replicaArg, generationArg] of [
+  ["another owner's generation", "90000000-0000-4000-8000-000000000099", RID, LEFT_GEN],
+  ["a forged replica id", OWNER, "90000000-0000-4000-8000-000000000098", LEFT_GEN],
+]) {
+  await assert.rejects(
+    () => ownedSealedGenerationAudio(async () => [], ownerArg, replicaArg, generationArg),
+    (error) => error.code === "generation_audio_not_available" && error.status === 404,
+  );
+  ok(`NEGATIVE: ${name} refuses with the honest not-available code, not a distinguishable one`, true);
+}
+{
+  // an unsealed generation, or one whose stored result was already swept by
+  // the cleanup sweep: the real WHERE clause finds no row for either case,
+  // proved directly rather than re-implemented here.
+  await assert.rejects(
+    () => ownedSealedGenerationAudio(async () => [], OWNER, RID, LEFT_GEN),
+    (error) => error.code === "generation_audio_not_available" && error.status === 404,
+  );
+  ok("NEGATIVE: an unsealed generation or a swept result (no row from the real WHERE clause) refuses honestly", true);
+}
+await assert.rejects(
+  () => ownedSealedGenerationAudio(async () => { throw new Error("must not query the database"); }, OWNER, RID, "not-a-uuid"),
+  (error) => error.code === "valid_generation_id_required" && error.status === 400,
+);
+ok("NEGATIVE: a malformed generation id is refused before any query runs", true);
+await assert.rejects(
+  () => ownedSealedGenerationAudio(async () => { throw new Error("must not query the database"); }, "", RID, LEFT_GEN),
+  (error) => error.code === "valid_owner_required" && error.status === 400,
+);
+ok("NEGATIVE: a signed-out caller (no resolvable owner id) is refused before any query runs, mirroring requireUser's own boundary at the door", true);
+
+const audioDoorText = readFileSync(join(ROOT, "api/replica-generation-audio.js"), "utf8");
+ok("the audio door is GET-only, owner-bearer, wrapped in withDoor, and never touches req.body (so it needs no new EXPECTED_DOORS entry)",
+  /req\.method !== "GET"/.test(audioDoorText) && /requireUser\(req\)/.test(audioDoorText)
+  && /export default withDoor\(/.test(audioDoorText) && !/req\.body/.test(audioDoorText));
+ok("the audio door rate-limits both by IP and by authenticated owner, like every other owner-bearer door",
+  /allow\(ipOf\(req\), "replica_generation_audio"/.test(audioDoorText) && /allow\(user\.id, "replica_generation_audio_user"/.test(audioDoorText));
 
 console.log(`\nlistening-test: ${checks} checks passed`);

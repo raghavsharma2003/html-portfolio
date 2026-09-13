@@ -9,14 +9,14 @@
 // naturalness, accent fit, pronunciation) -- this file's own axis list
 // mirrors those ids exactly, asserted by evals/listening-test/run.mjs.
 //
-// IT NEVER PRETENDS (MirrorCallStudio.tsx's own law, restated here). When the
-// two saved samples this screen needs are not both playable yet, it says so
-// plainly instead of inventing sound. Real audio playback for a stored
-// sample is not wired into this product yet -- see this workstream's report
-// -- so `left.audioUrl` / `right.audioUrl` are optional, and their absence
-// renders an honest note rather than a broken player.
-import { useMemo, useState } from "react";
-import { submitListeningVerdict } from "./calibrationApi";
+// IT NEVER PRETENDS (MirrorCallStudio.tsx's own law, restated here). Each
+// sample fetches its own sealed generation's bytes from
+// GET /api/replica-generation-audio (WS-R163) the moment it mounts, and
+// shows one of three honest states while it does: loading, a real player
+// once the bytes arrive, or a plain refusal note if the fetch fails --
+// never a silent player with nothing behind it.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { fetchGenerationAudio, submitListeningVerdict } from "./calibrationApi";
 import type { ListeningAxis, ListeningRating, VoiceListeningCandidate, VoiceListeningVerdict } from "./types";
 
 const AXES: ReadonlyArray<{ id: ListeningAxis; label: string; low: string; high: string }> = [
@@ -142,8 +142,10 @@ export default function ListeningTest({
         each time, so you will not know which is which until you finish.
       </p>
       <div className="lt-samples">
-        <ListeningSample slotLabel="Sample 1" slotKey="one" candidate={candidateOne} rating={ratings.one} onScore={setScore} />
-        <ListeningSample slotLabel="Sample 2" slotKey="two" candidate={candidateTwo} rating={ratings.two} onScore={setScore} />
+        <ListeningSample slotLabel="Sample 1" slotKey="one" candidate={candidateOne} rating={ratings.one} onScore={setScore}
+          token={token} replicaId={replicaId} onAuthError={onAuthError} />
+        <ListeningSample slotLabel="Sample 2" slotKey="two" candidate={candidateTwo} rating={ratings.two} onScore={setScore}
+          token={token} replicaId={replicaId} onAuthError={onAuthError} />
       </div>
       {error ? <p role="alert" className="lt-error">{error}</p> : null}
       <div className="lt-actions">
@@ -156,29 +158,93 @@ export default function ListeningTest({
   );
 }
 
+type SampleAudioState = "loading" | "ready" | "unavailable";
+
+// Fetches once per (generationId) and revokes its own object URL on
+// unmount or when a different generation replaces it -- an <audio> element
+// holding a live blob: URL after the component that made it is gone is a
+// leak, not a convenience.
+function useSampleAudio(
+  token: string,
+  replicaId: string,
+  generationId: string,
+  onAuthError: (cause: unknown) => void,
+): { state: SampleAudioState; url: string | null } {
+  const [state, setState] = useState<SampleAudioState>("loading");
+  const [url, setUrl] = useState<string | null>(null);
+  const urlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    setState("loading");
+    setUrl(null);
+    fetchGenerationAudio(token, replicaId, generationId, controller.signal)
+      .then((blob) => {
+        if (cancelled) return;
+        const objectUrl = URL.createObjectURL(blob);
+        urlRef.current = objectUrl;
+        setUrl(objectUrl);
+        setState("ready");
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        if (cause && typeof cause === "object" && "status" in cause && (cause as { status?: number }).status === 401) {
+          onAuthError(cause);
+          return;
+        }
+        setState("unavailable");
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, replicaId, generationId]);
+
+  return { state, url };
+}
+
 function ListeningSample({
   slotLabel,
   slotKey,
-  // Not rendered: showing a saved sample's own metadata (even a timestamp)
-  // beside an unlabelled slot is a real, if narrow, blinding leak while a
-  // sample is being rated. Kept as a prop for when real playback lands.
-  candidate: _candidate,
+  candidate,
   rating,
   onScore,
+  token,
+  replicaId,
+  onAuthError,
 }: {
   slotLabel: string;
   slotKey: SlotKey;
   candidate: VoiceListeningCandidate;
   rating: Partial<ListeningRating>;
   onScore: (slot: SlotKey, axis: ListeningAxis, score: number) => void;
+  token: string;
+  replicaId: string;
+  onAuthError: (cause: unknown) => void;
 }) {
+  const { state, url } = useSampleAudio(token, replicaId, candidate.generation_id, onAuthError);
   return (
     <article className="lt-sample" aria-label={slotLabel}>
       <h3>{slotLabel}</h3>
-      <p className="lt-playback-note">
-        Playback for saved voice samples is not available in this build yet. This screen still
-        records your ratings once it is.
-      </p>
+      {state === "loading" ? (
+        <p className="lt-playback-note">Loading this sample.</p>
+      ) : state === "ready" && url ? (
+        // Not autoplaying and no aria-label naming which candidate this is:
+        // the blinding this screen exists for is the order, not merely the
+        // rating form -- a labelled player would leak exactly what the
+        // rating form itself withholds.
+        <audio controls preload="none" src={url} className="lt-player">
+          Your browser does not support audio playback. You can still rate this sample.
+        </audio>
+      ) : (
+        <p className="lt-playback-note">
+          This sample could not be loaded right now. You can still rate it from memory, or cancel
+          and start a new listening test once it is available.
+        </p>
+      )}
       {AXES.map((axis) => (
         <fieldset key={axis.id} className="lt-axis">
           <legend>{axis.label}</legend>

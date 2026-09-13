@@ -12,6 +12,7 @@ import { personProfileValiditySql } from "./_person-model.js";
 import { adoptActivatedPrivateTeacherSheet } from "./_teacher-sheet-adoption.js";
 import {loadOwnedCandidateBinding,CANDIDATE_RUNTIME_BINDING_SQL} from './_replica-candidate-binding-store.js';
 import {candidateRuntimeAuthoritySql,ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
+import {guardOwnedVoiceActivation} from './_replica-calibration.js';
 
 export const RUNTIME_POLICY_VERSION = "replica-runtime-v1";
 export const REPLICA_CORE_CAP = 12_000;
@@ -289,6 +290,99 @@ export async function ownedRuntimeStatus(db, ownerUserId, id) {
   return clientRuntimeStatus(rows[0]);
 }
 
+// The exact genome/voice-profile choice a fresh activation would bind: the
+// newest APPROVED genome, and on it the newest READY, non-fixture voice
+// profile. Factored out so the pre-activation voice guard below resolves
+// the SAME candidate the activation SQL itself would pick -- one source of
+// text, interpolated into both queries, rather than two hand-kept copies
+// that can quietly drift apart (the wave-21 lesson: "both call sites... pass
+// the identical field set").
+const CANDIDATE_VOICE_GENOME_LATERAL_SQL = `select x.version from vy_replica_voice_genome x
+            where x.replica_id=r.replica_id and x.status='approved'
+            order by x.version desc limit 1`;
+const CANDIDATE_VOICE_PROFILE_LATERAL_SQL = `select x.voice_profile_id,x.provider from vy_replica_voice_profile x
+            where x.replica_id=r.replica_id and x.genome_version=vg.version and x.status='ready'
+              and lower(x.provider) not in ('fake','test','fixture','deterministic-fake')
+            order by x.updated_at desc limit 1`;
+
+/**
+ * Read-only preview of what activation would bind next (candidate) against
+ * whatever voice is presently active (current), by voice_profile_id -- the
+ * cheapest identity two generations can be compared on, since a generation
+ * carries its exact voice_profile_id by FK. Never locks anything; the real
+ * activation SQL below re-derives the same candidate under its own `for
+ * update` lock, so a race here only ever means a stale preview, never a
+ * corrupted write.
+ */
+export async function ownedVoiceActivationCandidate(db, ownerUserId, id) {
+  const rid = replicaId(id);
+  const rows = await db(
+    `select vp.voice_profile_id as candidate_voice_profile_id,
+            cap.voice_profile_id as current_voice_profile_id
+       from vy_replica r
+       join lateral (${CANDIDATE_VOICE_GENOME_LATERAL_SQL}) vg on true
+       join lateral (${CANDIDATE_VOICE_PROFILE_LATERAL_SQL}) vp on true
+       left join lateral (
+         select c.voice_profile_id from vy_replica_runtime_capability c
+          where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.state='active'
+          limit 1
+       ) cap on true
+      where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid`,
+    [rid, ownerUserId],
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Law 4 wired to the runtime's own activation path (WS-R155 left this as an
+ * open item: see that workstream's note on guardOwnedVoiceActivation). Never
+ * touches vy_replica_runtime_capability itself -- it only decides whether
+ * activation may proceed, so a caller can run it BEFORE the atomic
+ * activation write and refuse cleanly, with no partial capability ever
+ * created for a candidate that lost its listening test.
+ *
+ * Deliberately cheap on the common path: when there is no active capability
+ * yet, or the candidate IS the active voice, this returns after the one
+ * preview read above with no further queries and no chance of a false
+ * block. Only a genuine voice change pays for generation and verdict
+ * lookups.
+ */
+export async function guardOwnedRuntimeVoiceActivation(db, ownerUserId, id, override = false) {
+  const rid = replicaId(id);
+  const candidate = await ownedVoiceActivationCandidate(db, ownerUserId, rid);
+  const candidateVoiceProfileId = candidate?.candidate_voice_profile_id || null;
+  const currentVoiceProfileId = candidate?.current_voice_profile_id || null;
+  if (!candidateVoiceProfileId) return Object.freeze({ allowed: true, reason: "no_voice_candidate" });
+  if (!currentVoiceProfileId) return Object.freeze({ allowed: true, reason: "no_active_capability_yet" });
+  if (currentVoiceProfileId === candidateVoiceProfileId)
+    return Object.freeze({ allowed: true, reason: "candidate_is_current_primary" });
+  const generationRows = await db(
+    `select voice_profile_id,generation_id,audio_sha256 from vy_replica_generation
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and state='sealed'
+        and purpose='voice_preview' and audio_sha256 is not null
+        and voice_profile_id=any($3::uuid[])
+      order by created_at desc`,
+    [rid, ownerUserId, [candidateVoiceProfileId, currentVoiceProfileId]],
+  );
+  const candidateGeneration = generationRows.find((row) => row.voice_profile_id === candidateVoiceProfileId);
+  const currentGeneration = generationRows.find((row) => row.voice_profile_id === currentVoiceProfileId);
+  if (!candidateGeneration || !currentGeneration)
+    return Object.freeze({ allowed: true, reason: "candidate_or_current_unresolved" });
+  const referenceRows = await db(
+    `select sha256 from vy_replica_processing_artifact
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and stage='voice_quality'
+      order by created_at desc limit 1`,
+    [rid, ownerUserId],
+  );
+  return guardOwnedVoiceActivation(db, ownerUserId, {
+    replica_id: rid,
+    candidate_generation_id: candidateGeneration.generation_id,
+    current_generation_id: currentGeneration.generation_id,
+    reference_sha256: referenceRows[0]?.sha256 || null,
+    override: Boolean(override),
+  });
+}
+
 export async function activateOwnedRuntime(db, ownerUserId, id) {
   const rid = replicaId(id);
   const rows = await db(
@@ -319,17 +413,8 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
               and x.profile_version=p.version and x.status='approved'
             order by x.version desc limit 1
          ) cal on true
-         join lateral (
-           select x.version from vy_replica_voice_genome x
-            where x.replica_id=r.replica_id and x.status='approved'
-            order by x.version desc limit 1
-         ) vg on true
-         join lateral (
-           select x.voice_profile_id,x.provider from vy_replica_voice_profile x
-            where x.replica_id=r.replica_id and x.genome_version=vg.version and x.status='ready'
-              and lower(x.provider) not in ('fake','test','fixture','deterministic-fake')
-            order by x.updated_at desc limit 1
-         ) vp on true
+         join lateral (${CANDIDATE_VOICE_GENOME_LATERAL_SQL}) vg on true
+         join lateral (${CANDIDATE_VOICE_PROFILE_LATERAL_SQL}) vp on true
          -- THE FIDELITY GATE (SPEC-GURUKUL §8.2), an INNER lateral join and a
          -- peer of the qualification HAVING below. No standing 'pass' row
          -- bound to this exact profile, genome version and policy version means
@@ -456,6 +541,32 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
     },
     activated_at: rows[0].activated_at,
   };
+}
+
+/**
+ * The HTTP-facing activation entry point: runs law 4 before the atomic
+ * write, then delegates to the unmodified `activateOwnedRuntime` above.
+ * `activateOwnedRuntime` itself is left untouched on purpose -- it is
+ * exercised directly, by exact call count and call text, from
+ * evals/replica-runtime, evals/fidelity, evals/teacher-sheet-adoption and
+ * evals/teacher-sheet-adoption-live; routing the guard through a thin
+ * wrapper instead of inlining it into that query keeps every one of those
+ * suites proving what it already proves, unchanged, while still making it
+ * true that nothing reaches the door without passing the guard first.
+ *
+ * `options.override` is the caller's own declared intent (never inferred
+ * from anything else in the request) -- see decideVoiceActivation's own
+ * comment on this in api/_replica-calibration.js. A blocked decision throws
+ * before any row is written, so a losing candidate never becomes even a
+ * momentarily-active capability; an override is allowed through and its use
+ * is what guardOwnedVoiceActivation logs, by name, in vy_replica_audit.
+ */
+export async function guardedActivateOwnedRuntime(db, ownerUserId, id, options = {}) {
+  const rid = replicaId(id);
+  const decision = await guardOwnedRuntimeVoiceActivation(db, ownerUserId, rid, Boolean(options?.override));
+  if (!decision.allowed)
+    throw runtimeError("voice_activation_blocked_by_listening_verdict", 409, { blocked_by: decision.blockedBy || null });
+  return activateOwnedRuntime(db, ownerUserId, rid);
 }
 
 export const OWNED_RUNTIME_CONTEXT_SQL = `select r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.subject_mode,r.lifecycle,

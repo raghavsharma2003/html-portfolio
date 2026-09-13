@@ -1,4 +1,4 @@
-import { replicaRequest } from "./replicaApi";
+import { ReplicaApiError, replicaRequest } from "./replicaApi";
 import type {
   CalibrationChoice, CalibrationPreference, CalibrationStatus, CalibrationVersion,
   ListeningRating, VoiceLikenessSummary, VoiceListeningHistoryEntry, VoiceListeningVerdict,
@@ -59,6 +59,29 @@ export async function submitListeningVerdict(token: string, input: {
   });
   return data.verdict;
 }
+// WS-R163. The listening test's players: GET /api/replica-generation-audio
+// over the owner's own SEALED voice-preview generation, the same bearer
+// boundary and error shape every other studio fetch already carries.
+// `fetch` directly rather than `replicaRequest` -- that helper always parses
+// the response as JSON, which a WAV body is not.
+export async function fetchGenerationAudio(
+  token: string,
+  replicaId: string,
+  generationId: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await fetch(
+    `/api/replica-generation-audio?replica_id=${encodeURIComponent(replicaId)}&generation_id=${encodeURIComponent(generationId)}`,
+    { headers: { Authorization: `Bearer ${token}` }, signal: signal || AbortSignal.timeout(30_000) },
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const raw = typeof data?.error === "string" ? data.error : `request failed (${response.status})`;
+    throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
+  }
+  return response.blob();
+}
+
 export async function chooseCalibration(
   token: string,
   replicaId: string,

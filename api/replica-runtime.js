@@ -6,7 +6,7 @@ import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import {
-  activateOwnedRuntime,
+  guardedActivateOwnedRuntime,
   openOwnedRuntimeSession,
   ownedPrivateRuntimeStatus as ownedRuntimeStatus,
 } from "./_replica-runtime.js";
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     }
     const body = req.body || {};
     if (body.op === "activate") {
-      const activated = await activateOwnedRuntime(q, user.id, body.replica_id);
+      const activated = await guardedActivateOwnedRuntime(q, user.id, body.replica_id, { override: Boolean(body.override) });
       if (!activated) return res.status(404).json({ error: "replica_not_found" });
       const runtime = await ownedRuntimeStatus(q, user.id, body.replica_id);
       return res.status(200).json({ runtime });

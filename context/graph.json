@@ -18624,6 +18624,30 @@
       "kind": "measurement",
       "title": "Wave twenty-one's ten merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-21-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r163-voice-activation-guard-and-audio-door",
+      "kind": "component",
+      "title": "guardedActivateOwnedRuntime (law 4 wired into the runtime's activation path) and api/replica-generation-audio.js (owner-only door serving a sealed voice-preview generation's own bytes) (2026-09-13)",
+      "at": "api/_replica-runtime.js"
+    },
+    {
+      "id": "ws-r163-voice-activation-guard-wired-through-a-wrapper-not-inline",
+      "kind": "decision",
+      "title": "The listening-test activation guard wraps activateOwnedRuntime rather than being inlined into its SQL, so four unrelated suites stay untouched (2026-09-13)",
+      "at": "context/decisions.md#ws-r163-voice-activation-guard-wired-through-a-wrapper-not-inline"
+    },
+    {
+      "id": "ws-r163-guard-queries-prepended-to-activateownedruntime-broke-four-unrelated-suites",
+      "kind": "rejection",
+      "title": "Prepending the guard's own queries inside activateOwnedRuntime broke four suites asserting its exact call count and order (2026-09-13)",
+      "at": "context/rejected.md#ws-r163-guard-queries-prepended-to-activateownedruntime-broke-four-unrelated-suites"
+    },
+    {
+      "id": "ws-r163-voice-activation-guard-and-audio-door-measurements",
+      "kind": "measurement",
+      "title": "replica-runtime 62/62, listening-test 63/63, room-doors 2333/2333, incidents 132/132, room-leak/room-export/mirrors/upload-boundary/copy/tsc/vite/layout/accessibility all clean (2026-09-13)",
+      "at": "context/measurements.md#ws-r163-voice-activation-guard-and-audio-door-measurements"
     }
   ],
   "edges": [
@@ -31599,6 +31623,31 @@
       "src": "wave-21-merged-as-a-batch-under-contention",
       "dst": "wave-21-merge-gate-found-four-cross-workstream-breaks",
       "rel": "constrains"
+    },
+    {
+      "src": "ws-r163-voice-activation-guard-and-audio-door",
+      "rel": "constrains",
+      "dst": "ws-r163-voice-activation-guard-wired-through-a-wrapper-not-inline"
+    },
+    {
+      "src": "ws-r163-voice-activation-guard-wired-through-a-wrapper-not-inline",
+      "rel": "caused_by",
+      "dst": "ws-r163-guard-queries-prepended-to-activateownedruntime-broke-four-unrelated-suites"
+    },
+    {
+      "src": "ws-r163-voice-activation-guard-wired-through-a-wrapper-not-inline",
+      "rel": "measured_by",
+      "dst": "ws-r163-voice-activation-guard-and-audio-door-measurements"
+    },
+    {
+      "src": "ws-r163-voice-activation-guard-and-audio-door",
+      "rel": "supersedes",
+      "dst": "ws-r155-activation-guard-not-wired-into-runtime"
+    },
+    {
+      "src": "ws-r163-voice-activation-guard-and-audio-door",
+      "rel": "supersedes",
+      "dst": "ws-r155-generation-playback-not-wired"
     }
   ]
 }
