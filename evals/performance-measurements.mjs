@@ -222,4 +222,28 @@ check("negative control: a TBT finding that drops the supplied load average lose
   assert.doesNotMatch(tested[0].detail, /load average/, "mutant should have silently dropped the load average this proof is written to catch");
 });
 
+// WS-R177's real bug, caught by this session's own full gate run rather than
+// by any fixture above: every fixture in this file builds its `result`
+// object BY HAND (`result()`, with `value.tbtBudget = ...` set directly), so
+// none of them exercise whether the actual `measureTarget()` ever copies
+// `target.tbtBudget` onto the object it returns — the exact thing `jsBudget`
+// already needed WS-R139's own line to do. The first live `--json` run
+// against the real built `dist/` showed `studio-hi` failing against the
+// SHARED 300ms budget ("478ms > 300ms budget") instead of its own 260ms
+// override, because that copy was missing
+// (`context/rejected.md#ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget`).
+// This is a source-presence proof, not a behavioral one — a live gate run
+// remains the real proof this wiring works, the same standing `jsBudget`
+// itself has always relied on (no offline fixture proves ITS wiring either).
+check("actual measureTarget return threads target.tbtBudget through, the same way jsBudget already does", () => {
+  assert.ok(code.includes("jsBudget: target.jsBudget,"), "actual measureTarget must set jsBudget from the target");
+  assert.ok(code.includes("tbtBudget: target.tbtBudget,"), "actual measureTarget must set tbtBudget from the target");
+});
+check("negative control: a mutant that drops the tbtBudget field from measureTarget's return is caught by the wiring check above", () => {
+  const droppedField = code.replace("    tbtBudget: target.tbtBudget,\n", "");
+  assert.notEqual(droppedField, code, "actual tbtBudget field line must match exactly once to mutate it");
+  assert.ok(!droppedField.includes("tbtBudget: target.tbtBudget,"));
+  assert.ok(droppedField.includes("jsBudget: target.jsBudget,"), "mutation must be scoped to tbtBudget alone");
+});
+
 console.log(`${checks} performance measurement checks passed; no browser or timing benchmark run.`);

@@ -666,6 +666,15 @@ async function measureTarget(browser, target, diagnostics = false, profile = fal
     // WS-R139: per-target override of `BUDGETS.jsBytes`, undefined for
     // every target but the two Room ones — see `TARGETS`'s own comment.
     jsBudget: target.jsBudget,
+    // WS-R177: the identical per-target override, threaded through for TBT
+    // — undefined for every target but `/studio`/`studio-hi`. Missing this
+    // line was a real bug this session's own full gate run caught: the
+    // fixture tests in evals/performance-measurements.mjs set
+    // `result.tbtBudget` directly on a hand-built object and so never
+    // exercised the real `TARGETS` -> `measureTarget` -> `evaluateBudgets`
+    // wiring, which silently fell back to the shared 300ms budget for
+    // every real run. See `context/rejected.md#ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget`.
+    tbtBudget: target.tbtBudget,
     runs,
     median: {
       lcpMs: runs.every(validLcpMeasurement) ? median(runs.map((r) => r.lcpMs)) : null,

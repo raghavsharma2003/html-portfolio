@@ -19200,6 +19200,12 @@
       "kind": "decision",
       "title": "check-performance.mjs records its own 1-minute load average in JSON and in a TBT finding's own text",
       "at": "context/decisions.md#ws-r177-load-average-recorded-in-the-performance-gates-own-output"
+    },
+    {
+      "id": "ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget",
+      "kind": "rejection",
+      "title": "measureTarget never copied target.tbtBudget onto its result; every offline fixture built result by hand and never caught it, only a live gate run did",
+      "at": "context/rejected.md#ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget"
     }
   ],
   "edges": [
@@ -32704,6 +32710,11 @@
     {
       "src": "ws-r177-studio-tbt-on-a-quiet-machine-2026-09-13",
       "dst": "ws-r177-studio-entry-chunk-graph-already-minimal-nothing-to-cut",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement",
+      "dst": "ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget",
       "rel": "caused_by"
     }
   ]
