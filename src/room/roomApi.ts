@@ -78,6 +78,14 @@ export interface RoomSpoken {
   reply_sha256: string;
   index: number;
   count: number;
+  /** WS-R168 (EmotionOS in the voice, no migration). The closed bands this
+   *  clip was synthesised under — never the owner's raw dials, which stay
+   *  behind the studio's own owner-bearer door. Optional on the CLIENT type
+   *  only because an older server has not shipped it yet; the real
+   *  `roomSpeak` always returns one. No screen reads this field today - it
+   *  exists so a future "a little faster than usual" affordance has a real,
+   *  already-shipped value to read rather than a guess. */
+  prosody?: { rate: "slow" | "medium" | "fast"; energy: "low" | "medium" | "high"; pitch_range: "narrow" | "normal" | "wide" };
 }
 
 export interface RoomThread {

@@ -157,10 +157,11 @@ function repeatableStream(chunk) {
  *  speak, so an assertion can check WHICH sentence a clip actually carries
  *  without needing a real provider. */
 function voiceSeam() {
-  const calls = { synth: 0, protect: 0, synthTexts: [] };
-  const synth = async ({ authorized, text }) => {
+  const calls = { synth: 0, protect: 0, synthTexts: [], prosodyPlans: [] };
+  const synth = async ({ authorized, text, prosody }) => {
     calls.synth += 1;
     calls.synthTexts.push(text);
+    calls.prosodyPlans.push(prosody);
     const raw = Buffer.from(`RAW:${authorized.generation.generation_id}:${text}`);
     return {
       stream: repeatableStream(raw),
@@ -445,6 +446,103 @@ console.log("\n── section 4: forged index / forged count / replay ──");
     );
     ok("the SAME session naming the CURRENT reply still works (this is about the stale text, not lockout)",
       fresh.index === 0 && fresh.count === 1);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// SECTION 5 — WS-R168: EmotionOS in the voice, `roomSpeak`'s own wiring
+// ═════════════════════════════════════════════════════════════════════════
+//
+// `api/_voice/prosody.js` itself is proven exhaustively by
+// `evals/prosody/run.mjs`; this section proves only the WIRING — that
+// `roomSpeak` reads the owner's vibe through `deps.getVibe`, builds a plan
+// from it, hands that plan to `deps.synth` on every clip, and reports its
+// closed bands on the response — plus the negative control this brief
+// names by name: no `deps.getVibe` (or one that returns nothing) leaves the
+// plan at its byte-identical neutral shape.
+console.log("\n── section 5: roomSpeak carries a prosody plan on every clip (WS-R168) ──");
+{
+  const { NEUTRAL_PROSODY_PLAN } = await import(
+    pathToFileURL(join(REPO, "api/_voice/prosody.js")).href
+  );
+
+  const state = freshState();
+  const db = extendedDb(state);
+  const session = await setupPaidFollower(db, state, USER_A, PERSON_A);
+  const said = await roomSay(db, { session, message: "hi" }, {
+    loadAgent, memory, reply: async () => "Suno na. Kal milte hain.", now: NOW,
+  });
+
+  // NEGATIVE CONTROL: no `deps.getVibe` at all — the exact shape every
+  // pre-WS-R168 caller of `roomSpeak` still has (`api/room.js`'s own
+  // wiring supplies it; nothing REQUIRES a caller to).
+  {
+    const seam = voiceSeam();
+    const spoken = await roomSpeak(
+      { db, loadAgent, now: NOW, authorize: fakeAuthorize(), synth: seam.synth, protect: seam.protect },
+      said.session,
+      { text: said.reply, index: 0 },
+    );
+    ok("NEGATIVE CONTROL: no deps.getVibe -> the plan handed to synth is the neutral plan, byte for byte",
+      JSON.stringify(seam.calls.prosodyPlans[0]) === JSON.stringify(NEUTRAL_PROSODY_PLAN));
+    ok("NEGATIVE CONTROL: the response's own prosody bands are the neutral bands",
+      spoken.prosody.rate === NEUTRAL_PROSODY_PLAN.rateBand &&
+      spoken.prosody.energy === NEUTRAL_PROSODY_PLAN.energyBand &&
+      spoken.prosody.pitch_range === NEUTRAL_PROSODY_PLAN.pitchRangeBand);
+  }
+
+  // NEGATIVE CONTROL: deps.getVibe wired but the owner never set one (the
+  // exact "no vibe yet" shape `getReplicaVibe` itself documents) — SAME
+  // neutral plan, not a different "no data" shape.
+  {
+    const seam = voiceSeam();
+    const spoken = await roomSpeak(
+      { db, loadAgent, now: NOW, authorize: fakeAuthorize(), synth: seam.synth, protect: seam.protect, getVibe: async () => null },
+      said.session,
+      { text: said.reply, index: 0 },
+    );
+    ok("NEGATIVE CONTROL: deps.getVibe resolving null -> still the neutral plan",
+      JSON.stringify(seam.calls.prosodyPlans[0]) === JSON.stringify(NEUTRAL_PROSODY_PLAN));
+    void spoken;
+  }
+
+  // POSITIVE: a high-energy, low-formality vibe reaches `deps.synth` as a
+  // fast/high/wide plan, and the SAME bands appear on the response.
+  {
+    const seam = voiceSeam();
+    const highEnergyVibe = { warmth: 4, energy: 4, humour: 3, directness: 2, formality: 0 };
+    const spoken = await roomSpeak(
+      { db, loadAgent, now: NOW, authorize: fakeAuthorize(), synth: seam.synth, protect: seam.protect, getVibe: async () => highEnergyVibe },
+      said.session,
+      { text: said.reply, index: 0 },
+    );
+    ok("POSITIVE: a high-energy vibe reaches deps.synth as a fast/high plan",
+      seam.calls.prosodyPlans[0].rateBand === "fast" && seam.calls.prosodyPlans[0].energyBand === "high",
+      JSON.stringify(seam.calls.prosodyPlans[0]));
+    ok("POSITIVE: the response's own bands match what synth received",
+      spoken.prosody.rate === "fast" && spoken.prosody.energy === "high");
+    ok("POSITIVE: the response never leaks the owner's raw dials, only the closed bands",
+      !("warmth" in spoken.prosody) && !("vibe" in spoken.prosody) && Object.keys(spoken.prosody).length === 3);
+  }
+
+  // POSITIVE: `deps.getVibe` is called with the SAME ownership pair
+  // `deps.authorize` was — never a client-suppliable id.
+  {
+    const seam = voiceSeam();
+    const getVibeCalls = [];
+    await roomSpeak(
+      {
+        db, loadAgent, now: NOW, authorize: fakeAuthorize(), synth: seam.synth, protect: seam.protect,
+        getVibe: async (ownerUserId, replicaId) => { getVibeCalls.push({ ownerUserId, replicaId }); return null; },
+      },
+      said.session,
+      { text: said.reply, index: 0 },
+    );
+    ok("deps.getVibe is called exactly once per clip, with the resolved room's own owner/replica ids",
+      getVibeCalls.length === 1 &&
+      getVibeCalls[0].ownerUserId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" &&
+      getVibeCalls[0].replicaId === "c1000000-0000-4000-8000-000000000001",
+      JSON.stringify(getVibeCalls));
   }
 }
 

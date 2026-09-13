@@ -19,6 +19,11 @@ export interface VoicePanelReady {
   textPlanSha256: string;
   transformationCount: number;
   spokenText: string;
+  /** WS-R168. True only when the server actually shaped this clip from the
+   *  owner's current vibe (`apply_vibe: true` was sent AND accepted) — never
+   *  inferred from whether the request asked for it, since a server that
+   *  predates this workstream would silently ignore the field. */
+  vibeApplied: boolean;
 }
 
 export interface VoicePanelPending {
@@ -111,6 +116,11 @@ export async function requestVoicePanelPreview(token: string, input: {
   /** Omit for the ordinary semantic intent. A UUID means the owner explicitly
    *  asked for another take, and must be reused unchanged by every poll. */
   regenerationKey?: string;
+  /** WS-R168 (EmotionOS in the voice, no migration). "Hear the vibe" —
+   *  an explicit owner opt-in, never a default; the server degrades to no
+   *  styling at all when the owner has never set a vibe
+   *  (`api/_voice/prosody.js`'s own neutral plan). */
+  applyVibe?: boolean;
 }): Promise<VoicePanelOutcome> {
   const response = await fetch("/api/voice-preview", {
     method: "POST",
@@ -122,6 +132,7 @@ export async function requestVoicePanelPreview(token: string, input: {
       text: input.text,
       language_id: input.languageId,
       ...(input.regenerationKey ? { regeneration_key: input.regenerationKey } : {}),
+      ...(input.applyVibe ? { apply_vibe: true } : {}),
     }),
     // One admitted allocation owns readiness and synthesis. Do not abandon it
     // after the legacy90s socket window and silently start another GPU attempt.
@@ -173,7 +184,10 @@ export async function requestVoicePanelPreview(token: string, input: {
       transformationCount < 0 || !spokenText) {
     throw new Error("Protected preview receipt was incomplete");
   }
-  return { kind: "ready", audio, intentId, reused, generationId, modelCommitment, textPlanSha256, transformationCount, spokenText };
+  // WS-R168: honest, not inferred — "false" whenever the request never set
+  // `apply_vibe`, the SAME server-side default `preview-panel.js` takes.
+  const vibeApplied = response.headers.get("x-vyakti-voice-prosody-applied") === "true";
+  return { kind: "ready", audio, intentId, reused, generationId, modelCommitment, textPlanSha256, transformationCount, spokenText, vibeApplied };
 }
 
 export async function getVoicePanelStatus(token: string): Promise<VoicePanelStatus> {

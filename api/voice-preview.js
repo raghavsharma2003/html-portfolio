@@ -28,6 +28,7 @@ import { createProductionProtectionAdapters } from "./_provenance/registry.js";
 import { protectReplicaStream } from "./_provenance/delivery.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
 import { handleVoicePreviewPanel } from "./_voice/preview-panel.js";
+import { getReplicaVibe } from "./_replica-vibe.js";
 import { markVoicePreviewResultDeleted } from "./_voice-preview-result-cleanup.js";
 import { voiceWarmth } from "./_voice/warmup.js";
 import {
@@ -121,6 +122,14 @@ export default async function handler(req, res) {
       traceId: `panel_${randomUUID().replaceAll("-", "")}`,
       signal: aborter.signal,
       get provider() { return provider ||= createOpenChatterboxPreviewProvider({ allocation: allocation() }); },
+      // WS-R168: "hear the vibe" — pre-bound to THIS verified owner, never
+      // to a replica id the caller merely claimed; `beginOwnedVoicePreview`
+      // is still the only place ownership of `replica_id` is actually
+      // checked, so a mismatched id here simply reads nothing rather than
+      // creating a second ownership check that could disagree with the
+      // first. `.catch(() => null)` — a vibe read is a rendering nicety,
+      // never a reason a preview should fail closed.
+      getVibe: (replicaId) => getReplicaVibe(q, user.id, replicaId).catch(() => null),
       prepare: () => {
         // Constructors validate local configuration only. Resolve both before
         // any broker readiness request can wake the GPU for unusable audio.

@@ -43,6 +43,7 @@ import { handleVoicePreviewPanel as realHandleVoicePreviewPanel, isRetryableVoic
 import { beginOwnedVoicePreview } from "../api/_replica-voice-preview.js";
 import { VOICE_PCM_FORMAT } from "../api/_voice/contracts.js";
 import { buildVoiceTextPlan, voiceTextPlanAudit } from "../api/_voice/hindi-text-frontend.js";
+import { buildProsodyPlan } from "../api/_voice/prosody.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ORIGIN = "https://broker.example.invalid";
@@ -310,6 +311,10 @@ function harness(options = {}) {
       state.expired += 1;
       return started.intent?.result || null;
     },
+    // WS-R168: absent by default (the pre-existing shape every section
+    // above this one already exercises); a case that wants "hear the vibe"
+    // passes its own `getVibe` through `options`.
+    getVibe: options.getVibe,
   };
   return { clock, deps, state, provider, db, warmth };
 }
@@ -797,6 +802,128 @@ section("disclosure and watermark");
   // The activation gate is a separate lane and this one may not touch it.
   check("the panel does not touch the activation gate",
     !/activat/i.test(panel) && !/can_activate|vy_replica_activation/.test(panel) && !/activat/i.test(route));
+}
+
+// ── 8b. "hear the vibe" (WS-R168, EmotionOS in the voice) ───────────────────
+
+section("hear the vibe (WS-R168)");
+{
+  // NEGATIVE CONTROL: `apply_vibe` absent (the default, and the shape every
+  // section above this one already exercises unchanged) — never applied,
+  // whatever `getVibe` would have returned.
+  let offGetVibeCalls = 0;
+  const off = harness({ getVibe: async () => { offGetVibeCalls += 1; return { warmth: 4, energy: 4, humour: 4, directness: 4, formality: 0 }; } });
+  off.warmth.note(ORIGIN, "ready", off.clock.t);
+  const noVibe = await handleVoicePreviewPanel({ ...PREVIEW }, off.deps);
+  check("apply_vibe absent: audio, and the panel never even asked getVibe",
+    noVibe.kind === "audio" && offGetVibeCalls === 0);
+  check("apply_vibe absent: the prosody header says false",
+    noVibe.headers["X-Vyakti-Voice-Prosody-Applied"] === "false" && noVibe.headers["X-Vyakti-Voice-Prosody-Plan"] === "");
+  check("apply_vibe absent: the provider's own style is untouched (no exaggeration/cfg/temperature drift)",
+    off.provider.calls[0].style.exaggeration === 0.5 && off.provider.calls[0].style.cfgWeight === 0.5 && off.provider.calls[0].style.temperature === 0.8);
+
+  // NEGATIVE CONTROL: `apply_vibe: true` but the owner never set one
+  // (`getVibe` resolves `null`, exactly like `getReplicaVibe`'s own "no
+  // vibe yet" return) — the neutral plan, not a different "absent" shape.
+  const noneSet = harness({ getVibe: async () => null });
+  noneSet.warmth.note(ORIGIN, "ready", noneSet.clock.t);
+  const neutral = await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, noneSet.deps);
+  check("apply_vibe true, no vibe set: still audio", neutral.kind === "audio");
+  // PREVIEW's own `language_id` is "hi" — the neutral plan for "hi" carries
+  // a different `planSha256` than `NEUTRAL_PROSODY_PLAN` (which is fixed to
+  // "en" by construction, see its own comment in `prosody.js`), never
+  // because a single dial differs.
+  const neutralHi = buildProsodyPlan({ vibe: null, register: null, languageId: "hi" });
+  check("apply_vibe true, no vibe set: the header names the SAME sha a fresh neutral plan for this language carries",
+    neutral.headers["X-Vyakti-Voice-Prosody-Applied"] === "true" &&
+    neutral.headers["X-Vyakti-Voice-Prosody-Plan"] === neutralHi.planSha256);
+  check("apply_vibe true, no vibe set: the provider's style is unchanged (ZERO_STYLE_DELTA)",
+    noneSet.provider.calls[0].style.exaggeration === 0.5 && noneSet.provider.calls[0].style.cfgWeight === 0.5 && noneSet.provider.calls[0].style.temperature === 0.8);
+  check("apply_vibe true, no vibe set: no extra pause glyph in the spoken text (medium band, single sentence anyway)",
+    !decodeURIComponent(neutral.headers["X-Vyakti-Spoken-Text"]).includes("…"));
+
+  // POSITIVE: a real, high-energy vibe reaches the PROVIDER's own fields.
+  const highEnergy = { warmth: 4, energy: 4, humour: 3, directness: 2, formality: 0 };
+  const on = harness({ getVibe: async (replicaId) => { check("getVibe is called with the body's own replica_id", replicaId === REPLICA); return highEnergy; } });
+  on.warmth.note(ORIGIN, "ready", on.clock.t);
+  const vibed = await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, on.deps);
+  const expectedPlan = buildProsodyPlan({ vibe: highEnergy, register: null, languageId: "hi" });
+  check("POSITIVE: audio, with the prosody header naming the SAME plan this test computed independently",
+    vibed.kind === "audio" && vibed.headers["X-Vyakti-Voice-Prosody-Plan"] === expectedPlan.planSha256);
+  check("POSITIVE: the provider's style actually moved off the base preset",
+    on.provider.calls[0].style.exaggeration !== 0.5 || on.provider.calls[0].style.cfgWeight !== 0.5);
+  check("POSITIVE: the style is still inside the provider's own validated ranges",
+    on.provider.calls[0].style.exaggeration >= 0 && on.provider.calls[0].style.exaggeration <= 1.5 &&
+    on.provider.calls[0].style.cfgWeight >= 0 && on.provider.calls[0].style.cfgWeight <= 1 &&
+    on.provider.calls[0].style.temperature >= 0.2 && on.provider.calls[0].style.temperature <= 1.5);
+
+  // POSITIVE: a multi-sentence text with a SLOW plan carries the pause
+  // glyph between sentences, and the disclosure/watermark checks (section
+  // 8, above) still pass on it — the plan never breaks the one invariant
+  // this whole file exists to hold.
+  const lowEnergy = { warmth: 0, energy: 0, humour: 0, directness: 0, formality: 4 };
+  const slow = harness({ getVibe: async () => lowEnergy });
+  slow.warmth.note(ORIGIN, "ready", slow.clock.t);
+  const slowResult = await handleVoicePreviewPanel(
+    { ...PREVIEW, text: "Suno na. Kal wali baat sach thi. Main bhi wahi soch raha tha.", apply_vibe: true },
+    slow.deps,
+  );
+  check("POSITIVE: a slow plan on a multi-sentence text inserts the pause glyph, and still becomes audio",
+    slowResult.kind === "audio" && decodeURIComponent(slowResult.headers["X-Vyakti-Spoken-Text"]).includes("…"));
+
+  // NEGATIVE CONTROL: the disclosure/watermark invariant (section 8) holds
+  // even with `apply_vibe: true` — a vibe-modified text with NO disclosure
+  // still never becomes audio.
+  const nakedVibed = harness({ provider: fakeProvider({ skipDisclosure: true }), getVibe: async () => highEnergy });
+  nakedVibed.warmth.note(ORIGIN, "ready", nakedVibed.clock.t);
+  const refusedVibed = await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, nakedVibed.deps);
+  check("NEGATIVE CONTROL: apply_vibe never bypasses the disclosure check",
+    refusedVibed.kind === "json" && refusedVibed.status === 500);
+
+  // THE CACHE-BUST PROOF. `beginOwnedVoicePreview`'s own durable dedup key
+  // (`api/_replica-voice-preview.js`) is built from `text_hash` and the
+  // RESOLVED style PRESET object, which never itself carries the vibe
+  // delta — so a plain-text, same-everything-else request that differs
+  // ONLY by `apply_vibe` must still reach the database with a DIFFERENT
+  // `regeneration_key`, or two toggled requests for the identical text
+  // would durably collide on the same sealed row. `params[17]` is the
+  // exact positional index `fakeDb`'s own `row.regeneration_key =
+  // params[17]` assignment (above) already names for this statement.
+  const regenParamOf = (calls) => {
+    const insert = [...calls].reverse().find((c) => c.sql.includes("vy_replica_voice_preview_intent") && c.sql.includes("insert into"));
+    return insert ? insert.params[17] : undefined;
+  };
+  const plainRun = harness();
+  plainRun.warmth.note(ORIGIN, "ready", plainRun.clock.t);
+  await handleVoicePreviewPanel({ ...PREVIEW }, plainRun.deps);
+  const plainRegen = regenParamOf(plainRun.db.calls);
+
+  const vibedRun = harness({ getVibe: async () => highEnergy });
+  vibedRun.warmth.note(ORIGIN, "ready", vibedRun.clock.t);
+  await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, vibedRun.deps);
+  const vibedRegen = regenParamOf(vibedRun.db.calls);
+
+  const vibedRunAgain = harness({ getVibe: async () => highEnergy });
+  vibedRunAgain.warmth.note(ORIGIN, "ready", vibedRunAgain.clock.t);
+  await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, vibedRunAgain.deps);
+  const vibedRegenAgain = regenParamOf(vibedRunAgain.db.calls);
+
+  const vibedRunDifferent = harness({ getVibe: async () => lowEnergy });
+  vibedRunDifferent.warmth.note(ORIGIN, "ready", vibedRunDifferent.clock.t);
+  await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, vibedRunDifferent.deps);
+  const vibedRegenDifferent = regenParamOf(vibedRunDifferent.db.calls);
+
+  check("apply_vibe on vs off, SAME text: the durable regeneration_key differs (no silent cache collision)",
+    typeof plainRegen === "string" && typeof vibedRegen === "string" && plainRegen !== vibedRegen,
+    `plain=${JSON.stringify(plainRegen)} vibed=${JSON.stringify(vibedRegen)}`);
+  check("apply_vibe on, SAME vibe, two separate requests: the SAME regeneration_key (legitimate replay still works)",
+    vibedRegen === vibedRegenAgain);
+  check("apply_vibe on, a DIFFERENT vibe: a DIFFERENT regeneration_key",
+    vibedRegen !== vibedRegenDifferent);
+  check("apply_vibe off: no explicit/derived regeneration_key at all (the pre-existing, unchanged shape)",
+    plainRegen === "");
+  check("every VIBE-derived regeneration_key satisfies the real TRACE format (8-96 of [A-Za-z0-9_-])",
+    /^[A-Za-z0-9_-]{8,96}$/.test(vibedRegen || "") && /^[A-Za-z0-9_-]{8,96}$/.test(vibedRegenDifferent || ""));
 }
 
 // ── 9. the route's identity boundary ────────────────────────────────────────

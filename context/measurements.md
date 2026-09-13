@@ -18193,3 +18193,36 @@ Method: each workstream's own report (suite counts as printed by its suites), th
 | WS-R153 EmotionOS, vibe and register (164) | e41589a | emotionos 37 (60 of 60 labelled turns), room-doors 2305, incidents, ops, lanes |
 
 Full gate on the batch: seven merges 24 of 24 after the four repairs; nine merges 24 of 24 (5d68438, CI green on both workflows); eleven merges 24 of 24 (e41589a). Live database after the wave: migrations 163, 164 and 166 applied one statement per request (3 + 3 + 3 statements, 0 failures), 207 `vy_` tables; 165 unused (WS-R154 needed no schema change).
+
+## `ws-r168-prosody-timing-table` (2026-09-13, WS-R168)
+
+Method: `node evals/prosody/run.mjs`, section 3 and section 6. For each of the 60 fixture lines (20 English, 20 Hindi/Devanagari, 20 Hinglish, `evals/prosody/fixtures.mjs`), three prosody plans were built with `api/_voice/prosody.js#buildProsodyPlan` — "fast" (vibe `{warmth:4,energy:4,humour:3,directness:3,formality:0}`, register `{excited, high}`), "medium" (the neutral plan: no vibe, no register), "slow" (vibe `{warmth:0,energy:0,humour:0,directness:0,formality:4}`, register `{flat, high}`) — and each line's spoken duration was measured with `estimateProsodyTimingMs`, this workstream's own deterministic, offline "fake waveform" timing proxy (NOT the billing estimator; `api/_room-voice.js`'s `estimateClipSeconds` is untouched and reads nothing from this file). $0, no DB, no network, no model call, no GPU.
+
+Per-language means (ms), n=20 each:
+
+| language | fast (excited+high-energy) | medium (neutral) | slow (flat+low-energy) | slow/fast ratio |
+|---|---|---|---|---|
+| en | 1213 | 1661 | 2306 | 1.90 |
+| hi (Devanagari) | 1051 | 1450 | 2020 | 1.92 |
+| hi-Latn (Hinglish) | 1224 | 1671 | 2317 | 1.89 |
+
+Overall means across all 60 lines: fast 1163 ms, medium 1594 ms, slow 2214 ms. The strict ordering (fast < medium < slow) held on every one of the 60 individual lines, not merely in aggregate (`evals/prosody/run.mjs` section 3's own per-line assertion). The ratio is stable across all three languages (1.89-1.92), which is expected rather than measured-and-surprising: `estimateProsodyTimingMs`'s own per-character millisecond constants (`MS_PER_CHAR_BY_RATE`) are language-independent by construction, so the ratio is a restatement of the authored constants, not a discovery about spoken Hindi vs spoken English — the LINE-BY-LINE strict ordering is the actual proof the plan moves the timing; the ratio table is reported for completeness, not as an acoustic claim.
+
+This is a proxy measurement, not an acoustic one — see `api/_voice/prosody.js`'s own header on `estimateProsodyTimingMs` for the honesty-scope boundary. It cannot be compared against a REAL synthesis latency number; a future workstream with Azure/Chatterbox synthesis budget could measure real clip durations under the same three plans and this table would then be the offline prediction to check against, not a substitute for that measurement.
+
+## `ws-r168-touched-suite-results-2026-09-13`
+
+Method: each suite run directly (`node evals/<suite>/run.mjs` or `node evals/<file>.mjs`), offline, $0, no live DB. Date 2026-09-13.
+
+| suite | result |
+|---|---|
+| `evals/prosody/run.mjs` (new) | 20 of 20 |
+| `evals/room-speak-plan/run.mjs` (extended, section 5) | 125 of 125 |
+| `evals/voicepanel.mjs` (extended, "hear the vibe" section) | 153 of 153 |
+| `evals/room-doors/run.mjs` (full battery, unchanged shape) | 2333 of 2333 |
+| `evals/room-leak/run.mjs` | 363 of 363 |
+| `evals/room-export/run.mjs` | 48 of 48 |
+| `evals/emotionos/run.mjs` (unchanged, confirms no regression) | 37 of 37 |
+| `scripts/check-copy.mjs` | 7 scopes clean, 21 negative controls bit |
+| `npx tsc -b --force` | clean |
+| `npx vite build` | clean |
