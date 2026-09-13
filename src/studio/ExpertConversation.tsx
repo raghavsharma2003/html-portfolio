@@ -1,7 +1,10 @@
 import PrivateConversationSources from "./PrivateConversationSources";
 import PrivateSelectionRecovery from './PrivateSelectionRecovery';
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createDialogueTurn, fetchProtectedTurnVoice, readDialogueHistory, openDialogueSession } from "./dialogueApi";
+import { createDialogueTurn, fetchProtectedTurnVoice, readDialogueHistory, openDialogueSession,
+  readMeetMemoryStatus, setMeetMemoryOn, readMeetMemoryFacts, correctMeetMemoryFact, forgetMeetMemoryFact,
+  readMeetRelState, resetMeetRelState } from "./dialogueApi";
+import type { MeetMemoryFact, MeetRelState } from "./dialogueApi";
 import { readRuntimeStatus } from "./runtimeApi";
 import { ReplicaApiError } from "./replicaApi";
 import TurnFeedback from "./TurnFeedback";
@@ -55,6 +58,17 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   const [uncertain, setUncertain] = useState(false);
   const [needsNewSession, setNeedsNewSession] = useState(false);
   const [canReplaceMissingHistory,setCanReplaceMissingHistory]=useState(false);
+  // WS-R167: "It remembers" — the owner's own continuity controls.
+  const memoryCopy = t.meetMemory;
+  const [memoryOn, setMemoryOn] = useState<boolean | null>(null);
+  const [memoryBusy, setMemoryBusy] = useState(false);
+  const [memoryFacts, setMemoryFacts] = useState<MeetMemoryFact[]>([]);
+  const [memoryError, setMemoryError] = useState("");
+  const [correctingFactId, setCorrectingFactId] = useState("");
+  const [correctionDraft, setCorrectionDraft] = useState("");
+  const [relState, setRelState] = useState<MeetRelState | null>(null);
+  const [startingFresh, setStartingFresh] = useState(false);
+  const [startFreshNotice, setStartFreshNotice] = useState("");
   const scope = `${token}:${replicaId}`;
   const latestScope = useRef(scope); latestScope.current = scope;
   const epoch = useRef(0);
@@ -178,6 +192,87 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   const voiceReady = runtime?.replica_id === replicaId && runtime.active === true;
   const textOnlyReady = runtime?.replica_id === replicaId && !voiceReady && runtime.text_ready === true;
   const runtimeActive = runtime?.replica_id === replicaId && (runtime.active === true || runtime.text_ready === true) && !stopped && !checking && !readUnavailable;
+
+  // WS-R167: load the owner's own memory status/facts/relationship state
+  // once the conversation is reachable at all - never before, since these
+  // doors require an active self-mode runtime the same way every other
+  // door on this screen already does.
+  const loadMemory = useCallback(async (currentScope: () => boolean) => {
+    if (!latestScope.current || latestScope.current !== scope) return;
+    try {
+      const on = await readMeetMemoryStatus(token, replicaId);
+      if (!currentScope()) return;
+      setMemoryOn(on);
+      setMemoryError("");
+      if (on) {
+        const [facts, state] = await Promise.all([readMeetMemoryFacts(token, replicaId), readMeetRelState(token, replicaId)]);
+        if (!currentScope()) return;
+        setMemoryFacts(facts);
+        setRelState(state);
+      } else {
+        setMemoryFacts([]);
+        setRelState(null);
+      }
+    } catch (cause) {
+      if (!currentScope()) return;
+      setMemoryError(memoryCopy.errorStatusUnavailable);
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+    }
+  }, [token, replicaId, scope, memoryCopy, onAuthError]);
+  useEffect(() => {
+    const requestEpoch = epoch.current;
+    if (runtimeActive) void loadMemory(() => requestEpoch === epoch.current && latestScope.current === scope);
+  }, [runtimeActive, loadMemory, scope]);
+
+  async function toggleMemory() {
+    if (memoryOn === null || memoryBusy) return;
+    setMemoryBusy(true); setMemoryError("");
+    try {
+      const next = await setMeetMemoryOn(token, replicaId, !memoryOn);
+      setMemoryOn(next);
+      if (!next) { setMemoryFacts([]); setRelState(null); }
+      else { const [facts, state] = await Promise.all([readMeetMemoryFacts(token, replicaId), readMeetRelState(token, replicaId)]); setMemoryFacts(facts); setRelState(state); }
+    } catch (cause) {
+      setMemoryError(memoryCopy.errorToggleFailed);
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+    } finally { setMemoryBusy(false); }
+  }
+  function beginCorrection(fact: MeetMemoryFact) { setCorrectingFactId(fact.id); setCorrectionDraft(fact.body); }
+  async function saveCorrection() {
+    if (!correctingFactId || !correctionDraft.trim() || memoryBusy) return;
+    setMemoryBusy(true); setMemoryError("");
+    try {
+      const updated = await correctMeetMemoryFact(token, replicaId, correctingFactId, correctionDraft.trim());
+      setMemoryFacts((current) => current.map((f) => (f.id === correctingFactId ? { ...f, body: updated.body, communication_classification: updated.communication_classification } : f)));
+      setCorrectingFactId(""); setCorrectionDraft("");
+    } catch (cause) {
+      setMemoryError(memoryCopy.errorCorrectFailed);
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+    } finally { setMemoryBusy(false); }
+  }
+  async function forgetFact(factId: string) {
+    if (memoryBusy) return;
+    setMemoryBusy(true); setMemoryError("");
+    try {
+      await forgetMeetMemoryFact(token, replicaId, factId);
+      setMemoryFacts((current) => current.filter((f) => f.id !== factId));
+    } catch (cause) {
+      setMemoryError(memoryCopy.errorForgetFailed);
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+    } finally { setMemoryBusy(false); }
+  }
+  async function startFresh() {
+    if (startingFresh) return;
+    setStartingFresh(true); setStartFreshNotice("");
+    try {
+      const result = await resetMeetRelState(token, replicaId);
+      setStartFreshNotice(result.reset ? memoryCopy.startFreshDone : memoryCopy.startFreshNothingOpen);
+      if (result.reset) { const state = await readMeetRelState(token, replicaId); setRelState(state); }
+    } catch (cause) {
+      setStartFreshNotice(memoryCopy.errorToggleFailed);
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+    } finally { setStartingFresh(false); }
+  }
   const active = runtimeActive && historyReady && historyScope === scope && !historyPending && !unsettled && !uncertain && !opening && !needsNewSession;
   const lifecycleStopped = lifecycle === undefined ? stopped : ["paused", "revoked", "purging"].includes(lifecycle);
   const privateSelectionUnavailable = runtime?.private_selection === true && runtime.blockers?.includes('private_selection_unavailable');
@@ -297,6 +392,37 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       {historyError || (historyPending || unsettled ? copy.historyPendingNotice
         : copy.historyUnconfirmedNotice)}
     </p>}
+    {runtimeActive && memoryOn !== null && <section className="expert-conversation__memory" aria-label={memoryCopy.heading}>
+      <h2>{memoryCopy.heading}</h2>
+      <p>{memoryOn ? memoryCopy.onDescription : memoryCopy.offDescription}</p>
+      <button type="button" disabled={memoryBusy} onClick={() => void toggleMemory()}>{memoryOn ? memoryCopy.toggleOff : memoryCopy.toggleOn}</button>
+      {memoryError && <p role="alert">{memoryError}</p>}
+      {memoryOn && <>
+        <h3>{memoryCopy.factsHeading}</h3>
+        {!memoryFacts.length && <p>{memoryCopy.factsEmpty}</p>}
+        {memoryFacts.length > 0 && <ul className="expert-conversation__memory-facts">
+          {memoryFacts.map((fact) => <li key={fact.id}>
+            {correctingFactId === fact.id ? <div>
+              <label htmlFor={`meet-memory-correct-${fact.id}`}>{memoryCopy.correctPromptLabel}</label>
+              <textarea id={`meet-memory-correct-${fact.id}`} rows={2} maxLength={400} value={correctionDraft}
+                placeholder={memoryCopy.correctPlaceholder} onChange={(event) => setCorrectionDraft(event.target.value)} />
+              <button type="button" disabled={memoryBusy || !correctionDraft.trim()} onClick={() => void saveCorrection()}>{memoryCopy.correctSave}</button>
+              <button type="button" onClick={() => { setCorrectingFactId(""); setCorrectionDraft(""); }}>{memoryCopy.correctCancel}</button>
+            </div> : <>
+              <p>{fact.body}</p>
+              <div className="expert-conversation__actions">
+                <button type="button" disabled={memoryBusy} onClick={() => beginCorrection(fact)}>{memoryCopy.correctAction}</button>
+                <button type="button" disabled={memoryBusy} onClick={() => void forgetFact(fact.id)}>{memoryCopy.forgetAction}</button>
+              </div>
+            </>}
+          </li>)}
+        </ul>}
+        <h3>{memoryCopy.howWeAreHeading}</h3>
+        <button type="button" disabled={startingFresh} onClick={() => void startFresh()}>{memoryCopy.startFreshAction}</button>
+        {startFreshNotice && <p role="status">{startFreshNotice}</p>}
+        {relState?.has_state === false && <p>{memoryCopy.startFreshNothingOpen}</p>}
+      </>}
+    </section>}
     <div className="expert-conversation__thread" aria-label="Conversation">
       {!scopedExchanges.length && active && <div className="expert-conversation__empty"><h2>{copy.emptyHeading}</h2><p>{copy.emptyBody}</p><button type="button" onClick={() => { setDraft(copy.emptyStarterQuestion); input.current?.focus(); }}>{copy.emptyStarterButton}</button></div>}
       {scopedExchanges.map(({ question, answer }) => <div className="expert-exchange" key={answer.turn_id}>

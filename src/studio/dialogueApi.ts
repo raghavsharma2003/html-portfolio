@@ -79,6 +79,90 @@ export async function fetchProtectedTurnVoice(token: string, replicaId: string, 
   return response.blob();
 }
 
+// WS-R167: the owner's own continuity in Meet. Same op names and response
+// shapes api/room.js already exposes for a Room follower, over the owner's
+// own dyad. Every function here validates the server's own answer shape
+// before returning it, the same discipline readDialogueHistory above uses.
+
+export type MeetMemoryFact = {
+  id: string;
+  body: string;
+  kind: "user" | "relationship";
+  name: string;
+  created_at: string;
+  communication_classification: string;
+};
+
+export type MeetRelState = {
+  has_state: boolean;
+  memory_on: boolean;
+  honorific?: string;
+  trust?: number;
+  rupture_open?: boolean;
+  repair_state?: string;
+  last_honorific_move_at?: string | null;
+  last_rupture_move_at?: string | null;
+  warm_episodes_since_rupture?: number;
+};
+
+function invalidMemory(): never { throw new ReplicaApiError("Memory could not be verified", 502, {}); }
+
+export async function readMeetMemoryStatus(token: string, replicaId: string): Promise<boolean> {
+  const data = await replicaRequest<{ memory_on: boolean }>(token, "/api/replica-dialogue", {
+    method: "POST", body: JSON.stringify({ op: "memory_status", replica_id: replicaId }),
+  });
+  if (typeof data.memory_on !== "boolean") invalidMemory();
+  return data.memory_on;
+}
+
+export async function setMeetMemoryOn(token: string, replicaId: string, on: boolean): Promise<boolean> {
+  const data = await replicaRequest<{ memory_on: boolean }>(token, "/api/replica-dialogue", {
+    method: "POST", body: JSON.stringify({ op: "memory_toggle", replica_id: replicaId, on }),
+  });
+  if (typeof data.memory_on !== "boolean") invalidMemory();
+  return data.memory_on;
+}
+
+export async function readMeetMemoryFacts(token: string, replicaId: string): Promise<MeetMemoryFact[]> {
+  const data = await replicaRequest<{ facts: MeetMemoryFact[] }>(token, "/api/replica-dialogue", {
+    method: "POST", body: JSON.stringify({ op: "memory_facts", replica_id: replicaId }),
+  });
+  if (!Array.isArray(data.facts)) invalidMemory();
+  for (const f of data.facts) if (!f || typeof f.id !== "string" || typeof f.body !== "string") invalidMemory();
+  return data.facts;
+}
+
+export async function correctMeetMemoryFact(token: string, replicaId: string, factId: string, replacement: string): Promise<MeetMemoryFact> {
+  const data = await replicaRequest<{ fact: { id: string; body: string }; communication_classification: string }>(token, "/api/replica-dialogue", {
+    method: "POST", body: JSON.stringify({ op: "memory_correct", replica_id: replicaId, fact_id: factId, replacement }),
+  });
+  if (!data.fact || typeof data.fact.id !== "string" || typeof data.fact.body !== "string") invalidMemory();
+  return { id: data.fact.id, body: data.fact.body, kind: "user", name: "", created_at: new Date().toISOString(), communication_classification: data.communication_classification };
+}
+
+export async function forgetMeetMemoryFact(token: string, replicaId: string, factId: string): Promise<void> {
+  const data = await replicaRequest<{ forgotten: boolean }>(token, "/api/replica-dialogue", {
+    method: "POST", body: JSON.stringify({ op: "memory_forget", replica_id: replicaId, fact_id: factId }),
+  });
+  if (data.forgotten !== true) invalidMemory();
+}
+
+export async function readMeetRelState(token: string, replicaId: string): Promise<MeetRelState> {
+  const data = await replicaRequest<MeetRelState>(token, "/api/replica-dialogue", {
+    method: "POST", body: JSON.stringify({ op: "relstate", replica_id: replicaId }),
+  });
+  if (typeof data.has_state !== "boolean" || typeof data.memory_on !== "boolean") invalidMemory();
+  return data;
+}
+
+export async function resetMeetRelState(token: string, replicaId: string): Promise<{ reset: boolean; reason?: string }> {
+  const data = await replicaRequest<{ reset: boolean; reason?: string }>(token, "/api/replica-dialogue", {
+    method: "POST", body: JSON.stringify({ op: "relstate_reset", replica_id: replicaId }),
+  });
+  if (typeof data.reset !== "boolean") invalidMemory();
+  return data;
+}
+
 export async function readPrivateConversationSources(token:string, replicaId:string, turnId:string, signal?:AbortSignal):Promise<PrivateConversationSource[]> {
   const data=await replicaRequest<{sources:PrivateConversationSource[]}>(token,"/api/replica-dialogue",{
     method:"POST",signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000),

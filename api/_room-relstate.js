@@ -294,7 +294,18 @@ export async function roomRelStateResetFromFollower(db, follower) {
  * already use, restated in `evals/room-leak/world.mjs`'s own `TABLE_ROLES`
  * comment for this table.
  */
+/** The SAME bucket rule the aggregate SQL below computes server-side,
+ *  restated in JS ONLY for the one owner-exclusion row (never for a whole
+ *  result set — see the function's own header on why). Kept byte-parallel
+ *  to the SQL `case` on purpose; `evals/meet-continuity/run.mjs` proves the
+ *  two agree over the same inputs. */
 export async function roomRelStateStageCounts(db, { agentId }) {
+  // UNCHANGED from before WS-R167: `evals/room-leak/run.mjs`'s own layer 19
+  // forbids this ONE statement from naming `person_id` anywhere in its text
+  // at all (a maximally blunt, load-bearing safety property — "the
+  // aggregate statement binds agent_id ALONE"), so the owner-dyad exclusion
+  // below is deliberately NOT folded in here as a WHERE clause; see this
+  // function's own trailing comment for where it lives instead.
   const rows = await db(
     `select stage, count(*)::int as n from (
        select case
@@ -312,7 +323,49 @@ export async function roomRelStateStageCounts(db, { agentId }) {
      having count(*) >= 5`,
     [String(agentId)],
   );
-  return rows.map((r) => ({ stage: r.stage, n: Number(r.n) }));
+  const counts = rows.map((r) => ({ stage: r.stage, n: Number(r.n) }));
+
+  // WS-R167: since Meet now writes THIS SAME agent's relstate for the
+  // owner's own dyad with themselves, that one row is already counted
+  // inside `counts` above — the aggregate SQL has no way to know to
+  // exclude it (see the comment above). Reverse it here, in JS, with TWO
+  // separate, ordinary, per-dyad-parameterized statements — neither one
+  // is the aggregate the leak battery scans, and the second is the SAME
+  // WHERE-predicate shape (both columns, both ::uuid-cast) every other
+  // per-follower statement in this file already uses.
+  // WS-R167: Meet writes THIS SAME agent's relstate for the owner's own dyad
+  // with themselves, so that one row is already inside `counts`. Reverse it
+  // with one COUNT-shaped statement per bucket above the floor: the creator's
+  // lane never selects a row's own fields (evals/room-cohorts' "every
+  // statement selects only count()" control), the aggregate above stays
+  // untouched for the leak battery's layer 19 (it binds agent_id alone), and
+  // the owner's person id is resolved inside the statement from vy_replica
+  // rather than read out as a row. The CASE is the aggregate's own, restated,
+  // so the owner's dyad lands in the bucket the aggregate counted it in.
+  for (const bucket of [...counts]) {
+    const dyadRows = await db(
+      `select count(*)::int as n from vy_rel_state r
+        where r.agent_id = ($1)::uuid
+          and r.person_id = (select p.subject_person_id from vy_replica p where p.agent_id = ($1)::uuid limit 1)
+          and (case
+            when r.rupture_open then (case when r.trust < 0.45 then 'new' else 'warming' end)
+            when r.trust < 0.2 then 'new'
+            when r.trust < 0.45 then 'warming'
+            when r.trust < 0.7 then 'settled'
+            when r.trust < 0.88 then 'close'
+            else 'deep'
+          end) = ($2)::text`,
+      [String(agentId), bucket.stage],
+    );
+    if (Number(dyadRows[0]?.n) > 0) {
+      bucket.n -= 1;
+      // Never report fewer than the floor: dropping below 5 removes the
+      // bucket entirely, exactly as the SQL's own `having count(*) >= 5`
+      // already does for every other under-floor bucket.
+      if (bucket.n < 5) counts.splice(counts.indexOf(bucket), 1);
+    }
+  }
+  return counts;
 }
 
 // Re-exported so `evals/room-relstate/run.mjs` can assert the agent-id
@@ -321,3 +374,51 @@ export async function roomRelStateStageCounts(db, { agentId }) {
 // `api/memory.js`'s DM-side writers) without importing `_agentscope.js`
 // twice under two different names in the same suite.
 export { MEERA_AGENT_ID };
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE OWNER KEY (WS-R167): reusing `roomRelStateFromFollower` and
+// `roomRelStateResetFromFollower` above, UNCHANGED, for the owner's own
+// Meet conversation — they only ever read `follower.person_id`,
+// `follower.agent_id` and `follower.memory_consent_at`, no Room-specific
+// field, so a caller that builds the SAME SHAPE from the owner's own
+// replica and memory-consent state is a caller, not a fork.
+//
+// `personId`/`agentId` come from `runtime.replica` (already the validated,
+// server-derived identity `api/_replica-dialogue.js`'s own doors use for
+// every write — never trusted from the request), matching
+// `_replica-runtime.js`'s `loadPrivateRelationshipSnapshot` one file over,
+// which reads `vy_rel_state` by this SAME pair for Meet's existing
+// relationship-state prompt tail.
+//
+// `memoryConsentAt` is NOT a column here (there is no owner-side
+// `vy_room_follower` row) — it is the caller's own read of
+// `api/_room-memory-authority.js`'s `OWNER_MEMORY_CONSENT_STATUS_SQL`
+// (`memory_on`), turned into a timestamp-or-null the SAME truthy/falsy
+// shape `roomRelStateFromFollower`'s own `follower.memory_consent_at ==
+// null` check already expects — `new Date()` for "on" is sufficient because
+// neither function ever reads the exact instant, only whether it is null.
+export function ownerRelStateFollowerKey({ personId, agentId, memoryOn }) {
+  return {
+    person_id: String(personId),
+    agent_id: String(agentId),
+    memory_consent_at: memoryOn ? new Date() : null,
+  };
+}
+
+/** "How we are" for the owner's own Meet conversation. */
+export async function ownerRelStateFromReplica(db, { personId, agentId, memoryOn }) {
+  return roomRelStateFromFollower(db, ownerRelStateFollowerKey({ personId, agentId, memoryOn }));
+}
+
+/** "Start fresh" for the owner's own Meet conversation. Memory must be on —
+ *  `roomRelStateResetFromFollower`'s own caller-checks-consent contract,
+ *  restated here so `api/_replica-dialogue.js` never has to re-derive it. */
+export async function ownerRelStateResetFromReplica(db, { personId, agentId, memoryOn }) {
+  if (!memoryOn) {
+    const error = new Error("owner_memory_not_enabled");
+    error.code = "owner_memory_not_enabled";
+    error.status = 403;
+    throw error;
+  }
+  return roomRelStateResetFromFollower(db, ownerRelStateFollowerKey({ personId, agentId, memoryOn }));
+}

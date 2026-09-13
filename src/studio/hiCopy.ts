@@ -6,7 +6,7 @@
 // already-reviewed wording wherever this file's English matches it, adapting
 // only where this screen's own English differs (the nearline nearline-busy
 // states this file's English adds, and one extra extraction blocker key).
-import type { ExpertConversationCopy, ExpertSharePanelCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy } from "./copy";
+import type { ExpertConversationCopy, ExpertSharePanelCopy, MeetMemoryCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy } from "./copy";
 
 const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
   title: "अपने AI को एक ठिकाना दें।",
@@ -183,12 +183,42 @@ const HI_PERSON_MODEL_STUDIO: PersonModelStudioCopy = {
   errorExtractionCheckFailedRetryable: "नवीनतम स्थायी निष्कर्षण स्थिति जांची नहीं जा सकी। सर्वर पर काम अभी भी जारी हो सकता है; यह पेज दोबारा जुड़ने या रीलोड होने के बाद फिर कोशिश करेगा।",
 };
 
+// WS-R167 (own closed block, appended). "It remembers" — see
+// src/studio/copy.ts's MeetMemoryCopy for the full rationale.
+const HI_MEET_MEMORY: MeetMemoryCopy = {
+  heading: "यह याद रखता है",
+  onDescription: "आपका AI यहां जो कहते हैं उसे याद रखता है, ताकि जांचना हर बार नए सिरे से शुरू करने के बजाय एक चलती हुई बातचीत जैसा लगे।",
+  offDescription: "याददाश्त बंद है। हर बातचीत नए सिरे से शुरू होती है, और यहां जो कहा जाता है वह बाद में नहीं रखा जाता।",
+  toggleOn: "याददाश्त चालू करें",
+  toggleOff: "याददाश्त बंद करें",
+  factsHeading: "यह क्या याद रखता है",
+  factsEmpty: "अभी कुछ याद नहीं है।",
+  correctAction: "इसे सुधारें",
+  forgetAction: "इसे भुलाएं",
+  correctPromptLabel: "इसे बदले में क्या याद रखना चाहिए?",
+  correctPlaceholder: "इसे ठीक वैसे कहें जैसे आप चाहते हैं कि यह याद रहे",
+  correctSave: "सुधार सेव करें",
+  correctCancel: "रद्द करें",
+  classificationUnconfirmed: "अभी वर्गीकृत नहीं",
+  howWeAreHeading: "हम कैसे हैं",
+  startFreshAction: "नए सिरे से शुरू करें",
+  startFreshConfirm: "यह आपके और आपके AI के बीच अभी जो भी खुला है उसे बंद करता है, जो हुआ उसे मिटाए बिना।",
+  startFreshNothingOpen: "अभी कुछ भी खुला नहीं है।",
+  startFreshDone: "नए सिरे से शुरू हो गया।",
+  errorStatusUnavailable: "हम जांच नहीं सके कि याददाश्त चालू है या नहीं।",
+  errorToggleFailed: "यह सेव नहीं हो सका। फिर कोशिश करें।",
+  errorFactsUnavailable: "यह क्या याद रखता है, लोड नहीं हो सका।",
+  errorCorrectFailed: "वह सुधार सेव नहीं हुआ।",
+  errorForgetFailed: "अभी वह भुलाया नहीं जा सका।",
+};
+
 // `personalAuth` is deliberately absent here: `copy.ts#loadStudioCopy`
 // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
-// Hindi loader, so this file owns only the four sections named above.
+// Hindi loader, so this file owns only the sections named above.
 export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
   expertSharePanel: HI_EXPERT_SHARE_PANEL,
   quickVoiceCapture: HI_QUICK_VOICE_CAPTURE,
   expertConversation: HI_EXPERT_CONVERSATION,
   personModelStudio: HI_PERSON_MODEL_STUDIO,
+  meetMemory: HI_MEET_MEMORY,
 };

@@ -213,12 +213,45 @@ export interface PersonModelStudioCopy {
   errorExtractionCheckFailedRetryable: string;
 }
 
+// WS-R167 (own closed block, appended, never folded into
+// ExpertConversationCopy above): "It remembers" — the owner's own
+// continuity controls on the Meet screen, the same honest weight the
+// Room's account page gives a follower over their own remembered facts and
+// relationship state.
+export interface MeetMemoryCopy {
+  heading: string;
+  onDescription: string;
+  offDescription: string;
+  toggleOn: string;
+  toggleOff: string;
+  factsHeading: string;
+  factsEmpty: string;
+  correctAction: string;
+  forgetAction: string;
+  correctPromptLabel: string;
+  correctPlaceholder: string;
+  correctSave: string;
+  correctCancel: string;
+  classificationUnconfirmed: string;
+  howWeAreHeading: string;
+  startFreshAction: string;
+  startFreshConfirm: string;
+  startFreshNothingOpen: string;
+  startFreshDone: string;
+  errorStatusUnavailable: string;
+  errorToggleFailed: string;
+  errorFactsUnavailable: string;
+  errorCorrectFailed: string;
+  errorForgetFailed: string;
+}
+
 export interface StudioCopy {
   personalAuth: PersonalAuthCopy;
   expertSharePanel: ExpertSharePanelCopy;
   quickVoiceCapture: QuickVoiceCaptureCopy;
   expertConversation: ExpertConversationCopy;
   personModelStudio: PersonModelStudioCopy;
+  meetMemory: MeetMemoryCopy;
 }
 
 const EN_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
@@ -395,12 +428,41 @@ const EN_PERSON_MODEL_STUDIO: PersonModelStudioCopy = {
   errorExtractionCheckFailedRetryable: "The latest durable extraction status could not be checked. Server work may still be continuing; this page will try again after it reconnects or reloads.",
 };
 
+// WS-R167 (own closed block, appended after EN_EXPERT_CONVERSATION).
+const EN_MEET_MEMORY: MeetMemoryCopy = {
+  heading: "It remembers",
+  onDescription: "Your AI remembers what you tell it here, so testing feels like one continuing conversation instead of starting over every time.",
+  offDescription: "Memory is off. Each conversation starts fresh, and nothing you say here is kept afterward.",
+  toggleOn: "Turn memory on",
+  toggleOff: "Turn memory off",
+  factsHeading: "What it remembers",
+  factsEmpty: "Nothing remembered yet.",
+  correctAction: "Correct this",
+  forgetAction: "Forget this",
+  correctPromptLabel: "What should it remember instead?",
+  correctPlaceholder: "Say it exactly as you want it remembered",
+  correctSave: "Save correction",
+  correctCancel: "Cancel",
+  classificationUnconfirmed: "Not yet classified",
+  howWeAreHeading: "How we are",
+  startFreshAction: "Start fresh",
+  startFreshConfirm: "This closes anything currently open between you and your AI, without erasing what happened.",
+  startFreshNothingOpen: "Nothing is open right now.",
+  startFreshDone: "Started fresh.",
+  errorStatusUnavailable: "We could not check whether memory is on.",
+  errorToggleFailed: "That could not be saved. Try again.",
+  errorFactsUnavailable: "What it remembers could not be loaded.",
+  errorCorrectFailed: "That correction was not saved.",
+  errorForgetFailed: "That could not be forgotten right now.",
+};
+
 const EN_STUDIO_COPY: StudioCopy = {
   personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
   expertSharePanel: EN_EXPERT_SHARE_PANEL,
   quickVoiceCapture: EN_QUICK_VOICE_CAPTURE,
   expertConversation: EN_EXPERT_CONVERSATION,
   personModelStudio: EN_PERSON_MODEL_STUDIO,
+  meetMemory: EN_MEET_MEMORY,
 };
 
 // The Hindi table is its own chunk (WS-R71's shape). `STUDIO_COPY_TABLE.hi`

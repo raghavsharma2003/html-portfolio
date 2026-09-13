@@ -3305,6 +3305,11 @@ console.log("\n── layer 19: RelationOS in the Room (vy_rel_state/vy_rel_even
     ...Array.from({ length: 6 }, (_, i) => ({ agent_id: AGENT_A_19, trust: 0.95, rupture_open: false })),
     ...Array.from({ length: 3 }, (_, i) => ({ agent_id: AGENT_A_19, trust: 0.05, rupture_open: false })),
     ...Array.from({ length: 5 }, (_, i) => ({ agent_id: AGENT_B_19, trust: 0.05, rupture_open: false })),
+    // WS-R167: agent A's OWNER's own dyad row — a real `vy_rel_state` row
+    // like any other, at the SAME "deep" trust as the 6 real followers, so
+    // the raw aggregate (before exclusion) would over-count to 7 unless the
+    // exclusion below actually does something.
+    { agent_id: AGENT_A_19, trust: 0.95, rupture_open: false },
   ];
   const stageOf = (r) => {
     if (r.rupture_open) return r.trust < 0.45 ? "new" : "warming";
@@ -3314,24 +3319,59 @@ console.log("\n── layer 19: RelationOS in the Room (vy_rel_state/vy_rel_even
     if (r.trust < 0.88) return "close";
     return "deep";
   };
+  // WS-R167 addendum: agent A also carries ITS OWNER'S OWN dyad — Meet now
+  // writes this same agent's relstate for the owner's own conversation with
+  // their AI — as a 7th "deep" row that must NOT appear in agent A's own
+  // creator-facing count (a category error, `context/decisions.md
+  // #ws-r167-owner-stage-excluded-from-follower-aggregate`). No `person_id`
+  // reference was added to the aggregate SQL itself (this layer's own
+  // static check above forbids it unconditionally) — the exclusion is two
+  // SEPARATE, ordinary per-dyad statements `roomRelStateStageCounts` now
+  // also issues, matched below by shape rather than folded into the one
+  // aggregate `dbStage19` already asserted is aggregate-only.
+  const OWNER_PERSON_A_19 = "f9000000-0000-4000-8000-0000000000ow";
+  const REPLICA_A_19 = { agent_id: AGENT_A_19, subject_person_id: OWNER_PERSON_A_19 };
+  const ownerDyadRow19 = { person_id: OWNER_PERSON_A_19, agent_id: AGENT_A_19, trust: 0.95, rupture_open: false };
   const dbStage19 = async (sql, params = []) => {
-    if (!sql.includes("having count(*) >= 5")) throw new Error(`layer 19 stage-counts fake db: unmatched SQL: ${sql}`);
-    const agentId = String(params[0]);
-    const counts = {};
-    for (const r of stageWorld19) {
-      if (r.agent_id !== agentId) continue;
-      const s = stageOf(r);
-      counts[s] = (counts[s] || 0) + 1;
+    if (sql.includes("having count(*) >= 5")) {
+      const agentId = String(params[0]);
+      const counts = {};
+      for (const r of stageWorld19) {
+        if (r.agent_id !== agentId) continue;
+        const s = stageOf(r);
+        counts[s] = (counts[s] || 0) + 1;
+      }
+      return Object.entries(counts).filter(([, n]) => n >= 5).map(([stage, n]) => ({ stage, n }));
     }
-    return Object.entries(counts).filter(([, n]) => n >= 5).map(([stage, n]) => ({ stage, n }));
+    if (sql.includes("select count(*)::int as n from vy_rel_state r")) {
+      const [agentId, stage] = params.map(String);
+      return [{ n: REPLICA_A_19.agent_id === agentId && ownerDyadRow19.agent_id === agentId && stageOf(ownerDyadRow19) === stage ? 1 : 0 }];
+    }
+    throw new Error(`layer 19 stage-counts fake db: unmatched SQL: ${sql}`);
   };
   const countsA19 = await RELSTATE.roomRelStateStageCounts(dbStage19, { agentId: AGENT_A_19 });
   boundaryChecks++;
-  ok("layer 19 stage-counts: agent A's 6-strong \"deep\" bucket clears the n>=5 floor and is reported",
+  ok("layer 19 stage-counts: agent A's 6-strong \"deep\" bucket clears the n>=5 floor and is reported AT EXACTLY 6 (the raw row count is 7 — the 7th is the owner's own dyad, excluded)",
     countsA19.some((b) => b.stage === "deep" && b.n === 6));
   boundaryChecks++;
   ok("layer 19 stage-counts: agent A's 3-strong \"new\" bucket is UNDER the floor and is completely absent (never a rounded/partial number)",
     !countsA19.some((b) => b.stage === "new"));
+  boundaryChecks++;
+  ok("WS-R167: the owner's own dyad row never appears as its own bucket or inflates the count past the real 6 followers",
+    !countsA19.some((b) => b.stage === "deep" && b.n !== 6));
+  // NEGATIVE CONTROL: without the exclusion queries answering (simulating a
+  // replica lookup that finds nothing, as if the exclusion were removed),
+  // the SAME raw aggregate would report the owner's row too — proving the
+  // exclusion above is not vacuous.
+  const dbStage19NoExclusion = async (sql, params = []) => {
+    if (sql.includes("having count(*) >= 5")) return dbStage19(sql, params);
+    if (sql.includes("select count(*)::int as n from vy_rel_state r")) return [{ n: 0 }];
+    throw new Error(`unexpected: ${sql}`);
+  };
+  const countsA19Unexcluded = await RELSTATE.roomRelStateStageCounts(dbStage19NoExclusion, { agentId: AGENT_A_19 });
+  boundaryChecks++;
+  ok("NEGATIVE CONTROL: WITHOUT the owner lookup answering, the raw aggregate reports 7 — proving the exclusion above is the thing keeping it at 6",
+    countsA19Unexcluded.some((b) => b.stage === "deep" && b.n === 7));
   const countsB19 = await RELSTATE.roomRelStateStageCounts(dbStage19, { agentId: AGENT_B_19 });
   boundaryChecks++;
   ok("layer 19 stage-counts: agent B's OWN 5-strong \"new\" bucket clears the floor on ITS OWN count", countsB19.some((b) => b.stage === "new" && b.n === 5));

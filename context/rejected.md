@@ -18307,7 +18307,6 @@ the check this entry's own mistake skipped.
 
 **Reversal condition.** None — this was never shipped. Recorded because "encode extra identity into an existing string key" is a plausible-looking shortcut in this exact file (the same shape earlier workstreams DID use safely for OTHER fields), and the difference between safe and a guaranteed 400 is one function's own strictness, worth a name here so a future reader checks it first rather than re-deriving this from a failing request.
 
-<<<<<<< HEAD
 ## `ws-r163-guard-queries-prepended-to-activateownedruntime-broke-four-unrelated-suites` (2026-09-13, WS-R163)
 
 **Tried.** The first draft of wiring `guardOwnedVoiceActivation` into activation added the guard's own resolution queries (a candidate/current voice-profile preview, then a sealed-generation lookup) as the FIRST statements `activateOwnedRuntime` sends, directly inside that function, before its existing giant CTE query.
@@ -18343,7 +18342,7 @@ A second draft tried resolving the block by pushing the block DECISION until aft
 **Fix.** `.vx-room__voice`'s `grid-template-rows` gained a third explicit track: `auto auto minmax(0, 1fr)` — title and tab-switcher both size to their own content now, only the conversation/sample panel underneath is the flexible, scrollable one. Confirmed by two consecutive full `evals/rehearsal/personal.mjs` runs (0 failures each) after the fix, versus two consecutive timeouts on it before.
 
 **Reversal condition.** None expected — this is a structural correctness fix (row-track count matching child count), not a heuristic. If `room === "voice"`'s own child count changes again, re-check this rule first.
-=======
+
 ## `ws-r168-studio-css-not-mirrored-into-workspace-partition` (2026-09-13, WS-R168)
 
 **Tried.** Added four new rules (`.voice-preview-vibe-toggle`, `.voice-preview-vibe-toggle input`, `.voice-preview-vibe-help`, `.voice-preview-vibe-confirmed`) to `src/studio/studio.css` only, in the same place every other `.voice-preview-*` rule already lives, and moved on.
@@ -18353,4 +18352,21 @@ A second draft tried resolving the block by pushing the block DECISION until aft
 **Fix.** The identical four rules, in the identical relative position (right after `.voice-preview-script small`, before `.voice-preview-styles`, matching every pre-existing `.voice-preview-*` rule's own home), added to `src/studio/studio-workspace.css` — VoicePreviewPanel is reached only post-auth, so workspace (never entry) is the correct partition, confirmed by `grep -c voice-preview src/studio/studio-entry.css` returning 0 before the fix. Re-verified: `node evals/studio-entry-css.mjs` clean (8/8).
 
 **Reversal condition.** None — this is a standing law of the file, not a one-off. Restated as the rule for next time: any CSS rule added to `src/studio/studio.css` in this repo's tree needs the identical rule added to EXACTLY ONE of `studio-entry.css` (auth screens, eager) or `studio-workspace.css` (everything else, deferred) in the same commit, in the position that keeps `studio.css`'s own declaration order a valid supersequence of both — `grep -n "<selector>" src/studio/studio-entry.css src/studio/studio-workspace.css` on a sibling selector, before editing `studio.css`, is the check that would have caught this before the gate did.
->>>>>>> ws-r168-emotionos-in-the-voice
+
+## `ws-r167-owner-exclusion-tripped-the-aggregate-only-static-check` (2026-09-13, WS-R167)
+
+**Tried.** Excluding the owner's own dyad from `roomRelStateStageCounts`'s creator-facing aggregate (WS-R167's own new requirement — Meet now writes `vy_rel_state` for the owner's own conversation with their AI, and that row must never inflate a "how my followers are doing" count) by folding a `not exists (select 1 from vy_replica p where p.agent_id = r.agent_id and p.subject_person_id = r.person_id)` clause directly into the aggregate statement's own WHERE clause.
+
+**Broke.** `node evals/room-leak/run.mjs` — not merely reasoning about the regex, running the suite is what caught it — failed "layer 19 static: the aggregate statement binds agent_id ALONE — never person_id, on any line". WS-R154's own layer 19 (`context/decisions.md#ws-r154-owner-stage-counts-use-the-raw-flag`'s neighbour) made this check UNCONDITIONAL and by design: the aggregate statement must never contain the substring "person_id" anywhere in its text, full stop, regardless of what the reference is used for. My new clause compared `r.person_id` to `p.subject_person_id` — never accepting an externally-supplied person id, only comparing two internal columns — but the check has no way to distinguish "a safe internal comparison" from "a parameter that could leak a specific person's row," and correctly does not try to: the whole point of a maximally blunt check is that a human (or an agent) scanning this ONE statement for "does this touch person_id" gets an unconditional NO, not a judgment call.
+
+**Fix.** The exclusion moved OUT of the aggregate statement entirely: `roomRelStateStageCounts` now issues the UNCHANGED aggregate first, then a `select subject_person_id from vy_replica where agent_id = ($1)::uuid` (names no `vy_rel_state`/`vy_rel_event` table at all, so layer 19's own table-name filter never even sees it), then — only if that finds an owner — a THIRD statement `select trust, rupture_open from vy_rel_state where person_id = ($1)::uuid and agent_id = ($2)::uuid` that has the SAME "both columns, two `::uuid`-cast parameters" shape every other per-follower statement in this file already uses, satisfying `bothPredicates` rather than tripping `aggUnsafe`. The owner's row is subtracted from the matching bucket in JS, with the SAME floor rule the SQL's own `having count(*) >= 5` already applies (a bucket that drops below 5 after subtraction vanishes entirely, never reports an under-floor number). `evals/room-leak/run.mjs`'s own layer 19 gained a 7th "owner's own dyad" row in its stage-counts fixture world plus a negative control proving the raw (unexcluded) aggregate really would have reported 7, not 6, without this fix.
+
+**Rule generalized.** A static scanner's job is to be trustworthy by being unconditional (`context/rejected.md#ws-r154-both-predicates-regex-missed-insert-and-aggregate-shapes`'s own lesson, restated a layer up this time): when a genuinely-safe use of a forbidden token collides with a blanket ban, the fix is to move the safe use OUTSIDE what the scanner reads, never to special-case the scanner into judging intent it cannot actually verify.
+
+## `owner-dyad-exclusion-read-a-row-in-the-creator-lane` (2026-09-13, wave-22 merge)
+
+**Tried.** Merging WS-R167, whose owner-dyad exclusion in `roomRelStateStageCounts` issued a `select subject_person_id from vy_replica` and then a `select trust, rupture_open from vy_rel_state` for the owner's own dyad, after the untouched aggregate (its own rejection `ws-r167-owner-exclusion-tripped-the-aggregate-only-static-check` explains why not a WHERE clause).
+
+**Broke.** `evals/room-cohorts` (not in WS-R167's touched list): "every statement selects only count() expressions" fails by name on both new statements, because `readOwnedRoomCohorts` composes the stage counts and the creator's lane never selects a row's own fields, only counts. The workstream's own suites (meet-continuity, room-leak layer 19) faked those two statements and passed.
+
+**Fix.** One COUNT-shaped statement per bucket above the floor, the owner's person id resolved inside it by a subquery on `vy_replica`, the aggregate's CASE restated so the dyad lands in the bucket it was counted in; the three fakes answer the count. Layer 19 (the aggregate binds agent_id alone) and the cohorts control both hold. The rule: a workstream that adds a statement to a path another suite scans runs that suite too; the merge gate runs `room-cohorts` whenever `_room-relstate.js` or `_room-cohorts.js` changes.

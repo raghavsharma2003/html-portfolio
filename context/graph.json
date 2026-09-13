@@ -18762,6 +18762,48 @@
       "kind": "measurement",
       "title": "WS-R168 full verify-release.mjs: 21/24 clean, 2 documented port collisions, 1 eval-suite pool failure (studio-entry-css) found and fixed (2026-09-13)",
       "at": "context/measurements.md#ws-r168-full-gate-2026-09-13"
+    },
+    {
+      "id": "ws-r167-owner-memory-epoch-is-a-consent-window",
+      "kind": "decision",
+      "title": "The owner's Meet memory reuses the consent ledger as its epoch, no new column or trigger (2026-09-13, WS-R167)",
+      "at": "context/decisions.md#ws-r167-owner-memory-epoch-is-a-consent-window"
+    },
+    {
+      "id": "ws-r167-owner-memory-consolidation-left-unmetered",
+      "kind": "decision",
+      "title": "runOwnerMemoryConsolidation reuses runRoomMemoryConsolidation as a caller, left unwired to a live Azure sweep (2026-09-13, WS-R167)",
+      "at": "context/decisions.md#ws-r167-owner-memory-consolidation-left-unmetered"
+    },
+    {
+      "id": "ws-r167-owner-stage-excluded-from-follower-aggregate",
+      "kind": "decision",
+      "title": "The creator's follower stage-counts aggregate excludes the owner's own dyad via two separate statements, never a clause in the aggregate (2026-09-13, WS-R167)",
+      "at": "context/decisions.md#ws-r167-owner-stage-excluded-from-follower-aggregate"
+    },
+    {
+      "id": "ws-r167-owner-exclusion-tripped-the-aggregate-only-static-check",
+      "kind": "rejection",
+      "title": "Folding the owner exclusion into the aggregate SQL tripped room-leak's own person_id-forbidden static check (2026-09-13, WS-R167)",
+      "at": "context/rejected.md#ws-r167-owner-exclusion-tripped-the-aggregate-only-static-check"
+    },
+    {
+      "id": "ws-r167-meet-continuity-offline-proofs-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R167's own suite plus the four existing suites it touches or depends on, all offline, 2026-09-13",
+      "at": "context/measurements.md#ws-r167-meet-continuity-offline-proofs-2026-09-13"
+    },
+    {
+      "id": "meet-memory-owner-continuity",
+      "kind": "component",
+      "title": "The owner's own extracted memory and relationship state in Meet (api/_room-memory-authority.js's OWNER_MEMORY_* section, api/_room-relstate.js's owner key, api/_replica-dialogue.js's new door ops)",
+      "at": "api/_room-memory-authority.js"
+    },
+    {
+      "id": "owner-dyad-exclusion-read-a-row-in-the-creator-lane",
+      "kind": "rejection",
+      "title": "WS-R167's owner-dyad exclusion read a row in the creator lane; made count-shaped at the merge (2026-09-13)",
+      "at": "context/rejected.md#owner-dyad-exclusion-read-a-row-in-the-creator-lane"
     }
   ],
   "edges": [
@@ -31857,6 +31899,46 @@
       "src": "ws-r168-prosody-mapper",
       "dst": "ws-r168-full-gate-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r167-owner-memory-epoch-is-a-consent-window",
+      "dst": "meet-memory-owner-continuity",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r167-owner-memory-consolidation-left-unmetered",
+      "dst": "meet-memory-owner-continuity",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r167-owner-stage-excluded-from-follower-aggregate",
+      "dst": "meet-memory-owner-continuity",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r167-owner-stage-excluded-from-follower-aggregate",
+      "dst": "ws-r167-owner-exclusion-tripped-the-aggregate-only-static-check",
+      "rel": "caused_by"
+    },
+    {
+      "src": "meet-memory-owner-continuity",
+      "dst": "ws-r167-meet-continuity-offline-proofs-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "meet-memory-owner-continuity",
+      "dst": "ws-r154-no-migration-165",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r167-owner-memory-consolidation-left-unmetered",
+      "dst": "ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline",
+      "rel": "constrains"
+    },
+    {
+      "src": "owner-dyad-exclusion-read-a-row-in-the-creator-lane",
+      "dst": "wave-21-merge-gate-found-four-cross-workstream-breaks",
+      "rel": "caused_by"
     }
   ]
 }
