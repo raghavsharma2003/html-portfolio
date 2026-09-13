@@ -166,7 +166,9 @@ import { optIn as whatsappOptIn, stop as whatsappStop, status as whatsappStatus 
 import { createProductionProtectionAdapters } from "./_provenance/registry.js";
 import { protectReplicaStream } from "./_provenance/delivery.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
+import { applyStyleDelta, ZERO_STYLE_DELTA } from "./_voice/prosody.js";
 import { createNeonVoicePreviewLedger } from "./_replica-voice-preview.js";
+import { getReplicaVibe } from "./_replica-vibe.js";
 import { readPrivateReplicaObject } from "./_replica-storage.js";
 import { withDoor } from "./_incidents.js";
 import { buildReceiptHtml } from "./_receipt.js";
@@ -371,7 +373,17 @@ async function handler(req, res) {
         const roomVoiceDeps = {
           db: q,
           env: process.env,
-          synth: async ({ authorized, text: spoken }) => {
+          // WS-R168: the owner's own vibe, read exactly the way the studio's
+          // own owner-bearer door reads it (`getReplicaVibe`) — `roomSpeak`
+          // already checked room/replica ownership before this is ever
+          // called, so this is a plain read, never a second ownership
+          // check. `.catch(() => null)` is deliberate: a vibe row is a
+          // rendering nicety, never a reason a follower's voice clip should
+          // fail closed — the SAME posture `buildProsodyPlan` already takes
+          // for a missing/malformed vibe (falls back to the neutral plan).
+          getVibe: (ownerUserId, replicaId) =>
+            getReplicaVibe(q, ownerUserId, replicaId).catch(() => null),
+          synth: async ({ authorized, text: spoken, prosody }) => {
             const stored = await readPrivateReplicaObject(authorized.reference, {
               maxBytes: 20 * 1024 * 1024,
               timeoutMs: 30_000,
@@ -388,11 +400,20 @@ async function handler(req, res) {
                 languageMode: authorized.reference.languageMode,
                 languageEvidenceScope: authorized.reference.languageEvidenceScope,
               },
-              style: {
-                exaggeration: authorized.previewStyle.exaggeration,
-                cfgWeight: authorized.previewStyle.cfg_weight,
-                temperature: authorized.previewStyle.temperature,
-              },
+              // WS-R168: the vibe/register-driven plan expressed in THIS
+              // provider's own fields — a small, bounded delta on top of
+              // the replica's existing preview style, never a replacement
+              // of it. `prosody` is `null` only if `roomSpeak` itself never
+              // computed one (it always does today); `ZERO_STYLE_DELTA`
+              // keeps that branch byte-identical to the pre-WS-R168 call.
+              style: applyStyleDelta(
+                {
+                  exaggeration: authorized.previewStyle.exaggeration,
+                  cfgWeight: authorized.previewStyle.cfg_weight,
+                  temperature: authorized.previewStyle.temperature,
+                },
+                prosody?.styleDelta ?? ZERO_STYLE_DELTA,
+              ),
             });
           },
           protect: (input) => protectReplicaStream({

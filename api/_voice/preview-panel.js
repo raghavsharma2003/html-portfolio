@@ -22,6 +22,7 @@ import { createHash } from "node:crypto";
 import { assertSynthesisResult } from "./contracts.js";
 import { buildVoiceTextPlan, voiceTextPlanAudit } from "./hindi-text-frontend.js";
 import { voiceScriptMode } from "./language-conditioning.js";
+import { applyProsodyPauses, applyStyleDelta, buildProsodyPlan, ZERO_STYLE_DELTA } from "./prosody.js";
 import {
   WARMUP,
   capPanelText,
@@ -70,7 +71,7 @@ function intentProgress(started, stage, extra = {}) {
   }, { "Retry-After": String(Math.ceil(WARMUP.retryAfterMs / 1000)) });
 }
 
-function previewAudioHeaders(started, textFrontend, textPlan, metadata = {}, reused = false) {
+function previewAudioHeaders(started, textFrontend, textPlan, metadata = {}, reused = false, prosodyPlan = null) {
   return Object.freeze({
     "Content-Type": "audio/wav",
     "X-Vyakti-Text-Plan": textFrontend.planSha256,
@@ -86,6 +87,10 @@ function previewAudioHeaders(started, textFrontend, textPlan, metadata = {}, reu
     "X-Vyakti-Voice-Quality-State": metadata.qualityState || started.voiceConditioning.qualityState,
     "X-Vyakti-Voice-Quality-Warnings": (metadata.qualityWarnings || started.voiceConditioning.qualityWarnings).join(","),
     "X-Vyakti-Voice-Effective-Cfg": String(metadata.effectiveCfgWeight ?? started.voiceConditioning.effectiveCfgWeight),
+    // WS-R168: "false" on every request that never asked for `apply_vibe` —
+    // never inferred, never a default the owner did not choose.
+    "X-Vyakti-Voice-Prosody-Applied": prosodyPlan ? "true" : "false",
+    "X-Vyakti-Voice-Prosody-Plan": prosodyPlan ? prosodyPlan.planSha256 : "",
   });
 }
 
@@ -154,6 +159,27 @@ export async function handleVoicePreviewPanel(body, deps) {
   let text;
   try { text = capPanelText(body?.text); }
   catch (error) { return jsonResult(error.status || 400, { state: "error", error: error.code }); }
+
+  // WS-R168 (EmotionOS in the voice, no migration): "hear the vibe" — an
+  // OWNER opt-in (`body.apply_vibe === true`, never the default) that
+  // previews their OWN currently-set vibe on the SAME text they typed.
+  // `deps.getVibe` is pre-bound to the verified owner (the route file's own
+  // shape, `api/voice-preview.js`); its absence, or a `null` vibe (the
+  // owner never set one), degrades to `NEUTRAL_PROSODY_PLAN` — the SAME
+  // "no vibe yet" posture `getReplicaVibe` and `roomSpeak`'s own wiring
+  // already take, never a refusal. `text` is reassigned BEFORE the hash
+  // below, deliberately: every downstream binding (`textHash`, `textPlan`,
+  // the provider's own echoed `textFrontend.planSha256`) must agree on the
+  // SAME string, or the "was this clip actually a rendering of what the
+  // owner typed" check a few lines down would fail a preview that did
+  // nothing wrong.
+  let prosodyPlan = null;
+  if (body?.apply_vibe === true) {
+    const vibeRow = deps.getVibe ? await deps.getVibe(body?.replica_id) : null;
+    try { prosodyPlan = buildProsodyPlan({ vibe: vibeRow, register: null, languageId }); }
+    catch (error) { return jsonResult(error.status || 400, { state: "error", error: error.code }); }
+    text = applyProsodyPauses(text, prosodyPlan);
+  }
   const textHash = createHash("sha256").update(text, "utf8").digest("hex");
   const textLanguageMode = voiceScriptMode(text).mode;
   let textPlan;
@@ -175,7 +201,28 @@ export async function handleVoicePreviewPanel(body, deps) {
       text_language_mode: textLanguageMode,
       text_frontend: textFrontend,
       style_key: PANEL_STYLE_KEY,
-      regeneration_key: body?.regeneration_key,
+      // WS-R168: `beginOwnedVoicePreview`'s own durable dedup key is built
+      // from (among other things) `text_hash` and the RESOLVED style preset
+      // object (`voicePreviewStyle(style_key)`) — `style_key` itself stays
+      // the fixed "balanced" preset name above (an unrecognised key is a
+      // 400 there, `voicePreviewStyle`'s own law), so the vibe-driven DELTA
+      // this file applies later, inside `synthesize()`, is invisible to
+      // that identity. Most prosody plans do not even change `text`
+      // (`applyProsodyPauses` is a no-op outside the "slow" band), so two
+      // requests that differ ONLY by `apply_vibe` would otherwise collide
+      // on the exact same durable intent and the toggle would silently
+      // replay whichever clip was sealed first. Folding the plan's own
+      // `planSha256` into `regeneration_key` — an EXISTING field already
+      // inside that same unique tuple, never a new column — fixes this with
+      // no change to `_replica-voice-preview.js` at all: same vibe (or no
+      // vibe), same key, legitimate replay still works; a different vibe,
+      // or the toggle itself, is a genuinely different key, exactly as
+      // "the owner asked for a different take" already behaves. An
+      // explicit caller-supplied `regeneration_key` composes with it rather
+      // than being silently dropped.
+      regeneration_key: prosodyPlan
+        ? `${String(body?.regeneration_key || "").trim().slice(0, 55) || "vibe"}_${prosodyPlan.planSha256}`
+        : body?.regeneration_key,
       output_storage_bucket: deps.outputStorageBucket,
     });
   } catch (error) {
@@ -234,7 +281,7 @@ export async function handleVoicePreviewPanel(body, deps) {
         kind: "audio",
         status: 200,
         body: stored.body,
-        headers: previewAudioHeaders(started, textFrontend, textPlan, started.intent.result.metadata, true),
+        headers: previewAudioHeaders(started, textFrontend, textPlan, started.intent.result.metadata, true, prosodyPlan),
       });
     } catch (error) {
       const status = Number.isInteger(error?.status) ? error.status : 500;
@@ -330,11 +377,16 @@ export async function handleVoicePreviewPanel(body, deps) {
           languageMode: started.reference.languageMode,
           languageEvidenceScope: started.reference.languageEvidenceScope,
         },
-        style: {
-          exaggeration: started.previewStyle.exaggeration,
-          cfgWeight: started.previewStyle.cfg_weight,
-          temperature: started.previewStyle.temperature,
-        },
+        // WS-R168: the vibe-driven delta on this provider's OWN fields — a
+        // no-op (`ZERO_STYLE_DELTA`) whenever `apply_vibe` was not set.
+        style: applyStyleDelta(
+          {
+            exaggeration: started.previewStyle.exaggeration,
+            cfgWeight: started.previewStyle.cfg_weight,
+            temperature: started.previewStyle.temperature,
+          },
+          prosodyPlan ? prosodyPlan.styleDelta : ZERO_STYLE_DELTA,
+        ),
         signal: deps.signal,
       });
     };
@@ -432,7 +484,7 @@ export async function handleVoicePreviewPanel(body, deps) {
       kind: "audio",
       status: 200,
       body: bodyBytes,
-      headers: previewAudioHeaders(started, textFrontend, textPlan, metadata, false),
+      headers: previewAudioHeaders(started, textFrontend, textPlan, metadata, false, prosodyPlan),
     });
   } catch (error) {
     const code = String(error?.code || error?.message || "");

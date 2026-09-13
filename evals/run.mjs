@@ -3269,6 +3269,37 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   emotionos: "emotionos/run.mjs",
+  // WS-R168. EmotionOS in the voice: `api/_voice/prosody.js`, a PURE mapper
+  // from the owner's five vibe dials plus an optional register read to a
+  // closed prosody plan (rate/energy/pitch-range bands, sentence/clause
+  // pause lengths, a text-level pause glyph, and a small bounded delta on
+  // `open-chatterbox-preview.js`'s own exaggeration/cfgWeight/temperature
+  // request fields). Proven against a 60-line, three-language fixture (20
+  // per language): every line yields a well-formed plan (section 1); a
+  // REQUIRED NEGATIVE CONTROL that no vibe + no register leaves the base
+  // style AND the base text byte-identical, on all 60 lines, plus a
+  // malformed/absent vibe and a low-confidence or "neutral" register all
+  // degrading to the SAME neutral plan rather than throwing or diverging
+  // (section 2); the plan changes the MEASURED TIMING deterministically and
+  // strictly monotonically (excited+high-energy < neutral <
+  // flat+low-energy) on every one of the 60 lines, via a deterministic
+  // "fake waveform" timing proxy that is explicitly NOT the billing
+  // estimator (`api/_room-voice.js`'s `estimateClipSeconds` is untouched)
+  // (section 3); the text-level pause glyph lands exactly once per sentence
+  // boundary under a "slow" plan and never under a "fast" one (section 4);
+  // `applyStyleDelta` stays inside the real provider's own validated ranges
+  // across every extreme of vibe and register, including from an
+  // already-near-boundary base preset (section 5); and `planSha256`
+  // determinism (section 6). `evals/room-speak-plan/run.mjs`'s own section 5
+  // proves the WIRING into `roomSpeak` (a vibe reaches `deps.synth` as the
+  // correct bands, `deps.getVibe`'s absence or a null vibe is the SAME
+  // neutral plan, the response never leaks raw dials); `evals/voicepanel.mjs`
+  // proves the WIRING into the studio's "hear the vibe" preview (`apply_vibe`
+  // opt-in, the disclosure/watermark invariant unbroken with it on, the
+  // provider's style demonstrably moves off the base preset).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  prosody: "prosody/run.mjs",
 };
 
 const argv = process.argv.slice(2);

@@ -72,7 +72,7 @@ type Phase =
   | { kind: "idle" }
   | { kind: "submitting"; intent: PreviewIntent }
   | { kind: "pending"; intent: PreviewIntent; pending: VoicePanelPending; retryAt: number; joined: boolean }
-  | { kind: "ready"; intent: PreviewIntent; url: string; intentId: string; reused: boolean; generationId: string; modelCommitment: string; textPlanSha256: string; transformationCount: number; spokenText: string }
+  | { kind: "ready"; intent: PreviewIntent; url: string; intentId: string; reused: boolean; generationId: string; modelCommitment: string; textPlanSha256: string; transformationCount: number; spokenText: string; vibeApplied: boolean }
   | { kind: "failed"; intent: PreviewIntent; failure: VoicePanelFailed }
   | { kind: "error"; headline: string; detail: string; canRetry: boolean };
 
@@ -92,6 +92,10 @@ interface PreviewIntent {
   regenerationKey?: string;
   intentId?: string;
   startedAt: string;
+  /** WS-R168 (EmotionOS in the voice, no migration). "Hear the vibe" — an
+   *  explicit owner opt-in on THIS intent; absent/false is the pre-existing
+   *  shape and behaviour, unchanged. */
+  applyVibe?: boolean;
 }
 
 function intentStorageKey(replicaId: string): string {
@@ -104,6 +108,7 @@ function intentSignature(intent: PreviewIntent): string {
     intent.language,
     intent.text,
     intent.regenerationKey ?? "",
+    intent.applyVibe ?? false,
   ]);
 }
 
@@ -125,6 +130,7 @@ function readPersistedIntent(replicaId: string): PreviewIntent | null {
       regenerationKey: typeof value.regenerationKey === "string" ? value.regenerationKey : undefined,
       intentId: typeof value.intentId === "string" ? value.intentId : undefined,
       startedAt: new Date(startedAt).toISOString(),
+      applyVibe: value.applyVibe === true,
     };
   } catch {
     // Private browsing can block local storage. The server still deduplicates
@@ -243,6 +249,9 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
   const [syncSignal, setSyncSignal] = useState(0);
   const [composerDirty, setComposerDirty] = useState(false);
   const [remoteIntent, setRemoteIntent] = useState<PreviewIntent | null>(null);
+  // WS-R168 (EmotionOS in the voice, no migration). "Hear the vibe" —
+  // starts OFF; the owner opts in per request, never a remembered default.
+  const [applyVibe, setApplyVibe] = useState(false);
   const urlRef = useRef<string>("");
   const requestInFlightRef = useRef(false);
   const activeIntentRef = useRef<string>("");
@@ -356,6 +365,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         text: intent.text,
         languageId: intent.language === "en" ? "en" : "hi",
         regenerationKey: intent.regenerationKey,
+        applyVibe: intent.applyVibe,
       });
       if (activeIntentRef.current !== signature) return;
       if (outcome.kind === "pending") {
@@ -399,6 +409,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         textPlanSha256: outcome.textPlanSha256,
         transformationCount: outcome.transformationCount,
         spokenText: outcome.spokenText,
+        vibeApplied: outcome.vibeApplied,
       });
     } catch (cause) {
       if (activeIntentRef.current !== signature) return;
@@ -509,7 +520,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     const matchesSettled = settledPhase !== null &&
       settledPhase.intent.genomeVersion === draft.version &&
       settledPhase.intent.language === language &&
-      settledPhase.intent.text === text;
+      settledPhase.intent.text === text &&
+      Boolean(settledPhase.intent.applyVibe) === applyVibe;
     const intent: PreviewIntent = {
       text,
       language,
@@ -518,6 +530,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
       // reloads and sibling tabs reuse the key stored in the snapshot.
       regenerationKey: regenerate && matchesSettled ? crypto.randomUUID() : undefined,
       startedAt: new Date().toISOString(),
+      applyVibe,
     };
     activeIntentRef.current = intentSignature(intent);
     setRemoteIntent(null);
@@ -525,6 +538,12 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     writePersistedIntent(replicaId, intent);
     publishIntent();
     void runIntent(intent);
+  }
+
+  function toggleApplyVibe() {
+    if (phase.kind === "pending" || phase.kind === "submitting") return;
+    setComposerDirty(true);
+    setApplyVibe((current) => !current);
   }
 
   function changeLanguage(next: PreviewLanguage) {
@@ -540,6 +559,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     setComposerDirty(false);
     setText(remoteIntent.text);
     setLanguage(remoteIntent.language);
+    setApplyVibe(Boolean(remoteIntent.applyVibe));
     void runIntent(remoteIntent, true);
   }
 
@@ -552,7 +572,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
 
   const busy = phase.kind === "submitting" || phase.kind === "pending";
   const settledInputChanged = (phase.kind === "ready" || phase.kind === "failed") && (
-    phase.intent.text !== text || phase.intent.language !== language || phase.intent.genomeVersion !== draft?.version
+    phase.intent.text !== text || phase.intent.language !== language || phase.intent.genomeVersion !== draft?.version ||
+    Boolean(phase.intent.applyVibe) !== applyVibe
   );
   const pendingStartedAt = phase.kind === "pending" ? Date.parse(phase.pending.startedAt) : 0;
   const pendingReturnAt = phase.kind === "pending"
@@ -726,6 +747,27 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
             </small>
           </label>
 
+          {/* WS-R168 (EmotionOS in the voice, no migration). An explicit
+              opt-in, never a remembered default - the owner's own current
+              vibe (`EmotionOsStudio.tsx`'s five dials) shapes pace, pauses
+              and energy on THIS preview only, through the same provider
+              request the calibration lab already uses. */}
+          <label className="voice-preview-vibe-toggle" htmlFor="hear-voice-vibe">
+            <input
+              id="hear-voice-vibe"
+              type="checkbox"
+              checked={applyVibe}
+              disabled={busy}
+              onChange={toggleApplyVibe}
+            />
+            <span>Hear the vibe</span>
+          </label>
+          <p className="voice-preview-vibe-help">
+            {applyVibe
+              ? "This preview uses your current EmotionOS vibe - pace, pauses and energy."
+              : "Off: this preview uses the plain voice, with no vibe styling."}
+          </p>
+
           {remoteIntent && !busy && (
             <div className="hear-voice-remote">
               <span>Another tab started a preview while you were editing here.</span>
@@ -763,6 +805,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               <p className="hear-voice-state ready">Ready</p>
               <h3>Listen to this take</h3>
               <audio controls preload="metadata" src={phase.url}>Your browser cannot play this protected WAV.</audio>
+              {phase.vibeApplied && <p className="voice-preview-vibe-confirmed">Shaped by your current vibe.</p>}
               {phase.transformationCount > 0 && (
                 <details className="hear-voice-pronunciation-plan">
                   <summary>{phase.transformationCount} Hindi speech spellings applied</summary>

@@ -105,6 +105,7 @@ import {
 } from "./memory.js";
 import { authorizeRoomVoice, estimateClipSeconds } from "./_room-voice.js";
 import { roomSpeakPlan } from "./_room-speak-plan.js";
+import { buildProsodyPlan } from "./_voice/prosody.js";
 import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
 // WS-R4's rule, read per turn: `loadNeverRules` is a SELECT and nothing else
 // (`evals/room-leak/run.mjs` layer 1 names this exact import as the allowed
@@ -2421,6 +2422,19 @@ export async function roomSpeak(deps, session, replyRef) {
     });
   }
 
+  // WS-R168 (EmotionOS in the voice, no migration): the owner's own vibe
+  // dials, read through `deps.getVibe` exactly like every other real
+  // dependency in this function - fully optional (a deployment that never
+  // wires it, or an owner who never set a vibe, gets `prosody === null`,
+  // which every downstream consumer treats identically to
+  // `NEUTRAL_PROSODY_PLAN`). `register` is deliberately `null` here - see
+  // `api/_voice/prosody.js`'s own header for why the follower's latest turn
+  // text is not available (or safe to fetch a second way) at this point in
+  // the call graph. This NEVER changes what is said - `sentenceText` above
+  // is unchanged - only how `deps.synth`'s own provider call is shaped.
+  const rawVibe = deps.getVibe ? await deps.getVibe(resolved.room.owner_user_id, resolved.room.replica_id) : null;
+  const prosody = buildProsodyPlan({ vibe: rawVibe, register: null, languageId: payload.loc });
+
   // SYNTHESISE + PROTECT, both REQUIRED injections with no default - a call
   // to this function that supplies neither throws rather than silently
   // no-opping, `plausible-return-hides-a-dead-pipeline`'s law applied to a
@@ -2439,7 +2453,7 @@ export async function roomSpeak(deps, session, replyRef) {
   }
   let synthesized;
   try {
-    synthesized = await deps.synth({ authorized, text: sentenceText });
+    synthesized = await deps.synth({ authorized, text: sentenceText, prosody });
   } catch (error) {
     throw new RoomError("room_voice_synthesis_failed", 503, {
       reason: error?.code || String(error?.message || "unknown"),
@@ -2520,6 +2534,16 @@ export async function roomSpeak(deps, session, replyRef) {
     reply_sha256: createHash("sha256").update(text, "utf8").digest("hex"),
     index,
     count: plan.count,
+    // WS-R168: the closed BANDS only, never the owner's raw dials (those
+    // stay behind the studio's own owner-bearer door, `api/_replica-
+    // vibe.js`) — enough for a client to label what it just heard ("a
+    // little faster than usual") without leaking the five-number vibe a
+    // follower has no scope to read.
+    prosody: {
+      rate: prosody.rateBand,
+      energy: prosody.energyBand,
+      pitch_range: prosody.pitchRangeBand,
+    },
     voice: {
       seconds_used: voiceUsed,
       seconds_included: voiceIncluded,

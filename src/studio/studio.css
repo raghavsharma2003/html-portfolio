@@ -2696,6 +2696,18 @@
 .voice-preview-script textarea { width: 100%; min-height: 132px; resize: vertical; padding: 15px 16px; border: 1px solid var(--line); border-radius: 13px; outline: 0; color: var(--ink); background: rgba(255, 255, 255, 0.72); font: 500 14px/1.65 var(--sans); }
 .voice-preview-script textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(47, 91, 64, 0.12); }
 .voice-preview-script small { display: block; margin-top: 7px; color: var(--ink-faint); font-size: 10px; }
+/* WS-R168 (EmotionOS in the voice, no migration). "Hear the vibe" toggle -
+   the whole row is the tap target (44px), matching .hear-voice-remote's own
+   touch-target rule one block up, so a phone tap anywhere on the label
+   (not only the small native checkbox) toggles it. */
+.voice-preview-vibe-toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0 0 4px; color: var(--ink); font-size: 13px; font-weight: 700; cursor: pointer; }
+.voice-preview-vibe-toggle input { width: 20px; height: 20px; accent-color: var(--forest); }
+.voice-preview-vibe-help { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; line-height: 1.55; }
+/* Rendered ONLY inside .hear-voice-stage-ready's own dark green background
+   (the JSX gates it on phase.kind === "ready"), so it takes the SAME light
+   text treatment that block's other confirmations already use
+   (.hear-voice-proof dd, two rules up) rather than the default dark ink. */
+.voice-preview-vibe-confirmed { margin: 4px 0 0; color: #fffef9; font-size: 11px; font-weight: 700; }
 .voice-preview-styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .voice-preview-styles legend { grid-column: 1 / -1; }
 .voice-preview-styles button { min-height: 94px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink-soft); background: rgba(255, 255, 255, 0.42); text-align: left; cursor: pointer; }

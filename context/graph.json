@@ -18624,6 +18624,60 @@
       "kind": "measurement",
       "title": "Wave twenty-one's ten merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-21-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r168-prosody-mapper",
+      "kind": "component",
+      "title": "api/_voice/prosody.js: pure mapper from vibe dials + an optional register read to a closed prosody plan (rate/energy/pitch-range bands, pause lengths, a provider style delta, a text pause glyph)",
+      "at": "api/_voice/prosody.js"
+    },
+    {
+      "id": "ws-r168-prosody-expressed-in-provider-fields-and-punctuation-never-free-text",
+      "kind": "decision",
+      "title": "Prosody is expressed via open-chatterbox-preview.js's own style fields plus a single punctuation pause glyph, never free text (2026-09-13)",
+      "at": "context/decisions.md#ws-r168-prosody-expressed-in-provider-fields-and-punctuation-never-free-text"
+    },
+    {
+      "id": "ws-r168-register-not-threaded-into-roomspeak",
+      "kind": "decision",
+      "title": "roomSpeak always passes register: null to buildProsodyPlan; the follower's turn text is not available at voice-synthesis time (2026-09-13)",
+      "at": "context/decisions.md#ws-r168-register-not-threaded-into-roomspeak"
+    },
+    {
+      "id": "ws-r168-preview-panel-folds-prosody-plan-sha-into-regeneration-key",
+      "kind": "decision",
+      "title": "\"Hear the vibe\" folds the prosody plan's sha256 into regeneration_key to avoid a durable dedup collision with the plain preview (2026-09-13)",
+      "at": "context/decisions.md#ws-r168-preview-panel-folds-prosody-plan-sha-into-regeneration-key"
+    },
+    {
+      "id": "ws-r168-vibe-read-fails-open-to-neutral-never-blocks-a-clip",
+      "kind": "decision",
+      "title": "A failed or absent vibe read degrades to the neutral prosody plan; it never fails a voice request closed (2026-09-13)",
+      "at": "context/decisions.md#ws-r168-vibe-read-fails-open-to-neutral-never-blocks-a-clip"
+    },
+    {
+      "id": "ws-r168-assumed-azure-personal-voice-was-the-live-room-provider",
+      "kind": "rejection",
+      "title": "First design targeted azure-personal-voice.js's SSML; api/room.js's real wiring uses open-chatterbox-preview.js instead, caught before writing the SSML change (2026-09-13)",
+      "at": "context/rejected.md#ws-r168-assumed-azure-personal-voice-was-the-live-room-provider"
+    },
+    {
+      "id": "ws-r168-vibe-encoded-into-style-key-throws-on-every-request",
+      "kind": "rejection",
+      "title": "Encoding the vibe/plan identity into style_key would 400 every vibe-applied request (voicePreviewStyle has no fallback for an unrecognised key), caught before shipping (2026-09-13)",
+      "at": "context/rejected.md#ws-r168-vibe-encoded-into-style-key-throws-on-every-request"
+    },
+    {
+      "id": "ws-r168-prosody-timing-table",
+      "kind": "measurement",
+      "title": "60-line, three-language deterministic timing proxy table: fast/medium/slow strictly ordered on every line, per-language means (2026-09-13)",
+      "at": "context/measurements.md#ws-r168-prosody-timing-table"
+    },
+    {
+      "id": "ws-r168-touched-suite-results-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R168 touched-suite results: prosody 20/20, room-speak-plan 125/125, voicepanel 153/153, room-doors 2333/2333, room-leak 363/363, room-export 48/48, emotionos 37/37 unchanged",
+      "at": "context/measurements.md#ws-r168-touched-suite-results-2026-09-13"
     }
   ],
   "edges": [
@@ -31599,6 +31653,46 @@
       "src": "wave-21-merged-as-a-batch-under-contention",
       "dst": "wave-21-merge-gate-found-four-cross-workstream-breaks",
       "rel": "constrains"
+    },
+    {
+      "src": "ws-r168-prosody-mapper",
+      "rel": "part_of",
+      "dst": "ws-r153-emotionos-vibe"
+    },
+    {
+      "src": "ws-r168-prosody-expressed-in-provider-fields-and-punctuation-never-free-text",
+      "dst": "ws-r168-prosody-mapper",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r168-register-not-threaded-into-roomspeak",
+      "dst": "ws-r168-prosody-mapper",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r168-preview-panel-folds-prosody-plan-sha-into-regeneration-key",
+      "dst": "ws-r168-vibe-encoded-into-style-key-throws-on-every-request",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r168-vibe-read-fails-open-to-neutral-never-blocks-a-clip",
+      "dst": "ws-r168-prosody-mapper",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r168-prosody-expressed-in-provider-fields-and-punctuation-never-free-text",
+      "dst": "ws-r168-assumed-azure-personal-voice-was-the-live-room-provider",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r168-prosody-mapper",
+      "dst": "ws-r168-prosody-timing-table",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r168-preview-panel-folds-prosody-plan-sha-into-regeneration-key",
+      "dst": "ws-r168-touched-suite-results-2026-09-13",
+      "rel": "measured_by"
     }
   ]
 }
