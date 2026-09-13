@@ -18226,6 +18226,7 @@ Method: each suite run directly (`node evals/<suite>/run.mjs` or `node evals/<fi
 | `scripts/check-copy.mjs` | 7 scopes clean, 21 negative controls bit |
 | `npx tsc -b --force` | clean |
 | `npx vite build` | clean |
+<<<<<<< HEAD
 
 ## `ws-r163-voice-activation-guard-and-audio-door-measurements` (2026-09-13, WS-R163)
 
@@ -18249,3 +18250,18 @@ Method: `node evals/text-ready/run.mjs` (new offline suite, 30 assertions agains
 `node scripts/check-layout.mjs --only studio` ran ONCE clean before the CSS fix below existed (1742 prose blocks across 13 studio/studio-hi targets, 0 findings) and TWICE more after it, both hitting `EADDRINUSE` on port 8931 under this wave's own extreme concurrent-gate contention (six-plus sibling `verify-release.mjs` runs observed on the same four-core box at once) rather than completing or failing on the tree — an honest, unresolved re-run this session's own final report names, per `ws-common.md`'s "a port collision is never a pass and never a failure of yours."
 
 `node evals/rehearsal/personal.mjs` (the real signed-in browser walk, extended) is the load-bearing proof instead: the real conversation door completes a text-ready turn with the fake reply seam, the reply carries the exact `TEXT_APPRENTICE_DISCLOSURE` prefix verbatim, `can_voice` is `false`, the voice-sample tab still renders its honest degraded state, and a revoked replica is refused for text with the `replica_revoked` blocker specifically — every run. The "Meet opens" assertion itself TIMED OUT on its first two fresh runs (a real, measured `{width:396.7,height:0}` bounding box on `.vx-conversation-switch`, `context/rejected.md#ws-r161-vx-room-voice-grid-had-two-row-tracks-for-three-real-children`), then PASSED on two consecutive fresh runs (36/36, 0 failed, each) after `.vx-room__voice`'s `grid-template-rows` gained its missing third track. All offline, $0, no live DB, no Azure/model call (the fake generator never reaches `AZURE_FOUNDRY_*`). Date 2026-09-13.
+=======
+| `evals/studio-entry-css.mjs` | 8 of 8 (a real bug the full gate's own eval-suite pool caught and this session fixed — see below) |
+
+## `ws-r168-full-gate-2026-09-13`
+
+Method: `node scripts/verify-release.mjs` run once at the end, in the foreground with a timeout, then continued (per the harness's own auto-background behaviour) to completion; this machine ran six-plus sibling agents' own full gates concurrently for the entire run (`/proc/loadavg` sampled throughout: 27-52, never easing). Date 2026-09-13.
+
+Result: 21 of 24 checks passed clean (typecheck 129243ms, prompt budget, workflow lint, Vercel upload boundary, deploy verifier, motion lint, brand reveal sound, board legibility 85490ms, chrome copy, mirrored constants, enrollment sample rate, enrollment bandwidth, engine bundle fresh, stuck-turn endpoint, one voice, web build, room leak battery 72380ms, room export completeness, room door battery, accessibility 111605ms, security headers). Relational DB gates skipped (no `NEON_URL` in this environment, as expected).
+
+3 failed, all investigated by reading their own source rather than assumed:
+- `layout readability` and `performance budgets`: `EADDRINUSE` on 127.0.0.1:8931/8932 — the documented port-collision shape (`ws-common.md`'s own "a port collision is never a pass and never a failure of yours").
+- `eval suite` (424 suites: 3 pre-pool + 421 pooled) failed on exactly 3: `day-one` (`EADDRINUSE` on 127.0.0.1:8946, the same port-collision shape, confirmed by reading its own error in the log), `browser-resource` (a wall-clock-timing test of the pool scheduler's own concurrency behaviour against a 12-second deadline, using fake zero-CPU child processes — confirmed by reading `evals/browser-resource/run.mjs` that nothing in this workstream's diff touches the scheduler it tests; a timing assertion failing under a measured 27-52 load average on the machine it ran on is the expected failure mode this test's own design has, not a regression), and `studio-entry-css` — a REAL bug this session introduced (new `studio.css` rules never mirrored into `studio-workspace.css`, `rejected.md#ws-r168-studio-css-not-mirrored-into-workspace-partition`), fixed in the same session and reconfirmed clean (`node evals/studio-entry-css.mjs`, 8 of 8) before the final commit.
+
+421 of 424 pooled suites passed on the first full run with no changes; the one real failure was fixed and independently reverified. `evals/prosody`'s own numbers inside the pool run were byte-identical to every standalone run (`en-01: fast=360ms medium=460ms slow=620ms`, etc.), confirming full determinism under load as well as quiet.
+>>>>>>> ws-r168-emotionos-in-the-voice

@@ -18307,6 +18307,7 @@ the check this entry's own mistake skipped.
 
 **Reversal condition.** None — this was never shipped. Recorded because "encode extra identity into an existing string key" is a plausible-looking shortcut in this exact file (the same shape earlier workstreams DID use safely for OTHER fields), and the difference between safe and a guaranteed 400 is one function's own strictness, worth a name here so a future reader checks it first rather than re-deriving this from a failing request.
 
+<<<<<<< HEAD
 ## `ws-r163-guard-queries-prepended-to-activateownedruntime-broke-four-unrelated-suites` (2026-09-13, WS-R163)
 
 **Tried.** The first draft of wiring `guardOwnedVoiceActivation` into activation added the guard's own resolution queries (a candidate/current voice-profile preview, then a sealed-generation lookup) as the FIRST statements `activateOwnedRuntime` sends, directly inside that function, before its existing giant CTE query.
@@ -18342,3 +18343,14 @@ A second draft tried resolving the block by pushing the block DECISION until aft
 **Fix.** `.vx-room__voice`'s `grid-template-rows` gained a third explicit track: `auto auto minmax(0, 1fr)` — title and tab-switcher both size to their own content now, only the conversation/sample panel underneath is the flexible, scrollable one. Confirmed by two consecutive full `evals/rehearsal/personal.mjs` runs (0 failures each) after the fix, versus two consecutive timeouts on it before.
 
 **Reversal condition.** None expected — this is a structural correctness fix (row-track count matching child count), not a heuristic. If `room === "voice"`'s own child count changes again, re-check this rule first.
+=======
+## `ws-r168-studio-css-not-mirrored-into-workspace-partition` (2026-09-13, WS-R168)
+
+**Tried.** Added four new rules (`.voice-preview-vibe-toggle`, `.voice-preview-vibe-toggle input`, `.voice-preview-vibe-help`, `.voice-preview-vibe-confirmed`) to `src/studio/studio.css` only, in the same place every other `.voice-preview-*` rule already lives, and moved on.
+
+**Broke.** `evals/studio-entry-css.mjs` (part of `verify-release.mjs`'s own eval-suite pool) failed: `src/studio/studio.css` is not itself shipped — it is the SOURCE OF TRUTH that `src/studio/studio-entry.css` (eager, pre-auth) and `src/studio/studio-workspace.css` (deferred, post-auth) must together partition EXACTLY, each rule in exactly one of the two, in original order (`assertExactSubset` + "entry and workspace contain every original rule exactly once"). A rule added only to `studio.css` is invisible to both shipped files and the check catches it by name. Caught by the full gate's own eval-suite pool, not by anything this session ran standalone before committing — `studio-entry-css` was not in this workstream's own touched-suite list because nothing in the brief named it, and `git grep studio-entry.css` was never run before editing `studio.css`.
+
+**Fix.** The identical four rules, in the identical relative position (right after `.voice-preview-script small`, before `.voice-preview-styles`, matching every pre-existing `.voice-preview-*` rule's own home), added to `src/studio/studio-workspace.css` — VoicePreviewPanel is reached only post-auth, so workspace (never entry) is the correct partition, confirmed by `grep -c voice-preview src/studio/studio-entry.css` returning 0 before the fix. Re-verified: `node evals/studio-entry-css.mjs` clean (8/8).
+
+**Reversal condition.** None — this is a standing law of the file, not a one-off. Restated as the rule for next time: any CSS rule added to `src/studio/studio.css` in this repo's tree needs the identical rule added to EXACTLY ONE of `studio-entry.css` (auth screens, eager) or `studio-workspace.css` (everything else, deferred) in the same commit, in the position that keeps `studio.css`'s own declaration order a valid supersequence of both — `grep -n "<selector>" src/studio/studio-entry.css src/studio/studio-workspace.css` on a sibling selector, before editing `studio.css`, is the check that would have caught this before the gate did.
+>>>>>>> ws-r168-emotionos-in-the-voice
