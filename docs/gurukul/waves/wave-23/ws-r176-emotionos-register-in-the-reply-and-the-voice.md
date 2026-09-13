@@ -2,7 +2,7 @@
 
 Read scratchpad w23/ws-common.md FIRST (the file the launcher names); every
 rule there binds, including the merge lessons at its end. Your worktree is
-checked out at the wave-twenty-three base <WAVE23_BASE> (verify with `git log
+checked out at the wave-twenty-three base 19a27bc (verify with `git log
 --oneline -1`). The gate is 25 checks without NEON_URL; run touched suites
 while you build, EVERY suite that reads a file you change (grep evals/ for
 the file name), and the full gate ONCE at the end, in the foreground, with a
