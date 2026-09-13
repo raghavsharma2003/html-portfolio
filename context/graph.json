@@ -17994,6 +17994,12 @@
       "kind": "measurement",
       "title": "Gate runs on the merged handoff206 tree and the live catalog before and after the apply (2026-09-13)",
       "at": "context/measurements.md#gate-on-the-merged-handoff206-tree-2026-09-13"
+    },
+    {
+      "id": "ci-shallow-checkout-starved-the-history-reading-suites",
+      "kind": "rejection",
+      "title": "CI's depth-1 checkout starved 18 suites that read git history (2026-09-13)",
+      "at": "context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites"
     }
   ],
   "edges": [

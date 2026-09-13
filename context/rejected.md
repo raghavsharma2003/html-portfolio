@@ -17855,3 +17855,12 @@ The shared config template stated OPENROUTER_KEY and NEON_URL were both required
 **Broke.** The "pending read deleted: no new request" check changed the mounted props and resolved the pending read in the very next CDP round trip; React schedules an out-of-event state update on its own task, so the component's ref of the current sources was sometimes still the old one when the read resolved, and it posted a new build intent. It passed once under the pooled registry and failed three times alone. The component's guard is right when the change has been committed; the fixture never waited for that.
 
 **Fix.** The fixture waits one animation frame plus a macrotask after the change before resolving. The assertion now tests what it says: a change committed BEFORE the read resolves sends nothing.
+
+## `ci-shallow-checkout-starved-the-history-reading-suites` (2026-09-13)
+
+**Tried.** The first CI run of the merged handoff206 tree (`54e553e`), both workflows.
+
+**Broke.** The eval suite failed on 18 suites that pass on the build container: `published-grounding`, `dialogue-unicode`, `wav-capture-start`, `studio-setup-selection` and fourteen more of Codex's merge controls read a historical blob with `git show <commit>:<path>`; `actions/checkout@v4` clones at depth 1, so every such call died with "exists on disk, but not in <commit>" or "invalid object name". Reproduced exactly in a local depth-1 clone of the same commit; the six commits those suites name are all ancestors of the branch, so a full clone satisfies them.
+
+**Fix.** Every CI checkout now fetches the full history (`fetch-depth: 0`). The deeper defect stands: 25 suites depend on git history at test time, which makes a test's verdict depend on the shape of the clone. A wave-twenty-two candidate is to move each historical blob they need into a fixture file and delete the git calls.
+
