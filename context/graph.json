@@ -19482,6 +19482,18 @@
       "kind": "rejection",
       "title": "teacher-sheet-publication-ui asserted a Node-side pending count on the tick the button disabled; the batch gate lost that race once in the pool (2026-09-13)",
       "at": "context/rejected.md#teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled"
+    },
+    {
+      "id": "wave-23-merged-as-a-batch-with-plan-only-explains-at-the-merge",
+      "kind": "decision",
+      "title": "Wave twenty-three merged under the fast checks with every new statement planned live at the merge and a marker check before staging (2026-09-13)",
+      "at": "context/decisions.md#wave-23-merged-as-a-batch-with-plan-only-explains-at-the-merge"
+    },
+    {
+      "id": "wave-23-merges-2026-09-13",
+      "kind": "measurement",
+      "title": "Wave twenty-three's ten merges, their proofs on the merged tree, the live plans and the batch gate (2026-09-13)",
+      "at": "context/measurements.md#wave-23-merges-2026-09-13"
     }
   ],
   "edges": [
@@ -33272,6 +33284,16 @@
       "src": "teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled",
       "dst": "ws-r181-load-aware-barriers-and-a-load-ceiling",
       "rel": "constrains"
+    },
+    {
+      "src": "wave-23-merged-as-a-batch-with-plan-only-explains-at-the-merge",
+      "dst": "wave-23-merges-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave-23-merged-as-a-batch-with-plan-only-explains-at-the-merge",
+      "dst": "wave-22-merged-as-a-batch-with-a-repair-workstream",
+      "rel": "supersedes"
     }
   ]
 }

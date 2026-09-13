@@ -18720,3 +18720,22 @@ JS/font transfer measured well under budget on both targets: `/studio` 69.7-71.4
 Confirmation runs after this session's own code change (instrumentation and budgets only, no product file touched, so these are the same distribution, not a new measurement of a different build): `/studio` single run TBT 108ms, LCP 1724ms, 1-minute load average 1.32 (printed by the gate's own new load-average line); `studio-hi` single run (`--json`) TBT 166ms, `loadAverage: { oneMinuteBeforeRun: 1.73, oneMinuteAfterRun: 1.85 }`.
 
 Conclusion this measurement supports: on a quiet machine, both studio targets pass the OLD shared 300ms TBT budget with roughly 40-75% of the budget unused; every prior report of a TBT miss on these two targets in `context/rejected.md` (`context/decisions.md#ws-r49-performance-budgets-are-a-throttled-simulation-not-a-device`'s own reversal note; the WS-R91/WS-R107/WS-R113 session-contention entries; the wave-22 entry at 306ms) measured under a documented load average of 11-49, not a quiet machine. See `context/decisions.md#ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement` and `#ws-r177-load-average-recorded-in-the-performance-gates-own-output`.
+
+## `wave-23-merges-2026-09-13`
+
+Method: each workstream's own report (suite counts as printed), the main loop's reruns of every suite that reads a changed file on the merged tree (one suite per process, `scratchpad/w23/suites.sh`), plan-only EXPLAINs on the live database (`scratchpad/w23/explain-live.mjs`, receipts in `explain-receipts.txt`), the batch gate (`node scripts/verify-release.mjs`, 25 checks); date 2026-09-13.
+
+| workstream | merged | proof on the merged tree |
+|---|---|---|
+| WS-R173 a person's stage lines and Room card (+ follow-up) | def9b8c, 4b0887a | room-card 102, person-room 39, room-leak 365, 12 reader suites; card read planned live (cost 16, two index scans) |
+| WS-R181 the gate honest under load | 1eee006 | gate-load 32, room-push 86, probe-live, day-one, browser-resource, 25 reader suites under load 45 to 58 |
+| WS-R172 continuity for a text-ready AI (no migration) | 032d0b4 | text-ready 42, meet-continuity 60, room-leak 371, rehearsal-personal 61, 36 reader suites; the capability statement planned live (Insert vy_agent, Update vy_replica, cost 236) |
+| WS-R175 the calibration erasure hazard (no migration) | 095b7fc | erasure-order 23, creator-export 57, room-export 48, sqlcast, 24 reader suites; the whole erasure statement planned live (116 delete nodes, the six ordered ones present, cost 1310) |
+| WS-R178 HumanOS drafted from sources (no migration) | 0bc50f5 | person-sheet-draft 28, person-sheet 46, studio-locale-personal 33, 14 reader suites, layout and accessibility on studio:humanos; rehearsal-personal 63 run directly after two 20 s first-render timeouts under load 28 to 40 |
+| WS-R176 register in the reply and the voice | 327d70a | emotionos 45, room-speak-plan 130, prosody 20, room-taste 42, 62 reader suites |
+| WS-R174 a personal AI's Room walked | 5df2ef4 | rehearsal-person-room 19, rehearsal-personal 63, vyakti-app 161, 26 reader suites |
+| WS-R179 the listening test against the own voice | a7a1dbb | listening-test 86, room-doors 2333, incidents 134, 60 reader suites; both reads planned live (costs 15 and 8) |
+| WS-R180 the reply language policy | 83d79b9 | text-ready, room-speak-plan, person-sheet, room-reply-language, room-locale, honesty, 75 reader suites; the sheet read planned live (cost 10.7) |
+| WS-R177 the studio fast on 4G | 123aa34 | performance-measurements 41, performance-prerequisites, performance-hindi-interface, gate-load |
+
+Batch gate on the ten-merge tree: 25 of 25 on ed1470e. Live database after the wave: unchanged (no workstream needed a migration; 172, 173 and 174 stay unused and 172 is still the next free number).
