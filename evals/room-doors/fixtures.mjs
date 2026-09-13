@@ -1456,18 +1456,38 @@ function doorsPatterns(state) {
     // `listed_at is not null` — that file's own header explains why: a
     // follower who already holds the link must be able to read this page
     // whether or not the creator opted into the public directory.
-    if (has("select slug, display_name, default_locale, dormancy_days")) {
+    //
+    // WS-R162: matched on the widened query text (`r.slug`/`left join
+    // lateral` onto `vy_teacher_sheet` for `sheet_kind`/`personLine`) —
+    // `evals/rehearsal/follower.mjs`'s own about-page step surfaced the OLD
+    // literal text going stale the moment `api/_room-about.js`'s SQL
+    // changed shape, `context/rejected.md
+    // #wave-21-merge-gate-found-four-cross-workstream-breaks`'s own lesson
+    // ("a workstream that WIDENS a door's response shape updates every
+    // fixture that answers for that door in the same commit"). `state.
+    // teacherSheets` is scoped by the AGENT's own slug (`vy_agent.slug`,
+    // `publishedRow`'s own join, `doorsPatterns`' matcher above) — matched
+    // here by `agent_id` instead, `_room-about.js`'s own join condition,
+    // restated. No suite sharing this fixture currently seeds a published
+    // sheet for the room this pattern answers, so `sheet_kind`/`person_line`
+    // resolve to `undefined` today — the same "" `personDisclosureLine`
+    // already returns for an absent sheet, byte-identical to this pattern's
+    // pre-WS-R162 shape for every existing caller.
+    if (has("select r.slug, r.display_name, r.default_locale, r.dormancy_days")) {
       const s = String(params[0]);
       const room = state.rooms.find(
         (r) => r.slug.toLowerCase() === s && r.published_at != null && r.paused_at == null,
       );
-      return room
-        ? [{
-            slug: room.slug, display_name: room.display_name, default_locale: room.default_locale ?? "en",
-            dormancy_days: room.dormancy_days ?? null, free_monthly_messages: room.free_monthly_messages,
-            paid_monthly_messages: room.paid_monthly_messages, paid_monthly_voice_seconds: room.paid_monthly_voice_seconds,
-          }]
-        : [];
+      if (!room) return [];
+      const sheet = (state.teacherSheets || [])
+        .filter((x) => x.agent_id === room.agent_id && x.status === "published" && x.consent_artifact_id != null)
+        .sort((a, b) => (a.published_at < b.published_at ? 1 : -1))[0];
+      return [{
+        slug: room.slug, display_name: room.display_name, default_locale: room.default_locale ?? "en",
+        dormancy_days: room.dormancy_days ?? null, free_monthly_messages: room.free_monthly_messages,
+        paid_monthly_messages: room.paid_monthly_messages, paid_monthly_voice_seconds: room.paid_monthly_voice_seconds,
+        sheet_kind: sheet?.sheet?.sheetKind, person_line: sheet?.sheet?.personLine ?? null,
+      }];
     }
 
     // WS-R109: `api/_payments.js`'s `applyWebhook`'s own price read
