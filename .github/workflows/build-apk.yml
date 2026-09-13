@@ -139,11 +139,23 @@ jobs:
   # WS-R157. Vyakti's own debug APK, built beside Meera's — a separate job
   # (never a step tacked onto `build` above) so a Vyakti build failure never
   # blocks Meera's, and so Meera's job above never has to know Vyakti exists.
-  # No secret is needed: this only ever calls `assembleVyaktiDebug`, which
-  # `android/app/build.gradle`'s own signing block leaves unsigned exactly
-  # like Meera's own debug build always has been.
+  # The debug build needs no secret: `assembleVyaktiDebug` always builds
+  # unsigned, exactly like Meera's own debug build always has.
+  #
+  # WS-R169 adds the release half, gated exactly like Meera's own release
+  # steps in the `build` job above: `HAS_VYAKTI_KEYSTORE` is the SAME
+  # hoist-presence-once pattern as `HAS_KEYSTORE` (secrets aren't readable
+  # inside a step `if:` directly), reading the flavour's OWN secret name
+  # (`VYAKTI_ANDROID_KEYSTORE_BASE64`, never Meera's `ANDROID_KEYSTORE_BASE64`
+  # — one leaked keystore must never compromise both Play listings) so an
+  # empty/absent secret keeps every step below unconditional exactly as it
+  # was before this workstream, and a configured secret adds the signed
+  # `.aab`/`.apk` without ever touching Meera's own signing config
+  # (`android/app/build.gradle`'s `vyakti` flavour block, WS-R169).
   vyakti-apk:
     runs-on: ubuntu-latest
+    env:
+      HAS_VYAKTI_KEYSTORE: ${{ secrets.VYAKTI_ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -180,3 +192,31 @@ jobs:
         with:
           name: vyakti-apk
           path: android/app/build/outputs/apk/vyakti/debug/app-vyakti-debug.apk
+      # ── Play Store release: signed .aab + release APK, Vyakti's own keystore ──
+      # Runs only when the flavour's own signing secrets exist, so forks and
+      # PRs without them still get the debug APK above unchanged. The
+      # keystore lives ONLY in the VYAKTI_ANDROID_KEYSTORE_BASE64 secret; it
+      # is decoded to a path `android/app/build.gradle`'s `vyakti` flavour
+      # signing block probes for (`vyakti-upload.keystore`, beside but never
+      # confused with Meera's own `upload.keystore`) and never touches the
+      # repo.
+      - name: Decode vyakti upload keystore
+        if: ${{ env.HAS_VYAKTI_KEYSTORE == 'true' }}
+        run: echo "$VYAKTI_ANDROID_KEYSTORE_BASE64" | base64 -d > android/vyakti-upload.keystore
+        env:
+          VYAKTI_ANDROID_KEYSTORE_BASE64: ${{ secrets.VYAKTI_ANDROID_KEYSTORE_BASE64 }}
+      - name: Build signed vyakti release bundle
+        if: ${{ env.HAS_VYAKTI_KEYSTORE == 'true' }}
+        run: cd android && ./gradlew bundleVyaktiRelease assembleVyaktiRelease --no-daemon
+        env:
+          VYAKTI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VYAKTI_ANDROID_KEYSTORE_PASSWORD }}
+          VYAKTI_ANDROID_KEY_ALIAS: ${{ secrets.VYAKTI_ANDROID_KEY_ALIAS }}
+          VYAKTI_ANDROID_KEY_PASSWORD: ${{ secrets.VYAKTI_ANDROID_KEY_PASSWORD }}
+      - name: Upload vyakti release artifacts
+        if: ${{ env.HAS_VYAKTI_KEYSTORE == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyakti-release
+          path: |
+            android/app/build/outputs/bundle/vyaktiRelease/app-vyakti-release.aab
+            android/app/build/outputs/apk/vyakti/release/app-vyakti-release.apk

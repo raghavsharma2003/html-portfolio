@@ -61,6 +61,35 @@ android {
             def vyaktiOrigin = System.getenv('VYAKTI_PUBLIC_APP_ORIGIN') ?: 'https://vyakti-replica-lab.vercel.app'
             def vyaktiHost = vyaktiOrigin.replaceFirst('^https?://', '').replaceFirst('/.*$', '')
             manifestPlaceholders = [vyaktiAppHost: vyaktiHost]
+
+            // WS-R169. Release signing for THIS flavour only, independent of
+            // Meera's own `signingConfigs.release`/`upload.keystore` below —
+            // a shared signing identity between two independently-branded
+            // Play listings would mean one leaked keystore compromises both
+            // at once. `signingConfigs.create(...)` here (rather than a
+            // second block inside the `signingConfigs {}` closure further
+            // down) is what lets a product-flavour override its OWN signing
+            // config without reordering this file: a NamedDomainObjectContainer
+            // entry can be created and configured from anywhere inside the
+            // `android {}` closure, not only where the container itself is
+            // declared. Same presence-check pattern as Meera's own
+            // (`ksFile.exists() && ksPass != null`): every environment today
+            // has neither set (`context/STATE.md`'s own "nothing is
+            // configured live"), so `assembleVyaktiDebug`/`assembleVyaktiRelease`
+            // simply build unsigned, exactly as they always have — this is
+            // additive, never a requirement to configure anything before a
+            // debug build keeps working.
+            def vyaktiKsFile = file('../vyakti-upload.keystore')
+            def vyaktiKsPass = System.getenv('VYAKTI_ANDROID_KEYSTORE_PASSWORD')
+            if (vyaktiKsFile.exists() && vyaktiKsPass != null) {
+                signingConfigs.create('vyaktiRelease') {
+                    storeFile vyaktiKsFile
+                    storePassword vyaktiKsPass
+                    keyAlias System.getenv('VYAKTI_ANDROID_KEY_ALIAS') ?: 'vyakti-upload'
+                    keyPassword System.getenv('VYAKTI_ANDROID_KEY_PASSWORD') ?: vyaktiKsPass
+                }
+                signingConfig signingConfigs.vyaktiRelease
+            }
         }
     }
     // AGP 8 generates BuildConfig only on request; OTA_NATIVE_CONTRACT above

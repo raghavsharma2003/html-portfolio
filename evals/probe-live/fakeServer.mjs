@@ -173,6 +173,28 @@ export function startFakeServer(port, defects = {}) {
         return res.end(swBytes);
       }
 
+      // ── /.well-known/assetlinks.json (WS-R169, api/well-known-assetlinks.js
+      // via vercel.json's rewrite) ─────────────────────────────────────────
+      // `applyHeaders` alone is not enough here the way it is for the pure
+      // static routes above: this fixture's generic 404 fallback at the
+      // bottom of this handler ALSO sets its own "content-type: text/plain"
+      // via `res.writeHead`, which overrides whatever `applyHeaders` already
+      // `setHeader`'d (Node merges a `writeHead` headers object OVER
+      // previously-set ones by name) -- exactly the gap `probe-live.mjs`'s
+      // route-class loop exists to catch, since this route's own
+      // `vercel.json` rule promises a real `Content-Type`, unlike
+      // `/vyakti-release.json`/`/studio.webmanifest`'s rules just above,
+      // which promise only `Cache-Control`. `env.VYAKTI_ANDROID_CERT_
+      // FINGERPRINT_SHA256` is never set in this offline suite (this
+      // repo's own "nothing is configured live" state, `context/STATE.md`),
+      // so the honest empty array is the correct fixture response, matching
+      // `api/_well-known-assetlinks.js`'s own real default exactly.
+      if (pathname === "/.well-known/assetlinks.json") {
+        applyHeaders(res, pathname);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        return res.end(Buffer.from("[]"));
+      }
+
       // ── /r/:slug/manifest.webmanifest ───────────────────────────────────
       const manifestMatch = /^\/r\/([^/]+)\/manifest\.webmanifest$/.exec(pathname);
       if (manifestMatch) {

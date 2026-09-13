@@ -1289,6 +1289,51 @@
     "required": false
   },
   {
+    "name": "VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256",
+    "section": "38",
+    "sectionTitle": "The Vyakti mobile app: deep links, iOS scaffold, flavour signing (`vercel-app` + `github-actions`, WS-R169, 2026-09-13)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "VYAKTI_ANDROID_KEYSTORE_BASE64",
+    "section": "38",
+    "sectionTitle": "The Vyakti mobile app: deep links, iOS scaffold, flavour signing (`vercel-app` + `github-actions`, WS-R169, 2026-09-13)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "VYAKTI_ANDROID_KEYSTORE_PASSWORD",
+    "section": "38",
+    "sectionTitle": "The Vyakti mobile app: deep links, iOS scaffold, flavour signing (`vercel-app` + `github-actions`, WS-R169, 2026-09-13)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "VYAKTI_ANDROID_KEY_ALIAS",
+    "section": "38",
+    "sectionTitle": "The Vyakti mobile app: deep links, iOS scaffold, flavour signing (`vercel-app` + `github-actions`, WS-R169, 2026-09-13)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "VYAKTI_ANDROID_KEY_PASSWORD",
+    "section": "38",
+    "sectionTitle": "The Vyakti mobile app: deep links, iOS scaffold, flavour signing (`vercel-app` + `github-actions`, WS-R169, 2026-09-13)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
     "name": "VYAKTI_MODEL_SERVING",
     "section": "2",
     "sectionTitle": "LLM spend fencing (`vercel-app`)",

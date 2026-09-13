@@ -1575,3 +1575,58 @@ Selecting `AZURE_FOUNDRY_DIALOGUE_MODEL=gpt-5.6-terra` requires dialogue-specifi
 The existing structured dialogue adapter uses max_completion_tokens700 and reasoning_effort none for Terra, without temperature. Total completion includes reasoning usage. Validated measured usage accompanies identity/length refusals so the service settles known charges before returning the error; unknown acknowledgements retain existing reconciliation rules. Optional fingerprint is recorded as not_provided when absent. The adapter identity includes the explicit dialect and normalized model-specific rate commitment; its frozen rate environment is used for reserve and settlement. Do not reprice or retry an existing attempt.
 
 This supports ordinary private Meet only. The comparison/qualified-candidate revision helper remains mini-only and refuses Terra before dispatch; existing candidate qualifications cannot authorize the new model. No config switch, inference, structured Terra compatibility or teaching improvement is established by source tests. Previous Terra plain-text evidence does not prove this structured JSON-schema request. Endpoint migration is separate from this capability.
+
+## 38. The Vyakti mobile app: deep links, iOS scaffold, flavour signing (`vercel-app` + `github-actions`, WS-R169, 2026-09-13)
+
+WS-R157 (§25-adjacent, `android/app/build.gradle`'s `vyakti` flavour) built the
+Android flavour, the PWA manifest, and the install card, and named three
+things it deliberately left undone. WS-R169 finishes them; this section is
+the env-var half.
+
+**Deep links.** `api/_well-known-assetlinks.js` answers
+`GET /.well-known/assetlinks.json` (routed there by `vercel.json`). Deployment
+target `vercel-app`, exactly like every other request-time secret in this
+manifest.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256` | `api/_well-known-assetlinks.js:buildAssetLinksDocument()` | optional | an honest empty JSON array (`[]`), never a placeholder fingerprint | Android's app-links verifier finds no statement for `app.vyakti.studio` and falls back to a disambiguation sheet on `/r/*` and `/c/*` links instead of opening the app directly — the app still works, it is only not the DEFAULT handler yet |
+
+Shape: 32 colon-separated upper-case hex octet pairs — the exact string
+`keytool -list -v` prints for a certificate's SHA-256 fingerprint, and the
+exact shape Google Play Console shows for the app-signing certificate. A
+lower-case value is accepted and normalised; anything else (wrong length,
+missing colons, a non-hex character) is treated as absent rather than
+guessed at, so a malformed value never produces a false verification claim.
+
+**iOS scaffold.** No new env var: `ios/` (the committed `npx cap add ios`
+output) reads no environment at build time — that is entirely Xcode/
+`xcodebuild`'s own concern, none of it present in this repo's CI today. The
+scaffold's identity (`app.vyakti.studio` / "Vyakti") was baked in once, by
+hand, from `capacitor.vyakti.config.ts` staged onto `capacitor.config.ts` for
+the single `npx cap add ios` invocation, then reverted — see
+`context/decisions.md#ws-r169-ios-scaffold-identity-staged-by-hand-once-not-a-repeatable-script`.
+
+**Release signing, the vyakti flavour.** `android/app/build.gradle`'s
+`vyakti` product flavour creates its own `signingConfigs.vyaktiRelease`,
+independent of Meera's own `signingConfigs.release` a few lines below it —
+deployment target `github-actions` (the `vyakti-apk` job in
+`.github/workflows/build-apk.yml`), gated exactly like Meera's own release
+steps in the `build` job (a `HAS_VYAKTI_KEYSTORE` presence flag hoisted once,
+since secrets are not readable inside a step `if:` directly).
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VYAKTI_ANDROID_KEYSTORE_BASE64` | `build-apk.yml`'s `vyakti-apk` job (`Decode vyakti upload keystore` step) | optional | `assembleVyaktiDebug`/`assembleVyaktiRelease` build unsigned | no signed `.aab`/release `.apk` artifact is produced; the debug APK is unaffected |
+| `VYAKTI_ANDROID_KEYSTORE_PASSWORD` | `android/app/build.gradle`'s `vyakti` flavour block (`System.getenv('VYAKTI_ANDROID_KEYSTORE_PASSWORD')`) | required together with the base64 keystore above | `signingConfigs.vyaktiRelease` is never created; the flavour's release build is unsigned | same as above |
+| `VYAKTI_ANDROID_KEY_ALIAS` | same flavour block | optional | defaults to the literal `vyakti-upload` | a wrong alias fails the Gradle signing step with a clear error, never a silent wrong-key sign |
+| `VYAKTI_ANDROID_KEY_PASSWORD` | same flavour block | optional | defaults to `VYAKTI_ANDROID_KEYSTORE_PASSWORD` (same as Meera's own `ANDROID_KEY_PASSWORD` defaulting to `ANDROID_KEYSTORE_PASSWORD`) | none — a single-password keystore keeps working |
+
+These four names are deliberately never Meera's own `ANDROID_KEYSTORE_BASE64`
+/ `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`
+(§21's own pre-existing set): a shared signing identity between two
+independently-branded Play listings would mean one leaked keystore
+compromises both at once. `evals/vyakti-app/run.mjs`'s own negative control
+asserts the `vyakti` flavour block in `build.gradle` never reads Meera's
+names, and that the `vyakti-apk` job's only `secrets.` references are these
+four.
