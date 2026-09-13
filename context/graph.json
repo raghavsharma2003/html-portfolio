@@ -18624,6 +18624,66 @@
       "kind": "measurement",
       "title": "Wave twenty-one's ten merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-21-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r169-vyakti-flavour-gets-its-own-signingconfigs-entry-not-meeras",
+      "kind": "decision",
+      "title": "Vyakti's Android flavour signs with its own keystore/env names, never Meera's (2026-09-13)",
+      "at": "context/decisions.md#ws-r169-vyakti-flavour-gets-its-own-signingconfigs-entry-not-meeras"
+    },
+    {
+      "id": "ws-r169-ios-scaffold-identity-staged-by-hand-once-not-a-repeatable-script",
+      "kind": "decision",
+      "title": "The committed ios/ scaffold's identity was staged by hand once, not wrapped in a repeatable script (2026-09-13)",
+      "at": "context/decisions.md#ws-r169-ios-scaffold-identity-staged-by-hand-once-not-a-repeatable-script"
+    },
+    {
+      "id": "ws-r169-assetlinks-fingerprint-normalised-never-guessed",
+      "kind": "decision",
+      "title": "assetlinks.json normalises fingerprint case but refuses every other malformed shape, never a guessed statement (2026-09-13)",
+      "at": "context/decisions.md#ws-r169-assetlinks-fingerprint-normalised-never-guessed"
+    },
+    {
+      "id": "ws-r169-upload-scene-unobservable-live-in-the-fixture",
+      "kind": "rejection",
+      "title": "The transient upload scene cannot be observed live under AnimatePresence mode=wait plus a near-instant fixture; proven statically instead (2026-09-13)",
+      "at": "context/rejected.md#ws-r169-upload-scene-unobservable-live-in-the-fixture"
+    },
+    {
+      "id": "ws-r169-mobile-app-proven-2026-09-13",
+      "kind": "measurement",
+      "title": "vyakti-app suite 161 of 161 after WS-R169 (deep links, iOS scaffold, flavour signing, upload+wait proof) (2026-09-13)",
+      "at": "context/measurements.md#ws-r169-mobile-app-proven-2026-09-13"
+    },
+    {
+      "id": "ws-r169-well-known-is-the-one-dotfile-exception-in-azure-web-routing",
+      "kind": "decision",
+      "title": "azure-web's safePath allows the standard .well-known prefix, refuses every other dotfile segment (2026-09-13)",
+      "at": "context/decisions.md#ws-r169-well-known-is-the-one-dotfile-exception-in-azure-web-routing"
+    },
+    {
+      "id": "ws-r169-azure-web-res-json-preserves-a-preset-content-type",
+      "kind": "decision",
+      "title": "azure-web's res.json() no longer clobbers a Content-Type vercel.json already promised (2026-09-13)",
+      "at": "context/decisions.md#ws-r169-azure-web-res-json-preserves-a-preset-content-type"
+    },
+    {
+      "id": "ws-r169-probe-live-fixture-gets-an-explicit-well-known-case",
+      "kind": "decision",
+      "title": "probe-live's fakeServer gets an explicit /.well-known/assetlinks.json case matching the real handler's default (2026-09-13)",
+      "at": "context/decisions.md#ws-r169-probe-live-fixture-gets-an-explicit-well-known-case"
+    },
+    {
+      "id": "ws-r169-performance-budgets-and-browser-resource-flaked-under-wave-22-contention",
+      "kind": "rejection",
+      "title": "performance budgets TBT finding and browser-resource scheduler check both cleared under lower load; neither touches this workstream's files (2026-09-13)",
+      "at": "context/rejected.md#ws-r169-performance-budgets-and-browser-resource-flaked-under-wave-22-contention"
+    },
+    {
+      "id": "ws-r169-full-gate-two-runs-2026-09-13",
+      "kind": "measurement",
+      "title": "Full gate 22/24 on both runs; five run-1 eval failures fixed, two run-2 failures cleared under lower load (2026-09-13)",
+      "at": "context/measurements.md#ws-r169-full-gate-two-runs-2026-09-13"
     }
   ],
   "edges": [
@@ -31599,6 +31659,76 @@
       "src": "wave-21-merged-as-a-batch-under-contention",
       "dst": "wave-21-merge-gate-found-four-cross-workstream-breaks",
       "rel": "constrains"
+    },
+    {
+      "src": "ws-r169-vyakti-flavour-gets-its-own-signingconfigs-entry-not-meeras",
+      "dst": "ws-r157-vyakti-flavour-uses-applicationid-not-applicationidsuffix",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r169-mobile-app-proven-2026-09-13",
+      "dst": "ws-r169-vyakti-flavour-gets-its-own-signingconfigs-entry-not-meeras",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-mobile-app-proven-2026-09-13",
+      "dst": "ws-r169-ios-scaffold-identity-staged-by-hand-once-not-a-repeatable-script",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-mobile-app-proven-2026-09-13",
+      "dst": "ws-r169-assetlinks-fingerprint-normalised-never-guessed",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-mobile-app-proven-2026-09-13",
+      "dst": "ws-r169-upload-scene-unobservable-live-in-the-fixture",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r169-mobile-app-proven-2026-09-13",
+      "dst": "ws-r169-well-known-is-the-one-dotfile-exception-in-azure-web-routing",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-mobile-app-proven-2026-09-13",
+      "dst": "ws-r169-azure-web-res-json-preserves-a-preset-content-type",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-mobile-app-proven-2026-09-13",
+      "dst": "ws-r169-probe-live-fixture-gets-an-explicit-well-known-case",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-mobile-app-proven-2026-09-13",
+      "dst": "ws-r169-performance-budgets-and-browser-resource-flaked-under-wave-22-contention",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r169-performance-budgets-and-browser-resource-flaked-under-wave-22-contention",
+      "dst": "wave-21-merged-as-a-batch-under-contention",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r169-well-known-is-the-one-dotfile-exception-in-azure-web-routing",
+      "dst": "ws-r169-full-gate-two-runs-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-azure-web-res-json-preserves-a-preset-content-type",
+      "dst": "ws-r169-full-gate-two-runs-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-probe-live-fixture-gets-an-explicit-well-known-case",
+      "dst": "ws-r169-full-gate-two-runs-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r169-performance-budgets-and-browser-resource-flaked-under-wave-22-contention",
+      "dst": "ws-r169-full-gate-two-runs-2026-09-13",
+      "rel": "measured_by"
     }
   ]
 }

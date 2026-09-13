@@ -129,7 +129,16 @@ export async function createWebServer({ root, manifest, config, loadHandler, tru
         else req.body = bytes;
       }
       res.status = code => { res.statusCode = code; return res; };
-      res.json = value => { res.setHeader('Content-Type','application/json'); res.end(JSON.stringify(value)); return res; };
+      // WS-R169: only DEFAULT the content type -- never clobber one
+      // `vercel.json`'s own `headers[]` already promised for this exact
+      // source path (set above, before this handler ran). Every route
+      // before this workstream left Content-Type undeclared in
+      // `headers[]`, so this changes nothing for them (`res.hasHeader`
+      // is false, same default as always); `/.well-known/assetlinks.json`
+      // is the first to declare one, and an API handler answering it with
+      // the ordinary `res.json(...)` sugar must not silently downgrade
+      // `application/json; charset=utf-8` back to the bare default.
+      res.json = value => { if (!res.hasHeader('Content-Type')) res.setHeader('Content-Type','application/json'); res.end(JSON.stringify(value)); return res; };
       res.send = value => { if (typeof value === 'object' && !Buffer.isBuffer(value)) return res.json(value); res.end(value); return res; };
       res.redirect = (code, url) => { if (typeof code === 'string') { url = code; code = 307; } res.writeHead(code,{Location:url}); res.end(); return res; };
       const declared = module.config?.maxDuration ?? module.maxDuration;

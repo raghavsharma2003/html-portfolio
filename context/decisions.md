@@ -24578,3 +24578,51 @@ into it.
 **Why.** Ten agents ran their own full gates on the same four-core container at once, holding the load average between 40 and 63 for two hours; a full gate under that load took over an hour and failed on port collisions and browser-timed checks that measure the machine, not the tree (`measurements.md#wave-21-batch-gate-2026-09-13`). Merging under the fast checks kept the wave moving while the load fell, and the batch gate found the four cross-workstream breaks a per-merge gate would have found one at a time.
 
 **Reversal.** If a batch gate ever fails in a way that cannot be attributed to one merge within the batch by the touched-suite evidence, the wave goes back to one full gate per merge; the agents' own full gates are then run serially by the main loop, never ten at once.
+
+## `ws-r169-vyakti-flavour-gets-its-own-signingconfigs-entry-not-meeras` (2026-09-13, WS-R169)
+
+**Decision.** `android/app/build.gradle`'s `vyakti` product flavour creates and assigns its own `signingConfigs.vyaktiRelease` (a new keystore file `vyakti-upload.keystore`, its own four `VYAKTI_ANDROID_KEYSTORE_*`/`VYAKTI_ANDROID_KEY_*` env names) rather than sharing Meera's own `signingConfigs.release`/`upload.keystore`/`ANDROID_KEYSTORE_*` names. The entry is created with `signingConfigs.create('vyaktiRelease') { ... }` from inside the `vyakti { }` flavour closure itself (not inside the later `signingConfigs { }` block, which stays Meera's alone), which Gradle allows regardless of textual order inside `android { }` — a NamedDomainObjectContainer entry can be created and configured from anywhere in that closure.
+
+**Why.** Two independently-branded Play Store listings sharing one signing identity would mean one leaked keystore secret compromises both at once, and the two apps are meant to be independent products (WS-R157's own `applicationId`-not-`applicationIdSuffix` decision already established this separation at the manifest layer). `evals/vyakti-app/run.mjs`'s own negative control (`NEGATIVE CONTROL: the vyakti flavour signing block never reads Meera's own ANDROID_KEYSTORE_PASSWORD/...`) proves the two never share an env name.
+
+**Reversal.** If the owner ever wants ONE Play developer account signing both apps with the same key (a real business decision, not a technical shortcut), collapse to Meera's own `signingConfigs.release` and remove the `vyakti`-specific names from `docs/gurukul/ENV-MANIFEST.md` §38 — never the reverse (adding a second name that still resolves to the same secret value would defeat the isolation this decision buys).
+
+## `ws-r169-ios-scaffold-identity-staged-by-hand-once-not-a-repeatable-script` (2026-09-13, WS-R169)
+
+**Decision.** The committed `ios/` tree (`npx cap add ios`) was produced by staging `capacitor.vyakti.config.ts` onto `capacitor.config.ts` (`node scripts/select-capacitor-config.mjs vyakti`), running `npx cap add ios` once, then restoring Meera's own tracked `capacitor.config.ts` byte-for-byte (diffed against the pre-staging copy to confirm). No new script wraps this; it is a one-time, by-hand sequence, unlike the Android flavour's `scripts/select-capacitor-config.mjs` which CI calls on every `vyakti-apk` build.
+
+**Why.** `npx cap add ios` is a scaffold-ONCE operation — it writes a fresh Xcode project tree and is never re-run on every build the way `cap sync` is (a real Vyakti iOS pipeline would run `npx cap sync ios` against the same staged config on every build, exactly like Android's `vyakti-apk` job does for `cap sync android`). Wrapping a one-time step in a permanent script would be a script this repo carries forever for an operation it performs once per platform-scaffold lifetime, and no CI job in this repo runs `cap sync ios` today (no macOS/Xcode runner exists here) for such a script to serve.
+
+**Reversal.** The moment a CI job that runs `cap sync ios` (needs a macOS runner, out of this environment's reach) is added, that job should call `scripts/select-capacitor-config.mjs vyakti` before `cap sync ios`, exactly as `vyakti-apk` already does for Android — at that point this decision is superseded and the by-hand staging step described here becomes historical provenance only, never a repeated manual step again.
+
+## `ws-r169-assetlinks-fingerprint-normalised-never-guessed` (2026-09-13, WS-R169)
+
+**Decision.** `api/_well-known-assetlinks.js`'s `buildAssetLinksDocument` accepts a lower-case SHA-256 fingerprint and upper-cases it (Android's own examples and `keytool`'s default output disagree on case), but refuses every OTHER malformed shape (wrong length, missing colons, a non-hex character) by returning an empty array — never a best-effort partial statement.
+
+**Why.** Case is cosmetic (Android's verifier itself is documented case-insensitive on this field), so normalising it costs nothing and avoids a false refusal from an operator who pastes `keytool`'s own lower-case output verbatim. Every OTHER malformed shape is a sign the configured value is not actually a real fingerprint, and emitting a statement built from it would make Android's verifier evaluate a claim this repo cannot actually back — worse than the honest "not yet verified" state an absent statement produces.
+
+**Reversal.** If a future Android Digital Asset Links spec revision changes the fingerprint's canonical shape (unlikely — this format has been stable for years), update `SHA256_FINGERPRINT_RE` and this decision together, citing the spec revision.
+
+## `ws-r169-well-known-is-the-one-dotfile-exception-in-azure-web-routing` (2026-09-13, WS-R169)
+
+**Decision.** `services/azure-web/routing.mjs`'s `safePath` refuses any path segment starting with `.` EXCEPT the literal segment `.well-known` (RFC 8615), which it now explicitly allows while still refusing a bare `.`/`..` and every other dotfile-shaped segment.
+
+**Why.** The full gate's `azureweb` suite (`evals/azure-web/run.mjs`'s "all current rewrites resolve" check, which iterates every `vercel.json` rewrite through this real routing module) caught this before it ever reached production: `/.well-known/assetlinks.json` (this workstream's own new route) returned 400 `bad_path`, never reaching the rewrite table at all. The guard's intent is to stop hidden-file/traversal access (`.git`, `.env`, a bare `.`/`..`); `.well-known` is a standardised, REQUIRED URI prefix for exactly this kind of platform-verification file and was never the kind of path this guard meant to stop.
+
+**Reversal.** If a future route needs a DIFFERENT `.`-prefixed standard prefix (unlikely — `.well-known` is the only one in wide use), extend the exception list rather than loosening the guard to a wildcard; the guard's whole value is that every other dot-segment stays refused.
+
+## `ws-r169-azure-web-res-json-preserves-a-preset-content-type` (2026-09-13, WS-R169)
+
+**Decision.** `services/azure-web/server.mjs`'s `res.json(value)` sugar now sets `Content-Type: application/json` only when no Content-Type header is already present (`res.hasHeader`), rather than always overwriting it.
+
+**Why.** `vercel.json`'s `headers[]` rules are applied to `res` BEFORE the API handler runs (`for (const [key, value] of Object.entries(route.headers)) res.setHeader(key, value)`), so a route that promises a specific Content-Type there (this workstream's `/.well-known/assetlinks.json`, `application/json; charset=utf-8` — Android's asset-links verifier's own documented preference) had that promise silently clobbered back to the bare default the moment any handler used the ordinary `res.json()` convenience method. Every route before this workstream left Content-Type undeclared in `headers[]`, so nothing else changes behaviour; this is the first route to declare one and the first to expose the clobber.
+
+**Reversal.** If a future handler genuinely needs `res.json()` to always force the bare `application/json` regardless of anything `vercel.json` promised (an unlikely need — the promise exists specifically to be honoured), it can `res.removeHeader('Content-Type')` immediately before calling `res.json()`.
+
+## `ws-r169-probe-live-fixture-gets-an-explicit-well-known-case` (2026-09-13, WS-R169)
+
+**Decision.** `evals/probe-live/fakeServer.mjs` (shared by `evals/probe-live/run.mjs` and, via wrapping, `evals/day-one/run.mjs`) gained an explicit branch for `/.well-known/assetlinks.json`, mirroring `api/_well-known-assetlinks.js`'s own real default response (`200`, `application/json; charset=utf-8`, body `[]` — the honest unset-env answer, matching `context/STATE.md`'s "nothing is configured live").
+
+**Why.** This fixture's generic 404 fallback (`applyHeaders(res, pathname); res.writeHead(404, {"content-type": "text/plain"})`) answers any route it has no specific case for; `res.writeHead`'s own headers argument overwrites whatever `applyHeaders` already `setHeader`'d by the same key, so the fallback silently broke the ONE promise (`Content-Type`) this route's `vercel.json` rule makes that no earlier rule made. Every other route this fixture does not specially handle promises no Content-Type at all, so this gap was invisible until now.
+
+**Reversal.** None expected — this fixture case should track `api/_well-known-assetlinks.js`'s real default indefinitely; if that handler's default response shape ever changes, update both together.

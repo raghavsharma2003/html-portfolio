@@ -9,10 +9,10 @@
 // restatement of their content — read the actual bytes on disk, every
 // time), or a REAL execution of the small repo scripts
 // (`scripts/select-capacitor-config.mjs`, `scripts/select-native-start-
-// page.mjs`) against throwaway fixture directories, or (last section) a
-// REAL Chromium proving the studio's record flow under Android WebView-
-// like constraints — mobile UA, `MediaRecorder` deleted from the page
-// global — using the REAL built `dist/studio-layout-fixture.html`.
+// page.mjs`) against throwaway fixture directories, or a REAL Chromium
+// proving the studio's record flow under Android WebView-like constraints
+// — mobile UA, `MediaRecorder` deleted from the page global — using the
+// REAL built `dist/studio-layout-fixture.html`.
 //
 // WHAT ONLY CI CAN PROVE, STATED HERE SO IT IS NEVER IMPLIED BY OMISSION:
 // that `android/app/build.gradle` actually CONFIGURES and that
@@ -20,6 +20,17 @@
 // installable APKs with the right applicationId, icon and manifest baked
 // in. No check below runs Gradle; every Gradle-side claim here is "the
 // source says X", never "Gradle did X".
+//
+// WS-R169 adds three things WS-R157 named but left undone: deep links
+// verified by a REAL request to `/.well-known/assetlinks.json` (an
+// in-process HTTP server running the actual handler, never a hand-typed
+// restatement of its JSON shape), a static parse of the committed
+// `npx cap add ios` scaffold's own identity files (no Xcode here, so no
+// check below claims a build), and release signing for the vyakti flavour
+// (the build.gradle assertions live inside section 2, beside Meera's own
+// signing assertions, and the CI wiring inside section 6, beside Meera's).
+// What ONLY CI (or a Mac with Xcode) can prove for these three is stated
+// again at each section's own top, not only here.
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -79,6 +90,22 @@ const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
   // there and untouched — the meera variant's entire correctness rests on
   // this line never having moved.
   ok("build.gradle: defaultConfig applicationId is still app.meera.companion (untouched)", /defaultConfig\s*\{[\s\S]*?applicationId\s+"app\.meera\.companion"/.test(gradle));
+
+  // WS-R169: release signing for the vyakti flavour, independent of
+  // Meera's own `signingConfigs.release`/`upload.keystore` block below it.
+  ok("build.gradle: vyakti flavour reads VYAKTI_ANDROID_KEYSTORE_PASSWORD", vyaktiBlock !== null && /VYAKTI_ANDROID_KEYSTORE_PASSWORD/.test(vyaktiBlock));
+  ok("build.gradle: vyakti flavour reads VYAKTI_ANDROID_KEY_ALIAS", vyaktiBlock !== null && /VYAKTI_ANDROID_KEY_ALIAS/.test(vyaktiBlock));
+  ok("build.gradle: vyakti flavour reads VYAKTI_ANDROID_KEY_PASSWORD", vyaktiBlock !== null && /VYAKTI_ANDROID_KEY_PASSWORD/.test(vyaktiBlock));
+  ok("build.gradle: vyakti flavour's own keystore file is vyakti-upload.keystore (never Meera's upload.keystore)", vyaktiBlock !== null && /vyakti-upload\.keystore/.test(vyaktiBlock));
+  ok("build.gradle: vyakti flavour creates its own signingConfigs entry (vyaktiRelease, not Meera's release)", vyaktiBlock !== null && /signingConfigs\.create\(\s*'vyaktiRelease'\s*\)/.test(vyaktiBlock));
+  ok("build.gradle: vyakti flavour assigns signingConfig signingConfigs.vyaktiRelease (a real flavour-level override, not merely a declared config nothing selects)", vyaktiBlock !== null && /signingConfig\s+signingConfigs\.vyaktiRelease/.test(vyaktiBlock));
+  // NEGATIVE CONTROL: the vyakti flavour's signing block must never read
+  // Meera's own env var names — a shared name would mean one leaked secret
+  // signs both Play listings.
+  ok("NEGATIVE CONTROL: the vyakti flavour signing block never reads Meera's own ANDROID_KEYSTORE_PASSWORD/ANDROID_KEY_ALIAS/ANDROID_KEY_PASSWORD", vyaktiBlock !== null && !/[^_]ANDROID_KEYSTORE_PASSWORD/.test(vyaktiBlock) && !/[^_]ANDROID_KEY_ALIAS/.test(vyaktiBlock) && !/[^_]ANDROID_KEY_PASSWORD/.test(vyaktiBlock));
+  // Meera's own signing config must still exist, untouched, further down —
+  // this workstream adds a second one, it never edits the first.
+  ok("build.gradle: Meera's own signingConfigs.release block is still present and untouched", /signingConfigs\s*\{[\s\S]*?if \(ksFile\.exists\(\) && ksPass != null\) \{[\s\S]*?release \{[\s\S]*?storeFile ksFile/.test(gradle));
 }
 
 // ═══ 3. The SHARED manifest already carries the three permissions ══════════
@@ -164,10 +191,37 @@ const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
   ok("build-apk.yml: vyakti-apk uploads artifact named vyakti-apk", /name:\s*vyakti-apk/.test(workflow));
   ok("build-apk.yml: vyakti-apk stages the vyakti capacitor config", /select-capacitor-config\.mjs vyakti/.test(workflow));
   ok("build-apk.yml: vyakti-apk selects the studio start page", /select-native-start-page\.mjs studio/.test(workflow));
-  ok("build-apk.yml: vyakti-apk needs no secret (no `secrets\\.` reference inside that job)", (() => {
-    const jobStart = workflow.indexOf("\n  vyakti-apk:");
-    const jobBody = jobStart >= 0 ? workflow.slice(jobStart) : "";
-    return jobStart >= 0 && !/secrets\./.test(jobBody);
+  // WS-R169: the debug half needs no secret, exactly as WS-R157 left it —
+  // only the NEW release-signing steps below may reference one, and only
+  // Vyakti's own secret names (never Meera's `ANDROID_*` ones, so one
+  // leaked keystore can never compromise both Play listings). The old
+  // "no `secrets.` reference inside that job at all" assertion is
+  // superseded by these five, which prove the same safety property
+  // (the debug build stays secret-free) while also proving the release
+  // half was actually wired, not merely claimed in the brief.
+  const vyaktiJobStart = workflow.indexOf("\n  vyakti-apk:");
+  const vyaktiJobBody = vyaktiJobStart >= 0 ? workflow.slice(vyaktiJobStart) : "";
+  // Scan from `steps:` (past the job-level `env: HAS_VYAKTI_KEYSTORE: ...
+  // secrets....` hoist, which — exactly like Meera's own `HAS_KEYSTORE`
+  // hoist in the `build` job above — is the one legitimate `secrets.`
+  // reference that exists specifically so no individual step needs one
+  // directly) up to the first `if:`, which is where the gated release
+  // steps begin.
+  const vyaktiStepsStart = vyaktiJobBody.indexOf("\n    steps:");
+  const vyaktiDebugPrefix = vyaktiStepsStart >= 0 ? vyaktiJobBody.slice(vyaktiStepsStart, Math.max(vyaktiStepsStart, vyaktiJobBody.indexOf("if:"))) : "";
+  ok("build-apk.yml: vyakti-apk's debug steps stay unconditional and secret-free (no `if:`, no `secrets.` reference between `steps:` and the release steps)", vyaktiStepsStart >= 0 && vyaktiDebugPrefix.length > 0 && !/secrets\./.test(vyaktiDebugPrefix) && /name:\s*vyakti-apk/.test(vyaktiDebugPrefix));
+  ok("build-apk.yml: vyakti-apk hoists HAS_VYAKTI_KEYSTORE from secrets.VYAKTI_ANDROID_KEYSTORE_BASE64 (WS-R169, same hoist-presence-once pattern as HAS_KEYSTORE)", /HAS_VYAKTI_KEYSTORE:\s*\$\{\{\s*secrets\.VYAKTI_ANDROID_KEYSTORE_BASE64\s*!=\s*''\s*\}\}/.test(vyaktiJobBody));
+  ok("build-apk.yml: vyakti-apk's release-signing steps are gated behind env.HAS_VYAKTI_KEYSTORE (Decode, Build, Upload — three gated steps)", (vyaktiJobBody.match(/if:\s*\$\{\{\s*env\.HAS_VYAKTI_KEYSTORE\s*==\s*'true'\s*\}\}/g) || []).length === 3);
+  ok("build-apk.yml: vyakti-apk runs bundleVyaktiRelease assembleVyaktiRelease", /gradlew bundleVyaktiRelease assembleVyaktiRelease/.test(vyaktiJobBody));
+  ok("build-apk.yml: vyakti-apk uploads a vyakti-release artifact (aab + apk, flavour-qualified paths)", /name:\s*vyakti-release/.test(vyaktiJobBody) && /outputs\/bundle\/vyaktiRelease\/app-vyakti-release\.aab/.test(vyaktiJobBody) && /outputs\/apk\/vyakti\/release\/app-vyakti-release\.apk/.test(vyaktiJobBody));
+  // NEGATIVE CONTROL: every `secrets.` reference inside this job must be one
+  // of Vyakti's OWN four names — never Meera's `ANDROID_*` secrets, which
+  // would mean the two flavours share a signing identity (exactly the risk
+  // this workstream's own header comment names).
+  ok("NEGATIVE CONTROL: every secrets. reference in the vyakti-apk job is Vyakti's own name, never Meera's ANDROID_* secrets", (() => {
+    const refs = [...vyaktiJobBody.matchAll(/secrets\.([A-Za-z0-9_]+)/g)].map((m) => m[1]);
+    const allowed = new Set(["VYAKTI_ANDROID_KEYSTORE_BASE64", "VYAKTI_ANDROID_KEYSTORE_PASSWORD", "VYAKTI_ANDROID_KEY_ALIAS", "VYAKTI_ANDROID_KEY_PASSWORD"]);
+    return refs.length > 0 && refs.every((name) => allowed.has(name));
   })());
   // The original job must now be flavour-qualified — a flavour dimension
   // exists, so the old bare task names build BOTH flavours together and the
@@ -429,12 +483,181 @@ const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
         await page.waitForSelector(".vx-sample", { timeout: 15_000 });
         const continueEnabled = await page.$eval(".vx-sample__actions .vx-button--primary", (el) => !el.disabled);
         ok("mobile WebView record flow: reaches the review state with Continue enabled (WAV path, no MediaRecorder, no webm)", continueEnabled);
+
+        // WS-R169's own law 5: "extended to the upload and the wait".
+        // Clicking Continue calls `submitRecording` directly
+        // (`CloneExperience.tsx`'s `onProceed={(sample, language) =>
+        // void submitRecording(sample, language)}`), which drives hash ->
+        // authorize -> upload -> verify -> select through the REAL client
+        // code against `layoutFixture.tsx`'s own fixture private-upload XHR
+        // transport (`installFixtureUploadTransport`, unconditional, not
+        // behind `mockMic`) and its `/api/replica-source` +
+        // `/api/replica-review` stub routes (`create_upload`, `finalize`,
+        // `request_voice_genome_build`) — no real network, no Azure, no
+        // GPU, no money, exactly this suite's own header promise.
+        //
+        // The transient `.vx-upload` scene (id `vx-upload-title`, "Securing
+        // your recording.") is proven STATICALLY here, never by watching
+        // for it live: the outer scene switch is one
+        // `<AnimatePresence mode="wait">` (CloneExperience.tsx), which
+        // never mounts a new keyed child until the PREVIOUS child's own
+        // exit animation finishes. This fixture's whole hash -> select
+        // round trip (a mocked, same-process fetch plus one real 80ms XHR
+        // timeout) resolves faster than Framer Motion's default exit
+        // transition on the "record" scene it is leaving, so by the time
+        // AnimatePresence is ready to mount the next child, `upload` state
+        // has already gone all the way through and back to `null` — the
+        // "upload" scene is skipped in the DOM by construction, not by a
+        // timing accident a longer `waitForSelector` timeout or a
+        // `MutationObserver` could out-wait (both were tried; see
+        // `context/rejected.md#ws-r169-upload-scene-unobservable-live-in-the-fixture`).
+        // A real device sees it for seconds to minutes (a genuine Azure
+        // upload), so this is a fixture-speed artifact, not a product bug.
+        const cloneExperienceSrc = readFileSync(join(ROOT, "src/studio/CloneExperience.tsx"), "utf8");
+        ok("CloneExperience.tsx: the upload scene is gated on `upload &&` inside the SAME AnimatePresence as the recorder and verification scenes (one scene switch, never a separate overlay that could hide a real failure)", /\) : upload \? \(\s*<motion\.section className="vx-scene vx-upload" key="upload"/.test(cloneExperienceSrc));
+        ok("CloneExperience.tsx: the upload scene's heading text is exactly \"Securing your recording.\" for every phase but failed", /upload\.phase === "failed" \? "Upload paused\." : "Securing your recording\."/.test(cloneExperienceSrc));
+        ok("CloneExperience.tsx: the upload scene shows live progress (\"Uploading N%\") during the upload phase specifically", /upload\.phase === "upload" \? `Uploading \$\{upload\.progress\}%`/.test(cloneExperienceSrc));
+
+        await page.click(".vx-sample__actions .vx-button--primary");
+        // The wait: `finalize`'s fixture reply leaves the source at
+        // `state: "processing"` (never flipped to `"ready"` — this fixture
+        // has no polling worker, honestly), which
+        // `deriveCloneVerificationStage` reads BEFORE it ever looks at the
+        // voice-genome build intent (`primary.state !== "ready" =>
+        // "source_processing"`, checked ahead of the `"building"` branch) —
+        // the real "your recording is being checked, come back later"
+        // screen a signed-in person sits on after a real Azure worker picks
+        // the upload up. Reaching it proves the WHOLE saga (upload ->
+        // finalize -> build-intent request) survives the same
+        // WebView-shaped, no-MediaRecorder browser context as the recording
+        // step above, not only the recording step in isolation.
+        await page.waitForSelector("#cvj-source-title", { timeout: 15_000 });
+        const waitTitle = await page.$eval("#cvj-source-title", (el) => el.textContent || "");
+        ok("mobile WebView record flow: reaches the wait screen (\"Preparing your recording.\") after upload and finalize", waitTitle.includes("Preparing your recording"));
       } finally {
         await browser.close();
         server.close();
       }
     }
   }
+}
+
+// ═══ 15. /.well-known/assetlinks.json — the deep-link verification door ═══
+// WS-R169 law 2. `buildAssetLinksDocument` is proven directly (pure
+// function, a plain object in — no network), then the thin HTTP handler is
+// invoked with a fake req/res (`evals/incidents/run.mjs`'s own `fakeRes`
+// pattern) so this also proves the two files are actually WIRED to each
+// other, never only each independently correct.
+{
+  const { buildAssetLinksDocument, VYAKTI_PACKAGE_NAME } = await import(pathToFileURL(join(ROOT, "api/_well-known-assetlinks.js")).href);
+
+  ok("_well-known-assetlinks.js: VYAKTI_PACKAGE_NAME is app.vyakti.studio", VYAKTI_PACKAGE_NAME === "app.vyakti.studio");
+  ok("buildAssetLinksDocument({}): the env unset is an HONEST empty array, never a placeholder fingerprint", JSON.stringify(buildAssetLinksDocument({})) === "[]");
+  ok("buildAssetLinksDocument: an empty-string env value is also empty", JSON.stringify(buildAssetLinksDocument({ VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256: "" })) === "[]");
+
+  const validFp = Array.from({ length: 32 }, (_, index) => index.toString(16).padStart(2, "0").toUpperCase()).join(":");
+  const doc = buildAssetLinksDocument({ VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256: validFp });
+  ok("buildAssetLinksDocument: a well-formed fingerprint produces exactly one statement", Array.isArray(doc) && doc.length === 1);
+  ok("buildAssetLinksDocument: the statement's relation is delegate_permission/common.handle_all_urls", doc[0]?.relation?.[0] === "delegate_permission/common.handle_all_urls");
+  ok("buildAssetLinksDocument: the statement's target.namespace is android_app", doc[0]?.target?.namespace === "android_app");
+  ok("buildAssetLinksDocument: the statement's target.package_name is app.vyakti.studio", doc[0]?.target?.package_name === "app.vyakti.studio");
+  ok("buildAssetLinksDocument: the fingerprint is carried through unchanged (already-uppercase input)", doc[0]?.target?.sha256_cert_fingerprints?.[0] === validFp);
+
+  const docLower = buildAssetLinksDocument({ VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256: validFp.toLowerCase() });
+  ok("buildAssetLinksDocument: a lowercase fingerprint is accepted and normalised to uppercase (keytool -list -v's own case)", docLower.length === 1 && docLower[0].target.sha256_cert_fingerprints[0] === validFp);
+
+  // NEGATIVE CONTROLS: a malformed fingerprint must never produce a
+  // statement — a fake one is worse than none (Android would trust a claim
+  // this repo never actually holds; the handler's own header explains why).
+  const badShapes = {
+    "not hex at all": "not-a-fingerprint",
+    "no colons": validFp.replace(/:/g, ""),
+    "one hex digit short": validFp.slice(0, -1),
+    "33 octets (one too many)": `${validFp}:FF`,
+    "a non-hex octet": `GG:${validFp.slice(3)}`,
+  };
+  for (const [label, bad] of Object.entries(badShapes)) {
+    ok(`NEGATIVE CONTROL: buildAssetLinksDocument rejects a malformed fingerprint (${label})`, JSON.stringify(buildAssetLinksDocument({ VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256: bad })) === "[]");
+  }
+
+  const { default: assetLinksHandler } = await import(pathToFileURL(join(ROOT, "api/well-known-assetlinks.js")).href);
+  function fakeAssetLinksRes() {
+    const calls = { statusCodes: [], sentBodies: [], headers: {} };
+    const res = {
+      _calls: calls,
+      status(code) { calls.statusCodes.push(code); return res; },
+      send(body) { calls.sentBodies.push(body); return res; },
+      setHeader(key, value) { calls.headers[key] = value; return res; },
+    };
+    return res;
+  }
+
+  const originalFingerprintEnv = process.env.VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256;
+  try {
+    delete process.env.VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256;
+    const resUnset = fakeAssetLinksRes();
+    await assetLinksHandler({ method: "GET" }, resUnset);
+    ok("well-known-assetlinks.js: GET with the env unset answers 200 with an empty JSON array", resUnset._calls.statusCodes[0] === 200 && resUnset._calls.sentBodies[0] === "[]");
+    ok("well-known-assetlinks.js: sets Content-Type application/json", /application\/json/.test(resUnset._calls.headers["Content-Type"] || ""));
+
+    process.env.VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256 = validFp;
+    const resSet = fakeAssetLinksRes();
+    await assetLinksHandler({ method: "GET" }, resSet);
+    const parsedDoc = JSON.parse(resSet._calls.sentBodies[0]);
+    ok("well-known-assetlinks.js: GET with a configured fingerprint answers with one real statement", Array.isArray(parsedDoc) && parsedDoc.length === 1 && parsedDoc[0].target.sha256_cert_fingerprints[0] === validFp);
+
+    const resPost = fakeAssetLinksRes();
+    await assetLinksHandler({ method: "POST" }, resPost);
+    ok("NEGATIVE CONTROL: well-known-assetlinks.js refuses a non-GET method (405)", resPost._calls.statusCodes[0] === 405);
+  } finally {
+    if (originalFingerprintEnv === undefined) delete process.env.VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256;
+    else process.env.VYAKTI_ANDROID_CERT_FINGERPRINT_SHA256 = originalFingerprintEnv;
+  }
+}
+
+// ═══ 16. vercel.json — the /.well-known/assetlinks.json route ═════════════
+{
+  const vercelJson = JSON.parse(read("vercel.json"));
+  const rewrite = (vercelJson.rewrites || []).find((entry) => entry.source === "/.well-known/assetlinks.json");
+  ok("vercel.json: a rewrite routes /.well-known/assetlinks.json to /api/well-known-assetlinks", Boolean(rewrite) && rewrite.destination === "/api/well-known-assetlinks");
+  const header = (vercelJson.headers || []).find((entry) => entry.source === "/.well-known/assetlinks.json");
+  ok("vercel.json: a headers entry names /.well-known/assetlinks.json", Boolean(header));
+}
+
+// ═══ 17. ios/ — the committed `npx cap add ios` scaffold's own identity ═══
+// WS-R169 law 3. No Xcode here, so nothing below claims a build — every
+// assertion is a static parse of the exact files this workstream committed,
+// proving the scaffold's identity was baked from `capacitor.vyakti.
+// config.ts` (staged onto the ONE name the Capacitor CLI reads, exactly as
+// `scripts/select-capacitor-config.mjs` does for `cap sync android` in CI —
+// done by hand for `cap add ios`, which has no such staging script, and
+// reverted immediately after, asserted last below) rather than Meera's own.
+{
+  const pbxprojPath = "ios/App/App.xcodeproj/project.pbxproj";
+  const pbxprojExists = existsSync(join(ROOT, pbxprojPath));
+  ok("ios/App/App.xcodeproj/project.pbxproj exists (the npx cap add ios scaffold is committed)", pbxprojExists);
+  let bundleIds = [];
+  if (pbxprojExists) {
+    const pbxproj = read(pbxprojPath);
+    bundleIds = [...pbxproj.matchAll(/PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);/g)].map((m) => m[1]);
+    ok("project.pbxproj: at least one PRODUCT_BUNDLE_IDENTIFIER is declared", bundleIds.length > 0);
+    ok("project.pbxproj: every PRODUCT_BUNDLE_IDENTIFIER is app.vyakti.studio", bundleIds.length > 0 && bundleIds.every((id) => id === "app.vyakti.studio"));
+    ok("NEGATIVE CONTROL: no PRODUCT_BUNDLE_IDENTIFIER equals Meera's own app.meera.companion (would mean the scaffold was baked from the wrong config)", !bundleIds.includes("app.meera.companion"));
+  }
+  const infoPlistPath = "ios/App/App/Info.plist";
+  const infoPlistExists = existsSync(join(ROOT, infoPlistPath));
+  ok("ios/App/App/Info.plist exists", infoPlistExists);
+  if (infoPlistExists) {
+    const infoPlist = read(infoPlistPath);
+    ok("Info.plist: CFBundleDisplayName is Vyakti", /<key>CFBundleDisplayName<\/key>\s*<string>Vyakti<\/string>/.test(infoPlist));
+    ok("Info.plist: CFBundleIdentifier resolves through PRODUCT_BUNDLE_IDENTIFIER (never a hardcoded literal)", /<key>CFBundleIdentifier<\/key>\s*<string>\$\(PRODUCT_BUNDLE_IDENTIFIER\)<\/string>/.test(infoPlist));
+  }
+  // The one-time staging this scaffold needed (`cap add ios` reads the SAME
+  // fixed `capacitor.config.ts` name `cap sync` does — no `--config` flag,
+  // this suite's own §9 header) must have been reverted: Meera's own
+  // tracked config still names HER app, byte for byte.
+  const meeraConfig = read("capacitor.config.ts");
+  ok("capacitor.config.ts (Meera's own, tracked): still names app.meera.companion / Maya, untouched after being used transiently to stage the iOS scaffold", /appId:\s*"app\.meera\.companion"/.test(meeraConfig) && /appName:\s*"Maya"/.test(meeraConfig));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

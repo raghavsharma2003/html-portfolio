@@ -32,7 +32,13 @@ export function safePath(raw) {
   const pathname = raw.split('?')[0];
   let decoded;
   try { decoded = decodeURIComponent(pathname); } catch { throw new Error('bad_path'); }
-  if (/[\\\x00-\x1f\x7f%]/.test(decoded) || decoded.split('/').some(p => p === '.' || p === '..' || p.startsWith('.'))) throw new Error('bad_path');
+  // WS-R169: `.well-known` is the one standardised exception (RFC 8615) —
+  // `/.well-known/assetlinks.json` (vercel.json's own new rewrite, Android's
+  // Digital Asset Links verifier) is a real, required route, never a hidden
+  // file this guard means to stop. Every OTHER dot-prefixed segment (a bare
+  // `.`/`..`, `.env`, `.git`, any other dotfile) stays refused exactly as
+  // before — this widens nothing else.
+  if (/[\\\x00-\x1f\x7f%]/.test(decoded) || decoded.split('/').some(p => p === '.' || p === '..' || (p.startsWith('.') && p !== '.well-known'))) throw new Error('bad_path');
   // Encoded slashes must not introduce another routing segment.
   if (decoded.split('/').length !== pathname.split('/').length) throw new Error('bad_path');
   return pathname;
