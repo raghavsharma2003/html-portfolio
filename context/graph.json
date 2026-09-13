@@ -18678,6 +18678,18 @@
       "kind": "measurement",
       "title": "WS-R168 touched-suite results: prosody 20/20, room-speak-plan 125/125, voicepanel 153/153, room-doors 2333/2333, room-leak 363/363, room-export 48/48, emotionos 37/37 unchanged",
       "at": "context/measurements.md#ws-r168-touched-suite-results-2026-09-13"
+    },
+    {
+      "id": "ws-r168-studio-css-not-mirrored-into-workspace-partition",
+      "kind": "rejection",
+      "title": "A new studio.css rule added only to studio.css, not to its entry/workspace partition, was caught by evals/studio-entry-css.mjs and fixed (2026-09-13)",
+      "at": "context/rejected.md#ws-r168-studio-css-not-mirrored-into-workspace-partition"
+    },
+    {
+      "id": "ws-r168-full-gate-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R168 full verify-release.mjs: 21/24 clean, 2 documented port collisions, 1 eval-suite pool failure (studio-entry-css) found and fixed (2026-09-13)",
+      "at": "context/measurements.md#ws-r168-full-gate-2026-09-13"
     }
   ],
   "edges": [
@@ -31692,6 +31704,21 @@
     {
       "src": "ws-r168-preview-panel-folds-prosody-plan-sha-into-regeneration-key",
       "dst": "ws-r168-touched-suite-results-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r168-studio-css-not-mirrored-into-workspace-partition",
+      "dst": "ws-r168-prosody-mapper",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r168-studio-css-not-mirrored-into-workspace-partition",
+      "dst": "ws-r168-full-gate-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r168-prosody-mapper",
+      "dst": "ws-r168-full-gate-2026-09-13",
       "rel": "measured_by"
     }
   ]
