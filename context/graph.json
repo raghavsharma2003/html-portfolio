@@ -19176,6 +19176,36 @@
       "kind": "measurement",
       "title": "Wave twenty-two's eleven merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-22-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r180-reply-language-policy-widens-for-a-persons-own-declared-talk",
+      "kind": "decision",
+      "title": "compiler.ts's replyLanguagePolicy widens to also accept a person's own declared talk, teacher path byte-identical (2026-09-13, WS-R180)",
+      "at": "context/decisions.md#ws-r180-reply-language-policy-widens-for-a-persons-own-declared-talk"
+    },
+    {
+      "id": "ws-r180-voice-languageid-follows-the-same-policy-as-the-text",
+      "kind": "decision",
+      "title": "roomSpeak's voice languageId now follows the same reply-language policy as the text turn, not the follower's raw locale (2026-09-13, WS-R180)",
+      "at": "context/decisions.md#ws-r180-voice-languageid-follows-the-same-policy-as-the-text"
+    },
+    {
+      "id": "ws-r180-touched-suite-results-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R180 touched-suite before/after counts: room-reply-language 27/27, person-sheet 57/57, room-speak-plan 136/136, text-ready 33/33, room-leak 367/367, plus 25 unchanged suites re-confirmed",
+      "at": "context/measurements.md#ws-r180-touched-suite-results-2026-09-13"
+    },
+    {
+      "id": "ws-r180-replica-profile-speech-is-not-persontalk",
+      "kind": "rejection",
+      "title": "vy_replica_profile's speech claims were assumed to be the same data as personTalk; they are two independent systems",
+      "at": "context/rejected.md#ws-r180-replica-profile-speech-is-not-persontalk"
+    },
+    {
+      "id": "ws-r180-comment-prose-tripped-room-locales-own-static-scanner",
+      "kind": "rejection",
+      "title": "A WS-R180 comment inside roomSay literally contained 'follower.locale', tripping room-locale's static scanner",
+      "at": "context/rejected.md#ws-r180-comment-prose-tripped-room-locales-own-static-scanner"
     }
   ],
   "edges": [
@@ -32661,6 +32691,41 @@
       "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
       "dst": "wave-21-merged-as-a-batch-under-contention",
       "rel": "supersedes"
+    },
+    {
+      "src": "ws-r24-room-hindi",
+      "rel": "constrains",
+      "dst": "ws-r180-reply-language-policy-widens-for-a-persons-own-declared-talk"
+    },
+    {
+      "src": "ws-r180-reply-language-policy-widens-for-a-persons-own-declared-talk",
+      "rel": "measured_by",
+      "dst": "ws-r180-touched-suite-results-2026-09-13"
+    },
+    {
+      "src": "ws-r180-voice-languageid-follows-the-same-policy-as-the-text",
+      "rel": "measured_by",
+      "dst": "ws-r180-touched-suite-results-2026-09-13"
+    },
+    {
+      "src": "ws-r180-voice-languageid-follows-the-same-policy-as-the-text",
+      "rel": "part_of",
+      "dst": "ws-r180-reply-language-policy-widens-for-a-persons-own-declared-talk"
+    },
+    {
+      "src": "ws-r180-replica-profile-speech-is-not-persontalk",
+      "rel": "caused_by",
+      "dst": "ws-r180-reply-language-policy-widens-for-a-persons-own-declared-talk"
+    },
+    {
+      "src": "ws-r180-comment-prose-tripped-room-locales-own-static-scanner",
+      "rel": "caused_by",
+      "dst": "ws-r180-reply-language-policy-widens-for-a-persons-own-declared-talk"
+    },
+    {
+      "src": "ws-r180-touched-suite-results-2026-09-13",
+      "rel": "measured_by",
+      "dst": "ws-r180-comment-prose-tripped-room-locales-own-static-scanner"
     }
   ]
 }

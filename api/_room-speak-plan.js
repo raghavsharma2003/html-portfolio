@@ -166,3 +166,45 @@ export function roomSpeakPlan(text) {
   const sentences = planReplySentences(text);
   return { sentences, count: sentences.length };
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R180 — the language id the synthesiser is handed, from the SAME policy
+// as the text
+// ═════════════════════════════════════════════════════════════════════════
+//
+// `api/_voice/prosody.js`'s `buildProsodyPlan` accepts exactly `"en"`/`"hi"`
+// as `languageId` — a narrower, two-value set than the reply-language
+// policy's own three (`hindi`/`hinglish`/`english`, `PersonTalkLanguage` in
+// `src/engine/compiler.ts`), because there is no separate Hinglish voice: a
+// mixed-script reply is still spoken with Hindi conditioning. Before this
+// workstream `roomSpeak` handed `buildProsodyPlan` the follower's own
+// session locale unconditionally (`payload.loc`) — the same value the TEXT
+// turn's reply-language policy already ignores as a language instruction
+// (`ws-r24-room-hindi`, `context/decisions.md`) — so a person who declared
+// Hindi and a follower whose chrome happens to be English could have their
+// text answered in Hindi and their voice conditioned in English: the two
+// halves of the SAME reply disagreeing about what language it is.
+//
+// This function stays PURE and knows nothing of a sheet, a session or a
+// database, exactly like `planReplySentences` above it — it takes whatever
+// `replyLanguagePolicyFor` (`agents/fromSheet.ts`, via `_engine.gen.js`)
+// already resolved for the text turn and the SAME fallback locale
+// `roomSpeak` always had, so the caller (`_room-surface.js`) is the only
+// place that touches the engine bundle.
+const VOICE_LANGUAGE_FOR_POLICY = Object.freeze({ hindi: "hi", hinglish: "hi", english: "en" });
+
+/**
+ * `policy` — whatever `replyLanguagePolicyFor(sheet, locale)` returned for
+ * this same turn: a `PersonDeclaredLanguagePolicy` object, or `undefined`
+ * for a teacher sheet (or a person sheet with none). `fallbackLocale` is
+ * `roomSpeak`'s own `payload.loc`, returned UNCHANGED whenever `policy` does
+ * not resolve to a known voice language — the byte-identical, pre-workstream
+ * behavior for every teacher Room and every person Room this maps nothing
+ * new for.
+ */
+export function roomSpeakLanguageId(policy, fallbackLocale) {
+  const mapped = policy && typeof policy === "object" && !Array.isArray(policy)
+    ? VOICE_LANGUAGE_FOR_POLICY[policy.language]
+    : undefined;
+  return mapped || fallbackLocale;
+}

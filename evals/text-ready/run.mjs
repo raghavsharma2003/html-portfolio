@@ -46,7 +46,13 @@ const {
   textBlockers, clientRuntimeStatus, compileReplicaRuntimeCore,
   RUNTIME_STATUS_SQL, TEXT_CAPABILITY_ENSURE_SQL, OWNED_TEXT_PROFILE_SQL, OWNED_PRIVATE_RUNTIME_CONTEXT_SQL,
 } = runtime;
-const { generateOwnedTextDialogue, generateOwnedDialogue, TEXT_APPRENTICE_DISCLOSURE } = dialogue;
+const {
+  generateOwnedTextDialogue, generateOwnedDialogue, TEXT_APPRENTICE_DISCLOSURE,
+  // WS-R180: the owner's own published person-sheet read, so this suite's
+  // fake db can drive both the "no such sheet" default (already every
+  // scenario above) and the positive case §6 adds below.
+  OWNER_PERSON_TALK_SHEET_SQL,
+} = dialogue;
 
 // ── a full-good RUNTIME_STATUS_SQL row, and small overrides per scenario ──
 const REPLICA_ID = "11111111-1111-4111-8111-111111111111";
@@ -88,7 +94,7 @@ const FAKE_VIBE = { vibe_id: "v1", replica_id: REPLICA_ID, owner_user_id: OWNER_
  *  that never existed) — every other scenario passes a real row shaped by
  *  `statusRow()`'s overrides. `withVibe`/`withProfile` gate the two other
  *  statements `generateOwnedTextDialogue` issues once text_ready is true. */
-function fakeDb({ row, withProfile = true, withVibe = true } = {}) {
+function fakeDb({ row, withProfile = true, withVibe = true, personTalkSheet = null } = {}) {
   const calls = [];
   const db = async (sql, params) => {
     calls.push(sql);
@@ -96,6 +102,10 @@ function fakeDb({ row, withProfile = true, withVibe = true } = {}) {
     if (sql === TEXT_CAPABILITY_ENSURE_SQL) return []; // the write path; unproven offline, see this file's own header
     if (sql === OWNED_TEXT_PROFILE_SQL) return withProfile ? [{ version: 1, definition: JSON.stringify(PROFILE_DEFINITION) }] : [];
     if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return []; // no active/private VOICE capability in any scenario this suite drives
+    // WS-R180: `null` (every scenario above this workstream) is the SAME
+    // "no such row" shape every other absent-optional-row branch here
+    // returns — byte-identical to before this query existed.
+    if (sql === OWNER_PERSON_TALK_SHEET_SQL) return personTalkSheet ? [{ sheet: personTalkSheet }] : [];
     if (sql.includes("from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid")) return withProfile ? [{ replica_id: params[0] }] : [];
     if (sql.includes("from vy_replica_vibe where replica_id=$1::uuid and owner_user_id=$2::uuid and superseded_at is null")) return withVibe ? [FAKE_VIBE] : [];
     throw new Error(`text-ready fixture: unmatched SQL statement (${sql.length} chars): ${sql.slice(0, 120)}`);
@@ -209,6 +219,66 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
   const turn = await generateOwnedDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Who are you?" }, generator, null, {});
   ok("generateOwnedDialogue itself falls back to the text-ready door when no voice capability is active", turn && turn.reply.startsWith(TEXT_APPRENTICE_DISCLOSURE));
   ok("the fallback used the SAME generator, called exactly once", calls() === 1);
+}
+
+// ── 6. WS-R180: the text-ready Meet door renders the person's own declared
+//    reply-language policy, using the SAME `replyLanguagePolicyFor`/
+//    `renderPersonDeclaredLanguagePolicy` `evals/person-sheet/run.mjs` and
+//    `evals/room-reply-language.mjs` already exhaustively prove — this
+//    section proves only the WIRING: a published person sheet reaches the
+//    generator's prompt, and its absence renders nothing (the default this
+//    suite's every earlier scenario already exercises, restated here as an
+//    explicit negative control on the exact string). ───────────────────────
+{
+  const PERSON_SHEET = {
+    sheetKind: "person",
+    personTalk: { register: "formal", scriptBaseline: "devanagari" },
+  };
+  function capturingGenerator(replyText = "Namaste, main seekh rahi hoon.") {
+    let received;
+    return {
+      generator: {
+        family: "rehearsal", name: "fake-text-dialogue", version: "v1", model: "rehearsal-fake",
+        generate: async ({ prompt }) => {
+          received = prompt;
+          return { output: { reply: replyText, delivery: { mode: "grounded", pace: "natural", intensity: 0.4, language_hint: "", nonverbals: [] } }, usage: null };
+        },
+      },
+      prompt: () => received,
+    };
+  }
+
+  {
+    const { db } = fakeDb({ row: statusRow(), personTalkSheet: PERSON_SHEET });
+    const { generator, prompt } = capturingGenerator();
+    await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Who are you?" }, generator, null);
+    const system = prompt().messages[0].content;
+    ok("a published person sheet's declared talk reaches the text-ready prompt",
+      system.includes("REPLY LANGUAGE POLICY: person_declared") && system.includes("Hindi, Devanagari script; register formal."));
+  }
+  {
+    // NEGATIVE CONTROL: no such sheet (every scenario above this one) -
+    // the prompt carries no reply-language block at all.
+    const { db } = fakeDb({ row: statusRow() });
+    const { generator, prompt } = capturingGenerator();
+    await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Who are you?" }, generator, null);
+    ok("NEGATIVE CONTROL — no published person sheet: no reply-language block in the prompt",
+      !prompt().messages[0].content.includes("REPLY LANGUAGE POLICY"));
+  }
+  {
+    // NEGATIVE CONTROL: the owner's own sheet READ fails (a transient error,
+    // a malformed row) - the turn still completes, honestly, never a 500
+    // over metadata the reply itself does not need.
+    const { db: goodDb } = fakeDb({ row: statusRow(), personTalkSheet: PERSON_SHEET });
+    const failingDb = async (sql, params) => {
+      if (sql === OWNER_PERSON_TALK_SHEET_SQL) throw new Error("transient_read_failure");
+      return goodDb(sql, params);
+    };
+    const { generator, prompt } = capturingGenerator();
+    const turn = await generateOwnedTextDialogue(failingDb, OWNER_ID, { replica_id: REPLICA_ID, message: "Who are you?" }, generator, null);
+    ok("NEGATIVE CONTROL — a failed sheet read degrades to no policy, never a failed turn",
+      typeof turn.reply === "string" && !prompt().messages[0].content.includes("REPLY LANGUAGE POLICY"));
+  }
 }
 
 console.log(`\n${pass} pass, ${fail} fail`);

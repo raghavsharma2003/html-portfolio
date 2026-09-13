@@ -1143,18 +1143,23 @@ console.log("\n── layer 7: taste (guest lane, no follower writer reachable) 
 {
   const tasteSrc = fs.readFileSync(join(REPO, "api/_room-taste.js"), "utf8");
 
-  // The whole file may import from only these four - `_surface.js` (no
+  // The whole file may import from only these five - `_surface.js` (no
   // database at all, by that file's own header: "this file has no database
   // and must keep none"), `_room-surface.js` (the follower lane's own file,
-  // narrowed below to a closed read-only allowlist) and `memory.js`
-  // (narrowed below to the one pure read helper), plus the dependency-free
-  // reply-language validator whose symbol/call closure is checked below. No direct import of
+  // narrowed below to a closed read-only allowlist), `memory.js` (narrowed
+  // below to the one pure read helper), the dependency-free reply-language
+  // validator whose symbol/call closure is checked below, and (WS-R180) the
+  // generated engine bundle `_engine.gen.js`, narrowed below to the ONE
+  // pure symbol taste's own reply-language turn needs
+  // (`replyLanguagePolicyFor` - a projection off a loaded sheet, never a
+  // database read of its own; `_room-surface.js` reads the same symbol
+  // off the same bundle for the follower lane). No direct import of
   // `episodes.js`, `_phase-gate.js`, `_pulse.js`, `_room-push.js`,
   // `_room-whatsapp.js`, `_handoff.js`, `_room-voice.js` or `_db.js` -
   // every one of those either owns a follower writer or a live connection
   // this stateless lane has no business holding.
   const importedFiles = [...tasteSrc.matchAll(/from\s+"\.\/(_?[\w.-]+\.js)"/g)].map((m) => m[1]);
-  const ALLOWED_TASTE_IMPORT_FILES = new Set(["_surface.js", "_room-surface.js", "memory.js", "_room-reply-language.js"]);
+  const ALLOWED_TASTE_IMPORT_FILES = new Set(["_surface.js", "_room-surface.js", "memory.js", "_room-reply-language.js", "_engine.gen.js"]);
   ok("api/_room-taste.js imports from a closed set of files only (no direct import of a writer-owning or db-holding file)",
     importedFiles.length > 0 && importedFiles.every((f) => ALLOWED_TASTE_IMPORT_FILES.has(f)),
     importedFiles.join(","));
@@ -1195,6 +1200,19 @@ console.log("\n── layer 7: taste (guest lane, no follower writer reachable) 
     exactLanguageImport(gotFromLanguage));
   ok("NEGATIVE CONTROL: an extra language-helper symbol fails the same closed import check",
     !exactLanguageImport([...gotFromLanguage, "sendMessage"]));
+
+  // WS-R180: the generated engine bundle is huge (hundreds of exports,
+  // including database-shaped names elsewhere in this repo), so unlike the
+  // tiny hand-written `_room-reply-language.js` above, this is not a
+  // whole-file purity proof - it is the same "exact symbol, nothing else"
+  // shape the two allowlists above already enforce, applied to the one
+  // bundle export this stateless lane may ever reach.
+  const gotFromEngine = importsFrom("_engine\\.gen\\.js");
+  const exactEngineImport = (names) => JSON.stringify(names) === JSON.stringify(["replyLanguagePolicyFor"]);
+  ok("taste imports only the exact engine-bundle symbol (replyLanguagePolicyFor)",
+    exactEngineImport(gotFromEngine));
+  ok("NEGATIVE CONTROL: a second engine-bundle symbol fails the same closed import check",
+    !exactEngineImport([...gotFromEngine, "sheetToModule"]));
 
   // Parse the tiny validator rather than relying on a comment or a blacklist
   // of provider names. Only local control flow, one env-property read and

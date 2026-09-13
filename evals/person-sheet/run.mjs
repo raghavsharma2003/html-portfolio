@@ -322,5 +322,78 @@ ok(
 );
 ok('a PERSON sheet with no personLine set -> ""', personDisclosureLine({ sheetKind: "person" }) === "");
 
+// ── 11. replyLanguagePolicyFor (WS-R180) ────────────────────────────────
+//
+// The pure projection from a loaded sheet to whichever closed
+// `replyLanguagePolicy` value `compiler.ts`'s `compile()` accepts. Never a
+// second, hand-typed model of the three `scriptBaseline` -> language/script
+// mappings — this asserts the REAL function's output directly.
+console.log("\n── replyLanguagePolicyFor (WS-R180) ──");
+const { replyLanguagePolicyFor } = M;
+
+ok(
+  "a TEACHER sheet (sheetKind absent, DEMO_TEACHER) -> undefined regardless of locale",
+  replyLanguagePolicyFor(DEMO_TEACHER, "en") === undefined
+    && replyLanguagePolicyFor(DEMO_TEACHER, "hi") === undefined
+    && replyLanguagePolicyFor(DEMO_TEACHER, undefined) === undefined,
+);
+ok(
+  "a sheet with sheetKind explicitly 'teacher' -> undefined even carrying a personTalk-shaped field",
+  replyLanguagePolicyFor({ ...DEMO_TEACHER, sheetKind: "teacher", personTalk: MINIMAL_PERSON.personTalk }, "en") === undefined,
+);
+
+const romanHinglish = replyLanguagePolicyFor(MINIMAL_PERSON, "en");
+ok(
+  "roman-hinglish scriptBaseline -> language hinglish, script roman, register/codeSwitchNote carried",
+  romanHinglish && romanHinglish.kind === "person_declared" && romanHinglish.language === "hinglish"
+    && romanHinglish.script === "roman" && romanHinglish.register === "mixed"
+    && romanHinglish.codeSwitchNote === MINIMAL_PERSON.personTalk.codeSwitchNote,
+  JSON.stringify(romanHinglish),
+);
+
+const devanagari = replyLanguagePolicyFor(
+  withField({ personTalk: { register: "formal", scriptBaseline: "devanagari" } }), "en",
+);
+ok(
+  "devanagari scriptBaseline -> language hindi, script devanagari, no codeSwitchNote key when none was set",
+  devanagari && devanagari.language === "hindi" && devanagari.script === "devanagari"
+    && devanagari.register === "formal" && !("codeSwitchNote" in devanagari),
+  JSON.stringify(devanagari),
+);
+
+const english = replyLanguagePolicyFor(
+  withField({ personTalk: { register: "casual", scriptBaseline: "english", codeSwitchNote: "  " } }), "en",
+);
+ok(
+  "english scriptBaseline -> language english, script roman; a blank codeSwitchNote trims to no key",
+  english && english.language === "english" && english.script === "roman" && !("codeSwitchNote" in english),
+  JSON.stringify(english),
+);
+
+// NEGATIVE CONTROL (brief law 4): a follower's locale never overrides an
+// explicit person policy — the SAME sheet under every locale this product
+// actually carries, byte-identical.
+const acrossLocales = ["en", "hi", "fr", "", undefined].map((loc) => JSON.stringify(replyLanguagePolicyFor(MINIMAL_PERSON, loc)));
+ok(
+  "NEGATIVE CONTROL: locale never overrides an explicit person policy (identical across en/hi/fr/blank/absent)",
+  acrossLocales.every((v) => v === acrossLocales[0]),
+  acrossLocales.join(" | "),
+);
+
+// NEGATIVE CONTROL (brief law 4): a missing talk field falls back to
+// today's default, byte-identical — `undefined`, never a guessed policy.
+const noTalk = withField({ personTalk: undefined });
+ok("NEGATIVE CONTROL: a person sheet with no personTalk at all -> undefined", replyLanguagePolicyFor(noTalk, "en") === undefined);
+ok("NEGATIVE CONTROL: null sheet -> undefined", replyLanguagePolicyFor(null, "en") === undefined);
+ok("NEGATIVE CONTROL: undefined sheet -> undefined", replyLanguagePolicyFor(undefined, "en") === undefined);
+ok(
+  "NEGATIVE CONTROL: an invalid scriptBaseline on an otherwise person-shaped sheet fails closed to undefined, never a guess",
+  replyLanguagePolicyFor(withField({ personTalk: { register: "mixed", scriptBaseline: "latin" } }), "en") === undefined,
+);
+ok(
+  "NEGATIVE CONTROL: an invalid register on an otherwise person-shaped sheet fails closed to undefined, never a guess",
+  replyLanguagePolicyFor(withField({ personTalk: { register: "chill", scriptBaseline: "english" } }), "en") === undefined,
+);
+
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} CHECKS PASS`);
 process.exitCode = fail ? 1 : 0;

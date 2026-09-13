@@ -79,6 +79,129 @@ await check('policy cannot be silently sliced off by the actual transport bounds
   assert.throws(() => engine.compile({ ...base, memories: 'x'.repeat(24_001), replyLanguagePolicy: POLICY }), { code: 'reply_language_policy_prompt_budget_exceeded' });
 });
 
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R180 — a person sheet's OWN declared talk drives the policy
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Three sheets, one per `scriptBaseline`, the closed set `personTalk`
+// actually offers (`src/engine/agents/teacherTypes.ts`) — Hindi
+// (devanagari), Hinglish (roman-hinglish) and English, each with a
+// different `register` so the rendered block is proven to carry BOTH
+// dimensions, never just the script. Built the same way
+// `evals/person-sheet/run.mjs`'s own `MINIMAL_PERSON` is: the teacher
+// fixture's platform floor text (crisis lines, escalation route) carried
+// over unchanged, only the person-only fields and `sheetKind` layered on —
+// `validateTeacherSheet` skips every teacher-pedagogy field for a person
+// sheet (fromSheet.ts §2), so leaving them populated is harmless, never a
+// validation failure this suite would have to route around.
+const personSheet = (scriptBaseline, register, codeSwitchNote) => ({
+  ...SHEET,
+  sheetKind: 'person',
+  name: 'Priya Menon',
+  personLine: 'Product designer. Bad puns. Worse badminton.',
+  personValues: ['curiosity', 'directness', 'showing up on time', 'no drama'],
+  personNeverSay: ['give medical advice', 'discuss her salary', 'predict exam results'],
+  personTalk: { register, scriptBaseline, ...(codeSwitchNote !== undefined ? { codeSwitchNote } : {}) },
+});
+const PERSON_HINDI = personSheet('devanagari', 'formal');
+const PERSON_HINGLISH = personSheet('roman-hinglish', 'mixed', 'switches to Hindi when excited');
+const PERSON_ENGLISH = personSheet('english', 'casual');
+const PERSON_HEAD = '\n\nREPLY LANGUAGE POLICY: person_declared\n';
+
+const personCases = [
+  { name: 'Hindi (devanagari)', sheet: PERSON_HINDI, language: 'Hindi', script: 'Devanagari script', register: 'formal' },
+  { name: 'Hinglish (roman-hinglish)', sheet: PERSON_HINGLISH, language: 'Hinglish (mixed Hindi and English)', script: 'Roman script', register: 'mixed' },
+  { name: 'English', sheet: PERSON_ENGLISH, language: 'English', script: 'Roman script', register: 'casual' },
+];
+for (const { name, sheet, language, script, register } of personCases) {
+  await check(`${name}: replyLanguagePolicyFor projects the sheet's own scriptBaseline/register`, () => {
+    const policy = engine.replyLanguagePolicyFor(sheet, 'en');
+    assert.equal(policy.kind, 'person_declared');
+    const compiled = engine.compile({ ...base, agent: engine.sheetToModule(sheet), replyLanguagePolicy: policy });
+    assert.ok(compiled.tail.includes(PERSON_HEAD), compiled.tail);
+    assert.ok(!compiled.tail.includes(HEAD), 'must never also carry the teacher-path block');
+    assert.ok(compiled.tail.includes(`Default language and script when nothing else decides it: ${language}, ${script}; register ${register}.`));
+  });
+  await check(`${name}: locale never overrides the person's own declared policy (byte-identical block across en/hi)`, () => {
+    const withEn = engine.compile({ ...base, agent: engine.sheetToModule(sheet), replyLanguagePolicy: engine.replyLanguagePolicyFor(sheet, 'en') });
+    const withHi = engine.compile({ ...base, agent: engine.sheetToModule(sheet), replyLanguagePolicy: engine.replyLanguagePolicyFor(sheet, 'hi') });
+    assert.equal(withEn.tail, withHi.tail);
+  });
+}
+await check("person_declared's codeSwitchNote renders as its own line only when the person set one", () => {
+  const withNote = engine.compile({ ...base, agent: engine.sheetToModule(PERSON_HINGLISH), replyLanguagePolicy: engine.replyLanguagePolicyFor(PERSON_HINGLISH, 'en') });
+  assert.ok(withNote.tail.includes('How this person code-switches: switches to Hindi when excited\n'));
+  const withoutNote = engine.compile({ ...base, agent: engine.sheetToModule(PERSON_HINDI), replyLanguagePolicy: engine.replyLanguagePolicyFor(PERSON_HINDI, 'en') });
+  assert.ok(!withoutNote.tail.includes('How this person code-switches:'));
+});
+await check('a person sheet with no personTalk falls back to undefined, byte-identical to no policy at all', () => {
+  const noTalk = { ...PERSON_HINDI, personTalk: undefined };
+  const policy = engine.replyLanguagePolicyFor(noTalk, 'en');
+  assert.equal(policy, undefined);
+  assert.deepEqual(engine.compile({ ...base, agent: engine.sheetToModule(noTalk), replyLanguagePolicy: policy }), engine.compile({ ...base, agent: engine.sheetToModule(noTalk) }));
+});
+await check('NEGATIVE CONTROL: a malformed person_declared object is refused, never silently coerced', () => {
+  for (const bad of [
+    { kind: 'person_declared', language: 'french', script: 'roman', register: 'mixed' },
+    { kind: 'person_declared', language: 'hindi', script: 'braille', register: 'mixed' },
+    { kind: 'person_declared', language: 'hindi', script: 'roman', register: 'excited' },
+    { kind: 'person_declared', language: 'hindi', script: 'roman' },
+    { language: 'hindi', script: 'roman', register: 'mixed' },
+    { kind: 'person_declared', language: 'hindi', script: 'roman', register: 'mixed', codeSwitchNote: 7 },
+    null, 'person_declared', ['person_declared'],
+  ]) {
+    assert.throws(() => engine.compile({ ...base, replyLanguagePolicy: bad }), { code: 'reply_language_policy_invalid' }, JSON.stringify(bad));
+  }
+});
+await check('the person_declared block also refuses on transport-bound overflow, exactly like follow_current_user', () => {
+  const policy = engine.replyLanguagePolicyFor(PERSON_HINDI, 'en');
+  assert.throws(() => engine.compile({ ...base, agent: engine.sheetToModule(PERSON_HINDI), memories: 'x'.repeat(24_001), replyLanguagePolicy: policy }), { code: 'reply_language_policy_prompt_budget_exceeded' });
+});
+
+// Real Room callers, over a PUBLISHED PERSON sheet — a separate `loadAgent`
+// so the teacher-path `exercise()` above is untouched.
+const personLoadAgent = async (slug) => {
+  if (slug !== SLUG) throw new Error('teacher_sheet_unavailable');
+  return { module: engine.sheetToModule(PERSON_HINDI), sheet: PERSON_HINDI, row: {} };
+};
+async function exercisePerson(lane, locale = 'en') {
+  const state = freshState({ publishedQA: [{ ...source, room_id: ROOM_ID, position: 1, removed_at: null }] });
+  const db = fakeDb(state), memoryLog = [], captured = [];
+  // No ROOM_REPLY_LANGUAGE_POLICY at all — a person's own declared talk
+  // needs no server opt-in, unlike the teacher path above.
+  const env = { ROOM_SESSION_SECRET: process.env.ROOM_SESSION_SECRET };
+  let calls = 0;
+  const deps = {
+    env, loadAgent: personLoadAgent,
+    engine: { ...engine, compile: input => { captured.push(input); return engine.compile(input); } },
+    memory: fakeMemory(memoryLog), tableApplied: async () => false, neverRules: [],
+    reply: async () => { calls++; return 'a useful answer.'; },
+  };
+  let joined;
+  if (lane === 'say') joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: false, locale }, deps);
+  let error, turn;
+  try {
+    turn = lane === 'say'
+      ? await roomSay(db, { session: joined.session, message: 'Aman asks about the heading.', transcript: [] }, deps)
+      : await roomTaste(db, { slug: SLUG, message: 'Aman asks about the heading.', turnIndex: 1, locale }, deps);
+  } catch (e) { error = e; }
+  return { captured, calls, error, turn };
+}
+for (const lane of ['say', 'taste']) {
+  await check(`actual ${lane} caller derives the reply-language policy from the person's own sheet, with no server opt-in`, async () => {
+    const result = await exercisePerson(lane, 'en');
+    assert.equal(result.error, undefined);
+    assert.equal(result.calls, 1);
+    assert.deepEqual(result.captured[0].replyLanguagePolicy, { kind: 'person_declared', language: 'hindi', script: 'devanagari', register: 'formal' });
+    assert.ok(engine.compile(result.captured[0]).tail.includes(PERSON_HEAD));
+  });
+  await check(`actual ${lane} caller: a Hindi-locale follower gets the IDENTICAL person-declared policy as an English one`, async () => {
+    const en = await exercisePerson(lane, 'en');
+    const hi = await exercisePerson(lane, 'hi');
+    assert.deepEqual(en.captured[0].replyLanguagePolicy, hi.captured[0].replyLanguagePolicy);
+  });
+}
+
 async function exercise(lane, policy, locale = 'en', requestPolicy = undefined) {
   const state = freshState({ publishedQA: [{ ...source, room_id: ROOM_ID, position: 1, removed_at: null }] });
   const db = fakeDb(state), memoryLog = [], captured = [];

@@ -74,6 +74,11 @@ import {
   PLATFORM_STAGE_ESTABLISHED,
   personBoundaryFor,
   type MaterialLine,
+  // WS-R180: `replyLanguagePolicyFor` below PRODUCES this shape; `compiler.ts`
+  // is the only place that RENDERS it (`isPersonDeclaredLanguagePolicy` there
+  // is the runtime guard compile() actually trusts — this import is for the
+  // return type only, never re-validated here).
+  type PersonDeclaredLanguagePolicy,
 } from "../compiler";
 // WS-Q. `moodWordsIn` is timeline.ts's OWN G8 audit ("a calendar is not a mood
 // engine"), reused rather than re-implemented: a second mood-word list is a
@@ -776,4 +781,65 @@ export function consentGateBlockers(row: TeacherSheetRowState): readonly string[
   if (!consent) blockers.push("consent_artifact_missing");
   else if (consent === PLACEHOLDER_CONSENT_ARTIFACT_ID) blockers.push("consent_artifact_placeholder");
   return blockers;
+}
+
+// ── WS-R180: the reply-language policy, from a person's own declared talk ──
+//
+// `compiler.ts` already carries a closed reply-language policy
+// (`"follow_current_user"`, WS-R153, teacher Room only) and the person sheet
+// already carries `personTalk` (`register`/`scriptBaseline`/`codeSwitchNote`,
+// WS-R151) — nothing connected them; every person's AI answered in the
+// platform default regardless of how they said they talk. This is the one
+// place that connects them: a PURE projection from a loaded sheet to
+// whichever closed value `compiler.ts`'s `CompileInput.replyLanguagePolicy`
+// accepts, or `undefined`.
+//
+// `followerLocale` is accepted and never read. `ws-r24-room-hindi`
+// (`context/decisions.md`) already settled this for the Room's own CHROME
+// ("the creator's AI itself is completely untouched ... its reply language
+// is the creator's own material and the engine's register") — this
+// workstream extends the identical law to a person's own EXPLICIT
+// declaration: a follower's browser/Telegram locale is real signal for
+// which buttons they read, never for which language a person's own AI
+// speaks in. The parameter exists so both real callers (`roomSay`'s
+// follower locale, the text-ready Meet door's request locale) can pass what
+// they already have without a second, narrower signature — accepting it and
+// visibly never reading it is the documented contract, proven by
+// `evals/room-reply-language.mjs`'s own negative control: the SAME sheet
+// under two different locales returns byte-identical policies.
+//
+// A teacher sheet (`sheetKind` absent or `"teacher"`) always returns
+// `undefined` here — its policy stays exactly what it was before this
+// workstream, the server opt-in `roomReplyLanguagePolicy` reads from
+// `ROOM_REPLY_LANGUAGE_POLICY` (`api/_room-reply-language.js`), untouched by
+// this function and byte-identical on the 83 incumbent fixtures. A person
+// sheet with no `personTalk` (should not occur past `validateTeacherSheet`,
+// which refuses to publish one — checked again here rather than trusted,
+// the same "never trusted past the validator" discipline this file's own
+// `consentArtifactId` comment states) also returns `undefined`, falling
+// back to today's default rather than guessing.
+export function replyLanguagePolicyFor(
+  sheet: Pick<TeacherSheet, "sheetKind" | "personTalk"> | null | undefined,
+  followerLocale: string | undefined,
+): PersonDeclaredLanguagePolicy | undefined {
+  void followerLocale; // deliberately never read — see this function's own header
+  if (!sheet || sheet.sheetKind !== "person") return undefined;
+  const talk = sheet.personTalk;
+  if (!talk || typeof talk !== "object" || Array.isArray(talk)) return undefined;
+  const register = talk.register;
+  const scriptBaseline = talk.scriptBaseline;
+  if (!PERSON_TALK_REGISTERS.has(String(register)) || !PERSON_TALK_SCRIPTS.has(String(scriptBaseline))) {
+    return undefined;
+  }
+  const codeSwitchNote = typeof talk.codeSwitchNote === "string" ? talk.codeSwitchNote.trim() : "";
+  const language: PersonDeclaredLanguagePolicy["language"] =
+    scriptBaseline === "devanagari" ? "hindi" : scriptBaseline === "english" ? "english" : "hinglish";
+  const script: PersonDeclaredLanguagePolicy["script"] = scriptBaseline === "devanagari" ? "devanagari" : "roman";
+  return {
+    kind: "person_declared",
+    language,
+    script,
+    register: register as PersonDeclaredLanguagePolicy["register"],
+    ...(codeSwitchNote ? { codeSwitchNote } : {}),
+  };
 }

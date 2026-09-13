@@ -37,13 +37,13 @@ const ok = (name, cond, extra = "") => {
   console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
 };
 
-const { planReplySentences, roomSpeakPlan } = await import(
+const { planReplySentences, roomSpeakPlan, roomSpeakLanguageId } = await import(
   pathToFileURL(join(REPO, "api/_room-speak-plan.js")).href
 );
 const room = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const { joinRoom, roomSay, roomSpeak, RoomError } = room;
 const { estimateClipSeconds } = await import(pathToFileURL(join(REPO, "api/_room-voice.js")).href);
-const { loadAgent } = await loadFixtureAgent(REPO);
+const { loadAgent, engine, SHEET } = await loadFixtureAgent(REPO);
 
 // ═════════════════════════════════════════════════════════════════════════
 // SECTION 1 — the 40-case, three-language fixture
@@ -543,6 +543,88 @@ console.log("\n── section 5: roomSpeak carries a prosody plan on every clip 
       getVibeCalls[0].ownerUserId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" &&
       getVibeCalls[0].replicaId === "c1000000-0000-4000-8000-000000000001",
       JSON.stringify(getVibeCalls));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// SECTION 6 — WS-R180: the language id follows the SAME policy as the text
+// ═════════════════════════════════════════════════════════════════════════
+//
+// `roomSpeakLanguageId` itself first (pure), then `roomSpeak`'s own wiring:
+// a person who declared Hindi gets HINDI voice conditioning even when the
+// follower listening is on the English side of the Room's chrome — the
+// exact drift this workstream's own header describes (text and voice
+// disagreeing about what language a single reply is).
+console.log("\n── section 6: roomSpeak's languageId follows the reply-language policy (WS-R180) ──");
+{
+  // ── pure `roomSpeakLanguageId` ──
+  ok("no policy -> the fallback locale, unchanged", roomSpeakLanguageId(undefined, "en") === "en");
+  ok("no policy -> a non en/hi fallback still passes through unchanged (this function never validates the fallback)",
+    roomSpeakLanguageId(undefined, "fr") === "fr");
+  ok("hindi policy -> 'hi', regardless of fallback", roomSpeakLanguageId({ kind: "person_declared", language: "hindi" }, "en") === "hi");
+  ok("hinglish policy -> 'hi' (no separate Hinglish voice)", roomSpeakLanguageId({ kind: "person_declared", language: "hinglish" }, "en") === "hi");
+  ok("english policy -> 'en', regardless of fallback", roomSpeakLanguageId({ kind: "person_declared", language: "english" }, "hi") === "en");
+  ok("a malformed policy (wrong language value) falls back to the locale, never throws", roomSpeakLanguageId({ language: "french" }, "en") === "en");
+  ok("a null policy falls back to the locale", roomSpeakLanguageId(null, "hi") === "hi");
+  ok("a string policy falls back to the locale", roomSpeakLanguageId("hindi", "en") === "en");
+  ok("an array policy falls back to the locale", roomSpeakLanguageId(["hindi"], "en") === "en");
+
+  // ── the real `roomSpeak` wiring, over a PUBLISHED PERSON sheet ──
+  const PERSON_HINDI = {
+    ...SHEET, sheetKind: "person", name: "Priya Menon",
+    personLine: "Product designer. Bad puns. Worse badminton.",
+    personValues: ["curiosity", "directness", "showing up on time", "no drama"],
+    personNeverSay: ["give medical advice", "discuss her salary", "predict exam results"],
+    personTalk: { register: "formal", scriptBaseline: "devanagari" },
+  };
+  const personLoadAgent = async (slug) => {
+    if (slug !== SLUG) throw new Error("teacher_sheet_unavailable");
+    return { module: engine.sheetToModule(PERSON_HINDI), sheet: PERSON_HINDI, row: {} };
+  };
+  async function setupPaidFollowerAs(loadAgentFn, locale) {
+    const state = freshState();
+    const db = extendedDb(state);
+    const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true, locale }, { loadAgent: loadAgentFn, now: NOW });
+    const f = state.followers.find((x) => x.person_id === PERSON_A);
+    f.tier = "paid";
+    f.voice_month_key = THIS_MONTH;
+    f.voice_seconds_month = 0;
+    return { db, session: joined.session };
+  }
+
+  {
+    // A Hindi-declared person's Room, an ENGLISH-chrome follower — the text
+    // turn's reply-language policy already ignores the follower's locale
+    // (`ws-r24-room-hindi`); this proves the VOICE turn now agrees with it.
+    const { db, session } = await setupPaidFollowerAs(personLoadAgent, "en");
+    const said = await roomSay(db, { session, message: "namaste, kaise ho?" }, { loadAgent: personLoadAgent, memory, reply: async () => FIVE_SENTENCE_REPLY, now: NOW });
+    // The TEXT turn's own person-declared policy (never follower-locale-
+    // derived) is proven in depth by `evals/room-reply-language.mjs`; this
+    // suite's own concern is only whether the VOICE turn agrees with it.
+    const seam = voiceSeam();
+    const spoken = await roomSpeak(
+      { db, loadAgent: personLoadAgent, now: NOW, authorize: fakeAuthorize(), synth: seam.synth, protect: seam.protect },
+      said.session,
+      { text: said.reply, index: 0 },
+    );
+    ok("an English-chrome follower of a Hindi-declared person's Room still hears Hindi-conditioned voice",
+      seam.calls.prosodyPlans[0].languageId === "hi", JSON.stringify(seam.calls.prosodyPlans[0]));
+    void spoken;
+  }
+  {
+    // NEGATIVE CONTROL: the SAME English-chrome follower, but a TEACHER
+    // Room (no personTalk at all) — byte-identical to before this
+    // workstream, the follower's own locale still decides the voice.
+    const { db, session } = await setupPaidFollowerAs(loadAgent, "en");
+    const said = await roomSay(db, { session, message: "namaste, kaise ho?" }, { loadAgent, memory, reply: async () => FIVE_SENTENCE_REPLY, now: NOW });
+    const seam = voiceSeam();
+    await roomSpeak(
+      { db, loadAgent, now: NOW, authorize: fakeAuthorize(), synth: seam.synth, protect: seam.protect },
+      said.session,
+      { text: said.reply, index: 0 },
+    );
+    ok("NEGATIVE CONTROL: a teacher Room's voice still follows the follower's own locale, unchanged",
+      seam.calls.prosodyPlans[0].languageId === "en", JSON.stringify(seam.calls.prosodyPlans[0]));
   }
 }
 
