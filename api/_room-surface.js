@@ -2069,6 +2069,28 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     },
   });
 
+  // WS-R176 (EmotionOS register in the reply and the voice). Read ONCE,
+  // through the real reader (`engine.readRegister`, exported from
+  // src/engine/register.ts by serverEntry.ts for exactly this call), with
+  // the SAME inputs `compile()` itself used to compute this internally
+  // before this workstream (`text`, a gap of 0 — this lane has never tracked
+  // a real inter-message gap, so `0` here is not a regression, it is the
+  // identical default `input.gapSinceLastMs || 0` already fell back to —
+  // and the hour derived from the SAME `now` handed to `compile()`'s own
+  // `nowMs`). Computed here, once, rather than left to `compile()`'s own
+  // internal fallback, because this workstream needs the SAME value in a
+  // SECOND place below (the session `roomSpeak` reads later) and a second,
+  // separately-timed call risks a different answer for the same turn — the
+  // identical "one gate, read once" reasoning `momentGate`'s own call site
+  // above already states. `expertProfile` has no `relBundle`/register seam
+  // (WS-R154's own scoping decision, `context/decisions.md#ws-r154-scoped-
+  // to-compile-not-expert-text`) so this is computed unconditionally but
+  // only ever consumed on the non-expert branch below.
+  const registerResult = engine.readRegister(text, {
+    gapSinceLastMs: 0,
+    timeOfDay: new Date(now).getUTCHours(),
+  });
+
   const compiled = expertProfile ? engine.compileExpertText({
     profile: expertProfile,
     teacher: teacherSnapshot.sheet,
@@ -2109,6 +2131,13 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     // function of its input, this file's own request-time `now` handed in
     // the same way every other caller of `compile()` already does.
     nowMs: now,
+    // WS-R176: the register just read above, handed in explicitly so
+    // `compile()` renders the hint from the SAME RegisterResult this file
+    // also binds into the session below for `roomSpeak` — never a second,
+    // independently-timed internal read. `compile()`'s own field doc
+    // (CompileInput.register) states the render behaviour is unchanged
+    // either way: only "high" confidence ever renders, "neutral" never does.
+    register: registerResult,
   });
 
   // THE ONE DOOR. `record` is the retrieved set and nothing else: a moment the
@@ -2244,6 +2273,20 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
         // unchanged on a silent turn (`said` empty), so a stale voice request
         // for the LAST real reply still resolves correctly.
         lr: said ? sha(said) : payload.lr ?? null,
+        // WS-R176: THE REGISTER BINDING, minted alongside `lr` for the exact
+        // same reason and on the exact same condition — a closed-set tag pair
+        // (`rg` the register name, `rc` its confidence; never raw text, never
+        // the follower's own words, exactly the "no second, parallel place
+        // text can reach a rendering path" boundary `api/_voice/prosody.js`'s
+        // own header states) so `roomSpeak` can read the register of THIS
+        // turn without re-deriving it from anything the caller sends and
+        // without threading the follower's message text through the voice
+        // door at all. Carried forward unchanged on a silent turn for the
+        // identical reason `lr` is: a stale voice request for the LAST real
+        // reply must resolve against the register THAT reply was actually
+        // written with, never this (unrelated, undelivered) turn's own read.
+        rg: said ? registerResult.register : payload.rg ?? "neutral",
+        rc: said ? registerResult.confidence : payload.rc ?? "low",
       },
       deps.env,
     ),
@@ -2427,13 +2470,27 @@ export async function roomSpeak(deps, session, replyRef) {
   // dependency in this function - fully optional (a deployment that never
   // wires it, or an owner who never set a vibe, gets `prosody === null`,
   // which every downstream consumer treats identically to
-  // `NEUTRAL_PROSODY_PLAN`). `register` is deliberately `null` here - see
-  // `api/_voice/prosody.js`'s own header for why the follower's latest turn
-  // text is not available (or safe to fetch a second way) at this point in
-  // the call graph. This NEVER changes what is said - `sentenceText` above
-  // is unchanged - only how `deps.synth`'s own provider call is shaped.
+  // `NEUTRAL_PROSODY_PLAN`). This NEVER changes what is said - `sentenceText`
+  // above is unchanged - only how `deps.synth`'s own provider call is shaped.
   const rawVibe = deps.getVibe ? await deps.getVibe(resolved.room.owner_user_id, resolved.room.replica_id) : null;
-  const prosody = buildProsodyPlan({ vibe: rawVibe, register: null, languageId: payload.loc });
+  // WS-R176 (EmotionOS register in the reply and the voice): `register` is
+  // no longer unconditionally `null`. `roomSay` binds the register of the
+  // follower's turn THAT REPLY answered into this same session, under `rg`/
+  // `rc`, at the exact moment it mints the `lr` reply hash this function
+  // already verified `text` against a few lines above - so by construction,
+  // by the time execution reaches here, `payload.rg`/`payload.rc` describe
+  // the delivery shape of the turn `text` is a reply TO, never a client
+  // guess and never a second fetch of the follower's own words (the boundary
+  // `api/_voice/prosody.js`'s own header states: threading raw text through
+  // this door would be a second, parallel place text can reach a rendering
+  // path). A session minted before this field existed (or the taste/no-
+  // memory paths, which never set `rg`) carries `rg: undefined`, and
+  // `buildProsodyPlan`'s own `appliedRegisterOf` already treats any
+  // not-well-formed shape - including one whose `register` key is `undefined`
+  // - exactly like `register: null`, so this degrades to the identical
+  // vibe-only plan rather than throwing.
+  const registerFromSession = { register: payload.rg, confidence: payload.rc };
+  const prosody = buildProsodyPlan({ vibe: rawVibe, register: registerFromSession, languageId: payload.loc });
 
   // SYNTHESISE + PROTECT, both REQUIRED injections with no default - a call
   // to this function that supplies neither throws rather than silently

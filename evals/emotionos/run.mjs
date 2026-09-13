@@ -1,8 +1,9 @@
-// WS-R153. EmotionOS: vibe and register.
+// WS-R153. EmotionOS: vibe and register. WS-R176 adds §4: the register in
+// the Room's own reply and voice.
 //
 //   node evals/emotionos/run.mjs
 //
-// Two things this suite proves, offline, against the REAL modules:
+// Three things this suite proves, offline, against the REAL modules:
 //
 //   1. THE REGISTER READ (register.ts's `readRegister`/`renderRegisterHint`).
 //      60 hand-labelled turns, 20 per language (English, Hindi/Devanagari,
@@ -16,6 +17,21 @@
 //      0-4 dials bands to its own authored word; absent input renders "";
 //      a malformed dial (out of 0-4, non-integer) fails the WHOLE block
 //      closed rather than rendering four good lines and dropping the fifth.
+//   3. WS-R176 — THE ROOM, END TO END. The SAME 60 labelled turns, driven
+//      through the REAL `roomSay` (api/_room-surface.js): the compiled
+//      prompt carries the expected hint (or none) at the position
+//      `readRegister` itself computed for the SAME inputs `roomSay` now
+//      passes it (text, a gap of 0, the hour of the fixed clock this
+//      section uses). Then the REAL `roomSpeak`, on the SAME reply,
+//      carries the SAME register into the prosody plan handed to
+//      `deps.synth`. A REQUIRED NEGATIVE CONTROL: a genuine LOW-confidence
+//      row, run through `roomSay`+`roomSpeak` once as itself and once with
+//      `engine.readRegister` overridden to return an explicit neutral read,
+//      produces a BYTE-IDENTICAL compiled prompt and a BYTE-IDENTICAL
+//      prosody plan either way — proving a low-confidence read is already
+//      inert at both render sites, never merely untested. A second control
+//      proves that comparison is not vacuous: the identical override
+//      applied to a genuine HIGH-confidence row DOES change both.
 //
 // Offline, deterministic, $0, no DB, no network, no model call.
 import { execSync } from "node:child_process";
@@ -215,6 +231,163 @@ for (const dim of ["warmth", "energy", "humour", "directness", "formality"]) {
 for (const bad of [-1, 5, 2.5, NaN, "abc", null, undefined]) {
   const r = renderVibe({ ...FULL_VIBE, warmth: bad });
   ok(`a malformed warmth (${JSON.stringify(bad)}) fails the WHOLE block closed, never a partial render`, r === "", r);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §4. WS-R176 — THE ROOM, END TO END: the same 60 labelled turns, driven
+// through the REAL `roomSay`/`roomSpeak`, plus the negative/positive
+// override controls.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §4: the Room, end to end (WS-R176) ──");
+{
+  process.env.ROOM_SESSION_SECRET = process.env.ROOM_SESSION_SECRET || "m".repeat(48);
+  const { freshState, fakeDb, loadFixtureAgent, SLUG, USER_A, PERSON_A } = await import(
+    pathToFileURL(join(REPO, "evals/room/fixtures.mjs")).href
+  );
+  const { joinRoom, roomSay, roomSpeak } = await import(
+    pathToFileURL(join(REPO, "api/_room-surface.js")).href
+  );
+  const { engine, loadAgent } = await loadFixtureAgent(REPO);
+  const memory = { openEpisode: async () => ({}), logTurn: async () => {}, history: async () => [], recall: async () => [] };
+  const NOW = Date.parse("2026-09-15T12:00:00.000Z");
+  const HOUR = new Date(NOW).getUTCHours();
+  const SAFE_REPLY = "Achha, samajh gayi. Bolo.";
+
+  function fakeAuthorize() {
+    let seq = 0;
+    return async ({ text }) => {
+      seq += 1;
+      return {
+        generation: { generation_id: `gen-${seq}`, preview_language_id: "en" },
+        authorizationInput: { replicaId: "c1000000-0000-4000-8000-000000000001", ownerUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+        previewStyle: { exaggeration: 0.35, cfg_weight: 0.65, temperature: 0.65 },
+        previewSeed: 1,
+        reference: { sha256: "0".repeat(64), durationMs: 1000, languageMode: "unknown", languageEvidenceScope: "unverified" },
+      };
+    };
+  }
+  // The real shape roomSpeak needs from both seams — `evals/room-speak-
+  // plan/run.mjs`'s own `voiceSeam`, restated (that file's own is a local,
+  // unexported const, this suite's own precedent for copying a sibling
+  // suite's fixture rather than importing a private helper).
+  function voiceSeam() {
+    const plans = [];
+    const synth = async ({ authorized, text, prosody }) => {
+      plans.push(prosody);
+      const raw = Buffer.from(`RAW:${authorized.generation.generation_id}:${text}`);
+      return {
+        stream: { [Symbol.asyncIterator]: async function* () { yield raw; } },
+        format: { sampleRate: 24000, channels: 1 },
+        renderedText: text,
+        disclosureText: "This is an AI voice.",
+        renderer: "fake",
+      };
+    };
+    const protect = async ({ sourceStream }) => {
+      const chunks = [];
+      for await (const c of sourceStream) chunks.push(Buffer.from(c));
+      const watermarked = Buffer.concat([Buffer.from("WATERMARKED:"), ...chunks]);
+      return {
+        stream: { [Symbol.asyncIterator]: async function* () { yield watermarked; } },
+        completion: Promise.resolve({ watermark_algorithm: "fake@1", disclosure_scheme: "audible-prefix-v1" }),
+      };
+    };
+    return { plans, synth, protect };
+  }
+
+  async function setupPaidFollower(db, state) {
+    const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW });
+    const f = state.followers.find((x) => x.person_id === PERSON_A);
+    f.tier = "paid";
+    return joined.session;
+  }
+
+  // ── the main pass: all 60 rows, each its OWN fresh Room/follower so a
+  // turn cannot see another's register through any carried state ──
+  let hintMatches = 0;
+  let planMatches = 0;
+  for (const [lang, text, , extra] of REGISTER_FIXTURES) {
+    const expected = readRegister(text, { gapSinceLastMs: 0, timeOfDay: HOUR });
+    const expectedHint = renderRegisterHint(expected);
+
+    const state = freshState();
+    const db = fakeDb(state);
+    const session = await setupPaidFollower(db, state);
+    let captured = null;
+    const said = await roomSay(db, { session, message: text }, {
+      loadAgent, memory, engine, now: NOW,
+      reply: (compiled) => { captured = compiled; return SAFE_REPLY; },
+    });
+    const hintOnPrompt = REGISTER_HINTS
+      ? Object.values(REGISTER_HINTS).find((h) => captured.tail.includes(h)) || ""
+      : "";
+    if (hintOnPrompt === expectedHint) hintMatches += 1;
+
+    const seam = voiceSeam();
+    await roomSpeak(
+      { db, loadAgent, engine, now: NOW, authorize: fakeAuthorize(), synth: seam.synth, protect: seam.protect },
+      said.session,
+      { text: said.reply, index: 0 },
+    );
+    const appliedOnPlan = seam.plans[0]?.appliedRegister ?? null;
+    const expectedApplied = expected.confidence === "high" && expected.register !== "neutral" ? expected.register : null;
+    if (appliedOnPlan === expectedApplied) planMatches += 1;
+  }
+  ok(`all 60 rows: the compiled prompt carries the hint iff readRegister(text, gap=0, hour=${HOUR}) says high-confidence non-neutral`,
+    hintMatches === REGISTER_FIXTURES.length, `${hintMatches}/${REGISTER_FIXTURES.length}`);
+  ok("all 60 rows: roomSpeak's own prosody plan applies the SAME register the compiled prompt's hint was built from",
+    planMatches === REGISTER_FIXTURES.length, `${planMatches}/${REGISTER_FIXTURES.length}`);
+
+  // ── negative control: a genuine LOW-confidence, non-neutral row is
+  // byte-identical, at BOTH render sites, to the same row forced neutral ──
+  const lowRow = REGISTER_FIXTURES
+    .map(([, text]) => ({ text, result: readRegister(text, { gapSinceLastMs: 0, timeOfDay: HOUR }) }))
+    .find((r) => r.result.confidence === "low" && r.result.register !== "neutral");
+  ok("a genuine low-confidence, non-neutral row exists at gap=0 (so the control below is not vacuous)", Boolean(lowRow));
+
+  // ── positive control: the SAME override, on a genuine HIGH-confidence
+  // row, actually changes both — proving the comparison technique itself
+  // is load-bearing rather than trivially always-equal ──
+  const highRow = REGISTER_FIXTURES
+    .map(([, text]) => ({ text, result: readRegister(text, { gapSinceLastMs: 0, timeOfDay: HOUR }) }))
+    .find((r) => r.result.confidence === "high" && r.result.register !== "neutral");
+  ok("a genuine high-confidence, non-neutral row exists at gap=0 (so the positive control below is not vacuous)", Boolean(highRow));
+
+  async function runOnce(text, engineOverride) {
+    const state = freshState();
+    const db = fakeDb(state);
+    const session = await setupPaidFollower(db, state);
+    let captured = null;
+    const said = await roomSay(db, { session, message: text }, {
+      loadAgent, memory, engine: engineOverride, now: NOW,
+      reply: (compiled) => { captured = compiled; return SAFE_REPLY; },
+    });
+    const seam = voiceSeam();
+    await roomSpeak(
+      { db, loadAgent, engine: engineOverride, now: NOW, authorize: fakeAuthorize(), synth: seam.synth, protect: seam.protect },
+      said.session,
+      { text: said.reply, index: 0 },
+    );
+    return { system: captured.system, plan: seam.plans[0] };
+  }
+  const neutralOverrideEngine = { ...engine, readRegister: () => ({ register: "neutral", confidence: "low" }) };
+
+  if (lowRow) {
+    const asIs = await runOnce(lowRow.text, engine);
+    const forced = await runOnce(lowRow.text, neutralOverrideEngine);
+    ok("NEGATIVE CONTROL: a real LOW-confidence read leaves the compiled prompt BYTE-IDENTICAL to an explicit neutral read",
+      asIs.system === forced.system);
+    ok("NEGATIVE CONTROL: a real LOW-confidence read leaves roomSpeak's prosody plan BYTE-IDENTICAL to an explicit neutral read",
+      JSON.stringify(asIs.plan) === JSON.stringify(forced.plan));
+  }
+  if (highRow) {
+    const asIs = await runOnce(highRow.text, engine);
+    const forced = await runOnce(highRow.text, neutralOverrideEngine);
+    ok("NEGATIVE CONTROL is not vacuous: the SAME override applied to a real HIGH-confidence row DOES change the compiled prompt",
+      asIs.system !== forced.system);
+    ok("NEGATIVE CONTROL is not vacuous: the SAME override applied to a real HIGH-confidence row DOES change roomSpeak's prosody plan",
+      JSON.stringify(asIs.plan) !== JSON.stringify(forced.plan));
+  }
 }
 
 console.log(`\n${pass} pass, ${fail} fail`);
