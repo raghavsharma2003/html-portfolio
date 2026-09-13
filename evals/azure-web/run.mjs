@@ -40,10 +40,13 @@ const platformState = req => {
   const controller = new AbortController(), native = originalSignal?.get?.call(req);
   // Node v24.18.1 _http_incoming.js:179-195 aborts on ordinary message
   // destruction/close too, including successful consumption of the body.
-  if (!native) {
-   if (req.destroyed) controller.abort();
-   else req.once('close',()=>controller.abort());
-  }
+  // v24.21 no longer does (the native signal stays live after a consumed
+  // body), so the close-abort is simulated on EVERY Node, composed with the
+  // native signal where one exists: the suite models the strictest platform
+  // the server has to survive, not whichever patch level runs it
+  // (context/rejected.md#azureweb-suite-pinned-a-node-patch-level-behaviour).
+  if (req.destroyed) controller.abort();
+  else req.once('close',()=>controller.abort());
   state = { controller, signal: native ? AbortSignal.any([native, controller.signal]) : controller.signal };
   platformSignals.set(req, state);
  }

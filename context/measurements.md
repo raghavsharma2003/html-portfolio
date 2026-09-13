@@ -17842,3 +17842,17 @@ Method: `node scripts/verify-release.mjs` (24 checks) on the build container, ma
 Vercel: eight consecutive git-connected deployments of codex/handoff206 (2026-09-09) ERROR in 7 s at the install phase; the last READY deployment of this branch family was `61385c5`.
 
 Live database (Neon `neondb`, read-only catalog query): 180 `vy_` tables; none of the 26 tables that migrations 137 to 162 and the local-voice reconciliation artifacts 074 and 075 create is present. Codex applied those only to the isolated development database `vyakti_expert_integration_20260906` (198 tables).
+
+## `ci-and-the-browser-suites-2026-09-13`
+
+Method: GitHub Actions on the platform branch (Build APK job: no browser, Node 22; Release gate: Node 22 and 24 with Playwright's Chromium) read from the job logs; local runs on the build container (4 cores) with ten wave-21 agents running, load average 4 to 20; date 2026-09-13.
+
+| what | result |
+|---|---|
+| Build APK on 54e553e | red: 18 history-reading suites (depth-1 checkout) plus 39 direct browser launches |
+| Build APK on ecc030e (fetch-depth 0) | red: exactly the 39 direct browser launches, `Executable doesn't exist`, each about 1 s |
+| Release gate on ecc030e | Node 22 green (24 of 24); Node 24 red on `azureweb` alone |
+| the 39 rewritten suites, alone, full build | 38 ok (2 s to 45 s each); `first-use-refresh-ui` failed at 62 s |
+| `first-use-refresh-ui` A/B, alone | headless shell 2 of 3 ok; full build 1 of 3 ok; two solo reruns before that 1 of 2; instrumented 3 of 4 |
+| `azureweb` after the fix | 31 groups on Node 22.22.2 and on 24.21.0; packaging 18 groups on 24.21.0 |
+| native request signal probe after a consumed body | Node 22: no `signal`; Node 24.21.0: getter present, `aborted: false` |

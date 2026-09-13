@@ -1,4 +1,5 @@
 // Actual private source component, synthetic authenticated HTTP. No live data.
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {mkdirSync,writeFileSync} from 'node:fs';
@@ -33,7 +34,7 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.
 const dir=join(root,'scratchpad/private-continuity-ui',String(Date.now()));mkdirSync(dir,{recursive:true});
 let browser,page,error;const checks=[],errors=[];
 try{
- browser=await chromium.launch({headless:true});
+ browser=await launchSuiteBrowser("private-continuity-ui");
  for(const width of[390,1440]){
   page=await browser.newPage({viewport:{width,height:900},reducedMotion:'reduce'});page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());

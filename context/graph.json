@@ -18000,6 +18000,30 @@
       "kind": "rejection",
       "title": "CI's depth-1 checkout starved 18 suites that read git history (2026-09-13)",
       "at": "context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites"
+    },
+    {
+      "id": "direct-chromium-launches-crashed-the-browserless-build-job",
+      "kind": "rejection",
+      "title": "39 direct chromium.launch() calls crashed the browserless build job; routed through the shared launcher (2026-09-13)",
+      "at": "context/rejected.md#direct-chromium-launches-crashed-the-browserless-build-job"
+    },
+    {
+      "id": "azureweb-suite-pinned-a-node-patch-level-behaviour",
+      "kind": "rejection",
+      "title": "azureweb simulated Node 24.18's request signal and failed on 24.21 (2026-09-13)",
+      "at": "context/rejected.md#azureweb-suite-pinned-a-node-patch-level-behaviour"
+    },
+    {
+      "id": "first-use-refresh-suite-races-under-load",
+      "kind": "rejection",
+      "title": "first-use-refresh-ui fails 4 of 10 under load on either browser; open (2026-09-13)",
+      "at": "context/rejected.md#first-use-refresh-suite-races-under-load"
+    },
+    {
+      "id": "ci-and-the-browser-suites-2026-09-13",
+      "kind": "measurement",
+      "title": "CI runs on the 2026-09-13 base and the browser-suite repairs measured",
+      "at": "context/measurements.md#ci-and-the-browser-suites-2026-09-13"
     }
   ],
   "edges": [
@@ -30444,6 +30468,26 @@
     {
       "src": "codex-handoff206-adopted-as-the-base",
       "dst": "gate-on-the-merged-handoff206-tree-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "direct-chromium-launches-crashed-the-browserless-build-job",
+      "dst": "ci-and-the-browser-suites-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "azureweb-suite-pinned-a-node-patch-level-behaviour",
+      "dst": "ci-and-the-browser-suites-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "first-use-refresh-suite-races-under-load",
+      "dst": "ci-and-the-browser-suites-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ci-shallow-checkout-starved-the-history-reading-suites",
+      "dst": "ci-and-the-browser-suites-2026-09-13",
       "rel": "measured_by"
     }
   ]

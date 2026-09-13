@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {createHash} from 'node:crypto';
@@ -58,7 +59,7 @@ const server=createServer(async(req,res)=>{
   send({error:'unexpected_fixture_request'},500);
  }catch(error){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'fixture_failure'}));console.error(error);}
 });
-await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`,browser=await chromium.launch({headless:true});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`,browser=await launchSuiteBrowser("text-publication-ui");
 let groups=0;const results=[];const check=(name)=>{groups++;results.push(name);console.log('ok '+groups+' - '+name);};
 try{
  // Same compiled classic-script bytes in both controls. Only the document's

@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
@@ -72,7 +73,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 let browser;
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("candidate-binding-recovery");
   const other = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await other.goto(`${origin}/?case=other&lang=en`);
   await other.getByText('Sharing is waiting on our platform. Your material stays private.', { exact: true }).waitFor();

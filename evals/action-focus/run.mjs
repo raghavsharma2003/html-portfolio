@@ -1,4 +1,5 @@
 // Actual components/clients; in-memory build, port 0 and synthetic loopback only.
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {observeBrowser,recordBrowserFailure} from '../browser-action-diagnostics.mjs';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
@@ -35,7 +36,7 @@ if(u.pathname==='/api/replica-text-rehearsal'){if(req.method==='POST'){assert.eq
 throw Error('unexpected API '+u.pathname);};
 if((mode==='hold'&&req.method==='POST')||(mode==='hold-read'&&req.method==='GET')){pending.push(finish);return;}return finish();}
 const asset=assets.get(u.pathname);if(asset!==undefined){res.writeHead(200,{'content-type':extname(u.pathname)==='.html'?'text/html':extname(u.pathname)==='.css'?'text/css':'text/javascript'});res.end(asset);return;}res.writeHead(404).end();});await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
-browser=await chromium.launch({headless:true});
+browser=await launchSuiteBrowser("explicit-action-focus");
 for(const width of [390,1440]){
 const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await ctx.newPage();await observeBrowser(ctx);page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
 const open=async(kind,legacy=false,holdRead=false,restored=false)=>{assert.equal(pending.length,0);mine=false;mode=holdRead?'hold-read':'normal';requests=[];await page.goto(origin+'/evals/action-focus/host.html?replica='+RID+(kind==='source'?'&locker=1':'')+(legacy?'&old=1':'')+(restored?'&rehearsal_request='+GRANT:''));if(!holdRead)await page.waitForLoadState('networkidle');};

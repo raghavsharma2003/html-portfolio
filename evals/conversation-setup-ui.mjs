@@ -1,5 +1,6 @@
 // Real mounted conversation, entry dispatch and runtime gate; synthetic HTTP.
 // Actual two-entry routing; creator authentication/shell is a delayed test host.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -102,7 +103,7 @@ async function releaseCaptured(page) {
 const artifactDir = join(root, "scratchpad/meet-setup-ui", String(Date.now())); mkdirSync(artifactDir, { recursive: true });
 const checks = [], observations = [], runtimeErrors = []; let browser, page, failure;
 try {
-  const { chromium } = await import("playwright"); browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("conversation-setup-ui");
   for (const width of [390, 1440]) {
     writes = []; runtimeMode = "inactive"; audioCase = null;
     page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });

@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -47,7 +48,6 @@ for(const changed of [
 ]) assert.throws(()=>checkNavigation(changed),'missing/wrong navigation, authority drift and duplicate caller must fail');
 if(process.argv.includes('--source-only')){console.log(JSON.stringify({sourceOnly:true,hashes,oldHash:sha(old),callerDeltas:['knowledge-navigation','reviewed-owner-identity-plumbing']}));process.exit(0);}
 const {build}=await import('vite');
-const {chromium}=await import('playwright');
 const {statements}=await import('../first-use-private-flow/fixture.mjs');
 const out=join(root,'scratchpad/verification-knowledge',String(Date.now()));mkdirSync(out,{recursive:true});
 let server,browser;const errors=[],requests=[],checks=[],unexpectedRoutes=[];
@@ -67,7 +67,7 @@ try{
   if(url.pathname.startsWith('/fonts/')){res.writeHead(404);return res.end();}
   res.writeHead(200,{'content-type':'text/html'});res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>@layer reset,tokens,base,components,responsive;</style>'+[...assets.keys()].filter(k=>k.endsWith('.css')).map(k=>`<link rel="stylesheet" href="${k}">`).join('')+'</head><body><div id="root"></div><script type="module" src="/probe.js"></script></body></html>');
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
- browser=await chromium.launch({headless:true});
+ browser=await launchSuiteBrowser("verification-knowledge");
  for(const width of [396,1440]){
   const page=await browser.newPage({viewport:{width,height:900},reducedMotion:'reduce'});page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
   const check=async(name,fn)=>{await fn();checks.push({width,name});console.log('ok '+checks.length+' - '+width+' '+name);};

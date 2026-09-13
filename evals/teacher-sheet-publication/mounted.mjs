@@ -1,4 +1,5 @@
 // Mounted actual editors and publication component; localhost synthetic API only.
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -38,7 +39,7 @@ try{
   }
   const asset=assets.get(url.pathname);if(asset!==undefined){res.writeHead(200,{'content-type':extname(url.pathname)==='.html'?'text/html':extname(url.pathname)==='.css'?'text/css':'text/javascript'});res.end(asset);return;}res.writeHead(404).end();
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
- browser=await chromium.launch({headless:true});
+ browser=await launchSuiteBrowser("teacher-sheet-publication-ui");
  for(const width of [390,1440]){
   const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>r.request().url().startsWith(origin)?r.continue():r.abort());
   const open=async(suffix='')=>{for(const done of pending)done();pending=[];posts=[];reads=[];draftReads=[];review=structuredClone(initial);loadedSheet=structuredClone(initial.sheet);mode='normal';await page.goto(origin+'/evals/teacher-sheet-publication/host.html'+suffix);};

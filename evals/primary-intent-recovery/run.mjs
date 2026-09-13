@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync,mkdirSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -37,7 +38,7 @@ const server=createServer((req,res)=>{const path=new URL(req.url,'http://localho
 let browser;let checks=0;const results=[];const runtimeErrors=[];
 try{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
- const chrome='C:/Program Files/Google/Chrome/Application/chrome.exe';browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+ browser=await launchSuiteBrowser("primary-intent-recovery");
  const page=await browser.newPage();page.setDefaultTimeout(12000);page.on('pageerror',error=>runtimeErrors.push(error.message));
  await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
  const action=()=>page.getByRole('button',{name:'Use this recording',exact:true});

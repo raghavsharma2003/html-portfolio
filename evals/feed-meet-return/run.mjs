@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {join,extname,resolve} from 'node:path';
@@ -115,7 +116,7 @@ try{
   const publicPath=resolve(root,'public','.'+url.pathname);if(publicPath.startsWith(resolve(root,'public')+'\\')&&existsSync(publicPath)){res.end(readFileSync(publicPath));return;}res.writeHead(404);res.end('missing');
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
- const chrome='C:/Program Files/Google/Chrome/Application/chrome.exe';browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+ browser=await launchSuiteBrowser("feed-meet-return-ui");
  const page=await browser.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
  await page.addInitScript(({TOKEN,OWNER})=>{localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:OWNER,accessToken:TOKEN,refreshToken:TOKEN,expiresAt:Date.now()+3600000,email:'private@fixture.test'}}));localStorage.setItem('vyakti.studio.mode.v1','replica');},{TOKEN,OWNER});

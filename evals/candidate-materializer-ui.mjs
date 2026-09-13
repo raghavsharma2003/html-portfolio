@@ -1,4 +1,5 @@
 // Real mounted component, synthetic HTTP only. No SQL, provider or billing evidence.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -48,7 +49,7 @@ async function bounded(promise, label) {
   finally { clearTimeout(timer); }
 }
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("candidate-materializer-ui");
   for (const width of [390, 1440]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     const errors = [], requests = [], blind = [];

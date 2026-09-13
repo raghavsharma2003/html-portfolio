@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -71,7 +72,7 @@ const server = createServer(async (req, res) => {
   } catch (error) { errors.push(error.message); send({ error: 'fixture_failure' }, 500); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const origin = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch({ headless: true });
+const origin = `http://127.0.0.1:${server.address().port}`, browser = await launchSuiteBrowser("publication-continuity-mounted");
 const check = name => { results.push(name); console.log(`PASS ${name}`); };
 async function start(page) { await page.getByRole('checkbox', { name: /I am 18/ }).check(); await page.getByRole('button', { name: 'Start conversation', exact: true }).click(); await page.getByLabel('Your question', { exact: true }).or(page.getByRole('button', { name: 'Check answer status', exact: true })).waitFor(); }
 async function ask(page) { await page.getByLabel('Your question', { exact: true }).fill('What is the period?'); await page.getByRole('button', { name: 'Ask', exact: true }).click(); await page.getByText('The period is two seconds.', { exact: true }).waitFor(); }

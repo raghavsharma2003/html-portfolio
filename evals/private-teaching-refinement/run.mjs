@@ -1,4 +1,5 @@
 // Actual result -> refinement -> next-question caller, synthetic localhost only.
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join,resolve,extname} from 'node:path';
@@ -75,7 +76,7 @@ try{
   }
   const asset=assets.get(url.pathname);if(asset!==undefined){res.writeHead(200,{'content-type':extname(url.pathname)==='.html'?'text/html':extname(url.pathname)==='.css'?'text/css':'text/javascript'});return res.end(asset);}res.writeHead(404).end();
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
- browser=await chromium.launch({headless:true});
+ browser=await launchSuiteBrowser("private-teaching-refinement-ui");
  const until=async fn=>{const deadline=Date.now()+5000;while(!fn()){if(Date.now()>deadline)throw Error('bounded fixture barrier');await new Promise(r=>setTimeout(r,10));}};
  const count=op=>requests.filter(r=>r.op===op&&r.method==='POST').length;
  for(const width of [390,1440]){

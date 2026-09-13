@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
@@ -52,7 +53,7 @@ try{
    if(hold===input.op){hold=null;held.push({send,res});return;}send();
   }catch{result.errors.push('fixture_server_failure');res.writeHead(500,{'Content-Type':'application/json'});res.end('{"error":"fixture_failure"}');}
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
- const chrome='C:/Program Files/Google/Chrome/Application/chrome.exe';browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+ browser=await launchSuiteBrowser("selectedreferencecomparison");
  const issueRequests=()=>requests.filter(r=>r.input.op==='issue');
  async function release(){assert.equal(held.length,1);const h=held.shift();h.send();await page.waitForFunction(()=>window.__fetchPending===0);await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));}
  const chooseAll=async()=>{const boxes=page.getByRole('checkbox');for(let i=0;i<await boxes.count();i++)await boxes.nth(i).check();};

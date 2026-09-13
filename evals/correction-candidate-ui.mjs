@@ -1,4 +1,5 @@
 // Mounted real action component with synthetic HTTP. No model/SQL/auth proof.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {mkdirSync,writeFileSync} from 'node:fs';
@@ -40,7 +41,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const origin=`http://127.0.0.1:${server.address().port}`,dir=join(root,'scratchpad/correction-candidate-ui');mkdirSync(dir,{recursive:true});
 const checks=[];let browser;
 try{
- browser=await chromium.launch({headless:true});
+ browser=await launchSuiteBrowser("correction-candidate-ui");
  for(const width of [390,1440]){
   stored=null;posts=[];mode='normal';
   const page=await browser.newPage({viewport:{width,height:900}}),errors=[];page.on('pageerror',error=>errors.push(error.message));

@@ -1,4 +1,5 @@
 // Real mounted Meet and its HTTP client; synthetic loopback server only.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
@@ -92,7 +93,7 @@ const artifact = join(root, "scratchpad/dialogue-history-ui", `${Date.now()}${ol
 let browser;
 const generationRequests = () => requests.filter(x => x.path === "/api/replica-dialogue" && x.method === "POST" && !x.body.op);
 try {
-  const { chromium } = await import("playwright"); browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("dialogue-history-ui");
   for (const width of old ? [390] : [390, 1440]) {
     sessions.clear(); requests.length = 0; readFail = false; privateMode = ''; create(SESSION, RID, "synthetic-owner-a", true);
     const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: "reduce" }); const errors = [];

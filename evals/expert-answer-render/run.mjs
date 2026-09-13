@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -27,7 +28,7 @@ try{
  assert(mathFiles.size>0,'real KaTeX code must be in a separate built chunk');assert(!mathFiles.has('/probe.js'),'math must stay lazy');
  server=createServer((req,res)=>{const p=new URL(req.url,'http://localhost').pathname;if(assets.has(p)){res.writeHead(200,{'content-type':p.endsWith('.css')?'text/css':p.endsWith('.js')?'text/javascript':p.endsWith('.woff2')?'font/woff2':'application/octet-stream','cache-control':'no-store'});return res.end(assets.get(p));}if(p==='/favicon.ico'){res.writeHead(204);return res.end();}if(p!=='/'){unexpected.push(p);res.writeHead(404);return res.end();}res.writeHead(200,{'content-type':'text/html','cache-control':'no-store'});res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}select{font:inherit;max-width:100%;min-height:44px}</style>'+[...assets.keys()].filter(k=>k.endsWith('.css')).map(k=>`<link rel="stylesheet" href="${k}">`).join('')+'</head><body><div id="root"></div><script type="module" src="/probe.js"></script></body></html>');});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
- browser=await chromium.launch({headless:true});
+ browser=await launchSuiteBrowser("expert-answer-render");
  const newPage=async(width,holdMath=false)=>{const page=await browser.newPage({viewport:{width,height:1000},reducedMotion:'reduce'});page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push({case:activeCase,error:e.message}));let release,startedResolve;const gate=new Promise(r=>release=r),started=new Promise(r=>startedResolve=r);let mathRequests=0;
   await page.route('**/*',async route=>{const url=new URL(route.request().url());requests.push({case:activeCase,path:url.pathname,method:route.request().method()});if(url.origin!==origin){external.push(url.origin+url.pathname);return route.abort();}if(mathFiles.has(url.pathname)){mathRequests++;startedResolve();if(holdMath)await gate;}return route.continue();});return {page,release,started,mathRequests:()=>mathRequests};};
  const flush=page=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));

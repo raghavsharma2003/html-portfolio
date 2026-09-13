@@ -1,4 +1,5 @@
 // Actual mounted panel and HTTP client; synthetic local responses, no SQL/model/auth calls.
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -56,7 +57,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await launchSuiteBrowser("text-publication-owner-availability-ui");
 const results = [], pageErrors = []; let page;
 const pass = name => { results.push(name); console.log(`ok ${results.length} - ${name}`); };
 const reset = () => { assert.equal(held.length, 0); mode = 'active'; requests = []; platformBlocker = false; metadataCanText = true; holdNext = false; };

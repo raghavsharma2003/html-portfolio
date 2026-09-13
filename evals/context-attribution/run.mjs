@@ -1,5 +1,6 @@
 // Actual component/API client and HTTP requests; synthetic loopback responses.
 // No actual SQL, model, identity or source-attribution authority claim.
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -39,7 +40,7 @@ try{
   if(url.pathname==='/favicon.ico'){res.writeHead(204).end();return;}
   res.writeHead(404).end();
  });await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
- browser=await chromium.launch({headless:true});
+ browser=await launchSuiteBrowser("context-attribution-ui");
  const reset=()=>{rows=[item()];posts=[];gets=[];held=[];holdPost=false;holdGet=false;postMode='normal';};
  const check=(name)=>{checks.push(name);console.log('PASS '+name);};
  for(const width of [390,1440]){

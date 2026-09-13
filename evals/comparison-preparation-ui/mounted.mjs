@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {createServer} from 'node:http';
@@ -22,7 +23,7 @@ const server=createServer(async(req,res)=>{const url=new URL(req.url,'http://loc
  res.setHeader('Content-Type','text/html');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>@layer reset,tokens,base,components,responsive;body{margin:0}</style>'+[...assets.keys()].filter(k=>k.endsWith('.css')).map(k=>`<link rel="stylesheet" href="${k}">`).join('')+'<div id="root"></div><script type="module" src="/host.js"></script>');
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const receipt={scope:'Actual mounted component and client. Synthetic HTTP and Azure PUT transport. No real SQL, Azure, processing or voice proof.',checks:[]};
-try{browser=await chromium.launch({headless:true});const page=await browser.newPage();await page.route('https://synthetic.blob.core.windows.net/**',r=>r.fulfill({status:201,body:''}));
+try{browser=await launchSuiteBrowser("comparison-preparation-ui");const page=await browser.newPage();await page.route('https://synthetic.blob.core.windows.net/**',r=>r.fulfill({status:201,body:''}));
  await page.goto(`http://127.0.0.1:${server.address().port}`);await page.getByText('You can upload now.',{exact:false}).waitFor();
  const button=page.getByRole('button',{name:'Upload private recording',exact:true});assert(await button.isDisabled());assert.equal(await page.locator('input[type=checkbox]:checked').count(),0);receipt.checks.push('three unchecked statements, honest unavailable preparation');
  await page.locator('input[type=file]').setInputFiles({name:'voice.wav',mimeType:'audio/wav',buffer:Buffer.alloc(128)});

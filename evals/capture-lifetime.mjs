@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -49,8 +50,7 @@ const server = createServer((req,res)=>{ if(assets.has(req.url)){res.setHeader('
 let browser, page;
 try {
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve)); const origin=`http://127.0.0.1:${server.address().port}`;
-  const chrome='C:/Program Files/Google/Chrome/Application/chrome.exe';
-  browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+  browser=await launchSuiteBrowser("capture-lifetime");
   page=await browser.newPage();page.setDefaultTimeout(12000);
   page.on('pageerror',error=>results.errors.push(error.message));
   await page.route('**/*',route=>{const url=new URL(route.request().url());return url.origin===origin||url.protocol==='blob:'?route.continue():route.abort();});

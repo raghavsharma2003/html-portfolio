@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
@@ -29,7 +30,7 @@ function renderedHtml(mode){let text=html;for(const link of links)text=text.repl
 let mode='current',activePage;const network=[],pageErrors=[],targetTrace=[],resourceTrace=[];
 const server=createServer((req,res)=>{try{const p=new URL(req.url,'http://localhost').pathname,file=resolve(dist,'.'+p),rel=relative(dist,file);assert(rel&&!rel.startsWith('..')&&!isAbsolute(rel));res.setHeader('content-type',({'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.woff2':'font/woff2'})[extname(file)]||'application/octet-stream');res.end(p==='/creator-layout-fixture.html'?renderedHtml(mode):readFileSync(file));}catch{res.writeHead(404);res.end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
-const browser=await chromium.launch({headless:true}),results=[];
+const browser=await launchSuiteBrowser("creator-cascade-order"),results=[];
 const limits={chars:60,minCpl:20,minCplDisplay:12,displayFrom:19,maxCpl:115,minFont:10.5,minContrast:4.5,minTap:44,roomChecks:false,mountedSelector:'.studio-shell, .studio-layout',panelSelector:'.wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice'};
 const out=join(root,'scratchpad/creator-cascade-order',String(Date.now()));mkdirSync(out,{recursive:true});
 try{for(const width of [390,1440]){const context=await browser.newContext({viewport:{width,height:900}});await observeBrowser(context);const page=await context.newPage();activePage=page;for(const event of ['request','requestfinished','requestfailed'])page.on(event,request=>resourceTrace.push({event,at:Date.now(),url:request.url(),type:request.resourceType(),...(event==='requestfailed'?{failure:request.failure()?.errorText}: {})}));page.setDefaultTimeout(15000);page.on('pageerror',e=>pageErrors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).origin!==origin){network.push(new URL(r.request().url()).origin);return r.abort();}return r.continue();});

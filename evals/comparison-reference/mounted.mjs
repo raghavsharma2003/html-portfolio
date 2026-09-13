@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
@@ -52,7 +53,7 @@ try{
    await handler(req,res);
   }catch(e){result.errors.push(`fixture_server_${e.code||e.name}`);if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'});res.end('{"error":"fixture_error"}');}
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
- const chrome='C:/Program Files/Google/Chrome/Application/chrome.exe';browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+ browser=await launchSuiteBrowser("comparison-reference-ui");
  const mutations=()=>requests.filter(r=>['authorize','confirm','withdraw'].includes(r.op));
  const allChecks=async()=>{const boxes=page.locator('.cvj-comparison-reference input[type=checkbox]');for(let i=0;i<await boxes.count();i++)await boxes.nth(i).check();};
  const open=async(old=false,fresh=false)=>{await page.goto(origin+(old?'/?old=1':fresh?'/?fresh=1':'/'));await page.waitForFunction(()=>window.__reference?.ready);};

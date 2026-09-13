@@ -17864,3 +17864,26 @@ The shared config template stated OPENROUTER_KEY and NEON_URL were both required
 
 **Fix.** Every CI checkout now fetches the full history (`fetch-depth: 0`). The deeper defect stands: 25 suites depend on git history at test time, which makes a test's verdict depend on the shape of the clone. A wave-twenty-two candidate is to move each historical blob they need into a fixture file and delete the git calls.
 
+## `direct-chromium-launches-crashed-the-browserless-build-job` (2026-09-13)
+
+**Tried.** CI on the 2026-09-13 base (54e553e, then ecc030e). The Build APK job runs the whole eval registry with no browser installed, by design (`evals/rehearsal/browser.mjs`'s header): browser suites skip there by name and the release gate runs the identical registry with a browser.
+
+**Broke.** 39 of Codex's mounted-component suites (2026-09-08/09) called `chromium.launch({ headless: true })` directly, some with a fallback to a Windows Chrome path, none with the skip posture. Every one died in about a second with "Executable doesn't exist at ~/.cache/ms-playwright/chromium_headless_shell-1234", so the job was red on every push of Codex's tree. The release gate never saw it (it installs Playwright's own build), which is why the failure survived a week of green-looking local gates.
+
+**Fix.** All 39 launch through `launchSuiteBrowser(<registry name>)` in `evals/rehearsal/browser.mjs`: the shared launch (a named binary under `/opt/pw-browsers`, else Playwright's full build by channel) plus `SKIP <suite>: <reason>` and exit 0 when no browser exists. The container's browser-revision mirror (`playwright-revision-mismatch-hid-the-real-gate-failures`) stops mattering for these 39. Run alone on the container's full build, 38 of 39 pass; the 39th is `first-use-refresh-suite-races-under-load` below, which fails the same way on the headless shell. The rule: a suite launches Chromium through the shared launcher and nowhere else; 30 older files under `evals/` still launch directly with their own skip logic and are the next cleanup.
+
+## `azureweb-suite-pinned-a-node-patch-level-behaviour` (2026-09-13)
+
+**Tried.** The release gate's Node matrix (22 and 24) on 54e553e and ecc030e.
+
+**Broke.** `azureweb` (`evals/azure-web/run.mjs`) failed on Node 24 only, both runs, with a 500 from the handler's own assertion "normal body consumption closes the native message". The suite models the platform's request signal and simulated the close-abort only when no native getter existed, on the strength of Node v24.18.1 aborting the native signal after an ordinary consumed body. Node v24.21.0 (the runner's 24) keeps the getter but no longer aborts it after the body: reproduced locally with a twelve-line probe (22: no signal at all; 24.21: signal present, `aborted: false` after the body) and by the suite itself under nvm's 24.21.0.
+
+**Fix.** The simulation composes the close-abort on every Node, with the native signal where one exists, so the suite models the strictest platform the server must survive rather than whichever patch level runs it. The server (`services/azure-web/server.mjs`) is unchanged: its composition aborts the handler only when the message is incomplete, which is right on both behaviours. 31 groups pass on 22 and on 24.21.0; the packaging suite likewise. The rule: a suite that models a platform behaviour states the version it models and simulates it, never reads it off the running runtime.
+
+## `first-use-refresh-suite-races-under-load` (2026-09-13, open)
+
+**Tried.** `evals/first-use-private-flow/refresh.mjs` (`first-use-refresh-ui`) alone on the container while ten build agents kept the load average between 5 and 20, three runs on the headless shell and three on the full build, then four instrumented runs.
+
+**Broke.** 4 of 10 runs failed at the "refresh request queued" barrier (30 s): the fixture moves `Date.now` an hour forward, dispatches a window `focus`, and expects the studio to post an account refresh. It failed in the `list` method (old and current variants) and once in a later method; both browsers fail at the same rate, so the launcher change above is not the cause. The instrumented runs show a same-document back navigation (the marker survives, `performance` reports `navigate`), a visible and focused page, and two focus listeners registered at the moment of dispatch, and those four runs all passed. The studio drops a focus that lands while a readiness poll is in flight (`if (polling) return` in `StudioApp.tsx`'s readiness effect) and the next reconcile is `IDLE_RECONCILE_MS` (60 s) away, longer than the barrier; that is the leading hypothesis, not a measurement.
+
+**Fix.** None yet. Under CI's two idle cores the suite passed on both Node versions today; on the container it is the one suite that fails the pooled registry under load. Wave twenty-two: reproduce the dropped focus with the listener instrumentation kept, then either coalesce a focus that arrives mid-poll (a product change, and a small real one) or make the fixture wait for the poll to settle before dispatching.

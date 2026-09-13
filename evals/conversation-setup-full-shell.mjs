@@ -1,5 +1,6 @@
 // Full real Studio entry modules, StudioApp, shell and styles. No component
 // substitutions. Only synthetic auth/HTTP data from the incumbent layout fixture.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
@@ -104,7 +105,7 @@ try {
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const { chromium } = await import("playwright"); browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("conversation-setup-full-shell");
   for (const width of [390, 1440]) for (const scenario of ["single-owner-replica", "requested-second"]) {
     activeCase = `${width}-${scenario}`; replicaOrder = scenario === "requested-second" ? [OTHER, RID] : [RID];
     const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });

@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {join,extname} from 'node:path';
@@ -82,7 +83,7 @@ try{
   }catch(cause){errors.push('server:'+cause.message);res.writeHead(500);res.end('{"error":"fixture_assertion"}');}
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
- browser=await chromium.launch({headless:true,...(existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe')?{executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'}:{})});
+ browser=await launchSuiteBrowser("first-use-private-flow-ui");
  let page;
  const count=(path,op)=>requests.filter(r=>r.path===path&&r.op===op).length;
  const waitFor=async(predicate)=>{const end=Date.now()+10000;while(!predicate()&&Date.now()<end)await new Promise(r=>setTimeout(r,10));assert(predicate(),'bounded HTTP barrier');};

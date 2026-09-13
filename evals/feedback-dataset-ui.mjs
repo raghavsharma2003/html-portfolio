@@ -1,5 +1,6 @@
 // Headless repository regression harness: real ExpertConversation, TurnFeedback
 // and correction panel, synthetic loopback HTTP only. Not owner/model evidence.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -97,7 +98,7 @@ let browser;
 const checks = [], artifactDir = join(root, "scratchpad/correction-ui"); mkdirSync(artifactDir, { recursive: true });
 try {
   // Same isolated headless test infrastructure as other repository UI evals.
-  const { chromium } = await import("playwright"); browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("feedback-dataset-ui");
   for (const width of [390, 1440]) {
     count = 0; saved = null; posts = []; feedbackPosts = []; readCount = 0; mode = "normal"; holdRead = false; heldRead = null;
     const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });

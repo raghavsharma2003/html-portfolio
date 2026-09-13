@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -29,7 +30,6 @@ if (process.argv.includes('--verify-fixtures')) {
   process.exit(0);
 }
 const { build } = await import('vite');
-const { chromium } = await import('playwright');
 const out = join(root, 'scratchpad', 'personality-scope28', String(Date.now())); mkdirSync(out, { recursive: true });
 const hashes = {}, oldHashes = {};
 for (const [lane, name] of Object.entries(files)) {
@@ -72,7 +72,7 @@ const server = createServer(async (req, res) => {
   } catch (error) { errors.push(error.message); res.writeHead(500, { 'Content-Type': 'application/json' }); res.end('{"error":"fixture_failure"}'); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const origin = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch({ headless: true });
+const origin = `http://127.0.0.1:${server.address().port}`, browser = await launchSuiteBrowser("personality-review-scope-ui");
 const results = [], pageErrors = []; let page;
 const affectedOnly = process.argv.includes('--affected');
 const pass = name => { results.push(name); console.log(`ok ${results.length} - ${name}`); };

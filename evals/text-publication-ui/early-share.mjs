@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {join,extname} from 'node:path';
@@ -85,7 +86,7 @@ try{
   }catch(error){errors.push('server:'+error.message);res.writeHead(500);res.end('{"error":"fixture_assertion"}');}
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
- browser=await chromium.launch({headless:true,...(existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe')?{executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'}:{})});
+ browser=await launchSuiteBrowser("text-publication-early-share-ui");
  const snap=async name=>focus.push({name,...await page.evaluate(()=>({activeTag:document.activeElement?.tagName,activeId:document.activeElement?.id,activeText:document.activeElement?.textContent?.slice(0,120),heading:document.querySelector('.vx-main h1,.vx-main h2')?.textContent}))});
  const open=async(variant,width,{state='consent_pending',consent=true,view=''}={})=>{
   if(page)await page.context().close();currentAssets=assets[variant];lifecycle=state;hasConsent=consent;requests=[];holdReadiness=false;heldReadiness=[];

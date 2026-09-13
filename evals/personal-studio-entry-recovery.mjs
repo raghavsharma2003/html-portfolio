@@ -1,6 +1,7 @@
 // Browser fixture for the real parent entry. It injects only the session and
 // deferred-module boundaries so the recovery path is exercised without a
 // provider or workspace API call. The account responses are local fixtures.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -56,7 +57,7 @@ try {
     } catch { res.statusCode = 404; res.end("Not found"); }
   });
   await new Promise(done => server.listen(0, "127.0.0.1", done));
-  browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("personal-studio-entry-recovery");
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));

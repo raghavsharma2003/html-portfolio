@@ -1,4 +1,5 @@
 // Mounted product component + real API client, synthetic HTTP. Fixture CSS is not full-studio visual evidence.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -53,7 +54,7 @@ async function bounded(promise, label) {
   finally { clearTimeout(timer); }
 }
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("candidate-qualification-ui");
   for (const width of [390, 1440]) for (const language of ['en', 'hi']) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     await page.addInitScript(() => {

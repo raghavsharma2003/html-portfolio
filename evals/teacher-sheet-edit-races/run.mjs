@@ -1,4 +1,5 @@
 // Actual mounted editors and API clients. Synthetic loopback transport only.
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {observeBrowser,recordBrowserFailure} from '../browser-action-diagnostics.mjs';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
@@ -32,7 +33,7 @@ try{
   }
   const asset=assets.get(url.pathname);if(asset!==undefined){res.writeHead(200,{'content-type':extname(url.pathname)==='.html'?'text/html':extname(url.pathname)==='.css'?'text/css':'text/javascript'});res.end(asset);return;}res.writeHead(404).end();
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
- browser=await chromium.launch({headless:true});
+ browser=await launchSuiteBrowser("teacher-sheet-edit-races");
  for(const width of [390,1440]){
   const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await context.newPage();await observeBrowser(context);page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
   const open=async(lane,legacy=false,value=initial,hi=false)=>{assert.equal(pending.length,0);raw=structuredClone(value);mode='normal';posts=[];gets=[];published=false;await page.goto(`${origin}/evals/teacher-sheet-edit-races/host.html?${lane==='studio'?'studio=1&':''}${legacy?'old=1&':''}${hi?'hi=1':''}`);await page.locator('#teacher-sheet-studio').waitFor();};

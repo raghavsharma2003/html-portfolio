@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -36,8 +37,7 @@ const server=createServer((req,res)=>{if(req.url==='/probe.js'){res.setHeader('C
 let browser; let checks=0;
 try {
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const url=`http://127.0.0.1:${server.address().port}/recorder-probe`;
-  const chrome='C:/Program Files/Google/Chrome/Application/chrome.exe';
-  browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+  browser=await launchSuiteBrowser("recorder-lifecycle");
   const page=await browser.newPage();page.setDefaultTimeout(15000);
   const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('page error:',e.message);});
   await page.route('**/*',r=>new URL(r.request().url()).origin===new URL(url).origin?r.continue():r.abort());

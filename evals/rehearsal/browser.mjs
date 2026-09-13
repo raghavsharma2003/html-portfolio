@@ -28,6 +28,21 @@ export function rehearsalChromiumPath() {
   return REHEARSAL_CHROMIUM_CANDIDATES.find((p) => p && existsSync(p)) || null;
 }
 
+/** The same launch for a suite that cannot run at all without a browser:
+ *  the browser on success, else a `SKIP <suite>: <reason>` line and exit 0.
+ *  Codex's mounted-component suites (2026-09-08/09) called
+ *  `chromium.launch()` directly and crashed by the dozen on the build
+ *  workflow, which carries no browser (`context/rejected.md#direct-chromium-
+ *  launches-crashed-the-browserless-build-job`). The skip is honest for the
+ *  reason the header gives: the release gate runs the identical registry
+ *  with a browser on every push. */
+export async function launchSuiteBrowser(suite, extraArgs = []) {
+  const { browser, reason } = await launchRehearsalBrowser(extraArgs);
+  if (browser) return browser;
+  console.log(`SKIP ${suite}: ${reason}`);
+  process.exit(0);
+}
+
 /** `{ browser }` on success; `{ browser: null, reason }` when no Chromium
  *  can be launched here. Never throws for a missing binary. */
 export async function launchRehearsalBrowser(extraArgs = []) {

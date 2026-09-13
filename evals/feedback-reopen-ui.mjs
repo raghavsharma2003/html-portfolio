@@ -1,4 +1,5 @@
 // Real mounted modern and creator feedback editors and HTTP client. Synthetic loopback only.
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -32,7 +33,7 @@ const server=createServer(async(req,res)=>{const url=new URL(req.url,'http://127
  res.writeHead(200,{'content-type':'text/html'});res.end(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1">${css}<style>body{margin:0}main{padding:18px;max-width:800px;margin:auto}.feedback-clear{display:flex;gap:8px;margin:12px 0}</style></head><body><div id="root"></div><script type="module" src="/fixture.js"></script></body></html>`);
 });await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
 const artifact=join(root,'scratchpad/feedback-reopen-ui',`${Date.now()}${old?'-old':''}`);mkdirSync(artifact,{recursive:true});const checks=[];let browser;
-try{const{chromium}=await import('playwright');browser=await chromium.launch({headless:true});
+try{browser=await launchSuiteBrowser("feedback-reopen-ui");
  for(const [width,creator,focused] of old?[[390,false,false]]:[[390,false,true],[1440,false,true],[390,true,false]]){
  rows.clear();requests.length=0;held.length=0;holdRead=false;holdPost=false;uncertain=false;readFail=false;seed();
  const page=await browser.newPage({viewport:{width,height:1000},reducedMotion:'reduce'});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());

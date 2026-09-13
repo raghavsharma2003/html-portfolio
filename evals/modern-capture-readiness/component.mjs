@@ -1,3 +1,4 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync,mkdirSync,mkdtempSync,rmSync,realpathSync} from 'node:fs';
 import {join,dirname} from 'node:path';
@@ -29,8 +30,7 @@ const server=await createServer({configFile:false,root:ROOT,cacheDir,optimizeDep
 let browser;let checks=0;
 try{
  await server.listen();const base=`http://127.0.0.1:${server.httpServer.address().port}`;
- const chrome='C:/Program Files/Google/Chrome/Application/chrome.exe';
- browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+ browser=await launchSuiteBrowser("modern-capture-readiness-ui");
  const page=await browser.newPage();page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('component page error:',e.message);});
  await page.route('**/*',route=>route.request().url().startsWith(base+'/')?route.continue():route.abort());
  async function open(query=''){await page.goto(base+'/capture-probe?'+query);await page.waitForFunction(()=>window.captureProbe?.calls.readiness>0);}
