@@ -458,6 +458,18 @@ export async function runRoomMemoryConsolidation(candidate, {queryFn,model,env=p
 // `loadOwnedRuntimeContext` before any of this runs) — the same
 // defense-in-depth the Room's own AUTHORITY CTE uses (follower_id ->
 // agent -> room -> replica, never a bare id).
+// WS-R172: `r.lifecycle='active'` (WS-R167's own original predicate) is
+// loosened to the SAME lifecycle floor `api/_replica-runtime.js#
+// textBlockers` already uses for text-ready eligibility (never revoked or
+// purging) — nothing about the CAPABILITY level enters this authority at
+// all, only whether the replica itself is still a live, owned self-replica.
+// A voice-ready replica's `lifecycle` is always `'active'`, which is not in
+// `('revoked','purging')`, so this is byte-identical for that path; a
+// text-ready-only replica's `lifecycle` (draft/consent_pending/enrolling/
+// calibrating/ready) now clears this floor too, for the first time
+// (`context/decisions.md#ws-r172-owner-memory-and-relstate-accept-a-text-
+// ready-replica`). `r.agent_id is not null` (unchanged) still requires the
+// agent this workstream's own `TEXT_CAPABILITY_ENSURE_SQL` mint provides.
 const OWNER_MEMORY_AUTHORITY = `owner_authority as materialized (
  select r.replica_id, r.agent_id, r.subject_person_id as person_id,
    coalesce((select max(x.revoked_at) from vy_replica_consent x
@@ -465,7 +477,7 @@ const OWNER_MEMORY_AUTHORITY = `owner_authority as materialized (
        and x.scope='memory' and x.revoked_at is not null),'-infinity'::timestamptz) as memory_window_floor
  from vy_replica r
  where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
-   and r.lifecycle='active' and r.subject_mode='self'
+   and r.lifecycle not in ('revoked','purging') and r.subject_mode='self'
    and r.agent_id is not null and r.subject_person_id is not null
    and exists(select 1 from vy_replica_consent x
      where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id

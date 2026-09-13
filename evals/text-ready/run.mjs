@@ -42,15 +42,18 @@ const ok = (name, cond, extra = "") => {
 
 const runtime = await import(pathToFileURL(join(REPO, "api/_replica-runtime.js")).href);
 const dialogue = await import(pathToFileURL(join(REPO, "api/_replica-dialogue.js")).href);
+const authority = await import(pathToFileURL(join(REPO, "api/_room-memory-authority.js")).href);
 const {
-  textBlockers, clientRuntimeStatus, compileReplicaRuntimeCore,
+  textBlockers, clientRuntimeStatus, compileReplicaRuntimeCore, loadOwnedTextIdentity,
   RUNTIME_STATUS_SQL, TEXT_CAPABILITY_ENSURE_SQL, OWNED_TEXT_PROFILE_SQL, OWNED_PRIVATE_RUNTIME_CONTEXT_SQL,
 } = runtime;
 const { generateOwnedTextDialogue, generateOwnedDialogue, TEXT_APPRENTICE_DISCLOSURE } = dialogue;
+const { OWNER_MEMORY_RECALL_SQL } = authority;
 
 // ── a full-good RUNTIME_STATUS_SQL row, and small overrides per scenario ──
 const REPLICA_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
+const AGENT_ID = "55555555-5555-4555-8555-555555555555";
 
 function statusRow(overrides = {}) {
   return {
@@ -87,8 +90,14 @@ const FAKE_VIBE = { vibe_id: "v1", replica_id: REPLICA_ID, owner_user_id: OWNER_
  *  replica at all (an owner asking about someone else's replica_id, or one
  *  that never existed) — every other scenario passes a real row shaped by
  *  `statusRow()`'s overrides. `withVibe`/`withProfile` gate the two other
- *  statements `generateOwnedTextDialogue` issues once text_ready is true. */
-function fakeDb({ row, withProfile = true, withVibe = true } = {}) {
+ *  statements `generateOwnedTextDialogue` issues once text_ready is true.
+ *  WS-R172: `withMemory`/`facts` gate `OWNER_MEMORY_RECALL_SQL` (the owner's
+ *  extracted Meet memory, only reachable once `loadOwnedTextIdentity` finds
+ *  a real `row.agent_id` — `statusRow()`'s own default has none, matching
+ *  a genuinely fresh replica before this workstream's own agent mint has
+ *  ever run); the relationship-snapshot queries `loadPrivateRelationshipSnapshot`
+ *  issues always answer `[]` (never a fabricated relationship). */
+function fakeDb({ row, withProfile = true, withVibe = true, withMemory = false, facts = [] } = {}) {
   const calls = [];
   const db = async (sql, params) => {
     calls.push(sql);
@@ -96,6 +105,8 @@ function fakeDb({ row, withProfile = true, withVibe = true } = {}) {
     if (sql === TEXT_CAPABILITY_ENSURE_SQL) return []; // the write path; unproven offline, see this file's own header
     if (sql === OWNED_TEXT_PROFILE_SQL) return withProfile ? [{ version: 1, definition: JSON.stringify(PROFILE_DEFINITION) }] : [];
     if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return []; // no active/private VOICE capability in any scenario this suite drives
+    if (sql === OWNER_MEMORY_RECALL_SQL) return withMemory ? facts : [];
+    if (/from vy_(?:rel_state|pattern|ritual|currency|phrase|kin)\b/.test(sql)) return [];
     if (sql.includes("from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid")) return withProfile ? [{ replica_id: params[0] }] : [];
     if (sql.includes("from vy_replica_vibe where replica_id=$1::uuid and owner_user_id=$2::uuid and superseded_at is null")) return withVibe ? [FAKE_VIBE] : [];
     throw new Error(`text-ready fixture: unmatched SQL statement (${sql.length} chars): ${sql.slice(0, 120)}`);
@@ -105,15 +116,18 @@ function fakeDb({ row, withProfile = true, withVibe = true } = {}) {
 
 function fakeGenerator(replyText = "Namaste! I am still learning, but happy to talk.") {
   let calls = 0;
+  let lastPrompt = null;
   return {
     generator: {
       family: "rehearsal", name: "fake-text-dialogue", version: "v1", model: "rehearsal-fake",
-      generate: async () => {
+      generate: async ({ prompt }) => {
         calls++;
+        lastPrompt = prompt;
         return { output: { reply: replyText, delivery: { mode: "grounded", pace: "natural", intensity: 0.4, language_hint: "", nonverbals: [] } }, usage: null };
       },
     },
     calls: () => calls,
+    lastPrompt: () => lastPrompt,
   };
 }
 
@@ -209,6 +223,63 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
   const turn = await generateOwnedDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Who are you?" }, generator, null, {});
   ok("generateOwnedDialogue itself falls back to the text-ready door when no voice capability is active", turn && turn.reply.startsWith(TEXT_APPRENTICE_DISCLOSURE));
   ok("the fallback used the SAME generator, called exactly once", calls() === 1);
+}
+
+// ── 6. WS-R172: continuity without a voice — the owner's Meet memory and
+//    relationship state reach the text-ready door's own compile ──────────
+{
+  const factRow = { id: "9001", body: "switched to a morning schedule this month", kind: "user", name: "preference", created_at: new Date().toISOString(), communication: null };
+  const { db } = fakeDb({ row: statusRow({ agent_id: AGENT_ID }), withMemory: true, facts: [factRow] });
+  const { generator, calls, lastPrompt } = fakeGenerator("Glad the morning schedule is working out.");
+  const turn = await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Do you remember what I told you?" }, generator, null);
+  ok("a text-ready turn with a minted agent and an extracted fact completes", calls() === 1 && typeof turn.reply === "string");
+  ok("the compiled prompt's own system message carries the fact body (through compileRelationshipTail/ownerMemoryTail, the SAME compile the voice-ready door uses)",
+    lastPrompt()?.messages?.[0]?.content?.includes(factRow.body));
+  ok("the turn honestly reports has_memory:true", turn.has_memory === true);
+  ok("has_continuity stays false (text-ready is stateless turn-to-turn, an unrelated, unchanged fact)", turn.has_continuity === false);
+}
+
+// NEGATIVE CONTROL 4 — a text-ready replica with NO minted agent yet
+// (`statusRow()`'s own default) never fabricates memory, even when the
+// fixture's own `OWNER_MEMORY_RECALL_SQL` branch would otherwise answer a
+// fact — proving the agent-presence check in `loadOwnedTextIdentity`, not
+// merely a coincidentally-empty fixture, is what gates this.
+{
+  const factRow = { id: "9002", body: "should never reach an agent-less replica", kind: "user", name: "preference", created_at: new Date().toISOString(), communication: null };
+  const { db } = fakeDb({ row: statusRow(), withMemory: true, facts: [factRow] });
+  const { generator, calls, lastPrompt } = fakeGenerator("Good to meet you.");
+  const turn = await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Do you remember me?" }, generator, null);
+  ok("NEGATIVE CONTROL — the turn still completes honestly (never a crash) with no agent minted yet", calls() === 1 && typeof turn.reply === "string");
+  ok("NEGATIVE CONTROL — no agent means no memory tail reaches the compiled prompt, even though the fixture's own memory branch would answer one",
+    !lastPrompt()?.messages?.[0]?.content?.includes(factRow.body));
+  ok("NEGATIVE CONTROL — has_memory reports false honestly", turn.has_memory === false);
+}
+
+// NEGATIVE CONTROL 5 — a minted agent but memory OFF (the fixture's own
+// `withMemory:false`) never leaks the same fact into the compiled prompt.
+{
+  const factRow = { id: "9003", body: "should never reach a turn while memory is off", kind: "user", name: "preference", created_at: new Date().toISOString(), communication: null };
+  const { db } = fakeDb({ row: statusRow({ agent_id: AGENT_ID }), withMemory: false, facts: [factRow] });
+  const { generator, lastPrompt } = fakeGenerator("Tell me more.");
+  const turn = await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Do you remember me?" }, generator, null);
+  ok("NEGATIVE CONTROL — memory off: the same fact never reaches the compiled prompt", !lastPrompt()?.messages?.[0]?.content?.includes(factRow.body));
+  ok("NEGATIVE CONTROL — memory off: has_memory reports false honestly", turn.has_memory === false);
+}
+
+// ── 7. WS-R172: loadOwnedTextIdentity, the pure identity loader ──────────
+{
+  const { db } = fakeDb({ row: statusRow({ agent_id: AGENT_ID }) });
+  const identity = await loadOwnedTextIdentity(db, OWNER_ID, REPLICA_ID);
+  ok("loadOwnedTextIdentity returns the real agent/person ids for an eligible, agent-minted replica",
+    identity?.agent_id === AGENT_ID && identity?.subject_person_id === statusRow().subject_person_id);
+
+  const { db: dbNoAgent } = fakeDb({ row: statusRow() });
+  const noAgent = await loadOwnedTextIdentity(dbNoAgent, OWNER_ID, REPLICA_ID);
+  ok("NEGATIVE CONTROL — loadOwnedTextIdentity returns null for an eligible replica with no minted agent yet, never a fabricated id", noAgent === null);
+
+  const { db: dbRevoked } = fakeDb({ row: statusRow({ agent_id: AGENT_ID, lifecycle: "revoked" }) });
+  const revokedIdentity = await loadOwnedTextIdentity(dbRevoked, OWNER_ID, REPLICA_ID);
+  ok("NEGATIVE CONTROL — loadOwnedTextIdentity returns null for a revoked replica, even with an agent already minted", revokedIdentity === null);
 }
 
 console.log(`\n${pass} pass, ${fail} fail`);

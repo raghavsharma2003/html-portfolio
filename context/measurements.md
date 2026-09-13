@@ -18573,3 +18573,27 @@ Method: each workstream's own report (suite counts as printed), the main loop's 
 | WS-R171 the merge repairs | see the session log | the ten suites the first batch gate named, then the whole registry |
 
 Batch gates: ten merges (ee7ac84) 24 of 25, the eval suite failing on ten suites (feed-meet-teach-cta, feed-meet-mined-cta, feed-meet-return-ui, private-text-rehearsal-ui, conversation-setup-ui, dialogue-history-ui, recorder-lifecycle, mirrorcall, mirrorownerspeaker, studioselftestui), eight of which fail on WS-R166's own branch; after WS-R171, 25 of 25 on dfe4c98. Live database after the wave: migrations 167 (three statements) and 170 (two statements) applied one statement per request, 0 failures; 168, 169 and 171 unused.
+
+## `ws-r172-continuity-for-a-text-ready-ai-2026-09-13`
+
+Method: `node evals/<suite>/run.mjs` (or the file's own path) run standalone in the worktree after `node scripts/write-config.mjs --stub`, offline, $0, no DB, no network, no model call except where a browser-driven suite is named; date 2026-09-13.
+
+| suite | result |
+|---|---|
+| text-ready (extended: sections 6-7, agent-minted memory tail, `loadOwnedTextIdentity`) | 42 pass, 0 fail |
+| meet-continuity (extended: section 8, the loosened lifecycle floor over the real owner-memory/relstate ops) | 60 pass, 0 fail |
+| room-leak (extended: layer 19 addendum, two owners' own text-ready memory facts, cross-owner negative control) | 371 pass, 0 fail (336,323 retrieval row-scenario checks, 606 boundary checks) |
+| rehearsal/personal.mjs (extended: a two-turn text-ready continuity walk through a real Chromium, real doors) | 61 pass, 0 fail |
+| replica-dialogue | 47 pass |
+| replica-runtime | 62 pass |
+| room-relstate | 31 pass |
+| room-cohorts | 63 pass |
+| room-memory-authority | 29 controls |
+| room-memory-correction | 7 controls |
+| room-dormancy | 64 pass |
+| dialogue-unicode (a hand-rolled `_replica-runtime.js` stub needed a third `loadOwnedTextIdentity` export added, same pattern as its own two prior WS-R161 additions) | 13 groups pass |
+| room-doors (the full battery) | 2333 pass, 0 fail |
+| personality-flow28, teacher-sheet-adoption, private-sql-literal, context-claim-grounding, dialogue-history, provider-budget, identity-challenge, room-publish, candidate-activation(-runtime x2), candidate-materializer-worker, candidate-qualification-service, correction-candidate-worker, readiness, fidelity, person-model, private-continuity, azure-dialogue-adapter, room-expert-runtime, agent/raw-isolation, consolidation/config, consolidation/room-caller, dialogue-history-ui, conversation-setup-ui, expert-answer-render, studio-locale-personal | all pass unchanged, run standalone as every suite that scans a touched file |
+| `npx tsc --noEmit`, `node scripts/check-copy.mjs`, `node scripts/check-prompt-budget.mjs`, `node scripts/check-schema-mirror.mjs`, `npx vite build` | all pass |
+
+Not measured: the SQL text of `TEXT_CAPABILITY_ENSURE_SQL`'s new agent-mint CTEs against a real Postgres server (no `NEON_URL` in this environment — `offline-mocks-cannot-type-check-sql`, CLAUDE.md); every new statement is listed in this workstream's final report for the main loop to `EXPLAIN` live. No migration was needed (no schema change): `vy_agent` and `vy_replica.agent_id` already existed; only application-level SQL changed.
