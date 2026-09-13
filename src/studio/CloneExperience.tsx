@@ -21,6 +21,7 @@ import { openPrivateWavCapture, type PrivateWavCapture } from "./wavCapture";
 import { presentCloneProgress } from "./activityPresentation";
 import VoiceField from "./VoiceField";
 import VyaktiMark from "./VyaktiMark";
+import { noteInstallVisit, markInstallDismissed, shouldShowInstallCard, STUDIO_INSTALL_KEY } from "./installPrompt";
 import type { ActivityJob, ActivityView } from "./activityApi";
 import type {
   ConsentReceipt,
@@ -701,6 +702,16 @@ export interface CloneExperienceProps {
   onContextCount: (count: number) => void;
 }
 
+/** WS-R157. The one shape this file needs off a captured `beforeinstallprompt`
+ *  event, `src/room/RoomApp.tsx`'s own type restated here rather than
+ *  imported — typed loosely rather than pulling in a DOM lib type, since none
+ *  ships with this project's `lib` and every browser that fires the real
+ *  event satisfies this shape regardless. */
+type InstallPromptEvent = {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
 export default function CloneExperience(props: CloneExperienceProps) {
   const {
     identity, accessToken, replicas, selected, creatingNew, creating, revoking, consents, sources,
@@ -725,6 +736,15 @@ export default function CloneExperience(props: CloneExperienceProps) {
     : { teach: "Teach your AI", test: "Test this source", back: "Back to private test" };
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  // WS-R157: the install card's own state — `installEvent` is the captured
+  // `beforeinstallprompt` (null on every browser that never fires one, iOS
+  // included by design), `installReady`/`installDismissed` come from
+  // `noteInstallVisit` below, off the studio's own fixed key
+  // (`installPrompt.ts`'s `STUDIO_INSTALL_KEY`) rather than a slug — see
+  // that file's own header for why one key covers the whole studio.
+  const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
+  const [installReady, setInstallReady] = useState(false);
+  const [installDismissed, setInstallDismissed] = useState(false);
   const [room, setRoom] = useState<MainRoom>(() => {
     const view = new URLSearchParams(window.location.search).get("view");
     return view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : "voice";
@@ -785,6 +805,36 @@ export default function CloneExperience(props: CloneExperienceProps) {
   useEffect(() => {
     reissueMounted.current = true;
     return () => { rehearsalReturn.current = null; reissueMounted.current = false; reissueOperation.current += 1; };
+  }, []);
+  /* WS-R157: capture `beforeinstallprompt` once, this tab's own lifetime —
+   * `RoomApp.tsx`'s own effect, restated here. `preventDefault` stops the
+   * browser's own default mini-infobar so the card below is the only UI that
+   * ever offers this. iOS never fires this event at all; this effect simply
+   * never captures anything there, and `showInstallIOS` below is not gated
+   * on it. */
+  useEffect(() => {
+    const onPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallEvent(event as unknown as InstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
+  }, []);
+  /* WS-R157: the visit count and any live dismissal, read (and the count
+   * incremented) once per real mount — `noteInstallVisit` is the ONLY place
+   * this component touches its own `localStorage` keys, under the studio's
+   * one fixed key rather than a slug. */
+  useEffect(() => {
+    const storage = (() => {
+      try {
+        return window.localStorage;
+      } catch {
+        return null;
+      }
+    })();
+    const state = noteInstallVisit(storage, STUDIO_INSTALL_KEY, Date.now());
+    setInstallReady(state.readyBySecondVisit);
+    setInstallDismissed(state.dismissed);
   }, []);
   useEffect(() => {
     reissueOperation.current += 1;
@@ -1161,6 +1211,56 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const showRooms = voiceWorkspaceReady || textWorkspaceOpen;
   const readBlocked = workspaceReadState !== "ready" || Boolean(selected && !creatingNew && !agreementBusy && room !== "rehearsal" && consentReadState !== "ready");
 
+  // WS-R157: the install card's own derived state, `RoomApp.tsx`'s own
+  // shape restated for the studio. `showRooms && selected` is this file's
+  // equivalent of the Room's `phase === "talking"` — a settled, ongoing use
+  // of the product, never mid-recording, mid-upload or still onboarding.
+  const isIOS = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const alreadyInstalled = typeof window !== "undefined" && (() => {
+    try {
+      return (
+        window.matchMedia?.("(display-mode: standalone)").matches === true ||
+        (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+      );
+    } catch {
+      return false;
+    }
+  })();
+  const showInstall = shouldShowInstallCard({
+    signedIn: true,
+    talking: showRooms && Boolean(selected),
+    readyBySecondVisit: installReady,
+    dismissed: installDismissed,
+    alreadyInstalled,
+    hasPromptEvent: Boolean(installEvent),
+    isIOS,
+  });
+  const showInstallIOS = isIOS;
+  const dismissInstall = useCallback(() => {
+    setInstallEvent(null);
+    setInstallDismissed(true);
+    try {
+      markInstallDismissed(window.localStorage, STUDIO_INSTALL_KEY, Date.now());
+    } catch {
+      // Best effort — see `noteInstallVisit`'s own header.
+    }
+  }, []);
+  const doInstall = useCallback(async () => {
+    if (!installEvent) {
+      dismissInstall(); // iOS's "Got it" — nothing to prompt, only to dismiss.
+      return;
+    }
+    try {
+      await installEvent.prompt();
+      await installEvent.userChoice;
+    } catch {
+      // Best effort — a prompt already consumed (a second tap, or the
+      // browser revoked it between capture and tap) fails silently; the
+      // dismiss below still runs so the card does not linger either way.
+    }
+    dismissInstall();
+  }, [installEvent, dismissInstall]);
+
   return (
     <div className="vx-shell">
       <header className="vx-header">
@@ -1218,6 +1318,35 @@ export default function CloneExperience(props: CloneExperienceProps) {
       </main>
 
       {room !== "rehearsal" && voiceWorkspaceReady && <RoomNav room={room} onChange={chooseRoom} />}
+      {/* WS-R157: the install card. `shouldShowInstallCard` (above) decides
+          whether this renders at all; this block only decides which of the
+          two variants — a browser with a captured `beforeinstallprompt` gets
+          a working button, iOS gets static "Add to home screen" instructions
+          instead, since no button can ever exist there. `RoomApp.tsx`'s own
+          `.room-cap`/`.room-btn` pattern, restated here as `.vx-install`/
+          `.vx-button` so this card reads as one more instance of the SAME
+          dismissible-card language the studio already has (`.vx-recovery`),
+          not a new visual system. */}
+      {showInstall && (
+        <aside className="vx-install" role="note">
+          <div>
+            <strong>{showInstallIOS ? "Add Vyakti to your home screen." : "Get the Vyakti app."}</strong>
+            <span>
+              {showInstallIOS
+                ? "Open the share menu below, then choose Add to Home Screen."
+                : "It opens like an app and remembers where you left off."}
+            </span>
+          </div>
+          {showInstallIOS ? (
+            <button type="button" onClick={dismissInstall}>Got it</button>
+          ) : (
+            <>
+              <button type="button" onClick={() => void doInstall()}>Install</button>
+              <button type="button" className="vx-install__quiet" onClick={dismissInstall}>Not now</button>
+            </>
+          )}
+        </aside>
+      )}
       {!readBlocked && (notice || error) && <div className={`vx-toast${error ? " is-error" : ""}`} role={error ? "alert" : "status"}><div><strong>{error?.headline || "Done"}</strong><p>{error?.detail || notice}</p></div><button type="button" aria-label="Dismiss" onClick={error ? onDismissError : onDismissNotice}><Icon name="close" /></button></div>}
       <WorkspaceDrawer open={drawerOpen} replicas={replicas} selected={selected} runtimeStatus={runtimeStatus} onClose={() => setDrawerOpen(false)} onSelect={(id) => { setDrawerOpen(false); void onSelectReplica(id); }} onNew={() => { setDrawerOpen(false); onStartNew(); }} onReplace={() => void replaceRecording()} onDelete={() => void onRevoke()} busy={revoking || Boolean(upload)} reduceMotion={reduceMotion} />
     </div>

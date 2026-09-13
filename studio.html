@@ -6,6 +6,13 @@
     <meta name="theme-color" content="#f8f8f5" />
     <meta name="robots" content="noindex, nofollow" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- WS-R157: the studio's own install prompt/PWA identity, and the
+         Vyakti native shell's start page. `public/studio.webmanifest` is
+         served verbatim (Vite copies `public/` into `dist/` root, exactly
+         as `room.webmanifest` and `manifest.webmanifest` already are —
+         `evals/vyakti-app` asserts this stays a static file, never a
+         second per-route generator like the Room's manifest needed). -->
+    <link rel="manifest" href="/studio.webmanifest" />
     <!--
       THE CASCADE LAYER ORDER, DECLARED WHERE A MINIFIER CANNOT REMOVE IT.
 

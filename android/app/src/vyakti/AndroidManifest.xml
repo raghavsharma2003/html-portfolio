@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- WS-R157. A FLAVOUR MANIFEST, not a second app manifest: Gradle's
+     manifest merger combines this with `src/main/AndroidManifest.xml` by
+     matching `android:name`, so this file adds to the SHARED `MainActivity`
+     rather than declaring a second one — the brief's own law 2 ("never a
+     copy of android/"), restated for the manifest specifically.
+
+     RECORD_AUDIO, CAMERA and POST_NOTIFICATIONS are NOT repeated here: all
+     three are already declared, unconditionally, in `src/main/
+     AndroidManifest.xml` (RECORD_AUDIO and CAMERA under "Permissions" at the
+     bottom, POST_NOTIFICATIONS beside the removed SCHEDULE_EXACT_ALARM line
+     near the top), and the manifest merger includes every `src/main`
+     permission in EVERY flavour's APK by construction — adding them again
+     here would be a silent duplicate, not a new grant. `evals/vyakti-app`
+     asserts this by parsing the shared manifest directly, so a future edit
+     that removes one of the three there fails loudly rather than only
+     showing up as a runtime permission denial on a phone. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name=".MainActivity">
+            <!-- `${vyaktiAppHost}` is a manifest placeholder
+                 (`android/app/build.gradle`'s own `vyakti` flavour block),
+                 resolved from `VYAKTI_PUBLIC_APP_ORIGIN` at Gradle configure
+                 time — the SAME env var name `api/_config.js` already reads
+                 (`docs/gurukul/ENV-MANIFEST.md` §6), defaulted to the
+                 deployed studio's own origin so a build with the env unset
+                 still produces a working (if not owner-overridden) deep
+                 link rather than an unresolved placeholder.
+
+                 Two `<data>` elements in ONE filter, not two filters: an
+                 intent filter with multiple `<data>` tags matches the CROSS
+                 PRODUCT of their attributes (Android's own documented
+                 behaviour for `<intent-filter>`), so a single filter sharing
+                 `scheme`/`host` across two `pathPrefix` values matches BOTH
+                 `/r/*` and `/c/*` — the brief's own law 2, verbatim. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="${vyaktiAppHost}"
+                    android:pathPrefix="/r/" />
+                <data
+                    android:scheme="https"
+                    android:host="${vyaktiAppHost}"
+                    android:pathPrefix="/c/" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1239,6 +1239,54 @@
     background: var(--vx-green);
   }
 
+  /* WS-R157: the install card. `.vx-recovery`'s own layout (a dismissible,
+     top-anchored card centered over the shell), a neutral/positive border
+     rather than `.vx-recovery`'s danger one — this is an offer, not a
+     problem. */
+  .vx-install {
+    position: absolute;
+    z-index: 30;
+    top: max(70px, calc(env(safe-area-inset-top) + 58px));
+    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: min(620px, calc(100% - 28px));
+    min-height: 64px;
+    padding: 10px 12px 10px 16px;
+    border: 1px solid color-mix(in srgb, var(--vx-green) 36%, var(--vx-line));
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--vx-paper) 94%, #fff);
+    box-shadow: 0 14px 34px rgba(37, 57, 49, 0.12);
+    transform: translateX(-50%);
+  }
+
+  .vx-install div {
+    display: grid;
+    gap: 2px;
+  }
+
+  .vx-install span {
+    color: var(--vx-muted);
+    font-size: 12px;
+  }
+
+  .vx-install button {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--vx-green);
+    border-radius: 12px;
+    color: #fff;
+    background: var(--vx-green);
+    white-space: nowrap;
+  }
+
+  .vx-install__quiet {
+    color: var(--vx-green) !important;
+    background: transparent !important;
+  }
+
   .vx-toast.is-error {
     background: #79312c;
   }
@@ -1450,6 +1498,12 @@
     }
 
     .vx-recovery {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .vx-install {
       align-items: stretch;
       flex-direction: column;
       gap: 8px;

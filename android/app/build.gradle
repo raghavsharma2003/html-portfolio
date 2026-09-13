@@ -27,6 +27,42 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    // WS-R157: a second Capacitor app in this SAME project (the brief's own
+    // law 2 — never a copy of `android/`). `meera` carries no override at
+    // all, so its variant resolves every value straight off `defaultConfig`
+    // above, byte for byte, exactly as it did before this dimension existed
+    // — see `context/decisions.md#ws-r157-vyakti-flavour-uses-applicationid-not-applicationidsuffix`
+    // for why `vyakti` sets its own `applicationId` rather than a Gradle
+    // `applicationIdSuffix` (a suffix can only ever EXTEND
+    // `app.meera.companion`; it cannot reach the independent namespace
+    // `capacitor.vyakti.config.ts` declares).
+    //
+    // Each flavour's own resources (launcher icon, `app_name`) live under
+    // `src/<flavourName>/res/` — Gradle's own resource-merge rule, matching
+    // the folder name to the flavour name, so `meera` needs no folder of its
+    // own: it simply keeps reading `src/main/res/` exactly as it always has.
+    flavorDimensions "brand"
+    productFlavors {
+        meera {
+            dimension "brand"
+        }
+        vyakti {
+            dimension "brand"
+            applicationId "app.vyakti.studio"
+            // The deep-link host for `android/app/src/vyakti/AndroidManifest.xml`'s
+            // intent filters, resolved at CONFIGURE time so a CI run that never
+            // sets the env still produces a buildable (if defaulted) APK rather
+            // than a broken Gradle sync. Reuses the SAME env var name
+            // `api/_config.js`/`services/azure-verifier` already read
+            // (`VYAKTI_PUBLIC_APP_ORIGIN`, `docs/gurukul/ENV-MANIFEST.md` §6) —
+            // a new READER of an existing name, not a new name, so no new
+            // ENV-MANIFEST row is owed for it.
+            def vyaktiOrigin = System.getenv('VYAKTI_PUBLIC_APP_ORIGIN') ?: 'https://vyakti-replica-lab.vercel.app'
+            def vyaktiHost = vyaktiOrigin.replaceFirst('^https?://', '').replaceFirst('/.*$', '')
+            manifestPlaceholders = [vyaktiAppHost: vyaktiHost]
+        }
+    }
     // AGP 8 generates BuildConfig only on request; OTA_NATIVE_CONTRACT above
     // is read from Java and is the reason this is on.
     buildFeatures {
