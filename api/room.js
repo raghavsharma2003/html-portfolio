@@ -6,7 +6,14 @@
 //                                                    sign-in wall (WS-R53)
 //   POST /api/room {op:"join",   room, age_18, remember}       -> session
 //   POST /api/room {op:"say",    session, message, thread, transcript}
-//   POST /api/room {op:"speak",  session, text}                -> paid voice (WS-R19)
+//   POST /api/room {op:"speak",  session, text, index?}        -> paid voice,
+//                                          one sentence-clip of `text` at a
+//                                          time (WS-R19; the ordered plan and
+//                                          `index`, WS-R156) - `index`
+//                                          defaults to 0; the response names
+//                                          `count`, the real number of clips
+//                                          this reply plans to, so the caller
+//                                          knows when to stop asking
 //   POST /api/room {op:"history",session, thread}
 //   POST /api/room {op:"thread", session, title}
 //   POST /api/room {op:"locale", session, locale}         -> {locale, session}
@@ -385,7 +392,7 @@ async function handler(req, res) {
             adapters: Object.freeze({ ...protection, ledger: createNeonVoicePreviewLedger(q) }),
           }),
         };
-        turn = await roomSpeak(roomVoiceDeps, body.session, { text: body.text });
+        turn = await roomSpeak(roomVoiceDeps, body.session, { text: body.text, index: body.index });
       } catch (error) {
         if (error instanceof RoomError) throw error;
         // A configuration absence (no origin, no HMAC secret) fails closed

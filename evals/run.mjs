@@ -3112,6 +3112,22 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "site-landing": "site-landing/run.mjs",
+  // WS-R156. Voice replies that start fast: the pure sentence splitter
+  // (`api/_room-speak-plan.js`), proven against a 40-case, three-language
+  // fixture (English, Hindi/Devanagari, Hinglish) with a REQUIRED NEGATIVE
+  // CONTROL — a naive "split on every terminator" function measurably
+  // disagrees with the correct answer on a real fraction of the fixture, so
+  // the abbreviation/decimal/initial/list-marker exceptions are proven
+  // load-bearing rather than decorative. Also proves `roomSpeak` itself now
+  // synthesises ONE SENTENCE per call, charges that sentence's own seconds
+  // (never the whole reply's), and carries `(reply_sha256, index, count)` on
+  // every clip — plus the new op shape's own door-battery cases: a forged
+  // index (out of range, negative, non-integer), a forged/out-of-range
+  // `count` proven NEVER TRUSTED by the real logic, and a replay of a
+  // superseded reply's text against the current, still-valid session.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-speak-plan": "room-speak-plan/run.mjs",
 };
 
 const argv = process.argv.slice(2);

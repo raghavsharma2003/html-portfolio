@@ -711,6 +711,24 @@ const EN = {
     remembered: (n: number) => `${n} thing${n === 1 ? "" : "s"} you asked to be remembered.`,
     empty: "No monthly note yet - check back after your first full month here.",
   },
+
+  /** WS-R156. The reply-bubble voice CONTROL's own labels once a sequence
+   *  of clips is active - `voice.play`/`voice.playing` (above) stay the
+   *  idle/loading labels WS-R19 already shipped; these three cover the
+   *  states that only exist once a reply is playing as more than one clip:
+   *  a pause/resume toggle on the same button, and a status line naming
+   *  which of the two it is in right now (law 3's "a visible speaking
+   *  state"), read by a screen reader as a change of `role="status"` text,
+   *  not only as a change of button label. Kept as its OWN section rather
+   *  than three new fields on `voice` above, so this addition is one closed
+   *  block appended at the end - `AGENTS.md`'s own rule on adding a section
+   *  to a copy table, not an edit inside the one WS-R19 already shipped. */
+  voiceSequence: {
+    pause: "Pause",
+    resume: "Resume",
+    speaking: "Speaking",
+    paused: "Paused",
+  },
 };
 
 export type RoomCopy = typeof EN;
@@ -752,6 +770,10 @@ const TALK_KEYS = [
   "conversation", "flag", "threads", "quota", "voice", "pay", "subscription",
   "offer", "capOffer", "pulse", "stats", "share", "menu", "errors", "account",
   "settingsReminder", "checkins", "handoff", "about",
+  // WS-R156: read on the SAME always-visible reply bubble `voice` already
+  // is, the moment a sequence of clips is active - belongs in the eager
+  // TALK chunk for the identical reason `voice` itself does.
+  "voiceSequence",
 ] as const;
 
 export type RoomTalkCopy = Pick<RoomCopy, (typeof TALK_KEYS)[number]>;
@@ -811,11 +833,13 @@ function pickTalk(table: RoomCopy): RoomTalkCopy {
     loading, unavailable, offline, install, join, taste, memory, conversation,
     flag, threads, quota, voice, pay, subscription, offer, capOffer, pulse,
     stats, share, menu, errors, account, settingsReminder, checkins, handoff, about,
+    voiceSequence,
   } = table;
   return {
     loading, unavailable, offline, install, join, taste, memory, conversation,
     flag, threads, quota, voice, pay, subscription, offer, capOffer, pulse,
     stats, share, menu, errors, account, settingsReminder, checkins, handoff, about,
+    voiceSequence,
   };
 }
 

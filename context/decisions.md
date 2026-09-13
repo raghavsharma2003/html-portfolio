@@ -24257,3 +24257,19 @@ let a non-teacher-shaped sheet reach this function.
 field, prefer it over `display_name` here IF it can differ from the Room's
 own name in a way that matters (e.g. a nickname); until then the two are the
 same fact by construction and this fallback needs no further change.
+
+## `ws-r156-per-sentence-clips-not-a-plan-endpoint` (2026-09-13, WS-R156)
+
+**Decision.** A Room voice reply is split into an ordered plan of sentences by a new pure function (`api/_room-speak-plan.js`'s `planReplySentences`), and `roomSpeak` synthesises exactly ONE sentence per call, selected by a new `index` field on the existing `speak` op — never a separate "get me the plan" endpoint that returns sentence text or a count ahead of synthesis. The client (`speakInRoom(session, text, index)`) always sends the FULL reply text on every call, unchanged from WS-R19; the server re-verifies it against the session's own `lr` binding on every call and recomputes the plan from it every time, never caching or trusting a client-sent count. The true `count` travels back on every clip response instead.
+
+**Why.** A separate plan endpoint would need to answer "how many sentences" from text the caller could tamper with, or would need the server to remember a plan across calls (new state, a new place for two tabs or a stale session to disagree with each other). Recomputing the plan from the SAME already-reply-bound text on every call keeps the existing reply-binding law (`sha(text) !== payload.lr` refuses anything else) as the only thing anywhere that decides "may this session speak this text", exactly as it already did before this workstream, with nothing new to keep in sync.
+
+**Reversal.** If a real deployment measures that recomputing the plan on every one of five calls costs enough CPU to matter (the splitter is a single linear pass over the reply text, expected to be negligible), a plan could be computed once and carried in the session token itself (HMAC-signed, so still tamper-proof) rather than recomputed — but only with a measurement showing the recomputation cost is real, not a guess.
+
+## `ws-r156-voice-sequence-extracted-for-benchmarkability` (2026-09-13, WS-R156)
+
+**Decision.** The client's clip-fetch-and-play loop (buffer one ahead, pause/resume between clips, stop honestly on a failed clip) lives in `src/room/voiceSequence.ts`, a plain function (`runVoiceSequence`) that knows nothing about React, `fetch`, or `HTMLAudioElement` — every one of those is a handler `RoomApp.tsx`'s `playReply` supplies. `evals/room-speak-plan/benchmark.mjs` loads this exact file, esbuild-transpiled and unmodified, into a real Chromium page with fake handlers, rather than either (a) hand-simulating the loop's timing in Node with no browser at all, or (b) mounting the whole `RoomApp` component tree just to time one callback.
+
+**Why.** `evals/echosim`'s own law: a simulation of a paraphrase of the code proves nothing about the code that ships. Extracting the loop costs one new file and one `RoomApp.tsx` import; in exchange, `context/measurements.md#ws-r156-time-to-first-audio`'s numbers are of the real production loop, in a real browser, not of a description of it that could silently drift from the real one.
+
+**Reversal.** If a future change makes the loop genuinely need React state or a hook mid-loop (not just handler results), fold it back into `RoomApp.tsx` and downgrade the benchmark to a Node-only timing model of the documented algorithm, noting in `measurements.md` that the number no longer runs the shipped code.

@@ -17990,3 +17990,17 @@ suite in this registry that scans HTML/TS source already applies
 (`scripts/check-copy.mjs`'s own PASS 1/PASS 2 split). Any FUTURE suite that
 greps a `.html` file's raw text for a banned word must strip comments first
 or risk this exact false positive/vacuous-negative-control pair.
+
+## `ws-r156-an-old-session-replaying-its-own-reply-is-not-stale` (2026-09-13, WS-R156)
+
+**Tried.** Writing the door-battery "replay" case the brief names: mint a session on turn 1, capture (session, reply text) from that turn, run a SECOND turn on the SAME session variable, then replay the CAPTURED turn-1 pair against `roomSpeak` and expect `room_voice_reply_mismatch`.
+
+**Broke.** It didn't refuse — `roomSpeak` returned a real clip. The session token from `roomSay` is an immutable, HMAC-signed value; calling `roomSay` again with it returns a DIFFERENT, newly-minted token (`said2.session`) and never mutates the one already in hand. The captured `staleSession` variable still names its own turn's reply exactly, because a session's `lr` binds to the reply THAT TOKEN was minted for, not to "the conversation's current reply" — there is no shared mutable state a later turn could invalidate out from under an earlier token. The scenario tested was therefore not a replay of anything; it was a completely ordinary re-request of an older bubble's voice, which this system correctly allows (a follower may want to hear an earlier reply again after typing something new).
+
+**Fix.** The real replay case is: the CURRENT, freshly-minted session (`said2.session`, whose `lr` names the turn-2 reply) asked to speak the turn-1 reply's TEXT. That is refused by the existing, unchanged reply-binding check (`sha(text) !== payload.lr`), now proven to hold for the indexed per-sentence path too. `evals/room-speak-plan/run.mjs` section 4(c) carries the corrected case; the one control that matters here is "which text does THIS credential authorize", never "how much wall-clock time has passed since a token was minted" — session freshness (the 12-hour TTL) is a separate, already-tested concern this case does not need to duplicate.
+
+## `ws-r156-a-plan-endpoint-that-trusts-a-client-count` (2026-09-13, WS-R156)
+
+**Considered, not built.** A `speak_plan` op that returns `{ sentences, count }` up front, so the client could show "clip 2 of 5" before requesting any audio, with later `speak` calls carrying that `count` back for the server to validate the `index` against.
+
+**Why not.** The server would then have two ways to learn "how many sentences": recomputing the plan itself, or trusting whatever `count` a request carries — and the moment ANY code path reads the second one instead of (or before) the first, an inflated or shrunk client-sent `count` becomes load-bearing for something, exactly the shape `evals/room-speak-plan/run.mjs`'s OUT-OF-RANGE COUNT case exists to catch. Recomputing the plan from the reply text is a single linear pass with no measured cost (`context/measurements.md#ws-r156-time-to-first-audio`'s benchmark exercises the client side of this same "recompute, never trust" posture); there is no plan state anywhere for a forged count to disagree with in the first place, because there is no plan state at all outside of one function call.
