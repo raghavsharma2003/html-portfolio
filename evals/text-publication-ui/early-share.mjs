@@ -10,6 +10,7 @@ import ts from 'typescript';
 import {build} from 'vite';
 import {chromium} from 'playwright';
 import {RID,SHEET,ITEM,SOURCE,GRANT,TOKEN,OWNER} from '../first-use-private-flow/fixture.mjs';
+import {boundedWaitMs} from '../lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const digest=s=>createHash('sha256').update(s).digest('hex');
@@ -90,7 +91,7 @@ try{
  const snap=async name=>focus.push({name,...await page.evaluate(()=>({activeTag:document.activeElement?.tagName,activeId:document.activeElement?.id,activeText:document.activeElement?.textContent?.slice(0,120),heading:document.querySelector('.vx-main h1,.vx-main h2')?.textContent}))});
  const open=async(variant,width,{state='consent_pending',consent=true,view=''}={})=>{
   if(page)await page.context().close();currentAssets=assets[variant];lifecycle=state;hasConsent=consent;requests=[];holdReadiness=false;heldReadiness=[];
-  const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});page=await ctx.newPage();page.setDefaultTimeout(12000);
+  const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});page=await ctx.newPage();page.setDefaultTimeout(boundedWaitMs(12000));
   page.on('pageerror',error=>errors.push(error.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
   await page.addInitScript(({TOKEN,OWNER})=>{localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:OWNER,accessToken:TOKEN,refreshToken:TOKEN,expiresAt:Date.now()+3600000,email:'early-share@fixture.test'}}));},{TOKEN,OWNER});
   await page.goto(origin+'/studio'+(view?'?'+new URLSearchParams({replica:RID,view}):''));

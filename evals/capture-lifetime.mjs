@@ -7,6 +7,7 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { build } from 'vite';
 import { chromium } from 'playwright';
+import {boundedWaitMs} from './lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const files = ['src/studio/QuickVoiceCapture.tsx', 'src/studio/VoiceEnrollmentLab.tsx', 'src/creatorStudio/VoiceEnrollmentLab.tsx'];
@@ -51,7 +52,7 @@ let browser, page;
 try {
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve)); const origin=`http://127.0.0.1:${server.address().port}`;
   browser=await launchSuiteBrowser("capture-lifetime");
-  page=await browser.newPage();page.setDefaultTimeout(12000);
+  page=await browser.newPage();page.setDefaultTimeout(boundedWaitMs(12000));
   page.on('pageerror',error=>results.errors.push(error.message));
   await page.route('**/*',route=>{const url=new URL(route.request().url());return url.origin===origin||url.protocol==='blob:'?route.continue():route.abort();});
   const p=()=>page.evaluate(()=>({counts:{...window.captureLifetime.counts},created:[...window.captureLifetime.created],revoked:[...window.captureLifetime.revoked],unhandled:[...window.captureLifetime.unhandled]}));

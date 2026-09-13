@@ -19176,6 +19176,42 @@
       "kind": "measurement",
       "title": "Wave twenty-two's eleven merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-22-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r181-load-aware-barriers-and-a-load-ceiling",
+      "kind": "decision",
+      "title": "evals/lib/bounded-wait.mjs centralises every load-aware barrier, port wait and the performance gate's load-ceiling refusal (2026-09-13)",
+      "at": "context/decisions.md#ws-r181-load-aware-barriers-and-a-load-ceiling"
+    },
+    {
+      "id": "ws-r181-load-ceiling-checked-after-cheap-prerequisites-not-before",
+      "kind": "decision",
+      "title": "check-performance.mjs checks the load ceiling after dist/fixture/playwright prerequisites, not before (2026-09-13)",
+      "at": "context/decisions.md#ws-r181-load-ceiling-checked-after-cheap-prerequisites-not-before"
+    },
+    {
+      "id": "ws-r181-bounded-wait-scaling",
+      "kind": "measurement",
+      "title": "boundedWaitMs(12000) against real os.loadavg(): n=10 at load ~1.8 (unchanged, 12000ms) and n=10 at load ~11 (scaled to a mean of 32976ms); the real check-performance.mjs load-ceiling refusal also observed firing live at load 11.6 (2026-09-13)",
+      "at": "context/measurements.md#ws-r181-bounded-wait-scaling"
+    },
+    {
+      "id": "ws-r181-sparse-copy-fixture-missed-a-new-transitive-import",
+      "kind": "rejection",
+      "title": "evals/performance-prerequisites.mjs's sparse-copy fixture crashed opaquely until bounded-wait.mjs was added to its own copied tree (2026-09-13)",
+      "at": "context/rejected.md#ws-r181-sparse-copy-fixture-missed-a-new-transitive-import"
+    },
+    {
+      "id": "ws-r181-first-load-12-climb-fell-short-a-second-heavier-attempt-reached-it",
+      "kind": "rejection",
+      "title": "A 4-child synthetic busy loop undershot load 12 (reached 7.85); an 8-child, longer attempt reached 10.99, both numbers kept (2026-09-13)",
+      "at": "context/rejected.md#ws-r181-first-load-12-climb-fell-short-a-second-heavier-attempt-reached-it"
+    },
+    {
+      "id": "gate-load-suite-2026-09-13",
+      "kind": "measurement",
+      "title": "evals/gate-load/run.mjs: 26/26 offline checks proving boundedWaitMs's scaling, loadCeilingResult's ceiling refusal (wired through the real performanceGateResult) and listenWithPortWait's actual wait-and-retry behaviour, each with a negative control (2026-09-13)",
+      "at": "context/measurements.md#ws-r181-bounded-wait-scaling"
     }
   ],
   "edges": [
@@ -32661,6 +32697,41 @@
       "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
       "dst": "wave-21-merged-as-a-batch-under-contention",
       "rel": "supersedes"
+    },
+    {
+      "src": "ws-r181-load-aware-barriers-and-a-load-ceiling",
+      "dst": "ws-r181-bounded-wait-scaling",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r181-load-aware-barriers-and-a-load-ceiling",
+      "dst": "gate-load-suite-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r181-load-aware-barriers-and-a-load-ceiling",
+      "dst": "first-use-refresh-suite-races-under-load",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r181-load-aware-barriers-and-a-load-ceiling",
+      "dst": "ws-r118-performance-budget-flaky-under-heavy-sibling-load",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r181-load-ceiling-checked-after-cheap-prerequisites-not-before",
+      "dst": "ws-r181-sparse-copy-fixture-missed-a-new-transitive-import",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r181-bounded-wait-scaling",
+      "dst": "ws-r181-first-load-12-climb-fell-short-a-second-heavier-attempt-reached-it",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r181-sparse-copy-fixture-missed-a-new-transitive-import",
+      "dst": "frozen-file-merge-controls-break-on-the-next-change",
+      "rel": "caused_by"
     }
   ]
 }

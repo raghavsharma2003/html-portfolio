@@ -7,6 +7,7 @@ import ts from 'typescript';
 import { createServer } from 'node:http';
 import { build } from 'vite';
 import { chromium } from 'playwright';
+import {boundedWaitMs} from './lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const original = readFileSync(join(ROOT, 'src/studio/CloneExperience.tsx'), 'utf8');
@@ -50,7 +51,7 @@ let browser; let checks=0;
 try {
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const url=`http://127.0.0.1:${server.address().port}/recorder-probe`;
   browser=await launchSuiteBrowser("recorder-lifecycle");
-  const page=await browser.newPage();page.setDefaultTimeout(15000);
+  const page=await browser.newPage();page.setDefaultTimeout(boundedWaitMs(15000));
   const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('page error:',e.message);});
   await page.route('**/*',r=>new URL(r.request().url()).origin===new URL(url).origin?r.continue():r.abort());
   const button=()=>page.getByRole('button',{name:'Start voice recording',exact:true});

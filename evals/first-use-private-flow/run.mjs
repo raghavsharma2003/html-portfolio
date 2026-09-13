@@ -10,6 +10,9 @@ import ts from 'typescript';
 import {build} from 'vite';
 import {chromium} from 'playwright';
 import {RID,OTHER,SHEET,ITEM,SOURCE,GRANT,TOKEN,OWNER,hash,statements} from './fixture.mjs';
+// WS-R181. Scale the fixed Playwright action timeout by machine load (see
+// evals/lib/bounded-wait.mjs's header).
+import {boundedWaitMs} from '../lib/bounded-wait.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const artifact=join(root,'scratchpad/first-use-private-flow',String(Date.now()));mkdirSync(artifact,{recursive:true});
 const fixtureSource=readFileSync(join(root,'src/creatorStudio/layoutFixture.tsx'),'utf8');
@@ -89,7 +92,7 @@ try{
  const waitFor=async(predicate)=>{const end=Date.now()+10000;while(!predicate()&&Date.now()<end)await new Promise(r=>setTimeout(r,10));assert(predicate(),'bounded HTTP barrier');};
  const release=kind=>{const selected=pending.filter(p=>p.kind===kind);assert(selected.length,`held ${kind}`);pending=pending.filter(p=>p.kind!==kind);selected.forEach(p=>p.send());};
  const snapFocus=async(label)=>focus.push({label,...await page.evaluate(()=>({tag:document.activeElement?.tagName,id:document.activeElement?.id,text:document.activeElement?.textContent?.slice(0,100),heading:document.querySelector('.vx-main h1,.vx-main h2')?.textContent}))});
- const open=async(variant,width,mode='',returning=false)=>{if(page)await page.context().close();scenario=mode;requests=[];pending=[];owned=returning?[replica(RID)]:[];receipts=returning?grants(RID):[];draft=null;item=null;saved=new Map();currentAssets=assets[variant];const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});page=await ctx.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());await page.addInitScript(({TOKEN,OWNER})=>{localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:OWNER,accessToken:TOKEN,refreshToken:TOKEN,expiresAt:Date.now()+3600000,email:'firstuse@fixture.test'}}));},{TOKEN,OWNER});await page.goto(origin+'/studio');assert.equal(new URL(page.url()).searchParams.get('mode'),null);};
+ const open=async(variant,width,mode='',returning=false)=>{if(page)await page.context().close();scenario=mode;requests=[];pending=[];owned=returning?[replica(RID)]:[];receipts=returning?grants(RID):[];draft=null;item=null;saved=new Map();currentAssets=assets[variant];const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});page=await ctx.newPage();page.setDefaultTimeout(boundedWaitMs(12000));page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());await page.addInitScript(({TOKEN,OWNER})=>{localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:OWNER,accessToken:TOKEN,refreshToken:TOKEN,expiresAt:Date.now()+3600000,email:'firstuse@fixture.test'}}));},{TOKEN,OWNER});await page.goto(origin+'/studio');assert.equal(new URL(page.url()).searchParams.get('mode'),null);};
  const agree=async()=>{await page.getByRole('button',{name:'Select all',exact:true}).click();await page.getByRole('button',{name:'Agree and continue',exact:true}).click();};
  const check=async(name,fn)=>{await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);};
  for(const width of [390,1440]){

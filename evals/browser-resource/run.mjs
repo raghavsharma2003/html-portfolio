@@ -8,6 +8,13 @@ import {createHash} from 'node:crypto';
 import ts from 'typescript';
 import {runPool,createBrowserBudget,PRE_POOL_SUITES,PORT_LANE_SUITES} from '../runner-lib.mjs';
 import {classifySuiteResources} from '../suite-resources.mjs';
+// WS-R181. This suite's own 12s deadline is a wall-clock measurement of the
+// pool scheduler under test, spawning real child `node` processes -- exactly
+// the "fixed 12 to 30s barrier" shape this workstream's brief names, and the
+// one context/rejected.md already recorded flaking under wave-22 contention
+// (`ws-r169-performance-budgets-and-browser-resource-flaked-under-wave-22-contention`).
+// Scale it the same way every other barrier in this shape now is.
+import {boundedWaitMs} from '../lib/bounded-wait.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const dir=mkdtempSync(join(tmpdir(),'vyakti-browser-budget-'));let count=0;
 const ok=(name,value)=>{assert(value,name);console.log(`ok ${++count}: ${name}`);};
@@ -33,7 +40,7 @@ try{
       writeFileSync(file,`import{get}from'node:http';const request=get(${JSON.stringify(origin+'/'+name)},r=>{let body='';r.on('data',c=>body+=c);r.on('end',()=>process.exit(body==='release'?${name==='browser0'?1:0}:2));});request.on('error',()=>process.exit(2));`);
       return{name,file,browser:name!=='pure'};
     });
-    const deadline=setTimeout(()=>{expired=true;release();server.closeAllConnections();},12000);
+    const deadline=setTimeout(()=>{expired=true;release();server.closeAllConnections();},boundedWaitMs(12000));
     const budget=createBrowserBudget(2);
     const onDone=result=>{active.delete(result.name);completion.push(result.name);};
     try{
