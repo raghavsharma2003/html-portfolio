@@ -18050,3 +18050,13 @@ Method: each suite run directly with `node evals/<name>/run.mjs` on the worktree
 | `node scripts/check-prompt-budget.mjs` | ok (pre-existing WARNs only) | unaffected — Room fixtures carry no `relBundle` |
 
 Not measured (owed to a live database): whether the layer 19/room-relstate scanners' assumptions about the LIVE `vy_rel_state`/`vy_rel_event` schema (column names, the composite primary key) match what migrations 137-162 actually applied — the worktree's `db/schema.sql` was read directly rather than queried live, since this workstream may not touch the live database.
+
+## `wave-21-batch-gate-2026-09-13`
+
+Method: `node scripts/verify-release.mjs` on the build container after seven merges, load average 3 to 16 (the ten agents' own gates had finished); date 2026-09-13.
+
+| run | result |
+|---|---|
+| batch of seven, first gate | 22 of 24: layout readability (12 findings, all the deploy picker's page error), eval suite (creator-cascade-order, private-rehearsal-combined, room-taste, rehearsal-creator, source-scan) |
+| after the four repairs, alone | room-taste 42 of 42; private-rehearsal-combined 8 groups; room-leak 363 of 363 in both modes; rehearsal-creator, creator-cascade-order, source-scan ok; layout readability over every studio target 1720 prose blocks, ok |
+| the same batch under the agents' load (load average 44 to 63) | 22 of 24: performance budgets (TBT findings) and eval suite (probe-live on EADDRINUSE 8940, first-use-activity-abort-ui on a 12 s click timeout); not a measurement of the tree |

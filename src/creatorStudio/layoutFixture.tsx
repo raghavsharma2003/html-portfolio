@@ -194,6 +194,10 @@ const ROUTES: Record<string, unknown> = {
   "/api/room-cohorts": {
     cohorts: [],
     verdict: { verdict: "not_measurable_yet", cohort_week: null, week6_return_share: null },
+    // WS-R154 widened the real door with the owner's stage counts (an empty
+    // array until five followers share a stage); the wave-21 merge gate found
+    // the deploy picker throwing on this stub's missing field.
+    relstate_stage_counts: [],
   },
   // `InviteCreatorCard` (WS-R47) reads `quota.remaining` without a guard once
   // a Room is published, the same way as the cohorts card above; the real

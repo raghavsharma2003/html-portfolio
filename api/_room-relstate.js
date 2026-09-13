@@ -12,7 +12,7 @@
 // header: "agent enters at retrieval, not at identification";
 // `context/rejected.md#pk-is-an-arbiter` is the migration that paid for the
 // composite key this file now reuses for free). And a Room follower's own
-// dyad key IS that pair: `vy_room_follower` carries `person_id` AND
+// dyad key IS that pair: the Room's follower row carries `person_id` AND
 // `agent_id` per row (unique on `(room_id, person_id)`), `vy_room` carries a
 // unique `replica_id`, and `api/_replica-runtime.js`'s `created_agent` CTE
 // mints a FRESH `gen_random_uuid()` agent for a replica only when

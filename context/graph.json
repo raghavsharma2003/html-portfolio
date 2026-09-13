@@ -18348,6 +18348,18 @@
       "kind": "rejection",
       "title": "A static scanner written against one SQL statement shape (WHERE predicates) misclassified this file's own INSERT and aggregate statements as unscoped",
       "at": "context/rejected.md#ws-r154-both-predicates-regex-missed-insert-and-aggregate-shapes"
+    },
+    {
+      "id": "wave-21-merge-gate-found-four-cross-workstream-breaks",
+      "kind": "rejection",
+      "title": "The wave-21 batch gate found four breaks no single workstream could see (2026-09-13)",
+      "at": "context/rejected.md#wave-21-merge-gate-found-four-cross-workstream-breaks"
+    },
+    {
+      "id": "wave-21-batch-gate-2026-09-13",
+      "kind": "measurement",
+      "title": "Gate runs on the wave-21 seven-merge batch, under load and quiet (2026-09-13)",
+      "at": "context/measurements.md#wave-21-batch-gate-2026-09-13"
     }
   ],
   "edges": [
@@ -31117,6 +31129,16 @@
     {
       "src": "ws-r154-reset-citations-are-chained-never-fabricated",
       "dst": "rupture-never-closes",
+      "rel": "caused_by"
+    },
+    {
+      "src": "wave-21-merge-gate-found-four-cross-workstream-breaks",
+      "dst": "wave-21-batch-gate-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave-21-merge-gate-found-four-cross-workstream-breaks",
+      "dst": "frozen-file-merge-controls-break-on-the-next-change",
       "rel": "caused_by"
     }
   ]

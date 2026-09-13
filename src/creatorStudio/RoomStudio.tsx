@@ -1290,11 +1290,11 @@ export default function RoomStudio({
         <h3>{c.relStageTitle}</h3>
         <p className="field-note">{c.relStageIntro}</p>
         {cohortReport ? (
-          cohortReport.relstate_stage_counts.length === 0 ? (
+          (cohortReport.relstate_stage_counts ?? []).length === 0 ? (
             <p className="field-note">{c.relStageNone}</p>
           ) : (
             <ul className="vy-room__cohort-list">
-              {cohortReport.relstate_stage_counts.map((bucket) => (
+              {(cohortReport.relstate_stage_counts ?? []).map((bucket) => (
                 <li key={bucket.stage} className="vy-room__cohort-row">
                   <span className="vy-room__cohort-week">{c.relStageWords[bucket.stage]}</span>
                   <span className="vy-room__cohort-value">{bucket.n}</span>

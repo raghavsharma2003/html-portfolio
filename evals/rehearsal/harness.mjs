@@ -202,7 +202,7 @@ const FALLBACK_JSON_ROUTES = {
   "/api/replica-activity": { replica_id: null, generated_at: new Date(0).toISOString(), jobs: [], lanes: [], in_flight: false, next_poll_ms: null },
   "/api/replica-runtime": { status: null, blockers: [] },
   "/api/clone-channel": { channels: [] },
-  "/api/room-cohorts": { cohorts: [], verdict: { verdict: "not_measurable_yet", cohort_week: null, week6_return_share: null } },
+  "/api/room-cohorts": { cohorts: [], verdict: { verdict: "not_measurable_yet", cohort_week: null, week6_return_share: null }, relstate_stage_counts: [] },
   "/api/invites": { invites: [], quota: { max: 3, used: 0, remaining: 3 } },
   "/api/handoff": { enabled: false, monthly_cap: 0, counts: { drafted: 0, sent: 0, answered: 0, withdrawn: 0 }, next: null },
   "/api/checkins": { designs: [] },

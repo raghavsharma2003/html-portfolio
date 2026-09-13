@@ -199,6 +199,12 @@ export async function roomTaste(db, { slug, message, locale: hintLocale = null, 
     cultureNoteText: "",
     latestUserText: text,
     replyLanguagePolicy: replyLanguagePolicy,
+    // WS-R154 gave roomSay's compile a clock (`nowMs`) for the follower's own
+    // relationship renders; a taste turn carries no relationship (no
+    // relBundle, the gate stays off) but passes the same clock so both call
+    // sites hand compile() the identical field set (evals/room-taste's own
+    // control) and a time-pinned taste is possible for the same reason.
+    nowMs: Date.now(),
   });
 
   // ONE TURN, NEVER A THREAD. No history is read from anywhere and none is
