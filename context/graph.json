@@ -18246,6 +18246,12 @@
       "kind": "rejection",
       "title": "Considered, not built: a speak_plan op returning a count the client would carry back (2026-09-13)",
       "at": "context/rejected.md#ws-r156-a-plan-endpoint-that-trusts-a-client-count"
+    },
+    {
+      "id": "ws-r157-full-gate-first-pass-and-fix",
+      "kind": "measurement",
+      "title": "First full-gate run: 3 of 24 failed (2 contention, 1 real azureweb fixture gap); fixed and re-verified standalone (2026-09-13)",
+      "at": "context/measurements.md#ws-r157-full-gate-first-pass-and-fix"
     }
   ],
   "edges": [
@@ -30911,6 +30917,16 @@
       "src": "ws-r156-time-to-first-audio",
       "rel": "caused_by",
       "dst": "ws-r156-voice-sequence"
+    },
+    {
+      "src": "ws-r157-full-gate-first-pass-and-fix",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-full-gate-first-pass-and-fix",
+      "rel": "measured_by",
+      "dst": "ws-r157-vyakti-app-suite"
     }
   ]
 }
