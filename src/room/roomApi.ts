@@ -475,6 +475,38 @@ export const classifyRememberedThing = (session: string, accessToken: string, fa
 export const forgetRememberedThing = (session: string, accessToken: string, factId: string) =>
   post<{ forgotten: boolean; fact_id: string }>({ op: "memory_forget", session, fact_id: factId }, accessToken);
 
+// ── "How we are" — RelationOS in the Room (WS-R154) ────────────────────────
+//
+// Raw fields only, on purpose: `honorific`/`trust`/`rupture_open`/
+// `repair_state` are exactly `RelState`'s own shape (`src/engine/relstate.ts`).
+// The account page derives the STAGE WORD and the rupture STANCE label
+// itself, by calling `stageForDims`/`ruptureStance` directly from that same
+// module — the one set of coarse bands the compiled reply itself renders
+// from, never a second copy of the thresholds guessed at in this file.
+export interface RoomRelState {
+  has_state: boolean;
+  memory_on: boolean;
+  honorific?: "tu" | "tum" | "aap";
+  trust?: number;
+  rupture_open?: boolean;
+  repair_state?: "none" | "open" | "repairing" | "repaired";
+  last_honorific_move_at?: string | null;
+  last_rupture_move_at?: string | null;
+  warm_episodes_since_rupture?: number;
+}
+
+export const fetchRoomRelState = (session: string, accessToken: string) =>
+  post<RoomRelState>({ op: "relstate", session }, accessToken);
+
+/** Closes an open rupture on the follower's own explicit ask. Never deletes
+ *  history - it writes one new `vy_rel_event` server side. `reset: false`
+ *  with a `reason` is the honest "nothing to reset" answer, not an error. */
+export const resetRoomRelState = (session: string, accessToken: string) =>
+  post<{ reset: boolean; reason?: string; repair_state?: string; rupture_open?: boolean }>(
+    { op: "relstate_reset", session },
+    accessToken,
+  );
+
 // ── web push (WS-R22, migration 085) ───────────────────────────────────────
 // The endpoint/keys are the browser's OWN `PushSubscription`, never
 // constructed here - `CheckinsPanel.tsx`'s `enablePush` builds them via the

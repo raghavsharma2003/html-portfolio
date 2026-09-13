@@ -1281,6 +1281,35 @@ export default function RoomStudio({
         )}
       </article>
 
+      {/* WS-R154 ("RelationOS in the Room"). Rides the SAME read as the
+          cohort card above (`cohortReport.relstate_stage_counts`, `api/
+          _room-cohorts.js`'s widened `readOwnedRoomCohorts`) — no second
+          network call. Floored at n>=5 in the SQL itself; a bucket below
+          the floor is simply absent from the array, never a zero. */}
+      <article className="teacher-sheet-card vy-room__relstage-card">
+        <h3>{c.relStageTitle}</h3>
+        <p className="field-note">{c.relStageIntro}</p>
+        {cohortReport ? (
+          cohortReport.relstate_stage_counts.length === 0 ? (
+            <p className="field-note">{c.relStageNone}</p>
+          ) : (
+            <ul className="vy-room__cohort-list">
+              {cohortReport.relstate_stage_counts.map((bucket) => (
+                <li key={bucket.stage} className="vy-room__cohort-row">
+                  <span className="vy-room__cohort-week">{c.relStageWords[bucket.stage]}</span>
+                  <span className="vy-room__cohort-value">{bucket.n}</span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : cohortError ? (
+          <p className="field-note">{c.couldNotLoadRetry}</p>
+        ) : (
+          <p className="field-note" role="status">{c.loading}</p>
+        )}
+        <p className="field-note">{c.relStageFloorNote}</p>
+      </article>
+
       <SuiteCard
         token={token}
         roomId={room.room_id}

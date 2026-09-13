@@ -99,7 +99,7 @@ import {
 // of law 4 drives the REAL maybeGrantReferralReward directly.
 import { maybeGrantReferralReward } from "../../api/_payments.js";
 import { freshFlagState, flagsDb } from "../room-flags/fixtures.mjs";
-import { stripComments, importsOf as sharedImportsOf } from "../lib/source-scan.mjs";
+import { stripComments, importsOf as sharedImportsOf, sqlTextOf } from "../lib/source-scan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -3121,6 +3121,223 @@ console.log("\n── layer 18: referral credits and rewards (WS-R133) — isola
     ok("layer 18 RACE (concurrent): the referrer's OWN subscription was extended exactly once (the loser's write never re-extended it)",
       state.subscriptions.find((s) => s.follower_id === REFERRER_FOLLOWER).current_period_end === "2026-10-01T00:00:00.000Z");
   }
+}
+
+// LAYER 19 (WS-R154, "RelationOS in the Room"). `vy_rel_state`/`vy_rel_event`
+// carry NO `room_id` column at all (only `person_id`+`agent_id`, migration
+// 009's own composite key), so `roomPersonEntries()`'s generic auto-discovery
+// above never reached them and this layer is the ONLY thing that ever will —
+// `TABLE_ROLES` below names `api/_room-relstate.js` (this workstream's new
+// file) and `api/memory.js` (the pre-existing DM writer) as the two owners.
+// Two properties: (a) every statement in the new file that names either
+// table binds BOTH `person_id` and `agent_id`, never one alone — the same
+// "dyad key, not half of it" property `context/decisions.md#ws-r154-no-
+// migration-165` rests the whole no-migration decision on; (b) two followers
+// of the SAME room, with distinct dyad rows, never see even a trace of each
+// other's — byte-checked, the read AND the reset write.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 19: RelationOS in the Room (vy_rel_state/vy_rel_event, two followers, one dyad key each) ──");
+{
+  const RELSTATE = await import(pathToFileURL(join(REPO, "api/_room-relstate.js")).href);
+  const relstateSrc = fs.readFileSync(join(REPO, "api/_room-relstate.js"), "utf8");
+
+  // (a) STATIC — imports no creator/admin-lane module, `_room-month-note.js`'s
+  // own check one layer up restated for this file.
+  const imports19 = sharedImportsOf(relstateSrc).files;
+  const ADMIN_OR_CREATOR_LANE_MODULES_19 = [
+    "_org.js", "_org-weekly-note.js", "_creator-push.js", "_payments.js",
+    "_ops.js", "_operator-digest.js", "_creator-export.js", "_creator-page.js",
+  ];
+  const laneHits19 = imports19.filter((f) => ADMIN_OR_CREATOR_LANE_MODULES_19.includes(f));
+  ok("layer 19 static: api/_room-relstate.js imports NO creator- or admin-lane module",
+    laneHits19.length === 0, laneHits19.join(","));
+
+  // (a) STATIC — every PER-FOLLOWER statement naming vy_rel_event/vy_rel_state
+  // binds BOTH person_id and agent_id; the ONE aggregate statement (the
+  // owner-facing stage-counts card) is the opposite shape ON PURPOSE — it
+  // must bind agent_id ALONE and never person_id at all, floored at n>=5,
+  // `_pulse.js`'s own law 3 restated (`api/_room-relstate.js`'s own
+  // `roomRelStateStageCounts` header has the full reasoning). `sqlTextOf`
+  // (evals/lib/source-scan.mjs) reads only real string/template CONTENT,
+  // never a comment that happens to mention either table name.
+  const isAggregate = (text) => /having\s+count\(\*\)\s*>=\s*5/.test(text);
+  // Per-follower shape: names both columns, AND binds at least two separate
+  // `::uuid`-cast parameters (never a bare, uncast id) — accepts either a
+  // WHERE predicate (`person_id = ($1)::uuid`) or an INSERT's own column/
+  // VALUES list (no `=` at all), the house convention every per-follower
+  // query in this file follows.
+  const bothPredicates = (text) =>
+    /\bperson_id\b/.test(text) && /\bagent_id\b/.test(text) && (text.match(/::uuid/g) || []).length >= 2;
+  const relTableTexts = sqlTextOf(relstateSrc).filter((t) => /\bvy_rel_(event|state)\b/.test(t));
+  ok("layer 19 static: at least one statement names vy_rel_event/vy_rel_state (not vacuous)", relTableTexts.length > 0, String(relTableTexts.length));
+  const aggregateTexts = relTableTexts.filter(isAggregate);
+  const perFollowerTexts = relTableTexts.filter((t) => !isAggregate(t));
+  ok("layer 19 static: the owner-facing stage-counts aggregate exists and is not vacuous", aggregateTexts.length === 1, String(aggregateTexts.length));
+  const aggUnsafe = aggregateTexts.filter((t) => /\bperson_id\b/.test(t) || !/\bagent_id\b/.test(t));
+  ok("layer 19 static: the aggregate statement binds agent_id ALONE — never person_id, on any line", aggUnsafe.length === 0, String(aggUnsafe.length));
+  const unscoped = perFollowerTexts.filter((t) => !bothPredicates(t));
+  ok("layer 19 static: EVERY per-follower statement naming vy_rel_event/vy_rel_state binds both person_id and agent_id",
+    unscoped.length === 0, String(unscoped.length));
+  // NEGATIVE CONTROL: the checker above must actually catch a missing half.
+  ok("NEGATIVE CONTROL: layer 19's own predicate check rejects a person_id-only statement",
+    !bothPredicates("select * from vy_rel_state where person_id = ($1)::uuid"));
+  ok("NEGATIVE CONTROL: layer 19's own predicate check rejects an agent_id-only statement",
+    !bothPredicates("select * from vy_rel_state where agent_id = ($1)::uuid"));
+  ok("NEGATIVE CONTROL: layer 19's own aggregate check rejects a statement that also names person_id",
+    /\bperson_id\b/.test("select stage, count(*) from vy_rel_state where person_id = ($1)::uuid and agent_id = ($2)::uuid group by stage having count(*) >= 5"));
+
+  // (b) WORLD CHECK — two followers, same room, same agent (one creator's
+  // AI), distinct dyad rows with clearly distinguishable, non-overlapping
+  // values (trust, honorific, citation ids) so a byte-check can prove a
+  // cross-follower leak rather than merely assert one didn't happen to occur.
+  const AGENT_19 = "f9000000-0000-4000-8000-000000000009";
+  const PERSON_A_19 = "f9000000-0000-4000-8000-0000000000a2";
+  const PERSON_B_19 = "f9000000-0000-4000-8000-0000000000b2";
+  const state19 = {
+    [PERSON_A_19]: { honorific: "tu", trust: 0.91, rupture_open: true, repair_state: "open", cs_ratio: null, cs_on_stress: "unknown", ritual_density: 0, pacing_gap_s: null, snapshot_ver: 3, updated_at: "2026-09-01T00:00:00.000Z" },
+    [PERSON_B_19]: { honorific: "aap", trust: 0.13, rupture_open: false, repair_state: "none", cs_ratio: null, cs_on_stress: "unknown", ritual_density: 0, pacing_gap_s: null, snapshot_ver: 1, updated_at: "2026-09-02T00:00:00.000Z" },
+  };
+  const events19 = {
+    [PERSON_A_19]: [{ dim: "rupture", at: "2026-09-01T00:00:00.000Z", citations: [111] }],
+    [PERSON_B_19]: [{ dim: "honorific", at: "2026-09-02T00:00:00.000Z", citations: [222] }],
+  };
+  const scoped19 = (sql, params, table, byPerson) => {
+    const p = (params || []).map((v) => (v == null ? null : String(v)));
+    if (!sql.includes(`from ${table}`)) return null;
+    const personId = p[0];
+    const agentId = p[1];
+    if (agentId !== AGENT_19) return [];
+    return byPerson(personId);
+  };
+  const db19 = async (sql, params = []) => {
+    const p = (params || []).map((v) => (v == null ? null : String(v)));
+    let r;
+    r = scoped19(sql, params, "vy_rel_state", (pid) => (state19[pid] ? [state19[pid]] : []));
+    if (r !== null && sql.includes("select honorific")) return r;
+    if (sql.includes("update vy_rel_state") && sql.includes("returning repair_state")) {
+      const [pid, aid] = p;
+      if (aid !== AGENT_19 || !state19[pid]) return [];
+      state19[pid] = { ...state19[pid], repair_state: "repaired", rupture_open: false };
+      return [{ repair_state: "repaired", rupture_open: false }];
+    }
+    if (sql.includes("select rupture_open, repair_state, snapshot_ver")) {
+      const [pid, aid] = p;
+      if (aid !== AGENT_19 || !state19[pid]) return [];
+      return [state19[pid]];
+    }
+    if (sql.includes("select at from vy_rel_event") && sql.includes("dim = 'honorific'")) {
+      const [pid, aid] = p;
+      if (aid !== AGENT_19) return [];
+      return (events19[pid] || []).filter((e) => e.dim === "honorific").map((e) => ({ at: e.at }));
+    }
+    if (sql.includes("select at from vy_rel_event") && sql.includes("dim in ('rupture', 'repair')")) {
+      const [pid, aid] = p;
+      if (aid !== AGENT_19) return [];
+      return (events19[pid] || []).filter((e) => e.dim === "rupture" || e.dim === "repair").map((e) => ({ at: e.at }));
+    }
+    if (sql.includes("select citations from vy_rel_event")) {
+      const [pid, aid] = p;
+      if (aid !== AGENT_19) return [];
+      const ev = (events19[pid] || []).filter((e) => e.dim === "rupture" || e.dim === "repair").sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+      return ev ? [{ citations: ev.citations }] : [];
+    }
+    if (sql.includes("from vy_episode")) return [{ c: 0 }];
+    if (sql.includes("insert into vy_rel_event")) return [];
+    throw new Error(`layer 19 fake db: unmatched SQL: ${sql}`);
+  };
+
+  const followerA19 = { person_id: PERSON_A_19, agent_id: AGENT_19, memory_consent_at: "2026-08-01T00:00:00.000Z" };
+  const followerB19 = { person_id: PERSON_B_19, agent_id: AGENT_19, memory_consent_at: "2026-08-01T00:00:00.000Z" };
+
+  const bundleA19 = await RELSTATE.fetchRoomRelBundle(db19, { personId: PERSON_A_19, agentId: AGENT_19 });
+  const bundleB19 = await RELSTATE.fetchRoomRelBundle(db19, { personId: PERSON_B_19, agentId: AGENT_19 });
+  boundaryChecks++;
+  ok("layer 19: follower A's own compiled bundle carries HER OWN trust (0.91), never B's (0.13)",
+    bundleA19?.relState.trust === 0.91, String(bundleA19?.relState.trust));
+  boundaryChecks++;
+  ok("layer 19: follower B's own compiled bundle carries HIS OWN honorific (aap), never A's (tu)",
+    bundleB19?.relState.honorific === "aap", String(bundleB19?.relState.honorific));
+  const payloadA19 = JSON.stringify(bundleA19);
+  const payloadB19 = JSON.stringify(bundleB19);
+  boundaryChecks++;
+  ok("layer 19: follower A's own bundle carries NONE of follower B's identity or citation tokens, in any form",
+    leakedTokens(payloadA19, [PERSON_B_19, "0.13", "222"]).length === 0);
+  boundaryChecks++;
+  ok("layer 19: follower B's own bundle carries NONE of follower A's identity or citation tokens, in any form",
+    leakedTokens(payloadB19, [PERSON_A_19, "0.91", "111"]).length === 0);
+  boundaryChecks++;
+  ok("layer 19: the scan above is not vacuous - both followers' tokens really do coexist in this fake world",
+    leakedTokens(JSON.stringify(state19) + JSON.stringify(events19), [PERSON_A_19, PERSON_B_19]).length > 0);
+
+  const readA19 = await RELSTATE.roomRelStateFromFollower(db19, followerA19);
+  const readB19 = await RELSTATE.roomRelStateFromFollower(db19, followerB19);
+  boundaryChecks++;
+  ok("layer 19: the follower READ op (\"How we are\") for A never carries B's trust or honorific",
+    leakedTokens(JSON.stringify(readA19), ["0.13", "aap"]).length === 0);
+  boundaryChecks++;
+  ok("layer 19: the follower READ op for B never carries A's trust, honorific or rupture flag",
+    leakedTokens(JSON.stringify(readB19), ["0.91", "\"tu\""]).length === 0);
+
+  // The RESET write, scoped to A alone: B's row (rupture_open already false)
+  // must be completely untouched — no read, no write, byte-identical before
+  // and after.
+  const beforeB19 = JSON.stringify(state19[PERSON_B_19]);
+  const resetA19 = await RELSTATE.roomRelStateResetFromFollower(db19, followerA19);
+  boundaryChecks++;
+  ok("layer 19: resetting follower A's OPEN rupture actually closes it (repair_state -> repaired)",
+    resetA19.reset === true && resetA19.repair_state === "repaired");
+  boundaryChecks++;
+  ok("layer 19: follower B's own row is byte-identical after A's reset (never read, never written)",
+    JSON.stringify(state19[PERSON_B_19]) === beforeB19);
+  const resetB19 = await RELSTATE.roomRelStateResetFromFollower(db19, followerB19);
+  boundaryChecks++;
+  ok("layer 19: resetting follower B (no rupture open) is an honest no-op, never a fabricated success",
+    resetB19.reset === false && resetB19.reason === "nothing_open");
+
+  // (c) THE OWNER-FACING STAGE-COUNTS AGGREGATE. Two agents (two different
+  // creators' Rooms), one with 6 followers at "deep" trust (>=5, clears the
+  // floor) plus 3 at "new" (under the floor, must vanish entirely — never a
+  // partial or rounded number), the OTHER agent with its own 5 "new"
+  // followers that must never bleed into the first agent's own counts.
+  const AGENT_A_19 = "f9000000-0000-4000-8000-0000000000aa";
+  const AGENT_B_19 = "f9000000-0000-4000-8000-0000000000bb";
+  const stageWorld19 = [
+    ...Array.from({ length: 6 }, (_, i) => ({ agent_id: AGENT_A_19, trust: 0.95, rupture_open: false })),
+    ...Array.from({ length: 3 }, (_, i) => ({ agent_id: AGENT_A_19, trust: 0.05, rupture_open: false })),
+    ...Array.from({ length: 5 }, (_, i) => ({ agent_id: AGENT_B_19, trust: 0.05, rupture_open: false })),
+  ];
+  const stageOf = (r) => {
+    if (r.rupture_open) return r.trust < 0.45 ? "new" : "warming";
+    if (r.trust < 0.2) return "new";
+    if (r.trust < 0.45) return "warming";
+    if (r.trust < 0.7) return "settled";
+    if (r.trust < 0.88) return "close";
+    return "deep";
+  };
+  const dbStage19 = async (sql, params = []) => {
+    if (!sql.includes("having count(*) >= 5")) throw new Error(`layer 19 stage-counts fake db: unmatched SQL: ${sql}`);
+    const agentId = String(params[0]);
+    const counts = {};
+    for (const r of stageWorld19) {
+      if (r.agent_id !== agentId) continue;
+      const s = stageOf(r);
+      counts[s] = (counts[s] || 0) + 1;
+    }
+    return Object.entries(counts).filter(([, n]) => n >= 5).map(([stage, n]) => ({ stage, n }));
+  };
+  const countsA19 = await RELSTATE.roomRelStateStageCounts(dbStage19, { agentId: AGENT_A_19 });
+  boundaryChecks++;
+  ok("layer 19 stage-counts: agent A's 6-strong \"deep\" bucket clears the n>=5 floor and is reported",
+    countsA19.some((b) => b.stage === "deep" && b.n === 6));
+  boundaryChecks++;
+  ok("layer 19 stage-counts: agent A's 3-strong \"new\" bucket is UNDER the floor and is completely absent (never a rounded/partial number)",
+    !countsA19.some((b) => b.stage === "new"));
+  const countsB19 = await RELSTATE.roomRelStateStageCounts(dbStage19, { agentId: AGENT_B_19 });
+  boundaryChecks++;
+  ok("layer 19 stage-counts: agent B's OWN 5-strong \"new\" bucket clears the floor on ITS OWN count", countsB19.some((b) => b.stage === "new" && b.n === 5));
+  boundaryChecks++;
+  ok("layer 19 stage-counts: agent B's count carries NONE of agent A's buckets (deep, or any other), never merged across creators",
+    !countsB19.some((b) => b.stage === "deep"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

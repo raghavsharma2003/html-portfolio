@@ -62,6 +62,13 @@ export const PHASE2_FLOOR_PCT = 35;
 export const CATEGORY_FLOOR_PCT = 40;
 export const PAID_CONVERSION_FLOOR_PCT = 12;
 
+// WS-R154 ("RelationOS in the Room"). The one import this file gains: the
+// aggregate-only, n>=5-floored stage counts `readOwnedRoomCohorts` composes
+// in below, alongside the retention cohorts this file already computes —
+// this file's own header's "pure function plus its SQL" split restated: the
+// SQL and its floor live in `_room-relstate.js`, this file only calls it.
+import { roomRelStateStageCounts } from "./_room-relstate.js";
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class RoomCohortsError extends Error {
@@ -225,7 +232,11 @@ export async function roomFollowerCohorts(db, room, { now = Date.now() } = {}) {
  *  predicate itself: "not yours" and "does not exist" answer identically. */
 async function ownedRoomHandle(db, ownerUserId, replicaId) {
   const rows = await db(
-    `select room_id, created_at, published_at
+    // WS-R154: `agent_id` widened in, additive — the only new consumer is
+    // `readOwnedRoomCohorts`'s own stage-counts call below; every existing
+    // caller of `roomFollowerCohorts(db, room, ...)` already ignores extra
+    // fields on `room` it does not read.
+    `select room_id, agent_id, created_at, published_at
        from vy_room
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       limit 1`,
@@ -244,5 +255,14 @@ export async function readOwnedRoomCohorts(db, ownerUserId, replicaId, { now = D
   const room = await ownedRoomHandle(db, ownerUserId, replicaId);
   if (!room) return null;
   const cohorts = await roomFollowerCohorts(db, room, { now });
-  return { cohorts, verdict: verdictFor(cohorts) };
+  // WS-R154 ("RelationOS in the Room"): the owner's stage counts, floored at
+  // n>=5 in the SQL itself — `api/_room-relstate.js`'s own header has the
+  // full reasoning for why this is deliberately the RAW rupture flag, never
+  // the lapsing stance. Best-effort: a database that has not yet had any
+  // `vy_rel_state` rows derived for this agent (`relstate-zero-rows`, the
+  // common case today) must never turn an otherwise-working cohorts read
+  // into a 500 — an empty array is the honest "nothing to report yet" state,
+  // identical in shape to every bucket under the floor.
+  const relstateStageCounts = await roomRelStateStageCounts(db, { agentId: room.agent_id }).catch(() => []);
+  return { cohorts, verdict: verdictFor(cohorts), relstate_stage_counts: relstateStageCounts };
 }

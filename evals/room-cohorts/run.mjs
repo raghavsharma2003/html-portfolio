@@ -249,6 +249,7 @@ console.log("\n── §4: THE READ — roomFollowerCohorts / readOwnedRoomCohor
   const NOW = new Date("2026-09-03T00:00:00.000Z").getTime();
   const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const REPLICA_ID = "c1000000-0000-4000-8000-000000000001";
+  const AGENT_ID = "c1000000-0000-4000-8000-0000000000a9";
   const publishedAt = new Date(NOW - 8 * WEEK_MS - DAY_MS).toISOString();
   const room = { room_id: ROOM_ID, created_at: publishedAt, published_at: publishedAt };
 
@@ -260,15 +261,27 @@ console.log("\n── §4: THE READ — roomFollowerCohorts / readOwnedRoomCohor
   const calls = [];
   const readDb = async (sql, params = []) => {
     calls.push({ sql, params });
+    // WS-R154: `readOwnedRoomCohorts` now also calls `_room-relstate.js`'s
+    // own `roomRelStateStageCounts` — a DIFFERENT but equally aggregate-only
+    // shape (`stage, count(*)` rather than a bare `count(`), floored with
+    // its own `having count(*) >= 5` rather than this file's `filter`
+    // clauses. Accepted here as its own named exception, never widened to
+    // admit anything else: `evals/room-leak/run.mjs`'s own layer 19 is the
+    // real, adversarial proof for that statement's shape; this assertion's
+    // job is only "this file's own three statements never regressed".
     ok("every §4 statement selects only count() expressions",
-      /^\s*select\s+count\(/i.test(sql.replace(/\n/g, " ").trim()) || sql.includes("from vy_room\n"),
+      /^\s*select\s+count\(/i.test(sql.replace(/\n/g, " ").trim()) || sql.includes("from vy_room\n")
+        || /having\s+count\(\*\)\s*>=\s*5/.test(sql),
     );
     if (sql.includes("from vy_room\n") || /from vy_room\s+where/i.test(sql)) {
       // the owner lookup
       if (String(params[0]) === OWNER.toLowerCase() && String(params[1]) === REPLICA_ID.toLowerCase()) {
-        return [{ room_id: ROOM_ID, created_at: publishedAt, published_at: publishedAt }];
+        return [{ room_id: ROOM_ID, agent_id: AGENT_ID, created_at: publishedAt, published_at: publishedAt }];
       }
       return [];
+    }
+    if (/having\s+count\(\*\)\s*>=\s*5/.test(sql)) {
+      return String(params[0]) === AGENT_ID ? [{ stage: "settled", n: 7 }] : [];
     }
     const weekStart = new Date(params[1]);
     const isOldestWeek = weekStart.getTime() === isoWeekStart(publishedAt).getTime();
@@ -290,6 +303,12 @@ console.log("\n── §4: THE READ — roomFollowerCohorts / readOwnedRoomCohor
   ok("readOwnedRoomCohorts returns the same cohort table plus a verdict",
     Array.isArray(owned.cohorts) && owned.cohorts.length === rows.length && typeof owned.verdict === "object");
   ok("the verdict is above_40 for this fixture's oldest cohort", owned.verdict.verdict === "above_40");
+  // WS-R154: composed in alongside cohorts/verdict, from the fixture's own
+  // agent_id — the widened `ownedRoomHandle` read is what makes this
+  // reachable at all.
+  ok("readOwnedRoomCohorts also composes relstate_stage_counts, scoped by THIS room's own agent_id",
+    Array.isArray(owned.relstate_stage_counts) && owned.relstate_stage_counts.length === 1
+      && owned.relstate_stage_counts[0].stage === "settled" && owned.relstate_stage_counts[0].n === 7);
 
   const notOwner = await readOwnedRoomCohorts(readDb, "99999999-9999-4999-8999-999999999999", REPLICA_ID, { now: NOW });
   ok("a replica that is not this owner's answers null, same as 'does not exist'", notOwner === null);

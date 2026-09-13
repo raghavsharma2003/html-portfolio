@@ -31,6 +31,12 @@
 //   POST /api/room {op:"memory_facts", session}       -> own active remembered things
 //   POST /api/room {op:"memory_correct", session, fact_id, replacement}
 //   POST /api/room {op:"memory_forget", session, fact_id}
+//   POST /api/room {op:"relstate", session}       -> "How we are": honorific,
+//                                          trust, whether a rupture is open
+//                                          (WS-R154)
+//   POST /api/room {op:"relstate_reset", session} -> "Start fresh": closes an
+//                                          open rupture, writes a new event,
+//                                          never deletes history (WS-R154)
 //   POST /api/room {op:"set_quiet_hours", session, timezone, quiet_from, quiet_to}
 //                                          -> the follower's own timezone/quiet
 //                                          window, set once, in their account
@@ -138,6 +144,8 @@ import {
   roomCorrectRememberedThing,
   roomReclassifyRememberedThing,
   roomForgetRememberedThing,
+  roomRelState,
+  roomRelStateReset,
   roomSetQuietHours,
   personForAccount,
   readRoomSession,
@@ -507,11 +515,16 @@ async function handler(req, res) {
       return res.status(200).json(await roomSettingsReviewed(q, { session: body.session }));
     }
 
-    if (op === "memory_facts" || op === "memory_correct" || op === "memory_forget" || op === "memory_classify") {
+    if (op === "memory_facts" || op === "memory_correct" || op === "memory_forget" || op === "memory_classify"
+        || op === "relstate" || op === "relstate_reset") {
       // A Room session is sufficient for ordinary conversation, but these
       // explicit memory controls reveal or change durable personal facts.
       // Match export/whole-forget's two credential check before the scoped
       // surface function runs: the bearer must resolve to the session person.
+      // WS-R154: relationship state (honorific, trust, whether a rupture is
+      // open) is the same class of durable personal fact - "how we are" is
+      // theirs to read and theirs to reset, on the same bar as a remembered
+      // fact is theirs to correct or forget.
       const authUserId = await requiredUser(req);
       const payload = readRoomSession(body.session);
       const personId = await personForAccount(q, authUserId);
@@ -533,6 +546,12 @@ async function handler(req, res) {
       }
       if(op==='memory_classify') {
         return res.status(200).json(await roomReclassifyRememberedThing(q,{session:body.session,factId:body.fact_id}));
+      }
+      if (op === "relstate") {
+        return res.status(200).json(await roomRelState(q, { session: body.session }));
+      }
+      if (op === "relstate_reset") {
+        return res.status(200).json(await roomRelStateReset(q, { session: body.session }));
       }
       return res.status(200).json(await roomForgetRememberedThing(q, {
         session: body.session,

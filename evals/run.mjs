@@ -3145,6 +3145,25 @@ const suites = {
   // (already mounted inside `RoomStudio`). Offline, deterministic, $0, no DB,
   // no network, no browser.
   "deploy-studio": "deploy-studio/run.mjs",
+
+  // WS-R154 ("RelationOS in the Room"). `api/_room-relstate.js` (new): the
+  // Room reply's relBundle (byte-identity law when no vy_rel_state row
+  // exists yet, exact field mapping), the follower's own "How we are" read
+  // (the memory-off predicate issues ZERO queries), and the follower's own
+  // rupture-reset write (citations CHAINED from the real event they
+  // supersede, never fabricated — a required negative control proves the
+  // refusal path is reachable rather than silently inserting anyway).
+  // Bundles the REAL src/engine/compiler.ts + relstate.ts (esbuild, `evals/
+  // rupture-channel/.entry.ts`'s own technique) to prove the compiled T2
+  // `rel.snapshot` block actually renders this dyad's state through the
+  // SAME `compile()` path the DM lane uses, and that an absent/null
+  // relBundle stays byte-identical to today. `evals/room-leak/run.mjs`'s
+  // own layer 19 is the cross-follower isolation proof for these same two
+  // tables (`vy_rel_state`/`vy_rel_event`); this suite is the correctness
+  // proof for one dyad in isolation, not duplicated here.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-relstate": "room-relstate/run.mjs",
 };
 
 const argv = process.argv.slice(2);

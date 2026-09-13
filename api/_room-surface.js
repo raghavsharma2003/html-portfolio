@@ -1,6 +1,11 @@
 import { MEERA_AGENT_ID } from "./_agentscope.js";
 import {reclassifyRoomMemory} from './_room-memory-reclassification.js';
 import {
+  fetchRoomRelBundle,
+  roomRelStateFromFollower,
+  roomRelStateResetFromFollower,
+} from "./_room-relstate.js";
+import {
   roomMemoryAdapter,
   roomMemoryAuthority,
   ROOM_MEMORY_REVOKE_SQL,
@@ -2014,6 +2019,20 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     }
   }
 
+  // WS-R154 (RelationOS in the Room). Only the non-expert, `engine.compile()`
+  // lane below — `compileExpertText` has no `relBundle` seam and this
+  // workstream does not add one (out of scope, logged in
+  // `context/decisions.md#ws-r154-scoped-to-compile-not-expert-text`). Gated
+  // on `remembers`, exactly like `facts` above: `law 3` ("their choice is
+  // the predicate") applies to relationship state precisely as it already
+  // does to remembered facts — a follower with memory off gets neither.
+  // `null` (no `vy_rel_state` row yet, `relstate-zero-rows`'s own finding for
+  // the common case today) is byte-identical to "never call this" for
+  // `compile()`'s own gate on `input.relBundle`.
+  const relBundle = remembers && !expertProfile
+    ? await fetchRoomRelBundle(db, { personId: payload.p, agentId: resolved.agentId })
+    : null;
+
   // Public teaching material is independent of this follower's private memory.
   // Re-read before dispatch and delivery; never cache removed public answers.
   const knowledgeScope = publicKnowledgeScope(resolved);
@@ -2081,6 +2100,14 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     cultureNoteText: "",
     latestUserText: text,
     replyLanguagePolicy: replyLanguagePolicy,
+    // WS-R154: absent (null) renders byte-identical to today, `compile()`'s
+    // own "gated entirely on `input.relBundle`" contract (compiler.ts).
+    relBundle,
+    // The moment gate's own wall clock (`compiler.ts`'s `momentGate` call),
+    // never read inside `compile()` itself — `compile()` must stay a pure
+    // function of its input, this file's own request-time `now` handed in
+    // the same way every other caller of `compile()` already does.
+    nowMs: now,
   });
 
   // THE ONE DOOR. `record` is the retrieved set and nothing else: a moment the
@@ -3913,6 +3940,30 @@ export async function roomForgetRememberedThing(db, { session, factId }, deps = 
   const rows = await db(ROOM_MEMORY_RETRACT_SQL, [...roomMemoryAuthority(follower), String(factId)]);
   if (!rows[0]) throw new RoomError("room_memory_fact_unavailable", 404);
   return { forgotten: true, fact_id: String(rows[0].fact_id) };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: relstate / relstate_reset — WS-R154, "RelationOS in the Room"
+// ─────────────────────────────────────────────────────────────────────────
+
+/** "How we are" — the follower's own read. `api/_room-relstate.js` owns
+ *  every decision here; this is scope resolution only, `roomRememberedThings`'
+ *  own shape one section up. */
+export async function roomRelState(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower) throw new RoomError("room_join_required", 403);
+  return roomRelStateFromFollower(db, follower);
+}
+
+/** "Start fresh" — the follower's own explicit reset. Requires memory to be
+ *  on, `roomCorrectRememberedThing`'s own gate restated: relationship state
+ *  is memory-consent-scoped exactly like a remembered fact is. */
+export async function roomRelStateReset(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower || follower.memory_consent_at == null) throw new RoomError("room_memory_not_enabled", 403);
+  return roomRelStateResetFromFollower(db, follower);
 }
 
 /**
