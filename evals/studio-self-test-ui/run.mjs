@@ -65,7 +65,23 @@ const videoEnroll = readFileSync(join(ROOT, "src/studio/VideoEnrollPanel.tsx"), 
 const channelWatch = readFileSync(join(ROOT, "src/studio/IngestChannelStudio.tsx"), "utf8");
 const voiceExperiment = readFileSync(join(ROOT, "src/studio/VoiceExperimentPanel.tsx"), "utf8");
 const voiceExperimentContract = readFileSync(join(ROOT, "src/studio/voiceExperiment.ts"), "utf8");
-const voicePreview = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8");
+// WS-R166 (wave twenty-two) moved every user-visible string of
+// VoicePreviewPanel.tsx into the personal studio's copy registry
+// (src/studio/copy.ts's EN_VOICE_PREVIEW_PANEL block, the same block
+// evals/voice-preview-ui.mjs already reads for this exact file); the checks
+// below read the component PLUS that one English block, freezing the
+// PROPERTY (what the owner is told, and which binding carries it) rather
+// than which file carries the sentence
+// (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
+function englishVoicePreviewCopyForSelfTest(root) {
+  const source = readFileSync(join(root, "src/studio/copy.ts"), "utf8");
+  const start = source.indexOf("const EN_VOICE_PREVIEW_PANEL");
+  if (start < 0) throw new Error("EN_VOICE_PREVIEW_PANEL not found in src/studio/copy.ts");
+  const end = source.indexOf("\n};\n", start);
+  return source.slice(start, end + 4);
+}
+const voicePreview = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8")
+  + "\n" + englishVoicePreviewCopyForSelfTest(ROOT);
 ok("the self-test presentation is gated by exact Vite mode and environment flags",
   /VITE_REPLICA_SELF_TEST_MODE/.test(studio)
   && /VITE_REPLICA_SELF_TEST_ENVIRONMENT/.test(studio)
@@ -112,11 +128,12 @@ ok("the owner can start over or delete the current clone without finding Deploy"
   && /Clone deleted\. Stored data is being erased in the background/.test(studio)
   && /items\.filter\(\(item\) => item\.replica_id !== result\.replica\.replica_id\)/.test(studio));
 ok("the voice draft names its bounded source lineage and links back to source management",
-  /aria-label="Voice draft sources"/.test(voicePreview)
-  && /Primary voice: your main recording/.test(voicePreview)
+  /aria-label=\{copy\.lineage\.ariaLabel\}/.test(voicePreview) && /ariaLabel: "Voice draft sources",/.test(voicePreview)
+  && /copy\.lineage\.primaryVoiceLabel/.test(voicePreview) && /primaryVoiceLabel: "Primary voice: your main recording",/.test(voicePreview)
   && /voice_role === "primary"/.test(voicePreview)
-  && /Private source \{sourceId\.slice\(0, 6\)\.toUpperCase\(\)\}/.test(voicePreview)
-  && /Manage sources/.test(voicePreview)
+  && /copy\.lineage\.privateSourceTemplate\.replace\("\{code\}", sourceId\.slice\(0, 6\)\.toUpperCase\(\)\)/.test(voicePreview)
+  && /privateSourceTemplate: "Private source \{code\}",/.test(voicePreview)
+  && /copy\.lineage\.manageSources/.test(voicePreview) && /manageSources: "Manage sources",/.test(voicePreview)
   && /onManageSources=\{\(\) => onGoStep\("feed"\)\}/.test(studio));
 ok("testing removes the Context Locker acknowledgement click without blocking exports",
   /useState\(testEnvironment\)/.test(contextLocker)

@@ -119,7 +119,18 @@ try{
  const waitPending=async()=>{const end=Date.now()+5000;while(!pending.length&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,20));assert(pending.length,'bounded delayed request barrier');};
  const askCount=()=>requests.filter(r=>r.path==='/api/replica-text-rehearsal'&&r.op==='ask').length;
  const fill=async()=>{await page.locator('#ptr-question').fill('What is the period of this pendulum?');for(const box of await page.locator('.ptr-attestation input').all())await box.check();};
- const open=async(name='ready',full=false,extra='')=>{scenario=name;activeSheet=SHEET;draftStatus=name==='published'?'published':'draft';pending=[];requests=[];await page.goto(`${origin}${full?'/studio':'/evals/private-text-rehearsal/scope.html'}?mode=replica&replica=${RID}&view=${full?'enrich':'rehearsal'}&lang=hi${extra}`);if(full){await page.getByRole('button',{name:/Test a private draft/}).waitFor();await page.getByRole('button',{name:/Test a private draft/}).click();}await page.locator('#ptr-title').waitFor();if(!name.startsWith('late')&&name!=='incomplete'&&!extra.includes('rehearsal_request=')){await page.locator('.ptr-fields select').nth(0).selectOption(SHEET);await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});await page.locator('.ptr-fields select').nth(1).selectOption(ITEM);await page.getByText('Review source: pendulum-notes.txt').waitFor();}};
+ // WS-R166 moved this menu row's own strings into the studio copy registry
+ // (src/studio/copy.ts's EN_CLONE_EXPERIENCE_SHELL.rooms.enrich.testDraftTitle,
+ // src/studio/hiCopy.ts's matching HI block); `open()` below always requests
+ // `lang=hi`, so the REAL registry-driven button now renders the Hindi
+ // string, not the English literal this suite was written against before the
+ // conversion existed. The English text itself did not change (byte
+ // identical to the pre-conversion default); the suite accepts either
+ // locale's real string rather than pinning a language the fixture does not
+ // actually request English for
+ // (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
+ const testDraftButton=()=>page.getByRole('button',{name:/Test a private draft|एक निजी ड्राफ्ट टेस्ट करें/});
+ const open=async(name='ready',full=false,extra='')=>{scenario=name;activeSheet=SHEET;draftStatus=name==='published'?'published':'draft';pending=[];requests=[];await page.goto(`${origin}${full?'/studio':'/evals/private-text-rehearsal/scope.html'}?mode=replica&replica=${RID}&view=${full?'enrich':'rehearsal'}&lang=hi${extra}`);if(full){await testDraftButton().waitFor();await testDraftButton().click();}await page.locator('#ptr-title').waitFor();if(!name.startsWith('late')&&name!=='incomplete'&&!extra.includes('rehearsal_request=')){await page.locator('.ptr-fields select').nth(0).selectOption(SHEET);await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});await page.locator('.ptr-fields select').nth(1).selectOption(ITEM);await page.getByText('Review source: pendulum-notes.txt').waitFor();}};
  const check=async(name,fn)=>{await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);};
  for(const width of [390,1440])await check(`actual modern entry ${width}: pre-identity draft, explicit ask, result and withdrawal`,async()=>{
   await page.setViewportSize({width,height:900});await open('ready',true);assert.equal(await page.locator('.vx-shell').count(),1);assert.equal(new URL(page.url()).searchParams.get('replica'),RID);assert.equal(new URL(page.url()).searchParams.get('lang'),'hi');

@@ -172,7 +172,24 @@ ok(invalidChoice, "an ambiguous client choice is refused by name");
 const wireSource = readFileSync(join(ROOT, "api/_mirrorcall-wire.js"), "utf8");
 const routeSource = readFileSync(join(ROOT, "api/mirror-call.js"), "utf8");
 const clientSource = readFileSync(join(ROOT, "src/studio/mirrorCallApi.ts"), "utf8");
-const uiSource = readFileSync(join(ROOT, "src/studio/MirrorCallStudio.tsx"), "utf8");
+// WS-R166 (wave twenty-two) moved every user-visible string of
+// MirrorCallStudio.tsx into the personal studio's copy registry
+// (src/studio/copy.ts's EN_MIRROR_CALL_STUDIO block), so the checks below
+// read the component PLUS that one English block: the property (the exact
+// sentence a person is shown) is what this suite freezes, never which file
+// carries it (context/rejected.md
+// #frozen-file-merge-controls-break-on-the-next-change), the same pattern
+// already used at this merge in evals/voice-preview-ui.mjs and
+// evals/vyakti-app/run.mjs.
+function englishMirrorCallStudioCopy(root) {
+  const source = readFileSync(join(root, "src/studio/copy.ts"), "utf8");
+  const start = source.indexOf("const EN_MIRROR_CALL_STUDIO");
+  if (start < 0) throw new Error("EN_MIRROR_CALL_STUDIO not found in src/studio/copy.ts");
+  const end = source.indexOf("\n};\n", start);
+  return source.slice(start, end + 4);
+}
+const uiSource = readFileSync(join(ROOT, "src/studio/MirrorCallStudio.tsx"), "utf8")
+  + "\n" + englishMirrorCallStudioCopy(ROOT);
 ok(wireSource.includes('"speaker_attestation"'), "the server handshake publishes the new op");
 ok(routeSource.includes("opSpeakerAttestation") && routeSource.includes("attestMirrorOwnerSpeaker"),
   "the authenticated API route has a real caller for the store function");

@@ -74,6 +74,20 @@ const server = createServer(async (req, res) => {
       if (uncertainOpen) { uncertainOpen = false; res.writeHead(201, { "content-type": "application/json" }); return res.end("{"); }
       return json(201, { session: { replica_id: body.replica_id, session_id: body.session_id } });
     }
+    // WS-R167: ExpertConversation now loads the owner's own "It remembers"
+    // status as soon as the runtime is reachable at all (readMeetMemoryStatus,
+    // a POST with op "memory_status", no session_id). Before this handler
+    // existed the request fell through to the generic turn-creation branch
+    // below, which treats any session-id-less POST as a NEW session
+    // (`body.session_id || randomUUID()` then `create(...)`) — silently
+    // inflating `sessions.size` and `requests` with a session this suite
+    // never asked for, which is what desynchronized the session-count
+    // assertions below from the actual restore/send flow they test.
+    // Answered honestly instead (memory off, matching a fresh synthetic
+    // replica with no memory-scope consent), same fix as
+    // conversation-setup-ui's own memory_status handler
+    // (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
+    if (body.op === "memory_status") return json(200, { memory_on: false });
     const sid = body.session_id || randomUUID(); const session = sessions.get(sid) || create(sid, body.replica_id, token);
     assert.equal(session.replica_id, body.replica_id); assert.equal(session.token, token);
     session.pending = true; session.latest_request = { trace_id: body.trace_id || "old-no-trace", state: "generating" };

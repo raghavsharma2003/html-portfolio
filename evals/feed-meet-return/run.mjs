@@ -130,7 +130,26 @@ try{
  const waitPending=async()=>{const end=Date.now()+5000;while(!pending.length&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,20));assert(pending.length,'bounded delayed request barrier');};
  const askCount=()=>requests.filter(r=>r.path==='/api/replica-text-rehearsal'&&r.op==='ask').length;
  const fill=async()=>{await page.locator('#ptr-question').fill('What is the period of this pendulum?');for(const box of await page.locator('.ptr-attestation input').all())await box.check();};
- const open=async(name='ready',full=false,extra='')=>{scenario=name;activeSheet=SHEET;draftStatus=name==='published'?'published':'draft';pending=[];requests=[];await page.goto(`${origin}${full?'/studio':'/evals/private-text-rehearsal/scope.html'}?mode=replica&replica=${RID}&view=${full?'enrich':'rehearsal'}&lang=hi${extra}`);if(full){await page.getByRole('button',{name:/Test a private draft/}).waitFor();await page.getByRole('button',{name:/Test a private draft/}).click();}await page.locator('#ptr-title').waitFor();if(!name.startsWith('late')&&name!=='incomplete'&&!extra.includes('rehearsal_request=')){await page.locator('.ptr-fields select').nth(0).selectOption(SHEET);await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});await page.locator('.ptr-fields select').nth(1).selectOption(ITEM);await page.getByText('Review source: pendulum-notes.txt').waitFor();}};
+ // WS-R166 moved this menu row's own strings into the studio copy registry
+ // (src/studio/copy.ts's EN_CLONE_EXPERIENCE_SHELL.rooms.enrich.testDraftTitle,
+ // src/studio/hiCopy.ts's matching HI block); `open()` below always requests
+ // `lang=hi`, so the REAL registry-driven button now renders the Hindi
+ // string, not the English literal this suite was written against before the
+ // conversion existed. The English text itself did not change (byte
+ // identical to the pre-conversion default), so the fix is the same one this
+ // file already uses for the teach/test-source buttons a few lines down: the
+ // suite accepts either locale's real string rather than pinning a language
+ // the fixture does not actually request English for
+ // (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
+ const testDraftButton=()=>page.getByRole('button',{name:/Test a private draft|एक निजी ड्राफ्ट टेस्ट करें/});
+ // Same WS-R166 registry move as testDraftButton above, for the two other
+ // CloneExperience/ContextLockerPanel controls this walk clicks through
+ // while `lang=hi` is active: the enrich menu's "Files, images, links" row
+ // (copy.ts's filesTitle) and its own "Back to choices" back button
+ // (copy.ts's backToChoices).
+ const filesMenuButton=()=>page.getByRole('button',{name:/Files, images, links|फ़ाइलें, तस्वीरें, लिंक/});
+ const backToChoicesButton=()=>page.getByRole('button',{name:/^(Back to choices|चुनावों पर लौटें)$/});
+ const open=async(name='ready',full=false,extra='')=>{scenario=name;activeSheet=SHEET;draftStatus=name==='published'?'published':'draft';pending=[];requests=[];await page.goto(`${origin}${full?'/studio':'/evals/private-text-rehearsal/scope.html'}?mode=replica&replica=${RID}&view=${full?'enrich':'rehearsal'}&lang=hi${extra}`);if(full){await testDraftButton().waitFor();await testDraftButton().click();}await page.locator('#ptr-title').waitFor();if(!name.startsWith('late')&&name!=='incomplete'&&!extra.includes('rehearsal_request=')){await page.locator('.ptr-fields select').nth(0).selectOption(SHEET);await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});await page.locator('.ptr-fields select').nth(1).selectOption(ITEM);await page.getByText('Review source: pendulum-notes.txt').waitFor();}};
  const check=async(name,fn)=>{await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);};
 
 
@@ -140,7 +159,7 @@ try{
  for(const width of [390,1440])await check(`saved own-writing source ${width}: explicit teaching path without auto-navigation`,async()=>{
   scenario='ready';pending=[];requests=[];await page.setViewportSize({width,height:900});const lang=width===390?'hi':'en';
   await page.goto(`${origin}/studio?mode=replica&replica=${RID}&view=enrich&lang=${lang}`);
-  await page.getByRole('button',{name:/Files, images, links/}).click();await page.locator('#context-locker-title').waitFor();
+  await filesMenuButton().click();await page.locator('#context-locker-title').waitFor();
   assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');assert.equal(await teachSource().count(),1);assert.equal(await testSource().count(),1);
   await page.locator('input[type=file].context-file-input').setInputFiles([
    {name:'batch-one.txt',mimeType:'text/plain',buffer:Buffer.from('First owner-written source.')},
@@ -160,7 +179,7 @@ try{
   await page.getByRole('button',{name:'Add or edit source material'}).click();await page.getByText('pendulum-notes.txt',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Test this source'}).count(),0);
   await page.screenshot({path:join(artifact,'old-source-390.png'),fullPage:true});
-  await page.getByRole('button',{name:/Back to choices/}).click();await page.getByRole('button',{name:/Test a private draft/}).click();await page.locator('#ptr-question').waitFor();
+  await backToChoicesButton().click();await testDraftButton().click();await page.locator('#ptr-question').waitFor();
   assert.equal(await page.locator('#ptr-question').inputValue(),'');assert.equal(await page.locator('.ptr-fields select').nth(0).inputValue(),'');assert.equal(await page.locator('.ptr-fields select').nth(1).inputValue(),'');assert.equal(askCount(),0);
  });
 
@@ -184,16 +203,16 @@ try{
   await editSources();await backTest().click();await page.locator('#ptr-question').waitFor();assert.equal(await page.locator('#ptr-question').inputValue(),'Keep this unsent question');assert.equal(askCount(),0);
  });
  for(const width of [390,1440])await check(`native mined state ${width}: retained phrase review and exact source readiness`,async()=>{
-  await page.setViewportSize({width,height:900});await open('mined',true);await page.locator('#ptr-question').fill('Use this mined source');await editSources();await testSource().waitFor();assert.equal(await page.getByRole('button',{name:'View phrases',exact:true}).count(),1);await testSource().click();await page.getByText('Review source: pendulum-notes.txt').waitFor();assert.equal(await page.locator('#ptr-question').inputValue(),'Use this mined source');assert.equal(await page.locator('.ptr-fields select').nth(1).inputValue(),ITEM);const read=requests.filter(r=>r.op==='readiness').at(-1);assert.equal(read.query.context_item_id,ITEM);assert.equal(read.query.replica_id,RID);assert.equal(read.auth,'Bearer '+TOKEN);assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);assert.deepEqual(mutations(),[]);
+  await page.setViewportSize({width,height:900});await open('mined',true);await page.locator('#ptr-question').fill('Use this mined source');await editSources();await testSource().waitFor();assert.equal(await page.getByRole('button',{name:/^(View phrases|वाक्यांश देखें)$/}).count(),1);await testSource().click();await page.getByText('Review source: pendulum-notes.txt').waitFor();assert.equal(await page.locator('#ptr-question').inputValue(),'Use this mined source');assert.equal(await page.locator('.ptr-fields select').nth(1).inputValue(),ITEM);const read=requests.filter(r=>r.op==='readiness').at(-1);assert.equal(read.query.context_item_id,ITEM);assert.equal(read.query.replica_id,RID);assert.equal(read.auth,'Bearer '+TOKEN);assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);assert.deepEqual(mutations(),[]);
  });
  await check('direct saved source entry chooses only that source and needs an explicit draft and question',async()=>{
-  await open('ready',true);await page.getByRole('button',{name:'Back to your workspace'}).click();await page.getByRole('button',{name:/Files, images, links/}).click();await testSource().click();await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});
+  await open('ready',true);await page.getByRole('button',{name:'Back to your workspace'}).click();await filesMenuButton().click();await testSource().click();await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});
   assert.equal(await page.locator('.ptr-fields select').nth(1).inputValue(),ITEM);assert.equal(await page.locator('.ptr-fields select').nth(0).inputValue(),'');assert.equal(await page.locator('#ptr-question').inputValue(),'');assert.deepEqual(mutations(),[]);
  });
  for(const kind of ['reference','unknown','refused','routed','image'])await check(`${kind} restored source has no private-test shortcut`,async()=>{await open(kind,true);await editSources();assert.equal(await testSource().count(),0);assert.deepEqual(mutations(),[]);});
  await check('source removed after the visible row is revalidated without fallback or a paid ask',async()=>{await open('ready',true);await page.locator('#ptr-question').fill('Do not replace this source');await editSources();scenario='removed';await testSource().click();await page.getByText(/selected source unavailable/).waitFor();assert(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled());assert.equal(await page.locator('#ptr-question').inputValue(),'Do not replace this source');assert.equal(await page.locator('.ptr-source-body').count(),0);assert.deepEqual(mutations(),[]);});
- await check('existing saved request is never silently replaced by a source shortcut',async()=>{await open('ready',true);await fill();await page.getByRole('button',{name:'Ask privately',exact:true}).click();await page.locator('.ptr-answer').waitFor();const id=new URL(page.url()).searchParams.get('rehearsal_request');await page.getByRole('button',{name:'Back to your workspace'}).click();await page.getByRole('button',{name:/Files, images, links/}).click();await page.getByText('pendulum-notes.txt',{exact:true}).waitFor();assert.equal(await testSource().count(),0);assert.equal(new URL(page.url()).searchParams.get('rehearsal_request'),id);assert.equal(askCount(),1);await page.getByRole('button',{name:'Back to choices'}).click();await page.getByRole('button',{name:/Test a private draft/}).click();await page.locator('.ptr-answer').waitFor();assert.equal(askCount(),1);});
- await check('late readiness keeps asks disabled and leaving the returned test does not resurrect an old question',async()=>{await open('ready',true);await page.locator('#ptr-question').fill('Only this workspace');await editSources();scenario='late-readiness';await testSource().click();await waitPending();assert(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled());assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);await page.getByRole('button',{name:'Back to your workspace'}).click();scenario='ready';pending.splice(0).forEach(release=>release());await page.getByRole('button',{name:'Back to choices'}).click();await page.getByRole('button',{name:/Test a private draft/}).click();await page.locator('#ptr-question').waitFor();assert.equal(await page.locator('#ptr-question').inputValue(),'');assert.equal(askCount(),0);});
+ await check('existing saved request is never silently replaced by a source shortcut',async()=>{await open('ready',true);await fill();await page.getByRole('button',{name:'Ask privately',exact:true}).click();await page.locator('.ptr-answer').waitFor();const id=new URL(page.url()).searchParams.get('rehearsal_request');await page.getByRole('button',{name:'Back to your workspace'}).click();await filesMenuButton().click();await page.getByText('pendulum-notes.txt',{exact:true}).waitFor();assert.equal(await testSource().count(),0);assert.equal(new URL(page.url()).searchParams.get('rehearsal_request'),id);assert.equal(askCount(),1);await backToChoicesButton().click();await testDraftButton().click();await page.locator('.ptr-answer').waitFor();assert.equal(askCount(),1);});
+ await check('late readiness keeps asks disabled and leaving the returned test does not resurrect an old question',async()=>{await open('ready',true);await page.locator('#ptr-question').fill('Only this workspace');await editSources();scenario='late-readiness';await testSource().click();await waitPending();assert(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled());assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);await page.getByRole('button',{name:'Back to your workspace'}).click();scenario='ready';pending.splice(0).forEach(release=>release());await backToChoicesButton().click();await testDraftButton().click();await page.locator('#ptr-question').waitFor();assert.equal(await page.locator('#ptr-question').inputValue(),'');assert.equal(askCount(),0);});
  }
  if(!baselineOnly && process.argv.includes('--incumbents')){
  for(const width of [390,1440])await check(`actual modern entry ${width}: pre-identity draft, explicit ask, result and withdrawal`,async()=>{
