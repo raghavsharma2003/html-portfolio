@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   StudioAuthError,
   googleSignIn,
+  isStudioAuthDead,
   sendEmailOtp,
   verifyEmailOtp,
 } from "./studioAuth";
@@ -46,8 +47,14 @@ export default function PersonalAuthGate({
   const linkButtonRef = useRef<HTMLButtonElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
 
+  // WS-R164: focus the email field for EVERY first render of this step, not
+  // only a `resumeIntent` return. Before this, a brand-new person arriving
+  // straight from the landing's own primary action (never a resumeIntent,
+  // `PersonalStudioEntry.tsx` always passes `resumeIntent={null}`) had to
+  // tap the field before typing — one avoidable step in the first five
+  // minutes, `context/decisions.md#ws-r164-first-time-email-autofocus`.
   useEffect(() => {
-    if (resumeIntent && step === "email") emailRef.current?.focus();
+    if (step === "email") emailRef.current?.focus();
   }, [resumeIntent, step, ready]);
 
   const acceptLinkedSession = useCallback(async (showNotReady = false) => {
@@ -107,7 +114,15 @@ export default function PersonalAuthGate({
       writeStoredSession(session);
       onAuthed(session);
     } catch (cause) {
-      const rejectedCode = cause instanceof StudioAuthError && (cause.status === 400 || cause.status === 401);
+      // WS-R164: a wrong or expired code is 403 from the real door
+      // (`api/account.js`'s `verify_otp` passes GoTrue's own status through
+      // unchanged), not 400/401 — this used to fall through to
+      // `serviceUnavailableError` ("try again shortly"), a sentence a
+      // person could not act on for a code they simply mistyped. `?
+      // isStudioAuthDead` is `studioAuth.ts`'s own 400/401/403 classifier,
+      // already used the same way elsewhere in the studio (`StudioApp.tsx`);
+      // reused here rather than re-deriving a narrower copy a second time.
+      const rejectedCode = isStudioAuthDead(cause);
       setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : rejectedCode ? "codeMismatchError" : "serviceUnavailableError" : "networkError");
       if (rejectedCode) setCode("");
       requestAnimationFrame(() => codeRef.current?.focus());

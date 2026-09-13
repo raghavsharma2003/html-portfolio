@@ -6,7 +6,7 @@
 // already-reviewed wording wherever this file's English matches it, adapting
 // only where this screen's own English differs (the nearline nearline-busy
 // states this file's English adds, and one extra extraction blocker key).
-import type { ExpertConversationCopy, ExpertSharePanelCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy } from "./copy";
+import type { ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy } from "./copy";
 
 const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
   title: "अपने AI को एक ठिकाना दें।",
@@ -181,12 +181,25 @@ const HI_PERSON_MODEL_STUDIO: PersonModelStudioCopy = {
   errorExtractionCheckFailedRetryable: "नवीनतम स्थायी निष्कर्षण स्थिति जांची नहीं जा सकी। सर्वर पर काम अभी भी जारी हो सकता है; यह पेज दोबारा जुड़ने या रीलोड होने के बाद फिर कोशिश करेगा।",
 };
 
+// WS-R164 (wave twenty-two). `copy.ts#FirstFiveMinutesCopy`'s own closed
+// block, restated here as its own block per the same rule.
+const HI_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+  railLabel: "आपका AI शुरू हो रहा है",
+  signInTitle: "साइन इन करें",
+  firstSourceTitle: "इसे अपने बारे में बताएं",
+  firstSourceHint: "अपनी आवाज़ रिकॉर्ड करें या लिखकर अपने बारे में बताएं। आमतौर पर एक दो मिनट में हो जाता है।",
+  meetTitle: "इससे मिलें",
+  meetHint: "इसे बनने में कुछ मिनट लग सकते हैं। इंतज़ार के दौरान आप अपने बारे में और बता सकते हैं।",
+  stepDoneLabel: "हो गया",
+};
+
 // `personalAuth` is deliberately absent here: `copy.ts#loadStudioCopy`
 // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
-// Hindi loader, so this file owns only the four sections named above.
+// Hindi loader, so this file owns only the five sections named above.
 export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
   expertSharePanel: HI_EXPERT_SHARE_PANEL,
   quickVoiceCapture: HI_QUICK_VOICE_CAPTURE,
   expertConversation: HI_EXPERT_CONVERSATION,
   personModelStudio: HI_PERSON_MODEL_STUDIO,
+  firstFiveMinutes: HI_FIRST_FIVE_MINUTES,
 };

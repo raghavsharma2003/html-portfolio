@@ -165,9 +165,17 @@ const VIEWPORTS = [
 const TARGETS = [
   {
     name: "clone", fixture: "studio-layout-fixture.html",
-    query: (step) => step === "capture" ? "step=feed&scenario=public-capture" : `step=meet&scenario=voice-ready&view=${step}`,
-    steps: ["capture", "voice", "enrich"], mounted: ".vx-shell",
-    panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu", minPanels: 1,
+    // WS-R164: "waiting" is a THIRD scenario on the same "capture" query
+    // shape (`step=feed`, `layoutFixture.tsx`'s own `text-source-waiting`
+    // scenario) rather than a fourth branch pattern — the brief's own "a
+    // new layout and accessibility target per new screen state" law, for
+    // `FirstFiveMinutesRail`'s own "meet it" step (a source exists, Meet is
+    // not open yet, `context/decisions.md#ws-r164-first-five-minutes-rail`).
+    query: (step) => step === "capture" ? "step=feed&scenario=public-capture"
+      : step === "waiting" ? "step=feed&scenario=text-source-waiting"
+      : `step=meet&scenario=voice-ready&view=${step}`,
+    steps: ["capture", "waiting", "voice", "enrich"], mounted: ".vx-shell",
+    panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu, .ffm-rail", minPanels: 1,
   },
   // WS-R151: HumanOS, the person sheet. No earlier enrich subview
   // (describe/files/video) has its own target either — this is the first,
@@ -239,9 +247,13 @@ const TARGETS = [
   // translated (context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist).
   {
     name: "studio-hi:personal", fixture: "studio-layout-fixture.html",
-    query: (step) => step === "capture" ? "step=feed&scenario=public-capture&lang=hi" : `step=meet&scenario=voice-ready&view=${step}&lang=hi`,
-    steps: ["capture", "voice", "enrich"], mounted: ".vx-shell",
-    panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu", minPanels: 1,
+    // WS-R164: `clone`'s own "waiting" step restated in Hindi, for the same
+    // reason `studio-hi`'s own header two targets up restates `studio`'s.
+    query: (step) => step === "capture" ? "step=feed&scenario=public-capture&lang=hi"
+      : step === "waiting" ? "step=feed&scenario=text-source-waiting&lang=hi"
+      : `step=meet&scenario=voice-ready&view=${step}&lang=hi`,
+    steps: ["capture", "waiting", "voice", "enrich"], mounted: ".vx-shell",
+    panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu, .ffm-rail", minPanels: 1,
   },
   {
     name: "studio",

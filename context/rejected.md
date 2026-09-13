@@ -18286,3 +18286,127 @@ the check this entry's own mistake skipped.
 **Broke.** The Hindi fixture "हाहा मजा आ गया आज तो" (an unambiguous laughter turn — "हाहा" is Devanagari's own written laugh) classified as `rushed/high`, not `excited`, in `evals/emotionos/run.mjs`'s own 60-row confusion table (measured 59/60, 98.3%, `context/measurements.md#ws-r153-register-confusion-table`). Devanagari vowel signs (matras: the ा in हाहा) are `Mark_Nonspacing` (`\p{M}`), not `\p{L}`. Stripping them does not lose an accent, it shatters the word: "हाहा" (ह + ा + ह + ा) became "ह ह" (two bare single-consonant tokens) before the laughter-token whole-word match ever ran, so `hasLaughter` was silently `false` on the one turn it most needed to be `true`. This is the IDENTICAL failure shape `transcriptStats.ts`'s own header already documents in detail for a different table ("a real live Hinglish transcript measured as 74 'tokens' of single glyphs... code-switch ratio 0.000") — the same defect, rediscovered because `moment.ts`'s own `padT` never needed `\p{M}` (every one of its keyword tables is romanised) and register.ts is the first classifier in this shape to carry a Devanagari-script entry at all.
 
 **Fix.** `register.ts`'s `padT` keeps `\p{M}` (`transcriptStats.ts`'s own convention, restated rather than imported — see that file's "imports NOTHING" law), and `LAUGHTER_TOKENS` gained the Devanagari renderings (`हाहा`/`हाहाहा`/`हेहे`) alongside the romanised ones. Re-measured: 60/60 (100.0%). `moment.ts`'s own `padT` is UNCHANGED and UNAUDITED by this fix — it is a different file under different ownership (WS-RELSTATE, §13), and every one of its own keyword tables is romanised, so the defect this entry names may not even be reachable there; a future workstream adding a Devanagari entry to any of `moment.ts`'s tables should re-check this exact class of bug rather than assume it does not apply.
+
+## `ws-r164-wrong-otp-fell-through-to-a-misleading-error` (2026-09-13, WS-R164)
+
+**Tried.** Adding a real wrong-OTP negative control to
+`evals/rehearsal/personal.mjs` and `evals/first-five-minutes/run.mjs`: fill
+a code that does not match, submit, assert the real `PersonalAuthGate.tsx`
+shows `codeMismatchError` ("That code did not match. Check it and try
+again."), the sentence law 3 names by example.
+
+**Broke.** The real UI showed `serviceUnavailableError` ("Sign-in is
+temporarily unavailable. Please try again shortly.") instead — a real,
+pre-existing bug this workstream's own negative control found, not a
+rehearsal-fixture mismatch. `PersonalAuthGate.tsx#verifyCode` classified a
+rejected code as `const rejectedCode = cause.status === 400 ||
+cause.status === 401`, but the real door
+(`api/account.js`'s `verify_otp` -> `passthrough(res, await
+authFetch(...))`) passes GoTrue's own status through UNCHANGED, and a
+wrong or expired OTP token is **403**, not 400/401 — confirmed against both
+the real stub (`evals/rehearsal/stubs/auth-with-fake-user.mjs`'s own
+`authFetch`, `"Token has expired or is invalid"`, status 403) and
+`studioAuth.ts`'s OWN existing classifier
+(`isStudioAuthDead = status === 400 || 401 || 403`, already used the same
+way elsewhere in `StudioApp.tsx`/`session.ts`) — so a wrong code silently
+fell through to the "temporarily unavailable" branch, telling a person who
+simply mistyped six digits to wait and try again later, a sentence that
+does not name the real, actionable thing (retype the code).
+
+**Fix.** `PersonalAuthGate.tsx#verifyCode` now calls `isStudioAuthDead(cause)`
+instead of re-deriving a narrower 400/401 subset of the same classification
+a second time. `context/decisions.md` carries no separate entry for this
+fix (a one-line bug fix with an obvious reversal — revert if a future real
+GoTrue response ever uses 403 for something OTHER than "code rejected");
+this rejected.md entry is the record of what was tried and what broke.
+Generalizes: a negative control that only asserts "an error shows" (rather
+than the SPECIFIC error a person needs) would have passed against the wrong
+message; this control asserted the real string and caught a real
+misclassification the first time it ran.
+
+**Addendum, same session.** `evals/personal-auth-locale.mjs` — an EXISTING,
+unrelated suite this workstream never listed as a Build file — had its own
+source-extraction harness for `verifyCode` hand-code the SAME wrong
+classification as a fixed expectation: `check("Forbidden verifier is not a
+code mismatch", () => assert.deepEqual(forbidden, { error:
+"serviceUnavailableError", ... }))` for `run(403)`. The real fix above broke
+this suite for real (`ReferenceError: isStudioAuthDead is not defined`, its
+own synthetic scope never having defined the function this fix now calls,
+plus the assertion itself now disagreeing with the corrected behavior).
+Fixed in the same commit: the synthetic scope gained the identical
+`isStudioAuthDead` restatement `personal-auth-locale.mjs` already uses
+for its OWN separate session-extraction boundary two sections up (the
+file's own established convention for a body pasted into a scope with no
+module graph); 403 moved into the `[400, 401, 403]` "resets a rejected
+code" loop, and the old "Forbidden verifier" check (asserting the bug) was
+deleted rather than kept skipped. Generalizes: a bug fix that changes
+observable behavior should be checked against every OFFLINE fixture that
+also encodes the old behavior as an expectation, not only the product code
+and its own new test — `evals/run.mjs`'s full run is what surfaced this one.
+
+## `ws-r164-new-rail-untagged-hindi-fails-the-accessibility-lang-check` (2026-09-13, WS-R164)
+
+**Tried.** Adding `FirstFiveMinutesRail` with no `lang` attribute of its
+own, assuming the surrounding `?lang=hi` fixture context would be enough
+for its Devanagari strings (`त.firstFiveMinutes`'s Hindi table) to read
+correctly to a screen reader.
+
+**Broke.** `scripts/check-accessibility.mjs --target studio-hi:personal`
+failed for real (exit 1, not merely logged): 11 `lang-devanagari-untagged`
+findings, every one of them one of this rail's own six Hindi strings,
+`computed lang="en"` — the personal studio's shell (`studio.html`) carries
+a static `lang="en"` and nothing in this component's own ancestry set
+`lang="hi"` anywhere, so a screen reader would have read this rail's Hindi
+in an English voice. Found on the FIRST real accessibility run of the new
+`waiting` step this workstream added (`check-layout.mjs`'s own clean pass
+on the identical markup does not catch this class of defect at all — axe
+and this repo's own `lang-devanagari-untagged` scan are different checks).
+
+**Fix.** `lang={locale}` on the rail's own root `<nav>`, `DeployStudio.tsx`'s
+own already-established convention (a per-subtree `lang` prop, never a
+`document.documentElement.lang` effect, since most of this shell is still
+English-only, `context/decisions.md
+#ws-r159-tier-1-scope-and-tier-2-allowlist`) — cited but not copy-pasted
+blind: read first, confirmed to be the real live pattern, then applied.
+Re-run: 0 findings. Generalizes: ANY new bilingual component added to the
+personal studio needs its OWN `lang={locale}` on its own root — there is no
+shell-level default to inherit, by design, and `check-layout.mjs`'s
+"renders and reads" check will not catch a missing one.
+
+## `ws-r164-fixed-rail-intercepted-pointer-events-over-real-buttons` (2026-09-13, WS-R164)
+
+**Tried.** Shipping `FirstFiveMinutesRail` as a plain `position: fixed`
+overlay near the top of the viewport (`.ffm-rail`, `first-five-minutes.css`),
+with no `pointer-events` rule of its own — the same posture `.vx-toast`
+already uses one file over in `clone-experience.css`.
+
+**Broke.** `node evals/verification-knowledge/run.mjs` and `node
+evals/text-publication-ui/early-share.mjs` both failed for real on the FIRST
+run after the rail landed: a real Playwright click on
+`getByRole('button', { name: 'Back to your workspace' })` timed out after
+15s, Playwright's own log naming the exact cause —
+`<ol class="ffm-steps">…</ol> from <nav lang="en" class="ffm-rail" …>…</nav>
+subtree intercepts pointer events`. The rail's own "meetWait" step renders
+in the SAME state (a source exists, Meet not yet open) as
+`CloneVerificationJourney`'s own header exit link
+(`JourneyHeader`'s "Back to your workspace"/"Back to knowledge"), and both
+sit near the top of the viewport — the rail, being a fixed overlay, sat on
+top of a REAL, currently-needed control and silently ate every click meant
+for it. This is a genuine regression this workstream shipped and its own
+touched suites caught, not a pre-existing gap; `.vx-toast`'s own posture is
+safe only because a toast is transient and never coincides with a control a
+person needs to press at that exact moment, which this rail's own "meetWait"
+step does by construction.
+
+**Fix.** `pointer-events: none` on `.ffm-rail`'s own root. Correct rather
+than a workaround: the rail has NO interactive element of its own (no
+button, no link, every step is `<strong>`/`<small>` text and a decorative
+dot), so removing it from the hit-testing tree costs it nothing — reading it
+needs no pointer, and a screen reader's own navigation does not hit-test
+either. Re-run: both suites clean (14/14, 18/18). Generalizes: a
+`position: fixed` overlay that is PURELY informational (asks nothing of the
+pointer) should default to `pointer-events: none`, not only when a real
+click collision is found by accident — the collision here was found only
+because this workstream's own touched suites happened to click near the top
+of the viewport in exactly the state the rail also renders in; a suite that
+never clicks there would have shipped the same defect silently.

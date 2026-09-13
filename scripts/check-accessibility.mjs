@@ -80,10 +80,15 @@ const TARGETS = [
   {
     name: "clone",
     fixture: "studio-layout-fixture.html",
+    // WS-R164: `check-layout.mjs`'s own "waiting" step restated here, the
+    // brief's own "a new layout and accessibility target per new screen
+    // state" law applied to both gates for the same rail.
     query: (screen) => screen === "capture"
       ? "step=feed&scenario=public-capture"
+      : screen === "waiting"
+      ? "step=feed&scenario=text-source-waiting"
       : `step=meet&scenario=voice-ready&view=${screen}`,
-    screens: ["capture", "voice", "enrich"],
+    screens: ["capture", "waiting", "voice", "enrich"],
     mounted: ".vx-shell",
   },
   // WS-R151: HumanOS, the person sheet. See `check-layout.mjs`'s own
@@ -142,8 +147,10 @@ const TARGETS = [
     fixture: "studio-layout-fixture.html",
     query: (screen) => screen === "capture"
       ? "step=feed&scenario=public-capture&lang=hi"
+      : screen === "waiting"
+      ? "step=feed&scenario=text-source-waiting&lang=hi"
       : `step=meet&scenario=voice-ready&view=${screen}&lang=hi`,
-    screens: ["capture", "voice", "enrich"],
+    screens: ["capture", "waiting", "voice", "enrich"],
     mounted: ".vx-shell",
   },
   {

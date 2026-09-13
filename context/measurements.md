@@ -18193,3 +18193,152 @@ Method: each workstream's own report (suite counts as printed by its suites), th
 | WS-R153 EmotionOS, vibe and register (164) | e41589a | emotionos 37 (60 of 60 labelled turns), room-doors 2305, incidents, ops, lanes |
 
 Full gate on the batch: seven merges 24 of 24 after the four repairs; nine merges 24 of 24 (5d68438, CI green on both workflows); eleven merges 24 of 24 (e41589a). Live database after the wave: migrations 163, 164 and 166 applied one statement per request (3 + 3 + 3 statements, 0 failures), 207 `vy_` tables; 165 unused (WS-R154 needed no schema change).
+
+## `ws-r164-personal-rehearsal-with-landing-wall-clock-2026-09-13` (WS-R164)
+
+Method: `node evals/rehearsal/personal.mjs` (`evals/run.mjs rehearsal-personal`
+carries this suite unchanged, only the walk inside it grew a landing step and
+a negative control), build container, machine shared by nine sibling
+workstreams, real Chromium (`/opt/pw-browsers/chromium-1194`), n=3 runs same
+session, date 2026-09-13. 33 of 33 assertions passed on runs 1, 2 and the
+retry of run 3 (0 failed each time); the FIRST attempt at run 3 timed out
+waiting for `#context-locker-title, .vx-record-button` after Agreement (20s
+budget), a real machine-load symptom under nine concurrent sibling
+workstreams rather than a code regression — same class as
+`context/STATE.md`'s own noted `first-use-refresh-ui` load sensitivity, not a
+new finding this workstream is claiming credit or blame for. This suite's own
+new "first five minutes" aggregate, printed each run:
+
+| bucket | run 1 | run 2 | run 3 (retry) |
+|---|---|---|---|
+| landingToSignInMs (landing click + sign-in) | 2605 | 2567 | 1636 |
+| signInToFirstSourceMs (agreement + Describe me) | 1868 | 1326 | 1496 |
+| firstSourceToMeetMs (record+build+wait+reload+Meet attempt) | 21193 | 18494 | 21728 |
+
+The third bucket is dominated by the same real >=12s microphone recording
+and build-request round trip WS-158 already measured (`measurements.md
+#ws-r158-personal-rehearsal-wall-clock-2026-09-13`); this walk still drives
+Describe me BEFORE recording (that file's own "record" section explains
+why) so it is NOT a text-only measurement of the third bucket — that is
+`evals/first-five-minutes/run.mjs`'s own job, see the next entry. New
+per-step timings this workstream added (`landingToSignInMs` inside the
+walk's own `wall clocks` line — the real `site/vyakti.html` page load plus
+one real click on the hero's own primary action): 995ms, 783ms, 664ms
+across the three runs.
+
+No model call, no GPU, no network beyond 127.0.0.1 in any run.
+
+## `ws-r164-first-five-minutes-text-only-wall-clock-2026-09-13` (WS-R164)
+
+Method: `node evals/first-five-minutes/run.mjs` (also via
+`node evals/run.mjs first-five-minutes`), same build container and machine
+as the entry above, real Chromium, n=3 consecutive runs same session, date
+2026-09-13. 10 of 10 assertions passed every run (0 failed). This suite
+drives NO microphone at all — Describe me is the walk's only source — so its
+own three buckets are the honest "fastest real path to a first text reply"
+this workstream's brief asks for:
+
+| bucket | run 1 | run 2 | run 3 |
+|---|---|---|---|
+| landingToSignInMs | 558 | 1315 | 1755 |
+| signInMs (send_otp + one wrong OTP + verify_otp) | 978 | 1264 | 1502 |
+| signInToFirstSourceMs (agreement + Describe me) | 1176 | 1326 | 2076 |
+| firstSourceToMeetMs (reload + one real dialogue attempt) | 1111 | 1043 | 1056 |
+
+Total per run (excludes the ~10-20s Chromium probe/launch and
+`npx vite build` overhead at process start, `serverStartMs`-equivalent, not
+separately printed by this suite): roughly 3.8s, 5.0s and 6.4s. Every run's
+Meet attempt returned the SAME honest refusal
+(`status=503 error=dialogue_generator_unavailable`) — this tree does not
+yet answer a text-only source in Meet (WS-R161's own gap to close, migration
+167, not this workstream's); the assertion itself accepts either an honest
+refusal or a real reply so the suite keeps gating correctly once that
+lands, per this file's own header.
+
+No model call, no GPU, no network beyond 127.0.0.1 in any run.
+
+## `ws-r164-touched-suite-results-2026-09-13` (WS-R164)
+
+`node scripts/check-layout.mjs --only clone`: 13 prose blocks judged across
+390/834/1355px x four steps (capture, the new `waiting`, voice, enrich), 0
+failures. Same target restated for Hindi, `--only "studio-hi:personal"`:
+identical shape, 0 failures. `.ffm-rail` folded into both targets' existing
+`panels` selector list; the new `waiting` step (`layoutFixture.tsx`'s own
+`text-source-waiting` scenario) added to both,
+`context/decisions.md#ws-r164-first-five-minutes-rail`.
+
+`node scripts/check-accessibility.mjs --target clone`: 0 critical/serious
+(0 moderate, 0 minor), 0 keyboard findings, 0 language-tag findings, 4
+Devanagari text nodes / 4 own-`lang="hi"` elements checked. `--target
+studio-hi:personal`: same shape, 0 findings, 15 Devanagari text nodes / 6
+own-`lang="hi"` elements checked. The FIRST run of this Hindi target found
+a real defect this workstream introduced and fixed before it shipped: 11
+`lang-devanagari-untagged` findings, all six of this rail's own Hindi
+strings, `computed lang="en"` (`context/rejected.md
+#ws-r164-new-rail-untagged-hindi-fails-the-accessibility-lang-check`) —
+fixed with `lang={locale}` on the rail's own root, `DeployStudio.tsx`'s
+own established per-subtree convention; re-run clean.
+
+`node scripts/check-copy.mjs`: clean (7 scopes, 21 negative controls).
+`node node_modules/typescript/bin/tsc -b --force`: clean, three times across
+this session. `npx vite build`: clean, five times across this session (this
+worktree had no `api/_config.js` at all before this session; `CI=1 node
+scripts/write-config.mjs --stub` wrote a gate-only stub, never committed).
+
+## `ws-r164-full-gate-2026-09-13` (WS-R164)
+
+Method: `node scripts/verify-release.mjs` (no `NEON_URL`, 24 checks), this
+worktree, machine shared with nine sibling wave-twenty-two workstreams for
+the whole run (load average measured at 17-34 on 4 real cores partway
+through, `uptime`), date 2026-09-13. Result of the ONE full run: **21 of 24
+passed clean; 3 failed** (`layout readability`, `performance budgets`,
+`eval suite`). Per `ws-common.md`'s own rule, each failing check was then
+rerun ALONE rather than the whole gate a second time:
+
+- **`layout readability`**: failed in the full run with a raw `EADDRINUSE`
+  on port 8931 (a sibling holding the port, not a rendered finding) — a
+  port collision, `ws-common.md`'s own "never a pass and never a failure of
+  yours". Rerun alone once free: **clean**, 2288 prose blocks judged across
+  390/834/1355px x every target this tree carries, including this
+  workstream's own `clone:...waiting` and `studio-hi:personal:...waiting`.
+- **`performance budgets`**: failed in the full run (`/` TBT 374ms,
+  `/studio` TBT 389ms, both > the 300ms budget; `crashed: null`,
+  `thirdPartyRenderBlocking: []` on every page — a clean run with a slow
+  number, not a broken one). Rerun alone twice: run 1 — `/` TBT 374ms,
+  `/studio` TBT 389ms (SAME two targets); run 2 — only `/studio` TBT 396ms
+  (`/` passed). `/vyakti`, the ONE page this workstream substantively
+  edited, passed clean in EVERY run (full run included); `/` is Meera's own
+  landing (`site/index.html`), untouched by this workstream, and `/studio`'s
+  own initial bundle carries only a trivial import
+  (`isStudioAuthDead`) and a `useEffect` dependency-list change from this
+  workstream, both in `PersonalAuthGate.tsx` — the rail itself
+  (`FirstFiveMinutesRail`) ships inside the lazily-loaded `CloneExperience`
+  chunk, never the sign-in bundle these two failing targets measure. Given
+  an untouched page failed once and the touched page (`/vyakti`) never
+  failed, and the machine's own load average (17-34 on 4 cores) is well
+  into the range `decisions.md#wave-21-merged-as-a-batch-under-contention`
+  already names as invalidating this exact CPU-bound metric, this is
+  recorded as environmental, not a WS-R164 regression — the main loop owns
+  a rerun on a quieter machine before this is called clean.
+- **`eval suite`**: failed in the full run on THREE sub-suites:
+  `verification-knowledge`, `text-publication-early-share-ui`,
+  `personal-auth-locale` — all three real, all three caused by this
+  workstream, all three fixed and reverified (see
+  `context/rejected.md#ws-r164-fixed-rail-intercepted-pointer-events-over-
+  real-buttons` and `#ws-r164-wrong-otp-fell-through-to-a-misleading-error`'s
+  own addendum). A full `node evals/run.mjs` re-run after both fixes: every
+  suite this workstream touched or broke now passes (`first-five-minutes`
+  10/10, `rehearsal-personal` 33/33, `verification-knowledge` 14/14,
+  `text-publication-early-share-ui` 18/18, `personal-auth-locale` 52/52).
+  ONE suite remains failing on the re-run: `first-use-refresh-ui` — the
+  PRE-EXISTING, load-sensitive suite `context/STATE.md`'s own "WAVE
+  TWENTY-ONE MERGED" block already names as open before this session began
+  (`rejected.md#first-use-refresh-suite-races-under-load`); this workstream
+  touched none of its files and does not claim to have fixed or broken it.
+
+`node scripts/check-accessibility.mjs` (full, no `--target`) and
+`node scripts/check-layout.mjs` (full) both also ran clean as PART of the
+isolated reruns above and separately during development (see the previous
+entry); `node scripts/check-headers.mjs`, `room leak battery`,
+`room export completeness`, `room door battery` all passed in the ONE full
+run with no rerun needed.

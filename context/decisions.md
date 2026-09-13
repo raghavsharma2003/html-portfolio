@@ -24578,3 +24578,108 @@ into it.
 **Why.** Ten agents ran their own full gates on the same four-core container at once, holding the load average between 40 and 63 for two hours; a full gate under that load took over an hour and failed on port collisions and browser-timed checks that measure the machine, not the tree (`measurements.md#wave-21-batch-gate-2026-09-13`). Merging under the fast checks kept the wave moving while the load fell, and the batch gate found the four cross-workstream breaks a per-merge gate would have found one at a time.
 
 **Reversal.** If a batch gate ever fails in a way that cannot be attributed to one merge within the batch by the touched-suite evidence, the wave goes back to one full gate per merge; the agents' own full gates are then run serially by the main loop, never ten at once.
+
+## `ws-r164-hero-cta-goes-straight-to-sign-in` (2026-09-13, WS-R164)
+
+**Decision.** `site/vyakti.html`'s hero primary action changed from `#apply`
+("Apply for one of the first Rooms", a waitlist form) to `/studio` ("Sign in
+and start building", the real personal-studio sign-in), in both locales. The
+closing section's own "Apply for one of the first Rooms" button and the
+`#apply`/`#apply-hi` form below it are UNCHANGED: the brief scoped this to
+"the primary action only", and that form remains true and useful for someone
+who wants a Room reviewed in a small batch around an existing audience,
+which is a different ask than "build my own AI".
+
+**Why.** WS-R158 (wave twenty-one) proved `/studio`'s own sign-in is real
+end to end (a real OTP round trip, no fixture) and self-serve for anyone,
+with no gate at all; the hero CTA still pointed at a form whose own copy
+says "This is not a self-serve signup yet", which had stopped being true
+for the ONE thing the hero claims ("Build the AI version of you"). Sending
+the hero's own click straight to the real, working sign-in removes a
+whole unnecessary detour (read the apply copy, fill four fields, wait for a
+person to read it) for the person the brief calls "any person [who] comes
+to Vyakti and builds an AI version of themselves" — exactly law 2's "remove
+every step that is not required."
+
+**Reversal.** If self-serve sign-in for the personal studio is ever pulled
+back behind a gate again (a waitlist, an invite code), point the hero CTA
+back at `#apply` and update this page's own header comment to say so; do
+not silently leave the CTA pointing at a door that no longer opens.
+
+## `ws-r164-first-time-email-autofocus` (2026-09-13, WS-R164)
+
+**Decision.** `PersonalAuthGate.tsx`'s email-field focus effect now fires on
+every render of the "email" step, not only when `resumeIntent` is set.
+
+**Why.** The production entry (`PersonalStudioEntry.tsx`) always calls
+`PersonalAuthGate` with `resumeIntent={null}` for a first-time visitor (the
+resume path only exists for `StudioApp.tsx`'s OWN inline re-auth branch,
+used when a mid-session token expires) — so the person the hero CTA sends
+here, the overwhelming majority of the audience for "the first five
+minutes", was the ONE case this focus effect never fired for. One avoidable
+tap before typing an email is a small thing on its own; it is exactly the
+category of step law 2 asks this workstream to remove.
+
+**Reversal.** If a future screen reader or mobile-browser regression report
+finds autofocus-on-mount harmful here (an unexpected virtual keyboard pop,
+say), scope the fix to desktop only (`window.matchMedia("(pointer: fine)")`)
+rather than reverting to resumeIntent-only, since the underlying problem
+(a first-time visitor gets no focus at all) would still exist for everyone
+else.
+
+## `ws-r164-personal-mjs-exports-fixture-world-for-reuse` (2026-09-13, WS-R164)
+
+**Decision.** `evals/rehearsal/personal.mjs` now exports `startServer`,
+`serveLandingPage`, `EMAIL` and `OTP`, and guards its own `main()` behind an
+`isMain` check (`import.meta.url` vs `process.argv[1]`) so importing the
+module no longer runs its own walk. `evals/first-five-minutes/run.mjs`
+imports these rather than rebuilding a second copy of `personalDb`'s own
+fixture matchers (the storage-writer chain in particular,
+`rejected.md#ws-r158-missing-storage-writer-fixture-denies-a-real-describe-
+me-save`).
+
+**Why.** A second, hand-rolled fixture world for the SAME real doors
+(`api/account.js`, `api/replica.js`, `api/replica-consent.js`,
+`api/context-items.js`, `api/_replica-storage-writer.js`) risks silently
+diverging from the real one the moment `personal.mjs` changes, which would
+either produce a false pass (a matcher this suite never actually exercised
+against a real shape) or a drifting failure with no shared cause to fix.
+Direct execution (`node evals/rehearsal/personal.mjs`,
+`evals/run.mjs`'s own `rehearsal-personal` entry) is unaffected: the guard
+only skips `main()` for an IMPORTER, never for the file run directly.
+
+**Reversal.** If a future workstream needs a THIRD suite to reuse this same
+fixture world, extract `personalDb`/`personalPatterns` into their own module
+rather than exporting a fourth helper from `personal.mjs`; two importers
+sharing one file's exports is fine, three is the point a shared module
+earns its own file.
+
+## `ws-r164-first-five-minutes-rail` (2026-09-13, WS-R164)
+
+**Decision.** A new, small, free-standing component
+(`src/studio/FirstFiveMinutes.tsx`) renders a two-step rail (sign in, marked
+done; tell it about you; meet it) inside `CloneExperience.tsx`'s real shell,
+visible only while `selected` exists, the workspace is not blocked, and
+`showRooms` (the real Meet gate) is still false — the exact window between
+Agreement and a working room. It reads `t.firstFiveMinutes` off
+`useStudioLocale()` (`src/studio/copy.ts` / `hiCopy.ts`, one new closed
+block each), the SAME registry every other Tier 1 personal-studio screen
+uses, rather than the internal `WizardRail.tsx`/`computeWizard` system.
+
+**Why.** `WizardRail.tsx` is real and well built, but `StudioApp.tsx` mounts
+it ONLY behind `STUDIO_SELF_TEST_UI` (an internal test flag) and renders
+`CloneExperience` directly, with no rail at all, for every real person —
+confirmed by reading the render branch before building anything, not
+assumed. Its own `computeWizard` also gates `meetDone` on
+`identityVerified`/`livenessVerified`/a teacher sheet, the TEACHER
+activation pipeline, not the honest gate WS-R158 found for a personal
+reply (a real voice build's own promotion). Reusing it here would either
+have inherited gates that do not describe a personal AI's own path to Meet,
+or forked `wizardModel.ts` — a two-step, gate-free rail keyed off the SAME
+`showRooms` boolean the real shell already computes was strictly smaller and
+cannot drift from the real gate by construction.
+
+**Reversal.** If `WizardRail.tsx` is ever generalized to describe the
+personal studio's own path honestly (a `mode`-aware `computeWizard` that
+drops the teacher-only blockers), retire this rail in its favor rather than
+maintaining two step-rail components in the same product long-term.
