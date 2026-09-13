@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 24 checks without NEON_URL; 26 with it (2026-09-13)
+node scripts/verify-release.mjs      # 25 checks without NEON_URL; 27 with it (2026-09-13, WS-R170)
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -167,7 +167,7 @@ supply-chain half in the same file: `npm ci --dry-run` lockfile integrity,
 `npm audit --omit=dev --audit-level=high` which FAILS rather than passing
 silently if the registry is unreachable, and an install-script scan against
 the named, justified allowlist in `scripts/installScriptAllowlist.mjs`) as
-named gates, 24 since Codex's Vercel upload boundary, deploy verifier and motion lint checks (2026-09-13) — and 26 with it, adding the zero-orphan sweep and citation
+named gates, 24 since Codex's Vercel upload boundary, deploy verifier and motion lint checks (2026-09-13), 25 since WS-R170's schema mirror gate (`scripts/check-schema-mirror.mjs`, 2026-09-13: proves every table, column, index and routine every migration file declares, walked in numeric order, exists by name somewhere in `db/schema.sql`) — and 27 with `NEON_URL`, the 25 above plus the zero-orphan sweep and citation
 discipline.
 Migrations 071 through 099, 101 through 123 and 125 through 133 are applied live,
 except 100, 103, 117, 124 and 131, which are unused (WS-R38 needed no new migration, every finding it

@@ -30,6 +30,7 @@
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
+import { consume } from "./_rate-limit.js";
 import { obsBestEffort } from "./_obs.js";
 import { readContextProposalReview } from "./_context-proposal-review.js";
 import {readPrivateTeachingRefinement,savePrivateTeachingRefinement} from './_private-teaching-refinement.js';
@@ -52,6 +53,17 @@ function cors(res) {
 }
 
 const notFound = (res) => res.status(404).json({ error: "replica_not_found" });
+
+/** WS-R170. `api/room.js`'s `refused` and `api/account.js`'s own copy of
+ *  it, same shape, restated here rather than imported (no shared module
+ *  owns it). */
+async function refused(res, scope, key) {
+  const gate = await consume(q, { scope, key });
+  if (gate.ok) return false;
+  res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+  res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+  return true;
+}
 
 export default async function handler(req, res) {
   cors(res);
@@ -113,6 +125,12 @@ export default async function handler(req, res) {
     }
 
     if (op === "publish") {
+      // WS-R170: the persistent second layer over the in-memory
+      // `teacher_sheet_user` bucket above - `teacher_sheet_publish_owner`'s
+      // own header in api/_rate-limit.js. A day-scoped ceiling, so it is
+      // checked before the (comparatively expensive) readiness gate runs,
+      // never after.
+      if (await refused(res, "teacher_sheet_publish_owner", user.id)) return;
       const review = requireTeacherSheetPublicationReview(body.review);
       const result = await publishOwnedTeacherSheet(q, user.id, body.replica_id, {
         evidence: body.evidence,

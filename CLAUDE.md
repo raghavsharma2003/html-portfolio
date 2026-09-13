@@ -111,8 +111,11 @@ would and CSP violation reporting captured, plus `npm ci --dry-run` lockfile
 integrity, `npm audit --omit=dev --audit-level=high` (fails, never passes
 silently, if the registry is unreachable) and an install-script scan against
 the named allowlist in `scripts/installScriptAllowlist.mjs` — each added as
-a named gate) and **26 with
-it** (adding the zero-orphan sweep and citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
+a named gate, 25 since WS-R170's `schema mirror` gate (2026-09-13,
+`scripts/check-schema-mirror.mjs` — proves every table, column, index and
+routine every migration file declares, walked in numeric order, exists by
+name somewhere in `db/schema.sql`)) and **27 with
+it** (the 25 above plus the zero-orphan sweep and citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
 `LoRA` or `genome` in any user-visible string in `src/studio/`, `src/room/`,

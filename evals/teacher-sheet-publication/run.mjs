@@ -45,7 +45,12 @@ await check('review exact key rejects absent/malformed/newline and never trusts 
 });
 // Import the exact handler body with only boundary dependencies replaced.
 let db,auth=owner;const seen=[];
-globalThis.__publicationFixture={q:(...args)=>db(...args),requireUser:async()=>{if(!auth)throw Object.assign(new Error('auth_required'),{status:401,code:'auth_required'});return {id:auth};},allow:()=>true,ipOf:()=>'',obsBestEffort:()=>{},readContextProposalReview:()=>{throw Error('wrong dispatch');}};
+// WS-R170: `consume` (api/_rate-limit.js) is a new boundary import this
+// handler makes on `publish` — the persistent `teacher_sheet_publish_owner`
+// gate, `evals/rate-limit/run.mjs`'s own §9 subject. Stubbed here exactly
+// like `allow` immediately below it (always admit): this suite is about
+// review/publish logic, not the rate limiter, which has its own suite.
+globalThis.__publicationFixture={q:(...args)=>db(...args),requireUser:async()=>{if(!auth)throw Object.assign(new Error('auth_required'),{status:401,code:'auth_required'});return {id:auth};},allow:()=>true,consume:async()=>({ok:true,remaining:999,retryAfterSeconds:60}),ipOf:()=>'',obsBestEffort:()=>{},readContextProposalReview:()=>{throw Error('wrong dispatch');}};
 let source=readFileSync(new URL('../../api/teacher-sheet.js',import.meta.url),'utf8');
 source=source.replace(/import \{([^}]+)\} from ["'](\.\/[^"']+)["'];/g,(all,names,path)=>{
  if(['./_teacher-sheet-draft.js','./_private-teaching-refinement.js'].includes(path))return `import {${names}} from ${JSON.stringify(pathToFileURL(resolve(fileURLToPath(new URL('../../',import.meta.url)),'api',path)).href)};`;

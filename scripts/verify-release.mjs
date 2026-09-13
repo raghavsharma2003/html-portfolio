@@ -128,6 +128,21 @@ await gate("chrome copy", NODE, ["scripts/check-copy.mjs"]);
 // gate parses the literal on both sides of every marker in src/ and
 // site/suites.html and fails the moment they disagree. Offline, $0, a few ms.
 await gate("mirrored constants", NODE, ["scripts/check-mirrors.mjs"]);
+// WS-R170, "data safety for the new tables," law 4. `db/schema.sql` calls
+// itself a transcript of the live database, and it drifted from the
+// migrations that actually produce that database at least once for real:
+// migration 046's own preceding unique index never made it into the mirror,
+// only the table right after it did (`context/rejected.md#046-replica-
+// voice-preference`), and this gate's own first real run found a SECOND,
+// previously unknown case the same way (migration 056's event-time columns
+// on vy_fact/meera_nodes). It walks every migration file in numeric order
+// and proves every table, column, index and routine it declares exists
+// SOMEWHERE in db/schema.sql, under the identical name — never a positional
+// check (the mirror is append-only, so a later fix for an earlier gap lands
+// at the file's end) and never a literal statement-text compare (this file's
+// own header explains why that first draft was wrong for this repo's real,
+// intentional mirroring convention). Offline, $0, a few ms.
+await gate("schema mirror", NODE, ["scripts/check-schema-mirror.mjs"]);
 // The rate `services/voice-evidence/app.py`'s enhance stage EMITS and the rate
 // `api/_audio/wav.js`'s probeEnrollmentWav DEMANDS are two numbers with no
 // shared import (Node/Python, three deploy boundaries) that already drifted

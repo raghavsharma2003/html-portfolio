@@ -13,6 +13,7 @@
 // (the brief's own law: "the follower never sees vibe").
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
+import { consume } from "./_rate-limit.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 import { getReplicaVibe, listReplicaVibeHistory, setReplicaVibe, revertReplicaVibe, VIBE_HISTORY_LIMIT_DEFAULT } from "./_replica-vibe.js";
@@ -23,6 +24,17 @@ function cors(res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Cache-Control", "no-store");
+}
+
+/** WS-R170. The persistent second layer over the in-memory bucket below -
+ *  `api/room.js`'s `refused` and `api/account.js`'s own copy of it, same
+ *  shape, restated here rather than imported (no shared module owns it). */
+async function refused(res, scope, key) {
+  const gate = await consume(q, { scope, key });
+  if (gate.ok) return false;
+  res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+  res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+  return true;
 }
 
 async function handler(req, res) {
@@ -40,6 +52,10 @@ async function handler(req, res) {
     // on this door at all, per the brief's own law.
     const user = await requireUser(req);
     if (!allow(user.id, "replica_vibe_owner_user", 30)) return res.status(429).json({ error: "slow_down" });
+    // WS-R170: the persistent second layer, `replica_vibe_owner`'s own
+    // header in api/_rate-limit.js - survives a cold start the bucket above
+    // does not.
+    if (await refused(res, "replica_vibe_owner", user.id)) return;
 
     if (op === "get") {
       const [vibe, history] = await Promise.all([

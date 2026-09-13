@@ -569,9 +569,14 @@ async function handler(req, res) {
         return res.status(200).json(await roomReclassifyRememberedThing(q,{session:body.session,factId:body.fact_id}));
       }
       if (op === "relstate") {
+        // WS-R170: the persistent second layer over the in-memory
+        // `room_relstate_user` bucket just above - `room_relstate_user`'s
+        // own header in api/_rate-limit.js.
+        if (await refused(res, "room_relstate_user", authUserId)) return;
         return res.status(200).json(await roomRelState(q, { session: body.session }));
       }
       if (op === "relstate_reset") {
+        if (await refused(res, "room_relstate_reset_user", authUserId)) return;
         return res.status(200).json(await roomRelStateReset(q, { session: body.session }));
       }
       return res.status(200).json(await roomForgetRememberedThing(q, {
