@@ -19446,6 +19446,36 @@
       "kind": "rejection",
       "title": "A WS-R180 comment inside roomSay literally contained 'follower.locale', tripping room-locale's static scanner",
       "at": "context/rejected.md#ws-r180-comment-prose-tripped-room-locales-own-static-scanner"
+    },
+    {
+      "id": "ws-r177-studio-tbt-on-a-quiet-machine-2026-09-13",
+      "kind": "measurement",
+      "title": "Studio and studio-hi TBT/LCP/Hindi-paint, n=12 per target, quiet machine, load average 0.54-2.07 (2026-09-13)",
+      "at": "context/measurements.md#ws-r177-studio-tbt-on-a-quiet-machine-2026-09-13"
+    },
+    {
+      "id": "ws-r177-studio-entry-chunk-graph-already-minimal-nothing-to-cut",
+      "kind": "rejection",
+      "title": "Traced the real built dependency graph for /studio and studio-hi's signed-out first paint; every brief-named suspect was already behind a lazy boundary a prior wave built",
+      "at": "context/rejected.md#ws-r177-studio-entry-chunk-graph-already-minimal-nothing-to-cut"
+    },
+    {
+      "id": "ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement",
+      "kind": "decision",
+      "title": "/studio (220ms) and studio-hi (260ms) get their own TBT budget, tightened from measurement, below the shared 300ms",
+      "at": "context/decisions.md#ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement"
+    },
+    {
+      "id": "ws-r177-load-average-recorded-in-the-performance-gates-own-output",
+      "kind": "decision",
+      "title": "check-performance.mjs records its own 1-minute load average in JSON and in a TBT finding's own text",
+      "at": "context/decisions.md#ws-r177-load-average-recorded-in-the-performance-gates-own-output"
+    },
+    {
+      "id": "ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget",
+      "kind": "rejection",
+      "title": "measureTarget never copied target.tbtBudget onto its result; every offline fixture built result by hand and never caught it, only a live gate run did",
+      "at": "context/rejected.md#ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget"
     }
   ],
   "edges": [
@@ -33206,6 +33236,31 @@
       "src": "ws-r180-touched-suite-results-2026-09-13",
       "rel": "measured_by",
       "dst": "ws-r180-comment-prose-tripped-room-locales-own-static-scanner"
+    },
+    {
+      "src": "ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement",
+      "dst": "ws-r177-studio-tbt-on-a-quiet-machine-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r177-load-average-recorded-in-the-performance-gates-own-output",
+      "dst": "ws-r177-studio-tbt-on-a-quiet-machine-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement",
+      "dst": "ws-r49-performance-budgets-are-a-throttled-simulation-not-a-device",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r177-studio-tbt-on-a-quiet-machine-2026-09-13",
+      "dst": "ws-r177-studio-entry-chunk-graph-already-minimal-nothing-to-cut",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r177-per-target-tbt-budget-tightened-from-quiet-machine-measurement",
+      "dst": "ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget",
+      "rel": "caused_by"
     }
   ]
 }
