@@ -17994,6 +17994,84 @@
       "kind": "measurement",
       "title": "Gate runs on the merged handoff206 tree and the live catalog before and after the apply (2026-09-13)",
       "at": "context/measurements.md#gate-on-the-merged-handoff206-tree-2026-09-13"
+    },
+    {
+      "id": "ws-r151-humanos-the-person-sheet",
+      "kind": "component",
+      "title": "HumanOS: the person sheet (migration 163, WS-R151)",
+      "at": "docs/gurukul/waves/wave-21/ws-r151-humanos-the-person-sheet.md"
+    },
+    {
+      "id": "ws-r151-person-sheet-shares-the-teacher-row-and-a-branched-validator",
+      "kind": "decision",
+      "title": "Person sheet shares vy_teacher_sheet's row shape; fromSheet.ts branches validateTeacherSheet on sheetKind (2026-09-13)",
+      "at": "context/decisions.md#ws-r151-person-sheet-shares-the-teacher-row-and-a-branched-validator"
+    },
+    {
+      "id": "ws-r151-crisis-lines-and-escalation-route-required-for-a-person-sheet-too",
+      "kind": "decision",
+      "title": "crisisLines and escalationRoute stay required for a person sheet, beyond the brief's own list (2026-09-13)",
+      "at": "context/decisions.md#ws-r151-crisis-lines-and-escalation-route-required-for-a-person-sheet-too"
+    },
+    {
+      "id": "ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet",
+      "kind": "decision",
+      "title": "PLATFORM_BOUNDARY/PLATFORM_STAGE_* stay teacher-worded and unconditional for a person sheet, per the brief's own law 3 (2026-09-13)",
+      "at": "context/decisions.md#ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet"
+    },
+    {
+      "id": "ws-r151-person-ai-boundary-text-still-says-teacher",
+      "kind": "open",
+      "title": "A published person's AI compiled prompt still says 'you are a teacher' and 'this student's trust' (open, WS-R151)",
+      "at": "context/decisions.md#ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet"
+    },
+    {
+      "id": "ws-r151-humanos-seed-reuses-demo-teachers-floor-fields-never-invents-a-person-floor",
+      "kind": "decision",
+      "title": "HumanOsStudio's person seed reuses DEMO_TEACHER's floor fields rather than inventing a person floor (2026-09-13)",
+      "at": "context/decisions.md#ws-r151-humanos-seed-reuses-demo-teachers-floor-fields-never-invents-a-person-floor"
+    },
+    {
+      "id": "ws-r151-enrich-menu-gains-its-first-deep-linkable-subview",
+      "kind": "decision",
+      "title": "CloneExperience's enrich menu gains its first deep-linkable subview, ?enrichView=humanos, and a studio:humanos gate target (2026-09-13)",
+      "at": "context/decisions.md#ws-r151-enrich-menu-gains-its-first-deep-linkable-subview"
+    },
+    {
+      "id": "ws-r151-literal-unicode-dash-in-a-copy-banning-regex-trips-the-copy-gate",
+      "kind": "rejection",
+      "title": "A literal em/en dash inside a dash-ban regex trips scripts/check-copy.mjs; fix with \\u2013/\\u2014 (2026-09-13)",
+      "at": "context/rejected.md#ws-r151-literal-unicode-dash-in-a-copy-banning-regex-trips-the-copy-gate"
+    },
+    {
+      "id": "ws-r151-ink-faint-on-paper-fails-contrast-for-a-long-field-note",
+      "kind": "rejection",
+      "title": "--ink-faint on --paper measures 3.67:1, under the 4.5:1 AA floor, on a long field-note no earlier target reached (2026-09-13)",
+      "at": "context/rejected.md#ws-r151-ink-faint-on-paper-fails-contrast-for-a-long-field-note"
+    },
+    {
+      "id": "ws-r151-person-sheet-validator-and-suite-counts",
+      "kind": "measurement",
+      "title": "evals/person-sheet (41/41) and evals/teachersheet.mjs (132/132) plus the teacher-sheet-* regression battery, all offline, 2026-09-13",
+      "at": "context/measurements.md#ws-r151-person-sheet-validator-and-suite-counts"
+    },
+    {
+      "id": "ws-r151-studio-humanos-accessibility-and-layout-gate",
+      "kind": "measurement",
+      "title": "studio:humanos accessibility gate: 1 serious color-contrast finding, then 0 after a scoped fix; layout gate: 15 prose blocks judged, clean (2026-09-13)",
+      "at": "context/measurements.md#ws-r151-studio-humanos-accessibility-and-layout-gate"
+    },
+    {
+      "id": "ws-r151-person-disclosure-line-unwired",
+      "kind": "open",
+      "title": "api/_room-publish.js's personDisclosureLine has no caller yet; _room-about.js/_room-card.js are outside this workstream's Build list (open, WS-R151)",
+      "at": "api/_room-publish.js"
+    },
+    {
+      "id": "ws-r151-full-gate-under-extreme-shared-load",
+      "kind": "measurement",
+      "title": "verify-release.mjs under load average 47-60 (ten concurrent gates): 16/24 clean, 2 port collisions, eval-suite step timed out, then every remaining check run individually and clean bar one load flake (2026-09-13)",
+      "at": "context/measurements.md#ws-r151-full-gate-under-extreme-shared-load"
     }
   ],
   "edges": [
@@ -30439,6 +30517,71 @@
       "src": "codex-handoff206-adopted-as-the-base",
       "dst": "gate-on-the-merged-handoff206-tree-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r151-person-sheet-shares-the-teacher-row-and-a-branched-validator",
+      "rel": "part_of",
+      "dst": "ws-r151-humanos-the-person-sheet"
+    },
+    {
+      "src": "ws-r151-crisis-lines-and-escalation-route-required-for-a-person-sheet-too",
+      "rel": "part_of",
+      "dst": "ws-r151-humanos-the-person-sheet"
+    },
+    {
+      "src": "ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet",
+      "rel": "part_of",
+      "dst": "ws-r151-humanos-the-person-sheet"
+    },
+    {
+      "src": "ws-r151-humanos-seed-reuses-demo-teachers-floor-fields-never-invents-a-person-floor",
+      "rel": "part_of",
+      "dst": "ws-r151-humanos-the-person-sheet"
+    },
+    {
+      "src": "ws-r151-enrich-menu-gains-its-first-deep-linkable-subview",
+      "rel": "part_of",
+      "dst": "ws-r151-humanos-the-person-sheet"
+    },
+    {
+      "src": "ws-r151-person-ai-boundary-text-still-says-teacher",
+      "rel": "caused_by",
+      "dst": "ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet"
+    },
+    {
+      "src": "ws-r151-person-sheet-shares-the-teacher-row-and-a-branched-validator",
+      "rel": "measured_by",
+      "dst": "ws-r151-person-sheet-validator-and-suite-counts"
+    },
+    {
+      "src": "ws-r151-crisis-lines-and-escalation-route-required-for-a-person-sheet-too",
+      "rel": "measured_by",
+      "dst": "ws-r151-person-sheet-validator-and-suite-counts"
+    },
+    {
+      "src": "ws-r151-ink-faint-on-paper-fails-contrast-for-a-long-field-note",
+      "rel": "caused_by",
+      "dst": "ws-r151-enrich-menu-gains-its-first-deep-linkable-subview"
+    },
+    {
+      "src": "ws-r151-enrich-menu-gains-its-first-deep-linkable-subview",
+      "rel": "measured_by",
+      "dst": "ws-r151-studio-humanos-accessibility-and-layout-gate"
+    },
+    {
+      "src": "ws-r151-person-disclosure-line-unwired",
+      "rel": "part_of",
+      "dst": "ws-r151-humanos-the-person-sheet"
+    },
+    {
+      "src": "ws-r151-literal-unicode-dash-in-a-copy-banning-regex-trips-the-copy-gate",
+      "rel": "caused_by",
+      "dst": "ws-r151-humanos-the-person-sheet"
+    },
+    {
+      "src": "ws-r151-humanos-the-person-sheet",
+      "rel": "measured_by",
+      "dst": "ws-r151-full-gate-under-extreme-shared-load"
     }
   ]
 }

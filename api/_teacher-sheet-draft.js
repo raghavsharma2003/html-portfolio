@@ -114,7 +114,7 @@ async function ownedReplica(db, ownerUserId, replicaId) {
 // Explicit ownership takes precedence over the legacy agent-only join: a row
 // belonging to another replica cannot become readable through a shared agent.
 export const PRIVATE_TEACHER_SHEET_READ_SQL = `select s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
-            s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
+            s.consent_artifact_id, s.created_at, s.updated_at, s.published_at, s.sheet_kind
        from vy_teacher_sheet s
        join vy_replica r on r.agent_id = s.agent_id or r.replica_id = s.replica_id
       where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
@@ -142,24 +142,26 @@ export const PRIVATE_TEACHER_SHEET_SAVE_SQL = `with owned as materialized (
      ), updated as (
        update vy_teacher_sheet s
           set sheet = $3::jsonb, version = $4, status = 'draft', updated_at = now(),
-              replica_id = o.replica_id, owner_user_id = o.owner_user_id
+              replica_id = o.replica_id, owner_user_id = o.owner_user_id,
+              sheet_kind = $6::text
          from existing e cross join owned o
         where s.sheet_id = e.sheet_id and s.status in ('draft','validated')
           and ((s.replica_id = o.replica_id and s.owner_user_id = o.owner_user_id
                  and (s.agent_id is null or s.agent_id = o.agent_id))
             or (s.replica_id is null and s.owner_user_id is null and s.agent_id = o.agent_id))
        returning s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
-                 s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
+                 s.consent_artifact_id, s.created_at, s.updated_at, s.published_at, s.sheet_kind
      ), inserted as (
-       insert into vy_teacher_sheet (sheet_id, agent_id, replica_id, owner_user_id, version, sheet, status)
-       select $5::uuid, o.agent_id, o.replica_id, o.owner_user_id, $4, $3::jsonb, 'draft' from owned o
+       insert into vy_teacher_sheet (sheet_id, agent_id, replica_id, owner_user_id, version, sheet, status, sheet_kind)
+       select $5::uuid, o.agent_id, o.replica_id, o.owner_user_id, $4, $3::jsonb, 'draft', $6::text from owned o
         where not exists (select 1 from existing)
        on conflict (replica_id) where replica_id is not null and status = 'draft'
-       do update set sheet = excluded.sheet, version = excluded.version, updated_at = now()
+       do update set sheet = excluded.sheet, version = excluded.version, updated_at = now(),
+                     sheet_kind = excluded.sheet_kind
          where vy_teacher_sheet.owner_user_id = $2::uuid
            and vy_teacher_sheet.agent_id is not distinct from excluded.agent_id
        returning sheet_id, agent_id, version, sheet, status,
-                 consent_artifact_id, created_at, updated_at, published_at
+                 consent_artifact_id, created_at, updated_at, published_at, sheet_kind
      )
      select * from updated union all select * from inserted`;
 
@@ -168,7 +170,7 @@ export const PRIVATE_TEACHER_SHEET_SAVE_SQL = `with owned as materialized (
  *  draws: a `consentArtifactId` inside the jsonb is the studio's CLAIM, the
  *  column is the platform's RECORD, and the gate reads the column. */
 function clientSheet(row) {
-  if (!row) return { draft: null, updated_at: null, status: "draft", version: "", sheet_id: null, consent_artifact_id: null };
+  if (!row) return { draft: null, updated_at: null, status: "draft", version: "", sheet_id: null, consent_artifact_id: null, sheet_kind: "teacher" };
   return {
     draft: row.sheet ?? null,
     updated_at: row.updated_at ?? row.created_at ?? null,
@@ -180,13 +182,18 @@ function clientSheet(row) {
     // "consent on file / not yet"; it does not need the artifact's uuid, and a
     // uuid in a response body is a uuid in a browser's network log.
     consent_artifact_id: row.consent_artifact_id ? "present" : null,
+    // WS-R151 (migration 163). The COLUMN, not the jsonb's own claim — the
+    // same "column is the record" rule this file's header states for
+    // `consentArtifactId`. Defaults to "teacher" for any row read before this
+    // workstream, matching the column's own default.
+    sheet_kind: row.sheet_kind || "teacher",
   };
 }
 
 // Publication has a bound-only reader. A shared agent is never authority over
 // an explicitly replica-owned sheet; only historical rows use agent-only scope.
 export const BOUND_TEACHER_SHEET_READ_SQL = `select s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
-            s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
+            s.consent_artifact_id, s.created_at, s.updated_at, s.published_at, s.sheet_kind
        from vy_teacher_sheet s
        join vy_replica r on r.agent_id = s.agent_id
       where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
@@ -230,7 +237,7 @@ export const BOUND_TEACHER_SHEET_PUBLISH_SQL = `with owned as materialized (
         and ((s.replica_id = o.replica_id and s.owner_user_id = o.owner_user_id)
           or (s.replica_id is null and s.owner_user_id is null))
     returning s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
-              s.consent_artifact_id, s.created_at, s.updated_at, s.published_at`;
+              s.consent_artifact_id, s.created_at, s.updated_at, s.published_at, s.sheet_kind`;
 
 async function currentRow(db, ownerUserId, replicaId) {
   const rows = await db(
@@ -339,6 +346,13 @@ export async function saveOwnedTeacherSheetDraft(db, ownerUserId, replicaIdValue
 
   const validation = validateTeacherSheet(sheet);
   const version = typeof sheet.version === "string" ? sheet.version : "";
+  // WS-R151 (migration 163): the sheet's OWN claim decides the column, the
+  // same way `version` above is read straight off the submitted body — this
+  // is a save, not a publish, and a draft that has not yet cleared any gate
+  // is still allowed to say which shape it is. Any value other than the
+  // literal "person" is "teacher", matching the column's own CHECK and its
+  // `not null default 'teacher'`.
+  const sheetKind = sheet.sheetKind === "person" ? "person" : "teacher";
 
   // An explicit save stores exactly the submitted incomplete draft. It does
   // not seed an identity or activate an agent. Published and revoked rows are
@@ -347,7 +361,7 @@ export async function saveOwnedTeacherSheetDraft(db, ownerUserId, replicaIdValue
   // concurrent first saves even when both statements began before insertion.
   const rows = await db(
     PRIVATE_TEACHER_SHEET_SAVE_SQL,
-    [replicaId, ownerUserId, JSON.stringify(sheet), version, newSheetId()],
+    [replicaId, ownerUserId, JSON.stringify(sheet), version, newSheetId(), sheetKind],
   );
   if (!rows[0]) fail("teacher_sheet_write_failed", 409, { replica_id: replicaId });
 

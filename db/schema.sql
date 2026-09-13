@@ -8995,3 +8995,11 @@ create table if not exists vy_processing_gpu_child (
  claimed_at timestamptz not null default now(), response_at timestamptz,
  primary key(window_id,job_sha256), unique(window_id,operation)
 );
+
+-- 163: HumanOS, the person sheet. A row is a TEACHER's compiled sheet or a
+-- PERSON's; same row shape either way, see migration 163's own header.
+alter table vy_teacher_sheet add column if not exists sheet_kind text not null default 'teacher';
+
+alter table vy_teacher_sheet drop constraint if exists vy_teacher_sheet_sheet_kind_check;
+
+alter table vy_teacher_sheet add constraint vy_teacher_sheet_sheet_kind_check check (sheet_kind in ('teacher','person'));

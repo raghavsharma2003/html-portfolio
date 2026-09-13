@@ -244,5 +244,43 @@ ok(
   !brokenWithConsent.ok && brokenWithConsent.blockers.length === 0 && brokenWithConsent.errors.length > 0,
 );
 
+// ── 6. WS-R151: sheetKind default equivalence, teacher-kind regression ─────
+// Migration 163 adds `sheet_kind` beside this sheet; `fromSheet.ts`'s
+// validator now branches on the sheet's own `sheetKind` claim. Every check
+// above ran against `DEMO_TEACHER`, which carries no `sheetKind` at all —
+// this is the assertion that "absent" and "explicitly teacher" are the same
+// input to the validator, which is what makes every sheet saved before this
+// workstream still validate exactly as it always did (the brief's own
+// promise, "a teacher sheet compiles byte-identically to today"). The full
+// person-kind validator (required/optional fields, the person-only checks,
+// the negative controls) lives in `evals/person-sheet`, per this
+// workstream's own Build list — this file's job is only the teacher-kind
+// regression, which is what a suite already named "teacher-sheet" should
+// prove when a sibling kind is introduced.
+console.log("\n── WS-R151: sheetKind is additive, not a behavior change for a teacher sheet ──");
+const explicitTeacher = validateTeacherSheet(withField({ sheetKind: "teacher" }));
+ok(
+  "sheetKind:'teacher' explicit and sheetKind absent produce the identical verdict",
+  explicitTeacher.ok === accepted.ok && codes(explicitTeacher) === codes(accepted),
+  `${codes(explicitTeacher)} vs ${codes(accepted)}`,
+);
+const personShapedButWrongKindClaim = validateTeacherSheet({ ...DEMO_TEACHER, sheetKind: "not-a-real-kind" });
+ok(
+  "an unrecognized sheetKind claim falls through to the teacher path (fail closed toward the STRICTER validator, never toward the looser one)",
+  personShapedButWrongKindClaim.ok === accepted.ok,
+);
+const teacherAsPerson = validateTeacherSheet({ ...DEMO_TEACHER, sheetKind: "person" });
+ok(
+  "a fully-populated TEACHER sheet reinterpreted as sheetKind:'person' does not inherit any teacher-only failure (personLine/personValues/personNeverSay/personTalk are what it is missing, nothing from the pedagogy set)",
+  !teacherAsPerson.errors.some((e) =>
+    [
+      "subjectStrands", "examTrack", "doubtEscalationLadder", "rigorFloor",
+      "boardVerbalisms", "commonMistakeBank", "analogyBank",
+      "subjectDomain", "pacePreference", "strictness", "warmth",
+    ].includes(e.field),
+  ),
+  codes(teacherAsPerson),
+);
+
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} CHECKS PASS`);
 process.exitCode = fail ? 1 : 0;

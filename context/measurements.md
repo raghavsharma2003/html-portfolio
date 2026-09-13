@@ -17842,3 +17842,54 @@ Method: `node scripts/verify-release.mjs` (24 checks) on the build container, ma
 Vercel: eight consecutive git-connected deployments of codex/handoff206 (2026-09-09) ERROR in 7 s at the install phase; the last READY deployment of this branch family was `61385c5`.
 
 Live database (Neon `neondb`, read-only catalog query): 180 `vy_` tables; none of the 26 tables that migrations 137 to 162 and the local-voice reconciliation artifacts 074 and 075 create is present. Codex applied those only to the isolated development database `vyakti_expert_integration_20260906` (198 tables).
+
+## `ws-r151-person-sheet-validator-and-suite-counts` (2026-09-13, WS-R151)
+
+Method: `node evals/person-sheet/run.mjs` (new suite) and `node evals/teachersheet.mjs` (existing, plus this workstream's own regression section), offline, no DB, bundled fresh from source each run, on this worktree at commit 54e553e plus this session's changes.
+
+| suite | n | result |
+|---|---|---|
+| `evals/person-sheet/run.mjs` | 41 checks | 41/41 pass |
+| `evals/teachersheet.mjs` | 132 checks (129 pre-existing + 3 new WS-R151 regression checks) | 132/132 pass |
+| `evals/run.mjs teacher-sheet-private` | 18 fixture groups | 18/18 pass |
+| `evals/run.mjs teacher-sheet-publication` | 9 groups | 9/9 pass |
+| `evals/run.mjs teacher-sheet-adoption` | 10 groups | 10/10 pass |
+| `evals/run.mjs teacher-sheet-adoption-harness` | 8 groups | 8/8 pass |
+| `evals/run.mjs private-draft-invalid-display` | 17 checks | 17/17 pass |
+| `evals/run.mjs ingest` | (full suite) | ALL 84 CHECKS PASS |
+| `evals/run.mjs teacher-sheet-edit-races` | 54 groups | 54/54 pass |
+| `evals/run.mjs room-doors` | 2251 cases | 2251 ok, 0 failed |
+| `npx tsc -b --force` | whole tree | 0 errors |
+
+All run against `_teacher-sheet-draft.js`'s new `sheet_kind` column and its threaded `$6` bind parameter, `fromSheet.ts`'s branched `validateTeacherSheet`, and `api/_room-publish.js`'s new `personDisclosureLine` — none regressed the teacher path, and none needed a live database (every suite above is offline by contract).
+
+## `ws-r151-studio-humanos-accessibility-and-layout-gate` (2026-09-13, WS-R151)
+
+Method: `node scripts/check-accessibility.mjs --only studio:humanos` and `node scripts/check-layout.mjs --only studio:humanos`, real Chromium, real `dist/` build, this worktree, 2026-09-13.
+
+- **First run (accessibility), before the fix:** 1 `serious` axe-core `color-contrast` finding on `#humanos-line-note` and one sibling `.field-note` element, measured contrast 3.67:1 against a 4.5:1 floor (`--ink-faint` `#7a7e74` on `--paper` `#f4f1e9`). Logged as `context/rejected.md#ws-r151-ink-faint-on-paper-fails-contrast-for-a-long-field-note`.
+- **Second run (accessibility), after `humanos-studio.css`'s scoped `.humanos-card .field-note { color: var(--ink); }` override:** `0 critical/serious across 31 page(s) (0 moderate, 0 minor reported), 0 keyboard findings, 0 language-tag findings (675 Devanagari text node(s) checked, 55 own-attribute lang="hi" element(s) checked)`.
+- **Layout gate (`check-layout.mjs --only studio:humanos`):** port 8931 (this gate's fixed port) stayed bound by another process for the first ~35 minutes of this session's attempts (one immediate collision, then a bounded wait loop with `python3` socket-bind checks every 15s, all 24 attempts BUSY — per `ws-common.md`, "a port collision is never a pass and never a failure of yours"). A later check found the port free and the run completed: `ok layout readability: 15 prose blocks judged across 390, 834, 1355px x studio:humanos:humanos`.
+
+## `ws-r151-full-gate-under-extreme-shared-load` (2026-09-13, WS-R151)
+
+Method: `node scripts/verify-release.mjs` once, foreground, `timeout 1500`, on this worktree with every change described above already committed to the working tree; machine load average measured 47-60 throughout (`uptime`, ten sibling wave-21 workstreams each running their own full gate concurrently — confirmed via `ps aux`, ~60 node processes across the ten worktrees at once).
+
+- **Steps that ran to completion inside the one `verify-release.mjs` attempt, in order, all PASS:** typecheck, prompt budget, workflow lint, Vercel upload boundary, deploy verifier, motion lint, brand reveal sound, board legibility, chrome copy, mirrored constants, enrollment sample rate, enrollment bandwidth, engine bundle fresh, stuck-turn endpoint, one voice, web build (16 of 24).
+- **Steps that collided on a port INSIDE that attempt:** layout readability (8931) and performance budgets (8932), both `EADDRINUSE` from a sibling's concurrent gate — logged per `ws-common.md`'s own rule, not treated as a failure.
+- **The eval-suite step was still running when the 1500s wrapper timeout killed the whole process** (exit 143) — not a failure of the suite, a budget too small for this machine's load at that moment.
+- **Every remaining check then run individually, once the full orchestrated attempt was abandoned per the main loop's own note to this workstream** ("do not wait indefinitely for an uncontended full gate, the main loop reruns the full gate at merge"):
+
+| check | result |
+|---|---|
+| `scripts/check-contrast.mjs` (board legibility) | ok — unaffected by `.humanos-card`, Meera's landing pages only |
+| `scripts/check-headers.mjs` (security headers) | `ok security headers: 0 findings across 10 page target(s) + supply chain` |
+| `scripts/check-performance.mjs --json` (performance budgets) | `status: "passed", exitCode: 0, findings: [], staticFindings: []` |
+| `scripts/check-layout.mjs --only studio:humanos` | ok, 15 prose blocks judged (see above) |
+| `scripts/check-accessibility.mjs --only studio:humanos` | ok, 0 critical/serious (see above, after the contrast fix) |
+| `evals/room-leak/run.mjs` | `341 passed, 0 failed` |
+| `evals/room-export/run.mjs` | `48 passed, 0 failed` |
+| `evals/room-doors/run.mjs` | `2251 ok, 0 failed` (also reported earlier in this file) |
+| `evals/run.mjs` (the full ~416-suite registry, standalone, `timeout 2400`) | ran to at least suite 57 of the registry with every suite `ok` except one (`browser-resource`, see below); this process was still running when this entry was written and its own final tally is not recorded here — see the STATE.md session log for whether it was confirmed complete before this session ended |
+
+**One suite failed under the pooled registry and passed alone: `browser-resource`.** `FAIL browser-resource (29913ms)` inside the pooled `evals/run.mjs` run; `node evals/browser-resource/run.mjs` alone: `12/12 ok`. That suite asserts real wall-clock concurrency bounds on the eval runner's OWN browser-resource scheduler (a 12000ms deadline, a `max(active)<=2` assertion) — timing-sensitive by construction, and this workstream touches none of `evals/runner-lib.mjs`, `evals/browser-resource/`, or `evals/suite-resources.mjs`. Read as a load-induced flake, the same shape `context/rejected.md#recovery-fixture-raced-reacts-commit` already documents for a different suite under the identical "passes alone, fails pooled under load" pattern — not re-filed as its own rejected.md entry since it names no defect and no fix, only a measurement.
