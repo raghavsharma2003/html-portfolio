@@ -12,6 +12,8 @@ import type {
   SourceKind,
   VoiceBuildIntent,
 } from "./types";
+import { useStudioLocale } from "./localeContext";
+import type { CloneVerificationJourneyCopy } from "./copy";
 
 // Each ceremony is reached only after the previous gate has passed. Loading
 // its implementation at that point keeps the first mobile recording journey
@@ -193,16 +195,16 @@ function fileBytes(bytes: number) {
   return `${(bytes / 1_048_576).toFixed(bytes >= 10_485_760 ? 0 : 1)} MB`;
 }
 
-function identityFile(file: File): IdentityFile | { problem: string } {
-  if (file.size < 1) return { problem: "This file is empty." };
-  if (file.size > IDENTITY_MAX_BYTES) return { problem: "The document is larger than 50 MB." };
+function identityFile(file: File, copy: CloneVerificationJourneyCopy["identity"]): IdentityFile | { problem: string } {
+  if (file.size < 1) return { problem: copy.fileEmpty };
+  if (file.size > IDENTITY_MAX_BYTES) return { problem: copy.fileTooLarge };
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
   const inferred = extension === "pdf" ? "application/pdf"
     : extension === "png" ? "image/png"
       : extension === "jpg" || extension === "jpeg" ? "image/jpeg" : "";
   const declared = file.type.split(";", 1)[0].trim().toLowerCase();
   const mime = IDENTITY_MIMES.has(declared) ? declared : inferred;
-  if (!IDENTITY_MIMES.has(mime)) return { problem: "Choose a JPEG, PNG, or PDF." };
+  if (!IDENTITY_MIMES.has(mime)) return { problem: copy.chooseFileType };
   return { file, mime, kind: mime === "application/pdf" ? "document" : "image" };
 }
 
@@ -219,6 +221,8 @@ function Icon({ name }: { name: "back" | "lock" | "check" | "file" }) {
 }
 
 function VerificationProgress({ stage }: { stage: CloneVerificationStage }) {
+  const { t } = useStudioLocale();
+  const copy = t.cloneVerificationJourney;
   const current = stage === "source_processing" ? 0
     : stage === "identity_document" || stage === "identity_proof" ? 1
     : stage === "liveness" ? 2
@@ -226,17 +230,19 @@ function VerificationProgress({ stage }: { stage: CloneVerificationStage }) {
         : stage === "review" ? 4
           : stage === "building" || stage === "complete" ? 5 : 0;
   return (
-    <div className="cvj-progress" role="img" aria-label={current ? `Verification step ${current} of 5` : "Verification paused"}>
+    <div className="cvj-progress" role="img" aria-label={current ? copy.verificationStepTemplate.replace("{n}", String(current)) : copy.verificationPaused}>
       {Array.from({ length: 5 }, (_, index) => <i key={index} data-state={index + 1 < current ? "done" : index + 1 === current ? "current" : "next"} />)}
     </div>
   );
 }
 
 function JourneyHeader({ replica, stage, onExit, exitLabel }: { replica: Replica; stage: CloneVerificationStage; onExit?: () => void; exitLabel?: string }) {
+  const { t } = useStudioLocale();
+  const copy = t.cloneVerificationJourney;
   return (
     <header className={`cvj-header${onExit && exitLabel ? " cvj-header--labelled-exit" : ""}`}>
-      {onExit ? exitLabel ? <button className="cvj-exit-link" type="button" onClick={onExit}><Icon name="back" /><span>{exitLabel}</span></button> : <button className="cvj-icon-button" type="button" aria-label="Leave verification" onClick={onExit}><Icon name="back" /></button> : <span />}
-      <div className="cvj-header__identity"><strong>Make {replica.display_name} yours</strong><span>Private verification</span></div>
+      {onExit ? exitLabel ? <button className="cvj-exit-link" type="button" onClick={onExit}><Icon name="back" /><span>{exitLabel}</span></button> : <button className="cvj-icon-button" type="button" aria-label={copy.leaveVerification} onClick={onExit}><Icon name="back" /></button> : <span />}
+      <div className="cvj-header__identity"><strong>{copy.makeYoursTemplate.replace("{name}", replica.display_name)}</strong><span>{copy.privateVerification}</span></div>
       <VerificationProgress stage={stage} />
     </header>
   );
@@ -267,6 +273,8 @@ function FocusedMessage({
 }
 
 function LegacySelfTestReset({ onReset }: { onReset: () => Promise<boolean> }) {
+  const { t } = useStudioLocale();
+  const copy = t.cloneVerificationJourney.legacyReset;
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -277,9 +285,9 @@ function LegacySelfTestReset({ onReset }: { onReset: () => Promise<boolean> }) {
     setError("");
     try {
       const started = await onReset();
-      if (!started) setError("Erasure did not start. This test clone is still blocked. Try again.");
+      if (!started) setError(copy.erasureFailedError);
     } catch {
-      setError("Erasure did not start. This test clone is still blocked. Try again.");
+      setError(copy.erasureFailedError);
     } finally {
       setBusy(false);
     }
@@ -289,17 +297,17 @@ function LegacySelfTestReset({ onReset }: { onReset: () => Promise<boolean> }) {
     <section className="cvj-focus cvj-focus--blocked" aria-labelledby="cvj-focus-title">
       <span className="cvj-focus__mark"><Icon name="lock" /></span>
       <div>
-        <h1 id="cvj-focus-title">This test clone cannot continue.</h1>
-        <p>An older internal test permission was used to build this draft. It cannot continue through real verification. Erase this test clone and begin again with a clean record.</p>
+        <h1 id="cvj-focus-title">{copy.title}</h1>
+        <p>{copy.body}</p>
       </div>
       {!confirming ? (
-        <button className="cvj-primary" type="button" onClick={() => setConfirming(true)}>Start clean</button>
+        <button className="cvj-primary" type="button" onClick={() => setConfirming(true)}>{copy.startClean}</button>
       ) : (
-        <div className="cvj-reset-confirm" role="group" aria-label="Confirm test clone erasure">
-          <p>This blocks the clone now and starts verified erasure of its recordings and derived data. The new clone will not inherit this draft or its permissions.</p>
+        <div className="cvj-reset-confirm" role="group" aria-label={copy.confirmAriaLabel}>
+          <p>{copy.confirmBody}</p>
           <div className="cvj-actions">
-            <button className="cvj-primary cvj-primary--danger" type="button" disabled={busy} onClick={() => void reset()}>{busy ? "Starting erasure" : "Erase and start again"}</button>
-            <button className="cvj-quiet" type="button" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
+            <button className="cvj-primary cvj-primary--danger" type="button" disabled={busy} onClick={() => void reset()}>{busy ? copy.startingErasure : copy.eraseAndStartAgain}</button>
+            <button className="cvj-quiet" type="button" disabled={busy} onClick={() => setConfirming(false)}>{copy.cancel}</button>
           </div>
         </div>
       )}
@@ -323,6 +331,8 @@ function IdentityDocumentUpload({
   onDeleteSource: CloneVerificationJourneyProps["onDeleteSource"];
   onChanged: CloneVerificationJourneyProps["onSourcesChanged"];
 }) {
+  const { t } = useStudioLocale();
+  const copy = t.cloneVerificationJourney.identity;
   const [selected, setSelected] = useState<IdentityFile | null>(null);
   const [declared, setDeclared] = useState(false);
   const [phase, setPhase] = useState<IdentityUploadPhase>("idle");
@@ -336,7 +346,7 @@ function IdentityDocumentUpload({
 
   function choose(file: File | undefined) {
     if (!file) return;
-    const result = identityFile(file);
+    const result = identityFile(file, copy);
     setError("problem" in result ? result.problem : "");
     setSelected("problem" in result ? null : result);
     setDeclared(false);
@@ -347,7 +357,7 @@ function IdentityDocumentUpload({
 
   async function finishUpload(retry = false) {
     const file = retryRef.current?.file ?? selected?.file;
-    const input = selected ?? (file ? identityFile(file) : null);
+    const input = selected ?? (file ? identityFile(file, copy) : null);
     if (!file || !input || "problem" in input || (!retry && !declared)) return;
     setError("");
     try {
@@ -381,7 +391,7 @@ function IdentityDocumentUpload({
         uploaded = retried.finalized;
       }
       if (!uploaded) {
-        if (!upload) throw new Error("Private upload authorization is missing.");
+        if (!upload) throw new Error(copy.uploadAuthMissing);
         setPhase("uploading");
         setProgress(0);
         await putSignedUpload(file, upload, setProgress);
@@ -401,7 +411,7 @@ function IdentityDocumentUpload({
       await onChanged();
     } catch (cause) {
       setPhase("failed");
-      setError(cause instanceof Error ? cause.message : "The private upload stopped before verification.");
+      setError(cause instanceof Error ? cause.message : copy.uploadStopped);
     }
   }
 
@@ -413,7 +423,7 @@ function IdentityDocumentUpload({
       await onDeleteSource(source.source_id);
       await onChanged();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The unfinished upload could not be removed.");
+      setError(cause instanceof Error ? cause.message : copy.removeFailed);
     } finally {
       setRemoving(false);
     }
@@ -423,10 +433,10 @@ function IdentityDocumentUpload({
     return (
       <section className="cvj-document cvj-document--waiting" aria-labelledby="cvj-document-title">
         <span className="cvj-focus__mark"><Icon name="lock" /></span>
-        <div><h1 id="cvj-document-title">Securing your document.</h1><p>{source.state === "pending_upload" ? "The private upload has not finished." : "Vyakti is checking the stored file. This page does not need another copy."}</p></div>
+        <div><h1 id="cvj-document-title">{copy.securingTitle}</h1><p>{source.state === "pending_upload" ? copy.uploadNotFinished : copy.checkingStoredFile}</p></div>
         <div className="cvj-actions">
-          <button className="cvj-primary" type="button" onClick={() => void onChanged()}>Check again</button>
-          {source.state === "pending_upload" ? <button className="cvj-quiet" type="button" disabled={removing} onClick={() => void removeUnfinished()}>{removing ? "Removing" : "Remove unfinished upload"}</button> : null}
+          <button className="cvj-primary" type="button" onClick={() => void onChanged()}>{copy.checkAgain}</button>
+          {source.state === "pending_upload" ? <button className="cvj-quiet" type="button" disabled={removing} onClick={() => void removeUnfinished()}>{removing ? copy.removing : copy.removeUnfinished}</button> : null}
         </div>
         {error && <p className="cvj-error" role="alert">{error}</p>}
       </section>
@@ -435,18 +445,18 @@ function IdentityDocumentUpload({
 
   return (
     <section className="cvj-document" aria-labelledby="cvj-document-title">
-      <div className="cvj-document__intro"><span className="cvj-focus__mark"><Icon name="file" /></span><div><h1 id="cvj-document-title">Add one private ID.</h1><p>A JPEG, PNG, or PDF confirms your age and identity. A separate live check connects you to the recording. The file is never used to train the clone.</p></div></div>
-      {source?.state === "rejected" ? <p className="cvj-error" role="alert">The previous document was not accepted. Choose a new file.</p> : null}
-      {source?.state === "deleting" ? <p className="cvj-wait" role="status">The old document is being erased. Check again before adding another.</p> : null}
+      <div className="cvj-document__intro"><span className="cvj-focus__mark"><Icon name="file" /></span><div><h1 id="cvj-document-title">{copy.addTitle}</h1><p>{copy.addBody}</p></div></div>
+      {source?.state === "rejected" ? <p className="cvj-error" role="alert">{copy.rejected}</p> : null}
+      {source?.state === "deleting" ? <p className="cvj-wait" role="status">{copy.deleting}</p> : null}
       <input ref={inputRef} className="cvj-file-input" id="cvj-id-file" type="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" disabled={busy || source?.state === "deleting"} onChange={(event) => choose(event.target.files?.[0])} />
-      <label className="cvj-file-picker" htmlFor="cvj-id-file"><Icon name="file" /><span><strong>{selected ? `${selected.mime === "application/pdf" ? "PDF" : "Image"} selected` : "Choose your ID"}</strong><small>{selected ? `${fileBytes(selected.file.size)} on this device` : "JPEG, PNG, or PDF up to 50 MB"}</small></span></label>
-      <label className="cvj-declaration"><input type="checkbox" checked={declared} disabled={!selected || busy} onChange={(event) => setDeclared(event.target.checked)} /><span>This current government ID shows only me.</span></label>
-      {busy ? <div className="cvj-upload-state" role="status" aria-live="polite"><div><strong>{phase === "hashing" ? "Checking the file" : phase === "authorizing" ? "Opening private storage" : phase === "uploading" ? "Uploading privately" : "Verifying the stored copy"}</strong><span>{phase === "hashing" || phase === "uploading" ? `${progress}%` : "Please keep this page open"}</span></div>{phase === "hashing" || phase === "uploading" ? <progress max="100" value={progress} aria-label="Private document upload progress" /> : <span className="cvj-indeterminate" aria-hidden="true" />}</div> : null}
-      {phase === "complete" ? <p className="cvj-success" role="status">Document secured. Opening the identity check.</p> : null}
+      <label className="cvj-file-picker" htmlFor="cvj-id-file"><Icon name="file" /><span><strong>{selected ? copy.typeSelectedTemplate.replace("{type}", selected.mime === "application/pdf" ? copy.pdfLabel : copy.imageLabel) : copy.chooseId}</strong><small>{selected ? copy.sizeOnDeviceTemplate.replace("{size}", fileBytes(selected.file.size)) : copy.fileTypesHint}</small></span></label>
+      <label className="cvj-declaration"><input type="checkbox" checked={declared} disabled={!selected || busy} onChange={(event) => setDeclared(event.target.checked)} /><span>{copy.declaration}</span></label>
+      {busy ? <div className="cvj-upload-state" role="status" aria-live="polite"><div><strong>{phase === "hashing" ? copy.statusChecking : phase === "authorizing" ? copy.statusAuthorizing : phase === "uploading" ? copy.statusUploading : copy.statusVerifying}</strong><span>{phase === "hashing" || phase === "uploading" ? `${progress}%` : copy.keepPageOpen}</span></div>{phase === "hashing" || phase === "uploading" ? <progress max="100" value={progress} aria-label={copy.uploadProgressAriaLabel} /> : <span className="cvj-indeterminate" aria-hidden="true" />}</div> : null}
+      {phase === "complete" ? <p className="cvj-success" role="status">{copy.documentSecured}</p> : null}
       {error && <p className="cvj-error" role="alert">{error}</p>}
-      <button className="cvj-primary" type="button" disabled={busy || !selected || !declared || source?.state === "deleting"} onClick={() => void finishUpload(false)}>{busy ? "Securing document" : phase === "failed" && retryRef.current ? "Retry private upload" : "Upload privately"}</button>
-      {phase === "failed" && retryRef.current ? <button className="cvj-quiet" type="button" onClick={() => void finishUpload(true)}>Retry without choosing the file again</button> : null}
-      <p className="cvj-privacy"><Icon name="lock" /> The file goes straight to private storage after you press Upload.</p>
+      <button className="cvj-primary" type="button" disabled={busy || !selected || !declared || source?.state === "deleting"} onClick={() => void finishUpload(false)}>{busy ? copy.securingDocument : phase === "failed" && retryRef.current ? copy.retryUpload : copy.uploadPrivately}</button>
+      {phase === "failed" && retryRef.current ? <button className="cvj-quiet" type="button" onClick={() => void finishUpload(true)}>{copy.retryWithoutChoosing}</button> : null}
+      <p className="cvj-privacy"><Icon name="lock" /> {copy.privacyNote}</p>
     </section>
   );
 }
@@ -456,14 +466,16 @@ function latestIdentitySource(sources: ReplicaSource[]) {
 }
 
 function DeferredVerificationStage({ stage }: { stage: CloneVerificationStage }) {
-  const label = stage === "identity_proof" ? "Opening the private identity check"
-    : stage === "liveness" ? "Opening the live identity check"
-      : stage === "model_consent" ? "Opening model permission"
-        : "Opening the evidence review";
+  const { t } = useStudioLocale();
+  const copy = t.cloneVerificationJourney.deferred;
+  const label = stage === "identity_proof" ? copy.identityProof
+    : stage === "liveness" ? copy.liveness
+      : stage === "model_consent" ? copy.modelConsent
+        : copy.review;
   return (
     <section className="cvj-build" role="status" aria-live="polite" aria-label={label}>
       <span className="cvj-build__signal"><VoiceField calm /></span>
-      <div><h1>{label}.</h1><p>Your completed steps stay saved while this screen opens.</p></div>
+      <div><h1>{label}.</h1><p>{copy.stepsSaved}</p></div>
     </section>
   );
 }
@@ -503,6 +515,8 @@ export default function CloneVerificationJourney(props: CloneVerificationJourney
     onRefreshReview,
     onAuthError,
   } = props;
+  const { t } = useStudioLocale();
+  const copy = t.cloneVerificationJourney.main;
   const [comparisonOpen,setComparisonOpen]=useState(false);
   const comparisonSource=candidateSourceId||sources.find(source=>source.voice_role==="primary")?.source_id;
   const comparisonScope=JSON.stringify([props.ownerUserId,token,replica.replica_id,comparisonSource,consents.map(c=>[c.consent_id,c.revoked_at,c.expires_at]),sources.filter(s=>s.source_id===comparisonSource).map(s=>[s.updated_at,s.state])]);
@@ -546,20 +560,20 @@ export default function CloneVerificationJourney(props: CloneVerificationJourney
   return (
     <div className="cvj-shell" data-stage={stage}>
       <JourneyHeader replica={replica} stage={stage} onExit={onExit} exitLabel={exitLabel} />
-      <main className={`cvj-stage cvj-stage--${stage}`} aria-label="Clone verification">
-        {stage === "stopped" ? <FocusedMessage icon="lock" tone="blocked" title="This clone is no longer active." body="Generation is blocked while verified erasure finishes." /> : null}
+      <main className={`cvj-stage cvj-stage--${stage}`} aria-label={copy.ariaLabel}>
+        {stage === "stopped" ? <FocusedMessage icon="lock" tone="blocked" title={copy.stopped.title} body={copy.stopped.body} /> : null}
         {stage === "self_test_blocked" ? <LegacySelfTestReset onReset={onResetLegacyClone} /> : null}
-        {stage === "source_permission" ? <FocusedMessage icon="lock" title="Permission needs attention." body="Your recording stays private. Building is paused until capture, transcription, and storage permission are active." label="Review permission" onAction={onOpenSourcePermission} /> : null}
-        {stage === "primary_source" ? <FocusedMessage icon="file" title="Finish your voice first." body="A prepared primary recording is required before identity verification can begin." label="Return to voice" onAction={onReturnToVoice} /> : null}
-        {stage === "source_processing" ? <section className="cvj-build" aria-labelledby="cvj-source-title"><span className="cvj-build__signal"><VoiceField calm /></span><div><h1 id="cvj-source-title">Preparing your recording.</h1><p>The private worker is checking the exact source you selected. Recent recordings took about 5 to 15 minutes after worker pickup; long files can take longer.</p></div><dl><div><dt>Automatic check</dt><dd>Every 10 seconds while this page is open</dd></div><div><dt>You can return</dt><dd>This continues on the server</dd></div></dl><button className="cvj-quiet" type="button" onClick={() => void onSourcesChanged().catch(onAuthError)}>Check now</button></section> : null}
+        {stage === "source_permission" ? <FocusedMessage icon="lock" title={copy.sourcePermission.title} body={copy.sourcePermission.body} label={copy.sourcePermission.label} onAction={onOpenSourcePermission} /> : null}
+        {stage === "primary_source" ? <FocusedMessage icon="file" title={copy.primarySource.title} body={copy.primarySource.body} label={copy.primarySource.label} onAction={onReturnToVoice} /> : null}
+        {stage === "source_processing" ? <section className="cvj-build" aria-labelledby="cvj-source-title"><span className="cvj-build__signal"><VoiceField calm /></span><div><h1 id="cvj-source-title">{copy.sourceProcessing.title}</h1><p>{copy.sourceProcessing.body}</p></div><dl><div><dt>{copy.sourceProcessing.autoCheckLabel}</dt><dd>{copy.sourceProcessing.autoCheckValue}</dd></div><div><dt>{copy.sourceProcessing.returnLabel}</dt><dd>{copy.sourceProcessing.returnValue}</dd></div></dl><button className="cvj-quiet" type="button" onClick={() => void onSourcesChanged().catch(onAuthError)}>{copy.sourceProcessing.checkNow}</button></section> : null}
         {stage === "identity_document" ? <IdentityDocumentUpload source={latestIdentitySource(sources)} onCreateUpload={onCreateSourceUpload} onRetryUpload={onRetryUpload} onFinalizeUpload={onFinalizeSourceUpload} onDeleteSource={onDeleteSource} onChanged={onSourcesChanged} /> : null}
         {stage === "identity_proof" ? <Suspense fallback={<DeferredVerificationStage stage={stage} />}><IdentityProofing token={token} replicaId={replica.replica_id} sources={sources} onChanged={onIdentityChanged} onAuthError={onAuthError} /></Suspense> : null}
         {stage === "liveness" ? <Suspense fallback={<DeferredVerificationStage stage={stage} />}><LivenessCapture scopeKey={JSON.stringify([token, replica.replica_id, consents.filter(receipt => receipt.scope === "capture" || receipt.scope === "storage").map(receipt => [receipt.consent_id, receipt.revoked_at, receipt.expires_at]), sources.filter(source => source.voice_role === "primary").map(source => [source.source_id, source.updated_at, source.state])])} expectedSourceId={candidateSourceId || sources.find(source => source.voice_role === "primary")?.source_id} consentActive={(comparisonSourceId ? privateConsentActive : sourceConsentActive) && replica.age_verified} challenge={challenge} loading={livenessLoading} onCheckReadiness={onCheckCaptureReadiness} onIssue={onIssueChallenge} onStartFace={onStartFaceSession} onPollFace={onPollFaceSession} onCancel={onCancelChallenge} onCreateUpload={onCreateLivenessUpload} onRetryUpload={onRetryUpload} onFinalize={onFinalizeLiveness} /></Suspense> : null}
-        {!["stopped","self_test_blocked","complete","building"].includes(stage) && privateConsentActive && props.ownerUserId ? <details className="cvj-comparison-disclosure" onToggle={event=>setComparisonOpen(event.currentTarget.open)}><summary>Review a prepared comparison recording</summary>{comparisonOpen?<Suspense fallback={<p>Opening private comparison review</p>}><ComparisonReferenceReview key={comparisonScope} token={token} ownerUserId={props.ownerUserId} replicaId={replica.replica_id} expectedSourceId={comparisonSource || ""} onAuthError={onAuthError} onSelectionChanged={refreshPrivateSelection}/></Suspense>:null}</details>:null}
+        {!["stopped","self_test_blocked","complete","building"].includes(stage) && privateConsentActive && props.ownerUserId ? <details className="cvj-comparison-disclosure" onToggle={event=>setComparisonOpen(event.currentTarget.open)}><summary>{copy.comparisonSummary}</summary>{comparisonOpen?<Suspense fallback={<p>{copy.openingComparisonReview}</p>}><ComparisonReferenceReview key={comparisonScope} token={token} ownerUserId={props.ownerUserId} replicaId={replica.replica_id} expectedSourceId={comparisonSource || ""} onAuthError={onAuthError} onSelectionChanged={refreshPrivateSelection}/></Suspense>:null}</details>:null}
         {stage === "model_consent" ? <Suspense fallback={<DeferredVerificationStage stage={stage} />}><ModelConsentGate token={token} replica={replica} consents={consents} onChanged={onVerifiedConsentChanged} onAuthError={onAuthError} /></Suspense> : null}
-        {stage === "review" ? <section className="cvj-review-stage" aria-label="Review voice evidence">{buildIntent?.state === "failed" || latestBuild?.state === "failed" ? <p className="cvj-platform-stop" role="alert"><strong>We could not finish building your voice.</strong><span>Check the results below. You only need a new recording if this one was rejected.</span></p> : null}{reviewLoading && !review ? <p className="cvj-wait" role="status">Loading your recording checks.</p> : null}<Suspense fallback={<DeferredVerificationStage stage={stage} />}><ProcessingReview token={token} replicaId={replica.replica_id} sourceCount={sources.length} onAuthError={onAuthError} /></Suspense></section> : null}
-        {stage === "building" ? <section className="cvj-build" aria-labelledby="cvj-build-title"><span className="cvj-build__signal"><VoiceField calm /></span><div><h1 id="cvj-build-title">Building your private voice.</h1><p>Your voice is building from your reviewed recording. This page checks progress every 10 seconds while open. You can leave and return.</p></div><dl><div><dt>Current state</dt><dd>{displayedBuildState === "retry" ? "Waiting for an automatic retry" : displayedBuildState === "leased" ? "Preparing to build" : displayedBuildState === "building" ? "Creating the draft" : "Queued"}</dd></div><div><dt>Completion</dt><dd>An estimate is not available yet</dd></div></dl>{onRefreshReview ? <button className="cvj-quiet" type="button" onClick={() => void onRefreshReview().catch(onAuthError)}>Check now</button> : null}</section> : null}
-        {stage === "complete" ? <FocusedMessage icon="check" tone="ready" title="Your draft voice is ready." body="This draft uses your reviewed recording. Listen before you approve or share it." label="Meet your clone" onAction={onContinue} /> : null}
+        {stage === "review" ? <section className="cvj-review-stage" aria-label="Review voice evidence">{buildIntent?.state === "failed" || latestBuild?.state === "failed" ? <p className="cvj-platform-stop" role="alert"><strong>{copy.review.failedStrong}</strong><span>{copy.review.failedSpan}</span></p> : null}{reviewLoading && !review ? <p className="cvj-wait" role="status">{copy.review.loading}</p> : null}<Suspense fallback={<DeferredVerificationStage stage={stage} />}><ProcessingReview token={token} replicaId={replica.replica_id} sourceCount={sources.length} onAuthError={onAuthError} /></Suspense></section> : null}
+        {stage === "building" ? <section className="cvj-build" aria-labelledby="cvj-build-title"><span className="cvj-build__signal"><VoiceField calm /></span><div><h1 id="cvj-build-title">{copy.building.title}</h1><p>{copy.building.body}</p></div><dl><div><dt>{copy.building.currentStateLabel}</dt><dd>{displayedBuildState === "retry" ? copy.building.stateRetry : displayedBuildState === "leased" ? copy.building.stateLeased : displayedBuildState === "building" ? copy.building.stateBuilding : copy.building.stateQueued}</dd></div><div><dt>{copy.building.completionLabel}</dt><dd>{copy.building.completionValue}</dd></div></dl>{onRefreshReview ? <button className="cvj-quiet" type="button" onClick={() => void onRefreshReview().catch(onAuthError)}>{copy.building.checkNow}</button> : null}</section> : null}
+        {stage === "complete" ? <FocusedMessage icon="check" tone="ready" title={copy.complete.title} body={copy.complete.body} label={copy.complete.label} onAction={onContinue} /> : null}
       </main>
     </div>
   );

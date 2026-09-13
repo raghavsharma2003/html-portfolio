@@ -131,19 +131,26 @@ const TARGETS = [
   },
   // WS-R159. `clone`'s own fixture and screens with `&lang=hi` appended --
   // `check-layout.mjs`'s own `studio-hi:personal` target, the same query
-  // shape, reused verbatim (this file's own header rule). Checks the four
-  // panels this workstream converted (ExpertConversation, PersonModelStudio,
-  // ExpertSharePanel, QuickVoiceCapture) for a missing accessible name or a
-  // lost focus ring specific to Devanagari rendering; `CloneExperience.tsx`'s
-  // own shell chrome around them is Tier 2 this session and stays English
-  // (context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist).
+  // shape, reused verbatim (this file's own header rule). WS-R166 converted
+  // the rest of this fixture's own reachable surface (CloneExperience.tsx's
+  // shell and menus, CloneVerificationJourney.tsx, VoicePreviewPanel.tsx,
+  // MirrorCallStudio.tsx, ContextLockerPanel.tsx); `call` is new this
+  // session -- the only way to reach MirrorCallStudio at all (no earlier
+  // target mounted the Call room in either locale). It reuses the SAME
+  // `scenario=voice-ready` as `voice`/`enrich`, which leaves `/api/mirror-call`
+  // at its fixture default, so this reaches MirrorCallStudio's own
+  // `backend_absent` state -- a real converted screen, not a synthetic one.
+  // `CloneVerificationJourney.tsx`'s own Hindi is not reached by any target
+  // here either, the same gap `check-layout.mjs`'s own comment on this
+  // target names: its `showVerification` state needs a `voiceSaga` seeded
+  // into `localStorage` before mount, which no fixture scenario provides.
   {
     name: "studio-hi:personal",
     fixture: "studio-layout-fixture.html",
     query: (screen) => screen === "capture"
       ? "step=feed&scenario=public-capture&lang=hi"
       : `step=meet&scenario=voice-ready&view=${screen}&lang=hi`,
-    screens: ["capture", "voice", "enrich"],
+    screens: ["capture", "voice", "enrich", "call"],
     mounted: ".vx-shell",
   },
   {
