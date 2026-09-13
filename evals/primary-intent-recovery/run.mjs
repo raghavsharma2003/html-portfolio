@@ -1,7 +1,6 @@
 import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync,mkdirSync,writeFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServer} from 'node:http';
@@ -12,8 +11,10 @@ const root=fileURLToPath(new URL('../../',import.meta.url));
 const base='da3ac2aeac29571ae45a4507d947b1cf603cf9c1';
 const sourceBase='ab50c782303c9a6f8825ee9ce25e505b7421795e';
 const current=readFileSync(join(root,'src/studio/CloneExperience.tsx'),'utf8').replaceAll('\r\n','\n');
-const old=execFileSync('git',['show',`${base}:src/studio/CloneExperience.tsx`],{cwd:root,encoding:'utf8'});
-const incumbent=execFileSync('git',['show',`${sourceBase}:src/studio/CloneExperience.tsx`],{cwd:root,encoding:'utf8'});
+// blobs from commits `base` and `sourceBase`, moved to committed fixtures
+// (context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites).
+const old=readFileSync(join(root,`evals/primary-intent-recovery/fixtures/${base.slice(0,8)}/src__studio__CloneExperience.tsx`),'utf8');
+const incumbent=readFileSync(join(root,`evals/primary-intent-recovery/fixtures/${sourceBase.slice(0,8)}/src__studio__CloneExperience.tsx`),'utf8');
 // The fixture mounts both actual full components, including the real saga poll effect.
 if(process.argv.includes('--verify-base-recorder')) assert.equal(current.slice(current.indexOf('function ResonanceRecorder('),current.indexOf('function Agreement(')),incumbent.slice(incumbent.indexOf('function ResonanceRecorder('),incumbent.indexOf('function Agreement(')),'recorder bytes stay unchanged from the candidate base');
 const caller=readFileSync(join(root,'src/studio/StudioApp.tsx'),'utf8').replaceAll('\r\n','\n');

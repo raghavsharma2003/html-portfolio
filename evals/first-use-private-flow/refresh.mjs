@@ -32,6 +32,105 @@ const hashes=Object.fromEntries(['src/studio/StudioApp.tsx','src/studio/CloneExp
 assert.deepEqual(statements.map(s=>s.id),['authorize_private_text_question','understand_ai_text_only','understand_private_retention_and_withdrawal']);
 assert(readFileSync(join(root,'api/_replica.js'),'utf8').includes("'consent_pending'"));
 assert(readFileSync(join(root,'src/studio/enrollmentApi.ts'),'utf8').includes('return data.consents;'));
+// WS-R165. THE RACE, MADE DETERMINISTIC: a focus/online resume that lands
+// WHILE the readiness-poll effect is already mid-poll — reproduced not by
+// chance under real CPU load (`context/rejected.md#first-use-refresh-
+// suite-races-under-load`: 4 of 10 real runs dropped it) but by literally
+// holding one of the poll's own reads open, on the REAL, current effect
+// text extracted from src/studio/StudioApp.tsx by name (never a hand-typed
+// paraphrase — `hashes` above already tracks that file for drift; this
+// extraction fails loudly, not silently, if the effect's shape moves). No
+// browser, no network, no real timers: `window.setTimeout` is a fake that
+// only RECORDS the delay it was asked to schedule.
+{
+ const studioSource=readFileSync(join(root,'src/studio/StudioApp.tsx'),'utf8');
+ const studioTree=ts.createSourceFile('StudioApp.tsx',studioSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ let effectText=null;
+ (function find(n){
+  if(ts.isCallExpression(n)&&ts.isIdentifier(n.expression)&&n.expression.text==='useEffect'&&n.arguments.length===2){
+   const deps=n.arguments[1];
+   if(ts.isArrayLiteralExpression(deps)&&deps.elements.some(e=>ts.isIdentifier(e)&&e.text==='readinessPending'))effectText=n.arguments[0].getText(studioTree);
+  }
+  ts.forEachChild(n,find);
+ })(studioTree);
+ assert(effectText,'the readiness-poll useEffect (deps include readinessPending) was not found in StudioApp.tsx — this fixture is stale, see WS-R165');
+ const currentJs=ts.transpileModule(effectText,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText.replace(/^"use strict";\s*/,'');
+ // Sanity: the extraction actually carries this workstream's own fix, not
+ // some other shape a future edit silently changed it to.
+ assert(currentJs.includes('resumeQueued'),'the extracted effect text no longer mentions resumeQueued — WS-R165\'s fix moved or was reverted; update this fixture rather than silently passing');
+ // Regex, not a literal-whitespace string: robust to `ts.transpileModule`'s
+ // own reformatting while still anchoring on the exact meaningful tokens —
+ // if either shape is gone, the `assert` below fails loudly rather than
+ // this fixture silently testing nothing.
+ const guardRe=/if \(polling\) \{\s*resumeQueued = true;\s*return;\s*\}\s*polling = true;\s*resumeQueued = false;/;
+ const scheduleRe=/const delay = resumeQueued \? 0 : IDLE_RECONCILE_MS;\s*resumeQueued = false;\s*timer = window\.setTimeout\(\(\) => \{ void refreshReadiness\(\); \}, delay\);/;
+ assert(guardRe.test(currentJs),'race-coalesce fixture: the current effect text no longer carries the expected fixed guard shape — update this fixture\'s guardRe/guard replacement');
+ assert(scheduleRe.test(currentJs),'race-coalesce fixture: the current effect text no longer carries the expected fixed schedule shape — update this fixture\'s scheduleRe/schedule replacement');
+ const oldJs=currentJs
+  .replace(guardRe,'if (polling)\n        return;\n        polling = true;')
+  .replace(scheduleRe,'timer = window.setTimeout(() => { void refreshReadiness(); }, IDLE_RECONCILE_MS);');
+ assert.notEqual(oldJs,currentJs,'race-coalesce fixture: the OLD revert is a no-op — the replace above matched nothing');
+ // A controlled harness: `window.setTimeout` only RECORDS the delay it was
+ // asked to schedule (never actually waits), and one of the poll's own
+ // three reads (`listSources`) is a promise this test holds open and
+ // releases by hand — "mid-poll" is therefore exact, not timing-dependent.
+ // Restated rather than imported (this harness runs plain JS via `new
+ // Function`, outside a bundler, so it cannot import a .ts module), but
+ // checked against the real file so a future change there fails this
+ // fixture loudly instead of silently testing a stale constant.
+ const IDLE_RECONCILE_MS=60000;
+ assert.equal(
+  readFileSync(join(root,'src/studio/activityPresentation.ts'),'utf8').match(/export const IDLE_RECONCILE_MS = (\d+(?:_\d+)?)/)?.[1]?.replaceAll('_',''),
+  String(IDLE_RECONCILE_MS),
+  'IDLE_RECONCILE_MS drifted from src/studio/activityPresentation.ts — update this fixture\'s restated constant',
+ );
+ async function runEffect(effectJs){
+  const scheduled=[];
+  let releasePoll=null;
+  const listenersByType={};
+  const fakeWindow={
+   setTimeout:(fn,delay)=>{scheduled.push({fn,delay});return scheduled.length;},
+   clearTimeout:()=>{},
+   addEventListener:(type,fn)=>{listenersByType[type]=fn;},
+   removeEventListener:()=>{},
+  };
+  const fakeDocument={visibilityState:'visible',addEventListener:()=>{},removeEventListener:()=>{}};
+  const factory=new Function('session','selectedId','activityKey','readinessPending','refreshForRequest','handleApiError','setSources','setRuntimeStatus','setSelected','setReplicas','listSources','readRuntimeStatus','readReplica','ReplicaApiError','isStudioAuthDead','IDLE_RECONCILE_MS','document','window',
+   `return (${effectJs.trim().replace(/;\s*$/,'')});`);
+  factory(
+   {userId:'owner'},'replica-1','activity-1',true,
+   async(session)=>session,
+   ()=>{},()=>{},()=>{},()=>{},()=>{},
+   async()=>{await new Promise(resolve=>{releasePoll=resolve;});return[];},
+   async()=>({}),async()=>({replica_id:'replica-1'}),
+   class FakeReplicaApiError extends Error{},()=>false,
+   IDLE_RECONCILE_MS,fakeDocument,fakeWindow,
+  )();
+  // The mount-time `void refreshReadiness();` call above already started
+  // the FIRST poll cycle and it is now mid-flight (its own `listSources`
+  // promise is the one being held). Give its synchronous prelude a tick to
+  // actually set `polling = true` before this test checks anything.
+  await new Promise((r)=>setImmediate(r));
+  assert(typeof releasePoll==='function','the mount poll never reached its held read — this harness is wired wrong, not the product');
+  // A focus/online resume landing HERE, mid-poll, is the exact race.
+  assert(listenersByType.focus,'no focus listener registered — this harness is wired wrong, not the product');
+  listenersByType.focus();
+  releasePoll();
+  // Let the held poll's `Promise.allSettled` and its own `finally` actually
+  // run to completion (a handful of microtask ticks covers the promise
+  // chain: allSettled -> the three `if (...status==="fulfilled")` reads ->
+  // the finally block's own scheduling).
+  for(let i=0;i<8;i++)await new Promise((r)=>setImmediate(r));
+  return scheduled;
+ }
+ const oldScheduled=await runEffect(oldJs);
+ assert.equal(oldScheduled.length,1,'race-old TRAP: exactly one schedule after the held poll settles');
+ assert.equal(oldScheduled[0].delay,60000,'race-old TRAP: the dropped resume has NO effect on the next delay — it still schedules the full IDLE_RECONCILE_MS (60s), proving the resume was silently lost');
+ const newScheduled=await runEffect(currentJs);
+ assert.equal(newScheduled.length,1,'current FIX: exactly one schedule after the held poll settles');
+ assert.equal(newScheduled[0].delay,0,'current FIX: the resume that landed mid-poll is coalesced into an immediate (0ms) follow-up, not dropped for 60s');
+ console.log('race-coalesce fixture: OLD schedules 60000ms (drop), NEW schedules 0ms (coalesce) — both against the real, extracted StudioApp.tsx effect text');
+}
 if(process.argv.includes('--source-only')){console.log('3 actual-contract source checks passed; mounted controls not run');process.exit(0);}
 const countCreate=()=>requests.filter(r=>r.path==='/api/replica'&&r.op==='create').length;
 let server,browser;

@@ -83,7 +83,7 @@ check("full authenticated cascade retains its original stylesheet order", () => 
 });
 
 if (process.argv.includes("--browser")) {
-  const { chromium } = await import("playwright");
+  const { launchSuiteBrowser } = await import("./rehearsal/browser.mjs");
   const { transform } = await import("lightningcss");
   const dist = join(root, "dist");
   const cssAssets = readdirSync(join(dist, "assets")).filter(name => name.endsWith(".css"));
@@ -104,7 +104,7 @@ if (process.argv.includes("--browser")) {
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch({ ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}), args: ["--no-sandbox"] });
+  const browser = await launchSuiteBrowser("studio-entry-css");
   const shots = join(root, "scratchpad", "studio-entry-css-20260907");
   mkdirSync(shots, { recursive: true });
   const snapshot = async (page, selector = ".auth-page") => page.evaluate(selector => [...document.querySelectorAll(`${selector}, ${selector} *`)].map(el => {

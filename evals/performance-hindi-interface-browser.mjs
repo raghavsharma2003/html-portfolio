@@ -1,6 +1,6 @@
 // Source-prepared real DOM negatives. Run only with the reserved browser lane.
 import assert from 'node:assert/strict';
-import {chromium} from 'playwright';
+import {launchRehearsalBrowser} from './rehearsal/browser.mjs';
 import {installHindiInterfaceProbe} from '../scripts/performance-hindi-interface.mjs';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
@@ -23,11 +23,13 @@ const cases=[
   ['opacity zero Hindi descendant', '<h2 id="signin-title">Start<span style="opacity:0">ईमेल से शुरू करें</span></h2><label for="studio-email">ईमेल पता</label><input id="studio-email" type="email">', false],
   ['wrong label association', '<h2 id="signin-title">ईमेल से शुरू करें</h2><label for="wrong">ईमेल पता</label><input id="studio-email" type="email">', false],
 ];
-// Match full Chromium explicitly pinned by paired47/native49/probe52 diagnostics.
-const executablePath=process.env.CHROMIUM_PATH||chromium.executablePath();
-const executableHash=createHash('sha256').update(readFileSync(executablePath)).digest('hex');
-console.log(JSON.stringify({startedAt:new Date().toISOString(),executablePath,executableHash}));
-const browser=await chromium.launch({headless:true,executablePath,timeout:30000});
+// Match full Chromium explicitly pinned by paired47/native49/probe52
+// diagnostics — the shared binary resolution `evals/rehearsal/browser.mjs`
+// already owns (WS-R165), rather than a second copy of it here.
+const {browser,executablePath,channel,reason}=await launchRehearsalBrowser([],{timeout:30000});
+if(!browser){console.log(`SKIP performance-hindi-interface-browser: ${reason}`);process.exit(0);}
+const executableHash=executablePath?createHash('sha256').update(readFileSync(executablePath)).digest('hex'):null;
+console.log(JSON.stringify({startedAt:new Date().toISOString(),executablePath:executablePath||`playwright chromium channel (${channel})`,executableHash}));
 console.log(JSON.stringify({browserVersion:browser.version()}));
 const deadline=setTimeout(()=>{void browser.close();},90000);
 try {

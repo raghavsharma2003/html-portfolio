@@ -44,6 +44,7 @@ import fs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { randomUUID, generateKeyPairSync, createHash } from "node:crypto";
+import { launchRehearsalBrowser } from "../rehearsal/browser.mjs";
 import {
   ROOM_ID,
   SLUG,
@@ -536,18 +537,13 @@ await (async () => {
     console.log("  skip  §8: dist/room-sw.js or dist/room.html absent, run `npx vite build` first");
     return;
   }
-  let chromium, playwrightErrors;
+  let playwrightErrors;
   try {
-    ({ chromium, errors: playwrightErrors } = await import("playwright"));
+    ({ errors: playwrightErrors } = await import("playwright"));
   } catch {
     console.log("  skip  §8: playwright not installed");
     return;
   }
-  const executablePath = [
-    process.env.CHROMIUM_PATH,
-    "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-    "/opt/pw-browsers/chromium/chrome-linux/chrome",
-  ].find((p) => p && existsSync(p));
 
   const MIME = {
     ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript",
@@ -601,25 +597,22 @@ self.addEventListener("push", (event) => {
   });
   await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
 
-  // With no explicit binary, ask Playwright for its FULL chromium build by
+  // With no explicit binary, the shared launcher (`evals/rehearsal/
+  // browser.mjs`, WS-R165) asks Playwright for its FULL chromium build by
   // channel, never its default `chromium-headless-shell`: the shell
   // registers workers and runs `push` handlers, but it has no notification
   // service, so `showNotification` resolves and `getNotifications()` stays
   // empty for every kind. That is exactly how this section passed on the
-  // build container (whose binary is the full build, found above) and
-  // failed on both CI runners for `04395e2` (`context/rejected.md#room-
-  // push-chromium-headless-shell-shows-no-notification`). The control
-  // below turns that shape into one named failure instead of eleven.
-  const browser = await chromium
-    .launch(
-      executablePath
-        ? { executablePath, args: ["--no-sandbox"] }
-        : { channel: "chromium", args: ["--no-sandbox"] },
-    )
-    .catch(() => null);
+  // build container (whose binary is the full build) and failed on both CI
+  // runners for `04395e2` (`context/rejected.md#room-push-chromium-
+  // headless-shell-shows-no-notification`). The control below turns that
+  // shape into one named failure instead of eleven; this section still
+  // skips locally (never fails the suite) when no browser is available at
+  // all, same as before this workstream's migration.
+  const { browser, reason } = await launchRehearsalBrowser();
   if (!browser) {
     server.close();
-    console.log("  skip  §8: no chromium binary available");
+    console.log(`  skip  §8: ${reason}`);
     return;
   }
 

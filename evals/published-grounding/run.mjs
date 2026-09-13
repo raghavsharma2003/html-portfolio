@@ -1,7 +1,6 @@
 // Offline contracts and source/artifact parity, never generated-answer quality.
 import assert from 'node:assert/strict';
 import {readFileSync,mkdtempSync,writeFileSync,mkdirSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL,fileURLToPath} from 'node:url';
@@ -14,7 +13,10 @@ import {DIALOGUE_OUTPUT_SCHEMA} from '../../api/_dialogue/contracts.js';
 globalThis.fetch=async()=>{throw Error('network_prohibited');};
 const root=fileURLToPath(new URL('../../',import.meta.url)),temp=mkdtempSync(join(tmpdir(),'published-grounding-'));
 const compilerPath='src/engine/publishedMaterialAssistant.ts';
-const old=execFileSync('git',['show',`c3cae7ddbb6992ed9311d46f88d89b31f3fee8b0:${compilerPath}`],{cwd:root,encoding:'utf8'});
+// blob from commit c3cae7ddbb6992ed9311d46f88d89b31f3fee8b0, moved to a
+// committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+// history-reading-suites).
+const old=readFileSync(resolve(root,'evals/published-grounding/fixtures/c3cae7dd/src__engine__publishedMaterialAssistant.ts'),'utf8');
 const current=readFileSync(resolve(root,compilerPath),'utf8');
 async function compileModule(text,name){
  const outfile=join(temp,name+'.mjs'),entry=join(temp,name+'.ts');

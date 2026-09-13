@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 
 const base = process.env.VYAKTI_VISUAL_BASE || "http://127.0.0.1:5173";
 const SOURCE = "20000000-0000-4000-8000-000000000002";
-const systemChrome = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || (existsSync(systemChrome) ? systemChrome : undefined);
-const browser = await chromium.launch({ headless: true, executablePath });
+const browser = await launchSuiteBrowser("identity-proofing-visual");
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, deviceScaleFactor: 1 });
   const errors = [];

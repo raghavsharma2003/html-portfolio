@@ -3,8 +3,6 @@
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const root = new URL('../', import.meta.url);
@@ -46,7 +44,9 @@ const rejectsCode = (run, code) => assert.rejects(run, error => error.code === c
 const throwsCode = (run, code) => assert.throws(run, error => error.code === code);
 const loadSource = source => import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const absoluteImports = source => source.replace(/(from\s+['"])(\.[^'"]+)(['"])/g, (_,a,path,b) => `${a}${new URL(path, new URL('_dialogue/contracts.js',api)).href}${b}`);
-const oldSource = execFileSync('git', ['show', `${baseline}:api/_dialogue/contracts.js`], { cwd: fileURLToPath(root), encoding: 'utf8' });
+// blob from commit `baseline`, moved to a committed fixture
+// (context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites).
+const oldSource = readFileSync(new URL(`evals/dialogue-unicode/fixtures/${baseline.slice(0, 8)}/api___dialogue__contracts.js`, root), 'utf8');
 try {
   const current = await import(new URL('_dialogue/contracts.js', api));
   const old = await loadSource(absoluteImports(oldSource));

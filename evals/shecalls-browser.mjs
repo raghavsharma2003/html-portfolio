@@ -40,7 +40,7 @@
 // and a skipped gate that looks like a passed gate is how a shadowed index
 // survived a day. It is in version control because `dead-writers` does not
 // stop being true for evals.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 const B = process.env.MEERA_PREVIEW || "http://localhost:4293";
 const OBSERVE = process.argv.includes("--observe");
 
@@ -51,9 +51,10 @@ const ok = (n, c, e = "") => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROMIUM || "/opt/pw-browsers/chromium",
-});
+// `process.env.PW_CHROMIUM` folded into the shared launcher's own
+// `CHROMIUM_PATH` env var (WS-R165) — one binary-resolution env var across
+// every suite, not a second name only this file understood.
+const browser = await launchSuiteBrowser("shecalls-browser");
 
 const BASE_STATE = {
   onboarded: true,

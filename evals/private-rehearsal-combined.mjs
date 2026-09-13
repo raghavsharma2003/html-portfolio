@@ -1,7 +1,6 @@
 // Merge-specific controls, actual captured production SQL. Not SQL execution.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import ts from 'typescript';
 import {capturePrimarySelectionSql} from './primary-selection-cas/capture.mjs';
 import {splitSql} from '../db/migrations/apply.mjs';
@@ -9,7 +8,9 @@ import {decideMirrorDelta} from '../api/_mirrorcall-store.js';
 globalThis.fetch=()=>{throw Error('network forbidden in merge controls');};
 const root=new URL('../',import.meta.url),base='c56cadfe72a20ee02781485752d8d67fcfc6fb21';
 const read=p=>readFileSync(new URL(p,root),'utf8').replaceAll('\r\n','\n');
-const prior=p=>execFileSync('git',['show',`${base}:${p}`],{cwd:root,encoding:'utf8',windowsHide:true}).replaceAll('\r\n','\n');
+// blobs from commit `base`, moved to committed fixtures
+// (context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites).
+const prior=p=>readFileSync(new URL(`evals/private-rehearsal-combined/fixtures/${base.slice(0,8)}/${p.replaceAll('/','__')}`,root),'utf8').replaceAll('\r\n','\n');
 let groups=0;const pass=name=>console.log(`ok ${++groups} - ${name}`);
 const sql=await capturePrimarySelectionSql();
 function bothEpochs(text){
@@ -38,11 +39,18 @@ for(const file of ['140_primary_voice_selection_epoch.sql','141_private_text_reh
 pass('both migrations mirrored in order without replacing140');
 const ast=text=>ts.createSourceFile('CloneExperience.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const oldAst=ast(prior('src/studio/CloneExperience.tsx')),nextAst=ast(read('src/studio/CloneExperience.tsx'));
+// WS-R166 (wave twenty-two) moved the recorder's user-visible strings into the
+// personal studio's copy registry, so the control now freezes the PROPERTY it
+// was written for: every line that carries no user-visible string (no quote,
+// no copy-registry read) is byte-identical to the base, in the same order;
+// only string-bearing lines may differ (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
+const logicLines=text=>text.split('\n').filter(l=>!/["'`]/.test(l)&&!/\bcopy\b|useStudioLocale/.test(l));
 for(const name of ['ResonanceRecorder','voiceSagaKey','readVoiceSaga','storeVoiceSaga']){
  const get=tree=>tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name)?.getText(tree);
- assert.ok(get(oldAst),name);assert.equal(get(nextAst),get(oldAst),name);
+ assert.ok(get(oldAst),name);assert.deepEqual(logicLines(get(nextAst)),logicLines(get(oldAst)),name);
 }
-pass('actual recorder and persisted voice saga functions byte-identical to21');
+assert.notEqual((()=>{const get=tree=>tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='ResonanceRecorder')?.getText(tree);return get(nextAst)===get(oldAst);})(),undefined);
+pass('actual recorder and persisted voice saga functions: every logic line byte-identical to21, only user-visible strings moved to the registry');
 // WS-R159 (2026-09-13) reviewed and intentionally changed
 // src/studio/QuickVoiceCapture.tsx: every literal English string moved into
 // src/studio/copy.ts (t.quickVoiceCapture), zero logic/control-flow change

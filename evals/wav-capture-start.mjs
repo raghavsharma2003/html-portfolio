@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 
@@ -82,7 +81,10 @@ for(const lane of ['studio','creatorStudio']) {
     assert.equal(f.counts.urls,1);f.resume.resolve();
   });
   if(lane==='creatorStudio') await check('borrowed-stream recorder remains byte-identical to checkpoint20',()=>{
-    const base=execFileSync('git',['show','da3ac2aeac29571ae45a4507d947b1cf603cf9c1:src/creatorStudio/wavCapture.ts'],{encoding:'utf8'});
+    // blob from commit da3ac2aeac29571ae45a4507d947b1cf603cf9c1, moved to a
+    // committed fixture (context/rejected.md#ci-shallow-checkout-starved-
+    // the-history-reading-suites).
+    const base=readFileSync(new URL('wav-capture-start/fixtures/da3ac2ae/src__creatorStudio__wavCapture.ts',new URL('./',import.meta.url)),'utf8');
     const extract=s=>s.slice(s.indexOf('export function openStreamWavTap('),s.indexOf('export async function openPrivateWavCapture('));
     assert(extract(source).length>1000);assert.equal(extract(source).replaceAll('\r\n','\n'),extract(base).replaceAll('\r\n','\n'));
   });

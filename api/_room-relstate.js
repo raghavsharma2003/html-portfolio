@@ -391,7 +391,7 @@ export { MEERA_AGENT_ID };
 // relationship-state prompt tail.
 //
 // `memoryConsentAt` is NOT a column here (there is no owner-side
-// `vy_room_follower` row) — it is the caller's own read of
+// Room follower row) — it is the caller's own read of
 // `api/_room-memory-authority.js`'s `OWNER_MEMORY_CONSENT_STATUS_SQL`
 // (`memory_on`), turned into a timestamp-or-null the SAME truthy/falsy
 // shape `roomRelStateFromFollower`'s own `follower.memory_consent_at ==

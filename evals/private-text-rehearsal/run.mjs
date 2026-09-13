@@ -5,7 +5,6 @@ import {join,extname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServer} from 'node:http';
 import {createHash} from 'node:crypto';
-import {execFileSync} from 'node:child_process';
 import {runInNewContext} from 'node:vm';
 import ts from 'typescript';
 import {build} from 'vite';
@@ -57,7 +56,10 @@ const remap=(value,rid)=>JSON.parse(JSON.stringify(value).replaceAll(base.FIXTUR
 const replica=rid=>({...remap(base.FIXTURE_REPLICA,rid),display_name:rid===RID?'Synthetic Physics Teacher':'Other Synthetic Teacher',lifecycle:'enrolling',age_verified:false,identity_verified:false,liveness_verified:false});
 const grants=rid=>['capture','transcription','storage'].map(scope=>({consent_id:GRANT,replica_id:rid,scope,method:'account_attestation',policy_version:'replica-self-v1',granted_at:'2026-09-07T00:00:00Z',expires_at:'2027-09-07T00:00:00Z',revoked_at:null}));
 const priorPanel=readFileSync(join(root,'evals/private-text-rehearsal/fixtures/prior-panel.tsx.txt'),'utf8');
-const old=execFileSync('git',['show','da3ac2ae:src/studio/CloneExperience.tsx'],{cwd:root,encoding:'utf8'});
+// blob from commit da3ac2aeac29571ae45a4507d947b1cf603cf9c1, moved to a
+// committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+// history-reading-suites).
+const old=readFileSync(join(root,'evals/private-text-rehearsal/fixtures/da3ac2ae/src__studio__CloneExperience.tsx'),'utf8');
 const artifact=join(root,'scratchpad/private-text-ui',String(Date.now()));mkdirSync(artifact,{recursive:true});
 let browser,server;const errors=[];
 try{

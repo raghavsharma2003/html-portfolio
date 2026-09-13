@@ -78,7 +78,7 @@ async function ownerMemoryOn(db, rid, ownerUserId) {
 }
 
 // ── OP: memory_status / memory_toggle — "It remembers", the owner's own
-// honest on/off control, the same weight `vy_room_follower.memory_consent_at`
+// honest on/off control, the same weight the Room follower row's memory consent column
 // gives a follower. Deliberately NOT `_replica-consent.js` (out of this
 // workstream's touched-file list; see api/_room-memory-authority.js's own
 // header on why a fresh, narrow, local grant/revoke pair is used instead). ──

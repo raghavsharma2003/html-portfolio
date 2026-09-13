@@ -42,17 +42,10 @@ if (!existsSync(join(DIST, "studio-layout-fixture.html"))) {
   process.exit(0);
 }
 
-const { chromium } = await import("playwright");
-const localChrome = process.platform === "win32"
-  ? [
-      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    ].find((path) => existsSync(path))
-  : null;
-const browser = await chromium.launch({ headless: true }).catch(async () =>
-  localChrome ? chromium.launch({ headless: true, executablePath: localChrome }).catch(() => null) : null);
+const { launchRehearsalBrowser } = await import("./rehearsal/browser.mjs");
+const { browser, reason } = await launchRehearsalBrowser();
 if (!browser) {
-  console.log("  skip  voice preview phone: no Chromium binary available");
+  console.log(`  skip  voice preview phone: ${reason}`);
   process.exit(0);
 }
 

@@ -2,14 +2,13 @@ import { syntheticPcmWav } from "./synthetic-wav.mjs";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 
 const base = process.env.VYAKTI_VISUAL_BASE || "http://127.0.0.1:5173";
 const reviewDir = resolve(import.meta.dirname, "../../.impeccable/review");
-const systemChrome = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 mkdirSync(reviewDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true, executablePath: existsSync(systemChrome) ? systemChrome : undefined });
+const browser = await launchSuiteBrowser("clone-experience-qa-visual");
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, reducedMotion: "reduce" });
   const errors = [];

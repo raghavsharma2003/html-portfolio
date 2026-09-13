@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {runInNewContext} from 'node:vm';
-import {execFileSync} from 'node:child_process';
 import ts from 'typescript';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const source=readFileSync(root+'src/studio/CloneExperience.tsx','utf8');
@@ -19,5 +18,9 @@ check('actual owned row callback preserves draft and exact context handle',()=>{
 for(const kind of ['identity','token','replica','unmount'])check(`actual late callbacks refuse after ${kind}`,()=>{const c=context();if(kind==='identity')c.reissueCurrent.current.identity='owner-b';if(kind==='token')c.reissueCurrent.current.accessToken='token-b';if(kind==='replica')c.reissueCurrent.current.selected.replica_id=OTHER;if(kind==='unmount')c.reissueMounted.current=false;c.edit(draft);c.test({replicaId:RID,itemId:ITEM});assert.equal(c.rehearsalReturn.current,null);assert.deepEqual(c.calls,[]);});
 for(const kind of ['identity','token','replica','missing'])check(`actual render clears snapshot on ${kind}, including switch back`,()=>{const c=context();c.edit(draft);if(kind==='identity')c.identity='owner-b';if(kind==='token')c.accessToken='token-b';if(kind==='replica')c.selected={replica_id:OTHER};if(kind==='missing')c.selected=null;runInNewContext(compile(scopeCheck),c);assert.equal(c.rehearsalReturn.current,null);c.identity='owner-a';c.accessToken='token-a';c.selected={replica_id:RID};runInNewContext(compile(scopeCheck),c);assert.equal(c.rehearsalReturn.current,null);});
 check('foreign and malformed row handles never navigate',()=>{const c=context();c.test({replicaId:OTHER,itemId:ITEM});c.test({replicaId:RID,itemId:'bad'});assert.deepEqual(c.calls,[]);assert.equal(c.rehearsalReturn.current,null);});
-check('executed old callback has no draft retention (negative control)',()=>{const old=execFileSync('git',['show','0a3b2d26:src/studio/CloneExperience.tsx'],{cwd:root,encoding:'utf8'});const oldAst=ts.createSourceFile('old.tsx',old,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let callback;function visitOld(n){if(ts.isJsxAttribute(n)&&n.name.text==='onEditContext')callback=n.initializer.expression.getText(oldAst);ts.forEachChild(n,visitOld);}visitOld(oldAst);const c=context();runInNewContext(compile('globalThis.old='+callback),c);c.old(draft);assert.equal(c.rehearsalReturn.current,null);assert.deepEqual(c.calls,['files','enrich']);});
+check('executed old callback has no draft retention (negative control)',()=>{
+ // blob from commit 0a3b2d2608d64a4f9aebdafc690caf445f6b5889, moved to a
+ // committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+ // history-reading-suites).
+ const old=readFileSync(root+'evals/feed-meet-return/fixtures/0a3b2d26/src__studio__CloneExperience.tsx','utf8');const oldAst=ts.createSourceFile('old.tsx',old,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let callback;function visitOld(n){if(ts.isJsxAttribute(n)&&n.name.text==='onEditContext')callback=n.initializer.expression.getText(oldAst);ts.forEachChild(n,visitOld);}visitOld(oldAst);const c=context();runInNewContext(compile('globalThis.old='+callback),c);c.old(draft);assert.equal(c.rehearsalReturn.current,null);assert.deepEqual(c.calls,['files','enrich']);});
 console.log(`PASS ${groups} actual callback/scope groups; no browser, database or network.`);

@@ -1,7 +1,7 @@
 // Opt-in synthetic development SQL and exact encrypted revision checks. No model calls.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { CURRENT_TURN_FEEDBACK_SQL as READ, readOwnedTurnFeedback as read, recordOwnedTurnFeedback as write } from "../api/_replica-feedback.js";
 import { REPLICA_POLICY_VERSION as POLICY } from "../api/_replica.js";
 export async function runFeedbackReopenSqlChecks({ db, openSession, onFixtureManifest }) {
@@ -63,7 +63,10 @@ export async function runFeedbackReopenSqlChecks({ db, openSession, onFixtureMan
     assert.equal(Number((await db("select count(*) as n from vy_replica_turn_exemplar where replica_id=$1::uuid and owner_user_id=$2::uuid",[rid,owner]))[0].n),2);checks.push(stage);
     stage="actual-old-writer-rating-only-negative";
     await save(3,{correction:"Synthetic correction to retain"});
-    const oldSource=execFileSync("git",["show","cff35f0:api/_replica-feedback.js"],{cwd:new URL("../",import.meta.url),encoding:"utf8"}).replace(/from "(\.\/[^"]+)"/g,(_,path)=>'from "'+new URL("../api/"+path.slice(2),import.meta.url).href+'"');
+    // blob from commit cff35f0484a1b3c13ce0c96d933083dff870ab1e, moved to a
+    // committed fixture (context/rejected.md#ci-shallow-checkout-starved-
+    // the-history-reading-suites).
+    const oldSource=readFileSync(new URL("feedback-reopen-live/fixtures/cff35f0/api___replica-feedback.js",new URL("./",import.meta.url)),"utf8").replace(/from "(\.\/[^"]+)"/g,(_,path)=>'from "'+new URL("../api/"+path.slice(2),import.meta.url).href+'"');
     const old=await import("data:text/javascript;base64,"+Buffer.from(oldSource).toString("base64"));
     await old.recordOwnedTurnFeedback(query,owner,{...input,ratings:{wording:"close"},expected_revision:0},env);
     assert.equal((await current()).feedback.revision,5);assert.equal((await current()).correction,"");checks.push(stage);

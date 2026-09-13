@@ -1,16 +1,8 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 
 const url = process.argv[2] || "http://127.0.0.1:8792/";
-const knownChrome = [
-  process.env.VYAKTI_CHROME_PATH,
-  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-  "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-].find((candidate) => candidate && existsSync(candidate));
-const launchOptions = knownChrome ? { headless: true, executablePath: knownChrome } : { headless: true };
-const browser = await chromium.launch(launchOptions);
+const browser = await launchSuiteBrowser("voice-listening-benchmark-browser-check");
 const results = [];
 
 try {
