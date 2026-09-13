@@ -18828,6 +18828,24 @@
       "kind": "measurement",
       "title": "WS-R162: a person sheet clears the Room publish lock, the about page shows the person's own disclosure, and the compiled prompt carries a person boundary (2026-09-13)",
       "at": "context/measurements.md#ws-r162-a-personal-ai-room-publishes"
+    },
+    {
+      "id": "ws-r161-personality-flow28-fixture-unmatched-the-new-runtime-status-sql",
+      "kind": "rejection",
+      "title": "The one real regression the full gate caught: a fixture db unmatched RUNTIME_STATUS_SQL, fixed (2026-09-13)",
+      "at": "context/rejected.md#ws-r161-personality-flow28-fixture-unmatched-the-new-runtime-status-sql"
+    },
+    {
+      "id": "ws-r161-full-gate-eval-suite-two-flakes-under-extreme-contention",
+      "kind": "rejection",
+      "title": "browser-resource and callmem flaked under ten concurrent sibling full gates, confirmed clean standalone (2026-09-13)",
+      "at": "context/rejected.md#ws-r161-full-gate-eval-suite-two-flakes-under-extreme-contention"
+    },
+    {
+      "id": "ws-r161-full-gate-completed-2026-09-13",
+      "kind": "measurement",
+      "title": "The full verify-release.mjs run: 4 of 24 failed first pass, one real regression fixed, three environmental (2026-09-13)",
+      "at": "context/measurements.md#ws-r161-full-gate-completed-2026-09-13"
     }
   ],
   "edges": [
@@ -31987,6 +32005,31 @@
     {
       "src": "ws-r162-about-page-gets-its-own-sheet-join-never-publicroombyslug",
       "dst": "ws-r162-a-personal-ai-room-publishes",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r161-meet-opens-for-any-person",
+      "dst": "ws-r161-personality-flow28-fixture-unmatched-the-new-runtime-status-sql",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r161-meet-opens-for-any-person-2026-09-13",
+      "dst": "ws-r161-full-gate-eval-suite-two-flakes-under-extreme-contention",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r161-meet-opens-for-any-person",
+      "dst": "ws-r161-full-gate-completed-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r161-personality-flow28-fixture-unmatched-the-new-runtime-status-sql",
+      "dst": "ws-r161-full-gate-completed-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r161-full-gate-eval-suite-two-flakes-under-extreme-contention",
+      "dst": "ws-r161-full-gate-completed-2026-09-13",
       "rel": "measured_by"
     }
   ]
