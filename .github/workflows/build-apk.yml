@@ -148,6 +148,11 @@ jobs:
           java-version: 21
       - run: npm ci
       - run: npx tsc -b
+      # The same empty-keys stub the `build` job above writes: `vite build`
+      # resolves api/_surface.js, which imports the gitignored api/_config.js,
+      # so a fresh checkout cannot build without it (the wave-21 merge push
+      # found this job red on exactly that import).
+      - run: node scripts/write-config.mjs --stub
       - run: npx vite build
       # Vyakti's start page is `/studio` (a SECOND vite entry, never the
       # first — see `scripts/select-native-start-page.mjs`'s own header for
