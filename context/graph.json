@@ -19236,6 +19236,12 @@
       "kind": "measurement",
       "title": "evals/gate-load/run.mjs: 26/26 offline checks proving boundedWaitMs's scaling, loadCeilingResult's ceiling refusal (wired through the real performanceGateResult) and listenWithPortWait's actual wait-and-retry behaviour, each with a negative control (2026-09-13)",
       "at": "context/measurements.md#ws-r181-bounded-wait-scaling"
+    },
+    {
+      "id": "ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file",
+      "kind": "rejection",
+      "title": "first-five-minutes, dialogue-history-ui, feedback-dataset-ui failed once at load 17-62 (ten siblings gating concurrently); confirmed unrelated by zero file overlap and Playwright-timeout/assertion-race failure shape",
+      "at": "context/rejected.md#ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file"
     }
   ],
   "edges": [
@@ -32780,6 +32786,11 @@
     {
       "src": "ws-r181-sparse-copy-fixture-missed-a-new-transitive-import",
       "dst": "frozen-file-merge-controls-break-on-the-next-change",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r173-touched-suites-2026-09-13",
+      "dst": "ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file",
       "rel": "caused_by"
     }
   ]
