@@ -52,7 +52,12 @@ import { availableParallelism, cpus } from "node:os";
  * order, BEFORE the pool or the port lane starts — not merely in a lane
  * alongside them, because the pool's own suites (room-push included) must
  * see a `dist/` that is done being written, not one being written right now. */
-export const PRE_POOL_SUITES = ["rehearsal-follower", "rehearsal-creator"];
+// WS-R158: "rehearsal-personal" added — it runs its own `npx vite build`
+// into the same shared `dist/` (`evals/rehearsal/personal.mjs`'s own
+// `ensureBuilt()`, the identical hazard this file's own header already
+// names for `rehearsal-follower`/`rehearsal-creator`), so it belongs here
+// for the same reason, not a new one.
+export const PRE_POOL_SUITES = ["rehearsal-follower", "rehearsal-creator", "rehearsal-personal"];
 
 /** Suites that bind one FIXED loopback port. Never run two of these at once
  * even though their ports differ today — the lane, not the port numbers, is

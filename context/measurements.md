@@ -17842,3 +17842,25 @@ Method: `node scripts/verify-release.mjs` (24 checks) on the build container, ma
 Vercel: eight consecutive git-connected deployments of codex/handoff206 (2026-09-09) ERROR in 7 s at the install phase; the last READY deployment of this branch family was `61385c5`.
 
 Live database (Neon `neondb`, read-only catalog query): 180 `vy_` tables; none of the 26 tables that migrations 137 to 162 and the local-voice reconciliation artifacts 074 and 075 create is present. Codex applied those only to the isolated development database `vyakti_expert_integration_20260906` (198 tables).
+
+## `ws-r158-personal-rehearsal-wall-clock-2026-09-13` (WS-R158)
+
+Method: `node evals/rehearsal/personal.mjs` (also via `node evals/run.mjs rehearsal-personal`), build container, machine otherwise idle, real Chromium (`/opt/pw-browsers/chromium-1194`), n=3 consecutive runs same session, date 2026-09-13. 28 of 28 assertions passed every run (0 failed). Per-step wall clock, milliseconds, from each run's own printed `wall clocks` line:
+
+| step | run 1 | run 2 | run 3 |
+|---|---|---|---|
+| serverStartMs (includes one `npx vite build`) | 28228 | 21378 | 30265 |
+| signInMs (real send_otp + verify_otp round trip) | 2139 | 1490 | 2516 |
+| agreementMs (real replica create + consent grant) | 685 | 734 | 844 |
+| describeMeMs (real context-item save) | 751 | 826 | 447 |
+| recordAndBuildMs (record >=12s + create_upload + finalize + voice-build request) | 20148 | 18907 | 19641 |
+| waitMs (two real `/api/replica-review` polls) | 144 | 186 | 124 |
+| reloadAfterBuildMs (full page reload) | 2029 | 1554 | 1047 |
+| meetTurnMs (one real `/api/replica-dialogue` POST) | 3 | 12 | 3 |
+| evolveMs (decide claim + build profile, two real POSTs) | 150 | 163 | 47 |
+| talkMs (one real page reload) | 1416 | 1670 | 661 |
+| deployMs (one real `/api/replica-runtime` GET) | 3 | 11 | 3 |
+
+Total wall clock per run (sum of the above, excludes the ~20-40s Chromium probe/launch overhead at process start): roughly 55.6s, 46.9s, 55.6s — dominated by `recordAndBuildMs` (a real >=12s microphone recording is the floor) and `serverStartMs` (one real `vite build`, cached by neither this suite nor `follower.mjs`/`creator.mjs` since each rehearsal builds independently). Never under the pool (this suite is a `PRE_POOL_SUITES` entry, like its two siblings, since it also writes the shared `dist/`).
+
+No model call, no GPU, no network beyond 127.0.0.1 in any run.
