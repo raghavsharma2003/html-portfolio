@@ -147,6 +147,12 @@ const { personModelReadiness } = await import(pathToFileURL(join(ROOT, "api/_per
 const { clientRuntimeStatus, OWNED_TEXT_PROFILE_SQL } = await import(pathToFileURL(join(ROOT, "api/_replica-runtime.js")).href);
 const { TEXT_APPRENTICE_DISCLOSURE } = await import(pathToFileURL(join(ROOT, "api/_replica-dialogue.js")).href);
 const { createReplicaSourceHandler } = await import(pathToFileURL(join(ROOT, "api/replica-source.js")).href);
+// WS-R162 (brief law 5): the Room-publish door and the about page it feeds -
+// imported directly, the SAME "real module, fake db" shape every import
+// above already uses.
+const { createRoom, publishRoom, getOwnedRoom } = await import(pathToFileURL(join(ROOT, "api/_room-publish.js")).href);
+const { READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } = await import(pathToFileURL(join(ROOT, "api/_readiness.js")).href);
+const { publicRoomAboutBySlug, buildRoomAboutHtml } = await import(pathToFileURL(join(ROOT, "api/_room-about.js")).href);
 
 const EMAIL = "personal-rehearsal@example.test";
 const OTP = "424242";
@@ -1153,6 +1159,105 @@ async function main() {
     const runtimeGetBody = await runtimeGetResponse.json().catch(() => ({}));
     ok("Deploy: the real /api/replica-runtime door answers the same honest blocker for a real signed-in owner", runtimeGetResponse.status === 200 && runtimeGetBody.runtime?.active === false && (runtimeGetBody.runtime?.blockers || []).length > 0);
     timings.deployMs = Date.now() - tStep;
+
+    // ── DEPLOY, continued (brief law 5): a person's Room actually publishes
+    //    once every gate clears, and its about page shows their own
+    //    disclosure. `freshRehearsalCreatorState`'s own header pre-seeds
+    //    runtime and disclosure as flat PASSING booleans ("out of this
+    //    rehearsal's scope") - not sheet-kind aware, so this walk cannot
+    //    itself exercise the REAL `disclosureApproved` SQL predicate against
+    //    a real `sheetKind:"person"` row (that proof, against the real SQL
+    //    text, is `evals/person-room/run.mjs`, this workstream's own new
+    //    suite). What THIS walk proves is the mechanism one layer up: once
+    //    every gate a personal Deploy screen can clear actually clears,
+    //    `publishRoom` really sets `published_at` and `getOwnedRoom`'s
+    //    `can_publish` really flips - the exact boolean `deployBannerState`
+    //    (`src/studio/deployStudioState.ts`) reads to show "Ready to open."
+    //    (`DeployStudio.tsx`'s own `readyLabel`) - for a SELF-mode replica,
+    //    which before WS-R151/WS-R152 had no published Room to reach at all
+    //    (`context/rejected.md
+    //    #ws-r7-room-for-generic-mode-with-no-disclosure-pathway`).
+    tStep = Date.now();
+    const roomDb = personalDb(state);
+    const selfReplica = state.replicas[0];
+    // A generic-mode replica's `vy_agent` row is minted opaquely, at RUNTIME
+    // ACTIVATION, by the real `activateOwnedRuntime`
+    // (`context/rejected.md#ws-r7-room-for-generic-mode-with-no-disclosure-
+    // pathway`'s own explanation) - a pipeline this walk's own Deploy section
+    // does not run for real (it asserts the honest blocker instead, this
+    // file's header). Seeded directly here, the same fixture-level shortcut
+    // `state.rehearsalReadinessLast` already takes below, so `createRoom`'s
+    // own `room_replica_has_no_agent` guard has something real to read.
+    selfReplica.agent_id = selfReplica.agent_id || randomUUID();
+    const room = await createRoom(roomDb, ownerId, rid, { slug: `rehearsal-person-${rid.slice(0, 8)}` });
+    ok("Deploy: createRoom succeeds for a self-mode personal replica (the SAME door RoomStudio's own creation step calls)", Boolean(room?.slug));
+
+    // Readiness is this rehearsal's own "one live gate" (the header on
+    // `freshRehearsalCreatorState`); moved to a passing snapshot directly on
+    // the fixture, the same way `advanceReviewPollIfDue` elsewhere in this
+    // file advances the voice-ready fixture, rather than walking the full
+    // recall/mirror-call measurement pipeline this workstream's own budget
+    // does not reach.
+    state.rehearsalReadinessLast = { unmeasured_count: 0, overall: READINESS_OVERALL_FLOOR, min_part: READINESS_PART_FLOOR };
+
+    // NEGATIVE CONTROL: disclosure not yet approved (an unpublished person
+    // sheet) still shows the honest blocker - BEFORE this Room ever
+    // publishes, so `publishRoom`'s own `coalesce(published_at, now())`
+    // cannot paper over a later refusal on an already-published row.
+    state.rehearsalDisclosureApproved = false;
+    const blockedRoom = await getOwnedRoom(roomDb, ownerId, rid);
+    ok("NEGATIVE CONTROL: can_publish is false while disclosure is not approved", blockedRoom?.can_publish === false);
+    ok("NEGATIVE CONTROL: the honest blocker names room_disclosure_not_approved",
+      (blockedRoom?.blockers?.waiting_on_you || []).some((b) => b.code === "room_disclosure_not_approved"),
+      JSON.stringify(blockedRoom?.blockers));
+    let blockedPublishError = null;
+    try {
+      await publishRoom(roomDb, ownerId, rid);
+    } catch (error) {
+      blockedPublishError = error;
+    }
+    ok("NEGATIVE CONTROL: publishRoom itself refuses (room_publish_locked), never a silent success",
+      blockedPublishError?.code === "room_publish_locked"
+        && (blockedPublishError?.details?.waiting_on_you || []).some((b) => b.code === "room_disclosure_not_approved"));
+
+    // Now the person sheet IS published and approved - every gate clears.
+    state.rehearsalDisclosureApproved = true;
+    const beforePublish = await getOwnedRoom(roomDb, ownerId, rid);
+    ok("Deploy: can_publish is true once runtime, readiness and disclosure all clear", beforePublish?.can_publish === true, JSON.stringify(beforePublish?.blockers));
+    const published = await publishRoom(roomDb, ownerId, rid);
+    ok('Deploy: publishRoom actually sets published_at - the exact fact "Ready to open." reports', Boolean(published?.published_at));
+    const afterPublish = await getOwnedRoom(roomDb, ownerId, rid);
+    ok("Deploy: deployBannerState's own inputs now read \"ready\" (stopped=false, publishedRoom=true)", afterPublish?.room?.published === true);
+
+    // The visitor link resolves to a Room whose about page shows the
+    // PERSON's own disclosure line. `api/_room-about.js`'s own SQL shape is
+    // not `rehearsalCreatorDb`'s vocabulary, so this is a small,
+    // purpose-built fake db over the one row this proof needs -
+    // `evals/room-about/run.mjs`'s own fixture shape, restated for this
+    // Room's real slug and a `sheetKind:"person"` row.
+    const aboutRow = {
+      slug: room.slug, display_name: selfReplica?.display_name || "Rehearsal Person", default_locale: "en",
+      dormancy_days: null, free_monthly_messages: 20, paid_monthly_messages: 500, paid_monthly_voice_seconds: 1800,
+      sheet_kind: "person", person_line: "Rehearsed. Not yet real. Still my own words.",
+    };
+    const aboutDb = async (sql) => {
+      if (sql.includes("from vy_room r") && sql.includes("left join lateral")) return [aboutRow];
+      throw new Error(`evals/rehearsal/personal.mjs about-page fixture: unmatched SQL: ${sql}`);
+    };
+    const aboutRoomRow = await publicRoomAboutBySlug(aboutDb, room.slug);
+    ok("Deploy: the published Room's about page resolves (the visitor link points somewhere real)", Boolean(aboutRoomRow));
+    const aboutHtml = buildRoomAboutHtml(aboutRoomRow, { origin: url, slug: room.slug });
+    ok("Deploy: the about page shows the person's own disclosure line", aboutHtml.includes("Rehearsed. Not yet real. Still my own words."));
+    ok('Deploy: the about page never says "teacher" for a person Room', !aboutHtml.toLowerCase().includes("teacher"));
+
+    // NEGATIVE CONTROL: the about page's own predicate never learns whether
+    // an unpublished slug exists - an unrelated unknown slug still resolves
+    // to null, whether or not THIS Room just published.
+    const unknownAboutRow = await publicRoomAboutBySlug(async (sql) => {
+      if (sql.includes("from vy_room r") && sql.includes("left join lateral")) return [];
+      throw new Error("unmatched SQL");
+    }, "no-such-room-slug");
+    ok("NEGATIVE CONTROL: an unrelated unknown slug's about page still resolves to null", unknownAboutRow === null);
 
     // NEGATIVE CONTROL 3: a revoked replica shows the erased state.
     const revokeResponse = await fetch(`${url}/api/replica`, {

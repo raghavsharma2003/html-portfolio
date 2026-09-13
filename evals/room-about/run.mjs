@@ -65,6 +65,12 @@ function freshRoom(overrides = {}) {
     published_at: "2026-08-01T00:00:00.000Z",
     paused_at: null,
     listed_at: null, // deliberately unlisted - this page must still work
+    // WS-R162: absent (teacher / no sheet) unless a test overrides it -
+    // every EXISTING call site of `freshRoom()` gets `sheet_kind: undefined,
+    // person_line: undefined`, which `personDisclosureLine` reads as "" the
+    // same way it already reads a sheet with no `sheetKind` as a teacher.
+    sheet_kind: undefined,
+    person_line: undefined,
     ...overrides,
   };
 }
@@ -73,10 +79,18 @@ function freshRoom(overrides = {}) {
  *  `api/_room-about.js` actually sends - an unmatched statement throws, so a
  *  real drift between this fixture and the shipping SQL fails LOUD rather
  *  than returning an empty set that reads as "not found" (`evals/
- *  creator-page/run.mjs`'s own posture, restated). */
+ *  creator-page/run.mjs`'s own posture, restated). WS-R162: matched on the
+ *  `left join lateral` text too, so a future edit that silently drops the
+ *  join (reverting to a `vy_room`-only read) fails this fixture's match
+ *  rather than quietly serving a row with no `sheet_kind`/`person_line`. */
 function makeDb(room) {
   return async (sql, params = []) => {
-    if (sql.includes("from vy_room") && sql.includes("lower(slug) = $1") && sql.includes("published_at is not null")) {
+    if (
+      sql.includes("from vy_room r") &&
+      sql.includes("left join lateral") &&
+      sql.includes("lower(r.slug) = $1") &&
+      sql.includes("r.published_at is not null")
+    ) {
       const [slug] = params.map(String);
       if (!room) return [];
       const match = room.slug.toLowerCase() === slug && room.published_at != null && room.paused_at == null;
@@ -274,6 +288,71 @@ function makeDb(room) {
   ok("no en dash in the English render's body", !/–/.test(bodyOf(htmlEn)));
   ok("no em dash in the Hindi render's body", !/—/.test(bodyOf(htmlHi)));
   ok("no en dash in the Hindi render's body", !/–/.test(bodyOf(htmlHi)));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 9. WS-R162: a PERSON Room's own `personLine` shows on the about page
+//    (brief law 2); a TEACHER Room's page is byte-identical to before this
+//    workstream.
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // The CSS rule for `.room-about-person-line` is in EVERY page's <style>
+  // block regardless of sheet kind, so "renders no span" must be checked
+  // against the BODY only - section 8's own `bodyOf` helper, restated here
+  // (each block in this file is its own scope, so it is not in reach).
+  const bodyOf = (html) => html.slice(html.indexOf("<body>"));
+
+  const teacherRoom = freshRoom();
+  const teacherHtml = buildRoomAboutHtml(teacherRoom, { origin: "https://vyakti.app", slug: "anjali-physics" });
+  ok('a TEACHER room (sheet_kind undefined) renders no "room-about-person-line" element in the body',
+    !bodyOf(teacherHtml).includes("room-about-person-line"));
+
+  const personRoom = freshRoom({
+    display_name: "Priya Menon",
+    sheet_kind: "person",
+    person_line: "  Product designer. Bad puns. Worse badminton.  ",
+  });
+  const personHtml = buildRoomAboutHtml(personRoom, { origin: "https://vyakti.app", slug: "anjali-physics" });
+  ok("a PERSON room's about page carries the person's own trimmed personLine",
+    personHtml.includes(">Product designer. Bad puns. Worse badminton.<"));
+  ok("the person's own line never says 'teacher' anywhere on this page",
+    !personHtml.toLowerCase().includes("teacher"));
+  ok("the person's own line sits inside the SAME room-card the platform disclosure sentences use",
+    /<div class="room-card" role="note">[\s\S]*room-about-person-line[\s\S]*<\/div>/.test(personHtml));
+
+  // A person sheet that never set personLine at all: "" from
+  // `personDisclosureLine`, same as a teacher - no empty span, no stray
+  // whitespace line.
+  const personNoLine = freshRoom({ sheet_kind: "person", person_line: null });
+  const personNoLineHtml = buildRoomAboutHtml(personNoLine, { origin: "https://vyakti.app", slug: "anjali-physics" });
+  ok('sheet_kind "person" with no personLine set renders no element in the body either',
+    !bodyOf(personNoLineHtml).includes("room-about-person-line"));
+
+  // NEGATIVE CONTROL: a TEACHER sheet's row carrying a `person_line` value
+  // (a malformed join, or a future bug in the SQL's own WHERE) must still
+  // render NOTHING - `personDisclosureLine`'s own gate on `sheetKind`, not
+  // on whether the column happens to be non-null, is what is under test.
+  const teacherWithStrayLine = freshRoom({ sheet_kind: "teacher", person_line: "should never surface" });
+  const strayHtml = buildRoomAboutHtml(teacherWithStrayLine, { origin: "https://vyakti.app", slug: "anjali-physics" });
+  ok("NEGATIVE CONTROL: a teacher-kind row carrying a stray person_line value still renders nothing in the body",
+    !strayHtml.includes("should never surface") && !bodyOf(strayHtml).includes("room-about-person-line"));
+
+  // The Hindi render carries the identical (untranslated - it is the
+  // person's own words) line, still inside the room-card, still absent for
+  // a teacher.
+  const personHtmlHi = buildRoomAboutHtml({ ...personRoom, default_locale: "hi" }, { origin: "https://vyakti.app", slug: "anjali-physics" });
+  ok("a Hindi-locale PERSON room's about page still carries the person's own personLine (their own words, not translated)",
+    personHtmlHi.includes(">Product designer. Bad puns. Worse badminton.<"));
+
+  // STATIC: the join that makes this possible names the sheet table and the
+  // exact column it reads, so a future rewrite of this query cannot silently
+  // stop reading `personLine` while still passing every fixture above by
+  // coincidence.
+  const src = readFileSync(join(API, "_room-about.js"), "utf8");
+  ok("STATIC: publicRoomAboutBySlug reads personLine off vy_teacher_sheet.sheet",
+    /personLine[\s\S]{0,200}vy_teacher_sheet/.test(src));
+  ok("STATIC: personDisclosureLine is imported from ./_room-publish.js, never re-derived",
+    /import\s*\{[^}]*\bpersonDisclosureLine\b[^}]*\}\s*from\s*"\.\/_room-publish\.js"/.test(src));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

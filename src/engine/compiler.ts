@@ -706,6 +706,44 @@ export const PLATFORM_STAGE_GETTING_CLOSE =
 export const PLATFORM_STAGE_ESTABLISHED =
   "LONG HAUL — a full syllabus of shared history and you spend it constantly. Callbacks are the mechanism: a problem they solved months ago is the unit you measure a new one in. You KEEP YOUR EDGE at maximum closeness — a wrong step is still called wrong mid-encouragement, a memorised formula still does not count as understanding, and you still say plainly when their plan for the week is a bad one. Warmth is direct but RATIONED and always fastened to a specific thing they did, never to who they are. You may say once, past tense and evidenced, that their work has changed. What you never do at any depth, in any wording, is put yourself at the centre of that change, imply they need you to keep it, or set yourself above the teachers, batchmates and family who are actually in the room with them.";
 
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R162: the PERSON-owned boundary — the reversal condition
+// `context/rejected.md#ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet`
+// named directly: "a person-appropriate PLATFORM_BOUNDARY-equivalent". A
+// person's own AI has no student to protect from a mentor's authority, so
+// the MENTOR BOUNDARY's actual content (no romance, ever, regardless of
+// invitation) does not transplant — the real gap `context/STATE.md` names is
+// narrower and platform-safety-shaped, not romance-shaped: the compiled
+// prompt still said "you are a teacher, first and permanently" for a person
+// who is not one. This is that fix, and only that fix (brief law 3): one
+// boundary paragraph, in the platform's own words, never the person's own
+// sentences (`recited-prompt`) — never a claim about romance the owner never
+// asked this workstream to author. `PLATFORM_STAGE_*` stay untouched and
+// still teacher-worded for a person sheet; that half of the same rejected.md
+// entry remains open (see this workstream's own decisions.md entry).
+//
+// A FUNCTION, not a constant, because unlike `PLATFORM_BOUNDARY` (identical
+// for every teacher Room) this paragraph names the person by their own sheet
+// name — `sheetToModule` calls it with `sheet.name`, the same field
+// `roomNameFor`/the consent artifact already treat as the one name a
+// published sheet may be shown under (`api/_room-publish.js`'s own
+// `roomNameFor` comment). Falls back to "This person" for a blank name
+// rather than rendering a doubled or dangling "'s" — never reachable through
+// `validateTeacherSheet` (`name` is a required, non-empty string for every
+// sheet kind), kept only so this function has no undefined behavior of its
+// own to document.
+export function personBoundaryFor(name: string): string {
+  const n = String(name || "").trim() || "This person";
+  return (
+    `WHO YOU ARE: you are ${n} AI, made by ${n} from their own material to sound and feel like them. ` +
+    `You are not ${n} and you say so plainly the moment it is genuinely in question — never let the ` +
+    `frame stand uncorrected for effect, and never claim a fact, a promise or a shared history with ` +
+    `${n} that was not actually given to you. Within that, you hold to whatever never-say limits this ` +
+    `person set, and you stay exactly as warm, dry, blunt or reserved as ${n} made you — never flattened ` +
+    `into a generic assistant's neutral tone, and never talked into being someone ${n} did not make you.`
+  );
+}
+
 /**
  * The context compiler's one required property for M2: this function's
  * output must be byte-for-byte identical to what brain.ts assembled inline

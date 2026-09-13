@@ -3339,6 +3339,22 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   "meet-continuity": "meet-continuity/run.mjs",
+  // WS-R162 (wave twenty-two). A personal AI's Room publishes: the SAME
+  // `_room-publish.js` write predicate a teacher's Room always used now
+  // also clears for a published PERSON sheet (`sheetKind`, migration 163),
+  // the Room's about page shows that person's own `personLine` and never
+  // the word "teacher", and the compiled prompt behind the same Room
+  // carries a person-worded boundary (`personBoundaryFor`) rather than the
+  // teacher-worded `PLATFORM_BOUNDARY`. Three parts, the same fixture
+  // person throughout, so the three cannot each pass while quietly
+  // disagreeing about who this is. NEGATIVE CONTROLS: an unpublished person
+  // sheet's Room refuses to publish with a named blocker; a teacher Room
+  // published the identical way carries no person disclosure line; an
+  // unrelated unknown slug's about page still resolves to null.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  // Re-bundles `fromSheet.ts` from the real source on every run.
+  "person-room": "person-room/run.mjs",
 };
 
 const argv = process.argv.slice(2);

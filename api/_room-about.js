@@ -49,6 +49,20 @@ import { roomDisclosureCard, normalizeLocale, slugOf, ROOM_FREE_MONTHLY_MESSAGES
 import { PULSE_MIN_FOLLOWERS } from "./_pulse.js";
 import { DORMANCY_GRACE_DAYS } from "./_dormancy.js";
 import { PLATFORM_TITLE, PLATFORM_DESCRIPTION, roomAiTitleLine } from "./_room-page.js";
+// WS-R162: `personDisclosureLine` (api/_room-publish.js) is the READ half of
+// migration 163's `sheetKind` law 5 left ready for a caller
+// (`context/rejected.md#ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet`'s
+// sibling gap, `context/decisions.md` under WS-R151: "personDisclosureLine
+// has no caller"). This page is deliberately NOT `publicRoomBySlug`
+// (`api/_room-page.js`'s crawler unfurl) — that function carries its OWN
+// explicit, gated "never anything from the sheet" law
+// (`evals/room-share/run.mjs`'s static "select list is closed, no agent_id"
+// check), which this page never claimed and is not bound by. Reusing the
+// real function rather than re-deriving "" for teacher / trimmed line for
+// person a second time here — the same "no second copy of a rule" reasoning
+// `api/_room-publish.js`'s own `assertBioClean` gives for importing
+// `scanSource` rather than restating its rules.
+import { personDisclosureLine } from "./_room-publish.js";
 
 function esc(value) {
   return String(value || "")
@@ -59,9 +73,16 @@ function esc(value) {
 }
 
 // ── WS-R79: language tagging for screen readers ───────────────────────────
-// The only creator-authored free text this page ever shows is the creator's
-// own NAME — no bio, no showcase, this page renders no other creator words
-// at all. `detectPageTextLang`/`langSpan`/`withLangSplicedName` are
+// Until WS-R162, the only creator-authored free text this page ever showed
+// was the creator's own NAME — no bio, no showcase, this page rendered no
+// other creator words at all. That is still true for a TEACHER Room: the
+// disclosure card's platform-authored sentences are the whole of "What this
+// is". A PERSON Room (`sheetKind: "person"`, migration 163) now adds exactly
+// one more line, the person's own `personLine` (HumanOS, 140 chars,
+// copy-gated at write time by `fromSheet.ts::validateTeacherSheet`) —
+// `personDisclosureLine` below, still "" for a teacher sheet or no sheet at
+// all, so a teacher Room's rendered bytes are unchanged.
+// `detectPageTextLang`/`langSpan`/`withLangSplicedName` are
 // `api/_creator-page.js`'s own three functions, restated for the identical
 // reason that file restates `src/room/copy.ts`'s `withName`: this is a
 // second `api/` module rendering pure server HTML with no client bundle to
@@ -146,6 +167,22 @@ const OG_LOCALE = { en: "en_US", hi: "hi_IN" };
  * different SELECT list, never `listed_at`-gated — this file's own header
  * explains why: a follower who already holds the link must be able to read
  * this page whether or not the creator opted into the public directory.
+ *
+ * WS-R162: `sheet_kind`/`person_line` join the SELECT list, via a `LEFT JOIN
+ * LATERAL` on the agent's own latest PUBLISHED, CONSENTED sheet —
+ * `api/_teachersheet.js`'s `publishedRow` own `order by s.published_at desc
+ * limit 1` shape, restated here rather than imported (that function also
+ * validates and constructs a whole `AgentModule`, work this page's own cost
+ * budget does not need for two text columns — `publicRoomBySlug`'s own
+ * header gives the identical reasoning for staying out of `resolveRoom`).
+ * Deliberately NOT `publicRoomBySlug` itself: that function carries its own
+ * explicit, gated "closed select list, no agent_id" law
+ * (`evals/room-share/run.mjs`'s static check), written for a crawler unfurl
+ * that this page's own transparency purpose does not share — widening THAT
+ * function would trip a control built to catch exactly this kind of change.
+ * `LATERAL` rather than a plain `LEFT JOIN`: nothing enforces at most one
+ * `published` row per agent, so an unordered join could return more than one
+ * row for a single slug.
  */
 export async function publicRoomAboutBySlug(db, slug) {
   if (typeof db !== "function") throw new Error("room_about_db_required");
@@ -156,12 +193,22 @@ export async function publicRoomAboutBySlug(db, slug) {
   const s = slugOf(slug);
   if (!s) return null;
   const rows = await db(
-    `select slug, display_name, default_locale, dormancy_days,
-            free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds
-       from vy_room
-      where lower(slug) = $1
-        and published_at is not null
-        and paused_at is null
+    `select r.slug, r.display_name, r.default_locale, r.dormancy_days,
+            r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds,
+            ps.sheet_kind, ps.person_line
+       from vy_room r
+       left join lateral (
+         select s.sheet_kind, s.sheet ->> 'personLine' as person_line
+           from vy_teacher_sheet s
+          where s.agent_id = r.agent_id
+            and s.status = 'published'
+            and s.consent_artifact_id is not null
+          order by s.published_at desc
+          limit 1
+       ) ps on true
+      where lower(r.slug) = $1
+        and r.published_at is not null
+        and r.paused_at is null
       limit 1`,
     [s],
   );
@@ -265,6 +312,12 @@ export function buildRoomAboutHtml(room, { origin, slug, lang } = {}) {
   const name = room.display_name || "";
   const title = name ? roomAiTitleLine(name, locale) : c.heading;
   const disclosure = roomDisclosureCard(name, locale);
+  // WS-R162: "" for a teacher sheet, no sheet, or a person sheet with no
+  // `personLine` set — byte-identical to before this workstream in every one
+  // of those cases. Never derived from `room.sheet_kind` here directly: the
+  // real function is the one place "person, and only person" is decided
+  // (this file's own header on why that is imported rather than restated).
+  const personLine = personDisclosureLine({ sheetKind: room.sheet_kind, personLine: room.person_line });
   const openUrl = `${base}/r/${encodeURIComponent(String(slug || ""))}`;
 
   const freeCap = Number(room.free_monthly_messages ?? ROOM_FREE_MONTHLY_MESSAGES);
@@ -285,6 +338,7 @@ export function buildRoomAboutHtml(room, { origin, slug, lang } = {}) {
       <h2 id="about-what-title">${esc(c.whatThisIsLabel)}</h2>
       <div class="room-card" role="note">
         ${disclosureHtml(disclosure)}
+        ${personLine ? langSpan("p", personLine, ' class="room-card-line room-about-person-line"') : ""}
       </div>
     </section>
 
@@ -381,5 +435,6 @@ const PAGE_STYLE = `
   .room-card { border: 1px solid rgba(28, 32, 26, 0.12); border-radius: 0.75rem; padding: 1rem; background: #fff; }
   .room-card .room-card-line { margin: 0 0 0.5rem; }
   .room-card .room-card-line:last-child { margin-bottom: 0; }
+  .room-card .room-about-person-line { font-style: italic; color: #52564e; }
   a { color: #17493b; font-weight: 600; }
 `;

@@ -18278,3 +18278,26 @@ WS-R167, the owner's own continuity in Meet. Method: single local run on the wav
 - `node scripts/check-copy.mjs`: clean, 7 scopes, 21 negative controls.
 
 Not measured this session: anything against a live database (no `NEON_URL` in this environment; migration 170 is unapplied source); any real Azure/model call (consolidation is offline-proven only, `decisions.md#ws-r167-owner-memory-consolidation-left-unmetered`); any real signed-in browser walk of the new Meet memory panel (no rehearsal-harness extension was in this workstream's scope); `node scripts/check-layout.mjs --only studio` and `node scripts/check-accessibility.mjs` (both repeatedly found port 8931 held by a sibling wave-twenty-two agent across two bounded waits on this shared ten-agent machine — a port collision, not a pass or a failure of this workstream's own, `ws-common.md`'s own rule).
+
+## `ws-r162-a-personal-ai-room-publishes` (2026-09-13, WS-R162)
+
+Method: touched suites run directly (`node evals/<suite>/run.mjs`), offline, deterministic, $0, no live DB, no network beyond 127.0.0.1, no model call, no GPU; the full release gate run once at the end (`node scripts/verify-release.mjs`, no `NEON_URL` in this environment, 24 checks). Date 2026-09-13.
+
+| suite | result |
+|---|---|
+| `evals/person-room/run.mjs` (new, this workstream) | 17/17 pass |
+| `evals/person-sheet/run.mjs` (extended: personBoundaryFor assertions) | 46/46 pass |
+| `evals/room-about/run.mjs` (extended: person disclosure line, §9) | 59/59 pass |
+| `evals/rehearsal/personal.mjs` (extended: Deploy publishes, about page) | 39/39 pass |
+| `evals/teachersheet.mjs` (regression) | 132/132 pass |
+| `evals/room-publish/run.mjs` (regression) | 39/39 pass |
+| `evals/room-adversarial-creator/run.mjs` (regression, PLATFORM_BOUNDARY injection) | 253/253 pass |
+| `evals/room-doors/run.mjs` (full battery) | 2333 ok, 0 failed |
+| `evals/room-leak/run.mjs` (full battery) | 363/363 pass |
+| `evals/room-export/run.mjs` (full battery) | 48/48 pass |
+| `src/engine/__fixtures__/byte-identity.mjs` | 83/83 pass (the 83 fixtures are all teachers or Meera; unaffected by the `sheetKind==="person"` branch) |
+| `node scripts/check-copy.mjs` | 7 scopes clean, 21 negative controls bit |
+| `npx tsc --noEmit -p tsconfig.json` | clean |
+| `node scripts/verify-release.mjs` (full gate, once, at the end) | see this entry's own follow-up line / the session log |
+
+New SQL added (for the main loop's EXPLAIN, no migration — no new table or column): `api/_room-about.js`'s `publicRoomAboutBySlug` gained one `left join lateral (select s.sheet_kind, s.sheet ->> 'personLine' as person_line from vy_teacher_sheet s where s.agent_id = r.agent_id and s.status = 'published' and s.consent_artifact_id is not null order by s.published_at desc limit 1) ps on true` onto its existing `vy_room` read.

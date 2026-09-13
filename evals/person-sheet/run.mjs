@@ -55,7 +55,9 @@ writeFileSync(
   `export * from ${JSON.stringify(join(REPO, "src/engine/agents/fromSheet"))};\n` +
     `export { DEMO_TEACHER } from ${JSON.stringify(join(REPO, "src/engine/agents/characters/demoTeacher"))};\n` +
     `export { getAgent } from ${JSON.stringify(join(REPO, "src/engine/agents/registry"))};\n` +
-    `export { MATERIAL_BLOCK_OPEN, MATERIAL_BLOCK_CLOSE } from ${JSON.stringify(join(REPO, "src/engine/compiler"))};\n`,
+    // WS-R162: PLATFORM_BOUNDARY/personBoundaryFor, for the compiled-prompt
+    // boundary assertions below (brief law 3).
+    `export { MATERIAL_BLOCK_OPEN, MATERIAL_BLOCK_CLOSE, PLATFORM_BOUNDARY, personBoundaryFor } from ${JSON.stringify(join(REPO, "src/engine/compiler"))};\n`,
 );
 const BUNDLE = join(OUT, "person-sheet.bundle.mjs");
 execSync(
@@ -72,6 +74,8 @@ const {
   PERSON_NEVER_SAY_NONE,
   MATERIAL_BLOCK_OPEN,
   MATERIAL_BLOCK_CLOSE,
+  PLATFORM_BOUNDARY,
+  personBoundaryFor,
 } = M;
 const { personDisclosureLine } = await import(pathToFileURL(join(REPO, "api/_room-publish.js")).href);
 
@@ -243,8 +247,15 @@ const talkNoNote = validateTeacherSheet(withField({ personTalk: { register: "for
 ok("personTalk with no codeSwitchNote at all -> accepted (optional, per the type)", talkNoNote.ok, codes(talkNoNote));
 
 // ── 9. sheetToModule() on a person sheet: no throw, material carries the
-//      five fields, and the platform floor text is still what it always
-//      was (law 3: "the platform-owned boundary and stage unchanged"). ────
+//      five fields. WS-R151's own law 3 ("the platform-owned boundary and
+//      stage unchanged") held until WS-R162, whose OWN law 3 closes half of
+//      that gap: the boundary paragraph is now `personBoundaryFor(sheet.name)`
+//      for sheetKind:"person", never the teacher-worded `PLATFORM_BOUNDARY`
+//      (`context/rejected.md
+//      #ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet`'s
+//      own reversal condition, taken up here). The three stage paragraphs
+//      are the OTHER half and remain untouched, still teacher-worded, for a
+//      person sheet - that half of the gap stays open. ──────────────────
 console.log("\n── sheetToModule() on a person sheet ──");
 let builtPerson;
 let threw = null;
@@ -268,6 +279,16 @@ if (builtPerson) {
   ok("CRISIS_LINES still carried through the constructor for a person sheet", builtPerson.CRISIS_LINES === MINIMAL_PERSON.crisisLines);
   ok("slug/displayName/personaVersion come off the person sheet", builtPerson.slug === MINIMAL_PERSON.slug &&
     builtPerson.displayName === MINIMAL_PERSON.name && builtPerson.personaVersion === MINIMAL_PERSON.version);
+
+  // WS-R162 law 3: the compiled prompt carries a PERSON boundary, never the
+  // teacher-worded one - the exact gap `context/STATE.md`'s own words named
+  // ("a person's compiled prompt still says 'you are a teacher'").
+  const expectedPersonBoundary = personBoundaryFor(MINIMAL_PERSON.name);
+  ok("compiled core carries personBoundaryFor(sheet.name) verbatim", core.includes(expectedPersonBoundary));
+  ok("compiled core never carries the teacher-worded PLATFORM_BOUNDARY", !core.includes(PLATFORM_BOUNDARY));
+  ok('compiled core never says "you are a teacher" for a person sheet', !core.toLowerCase().includes("you are a teacher"));
+  ok('the person boundary names the AI in the platform\'s own words ("<Name> AI, made by <Name>")',
+    expectedPersonBoundary.includes(`${MINIMAL_PERSON.name} AI, made by ${MINIMAL_PERSON.name}`));
 }
 
 // The teacher path's own byte-identity proof lives in `evals/teachersheet.mjs`
@@ -283,6 +304,11 @@ ok(
   "this suite's own bundle still reproduces the teacher byte-identity result (cross-check against evals/teachersheet.mjs)",
   teacherParts.core === registeredParts.core && teacherParts.tail === registeredParts.tail,
 );
+// WS-R162: the branch this workstream adds is `sheetKind === "person"` only
+// - a TEACHER sheet (sheetKind absent, DEMO_TEACHER's own default) still
+// compiles the teacher-worded PLATFORM_BOUNDARY, unchanged, never the new
+// personBoundaryFor path.
+ok("a TEACHER sheet's compiled core still carries the unchanged PLATFORM_BOUNDARY", teacherParts.core.includes(PLATFORM_BOUNDARY));
 
 // ── 10. api/_room-publish.js::personDisclosureLine ──────────────────────
 console.log("\n── personDisclosureLine (WS-R151 law 5) ──");
