@@ -502,6 +502,26 @@ if (unreachable.length) {
   );
 }
 
+// 166 adds two columns to the already-covered vy_replica_calibration table
+// (erasure reach and PERSON_TABLES manifest coverage are unchanged -- see
+// the migration file), but winner_artifact_id carries NO declared FK
+// (db/migrations/166_voice_listening_verdict.sql explains why). This is the
+// live-DB check that stands in for that missing FK: every non-null
+// winner_artifact_id must actually be a sealed generation belonging to the
+// SAME replica/owner as the calibration row that names it.
+const listeningVerdict166 = await q(`select 1 from information_schema.columns
+ where table_schema='public' and table_name='vy_replica_calibration' and column_name='winner_artifact_id'`);
+if (listeningVerdict166.length) {
+  check("Voice listening verdict winners resolve to the owner's own sealed generation", `select count(*)::integer n
+   from vy_replica_calibration c
+   where c.winner_artifact_id is not null
+     and not exists (
+       select 1 from vy_replica_generation g
+        where g.generation_id=c.winner_artifact_id and g.replica_id=c.replica_id
+          and g.owner_user_id=c.owner_user_id and g.state='sealed'
+     )`);
+}
+
 // migration 008 lands in three parts and is deployed by the owner, not by
 // this sweep; vy_episode_participant is 008a's table and stands in for all of
 // them (008b/008c cannot be applied without it).

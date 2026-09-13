@@ -17828,6 +17828,24 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 
 2026-09-09 source audit of _db.js, _auth.js, _replica-storage.js and dev-expert.mjs on handover f1d89527: database, auth and selected private-storage values choose environment before imported config; launcher checks isolated database identity and model destination policy. This is source evidence, not new live authentication/storage/SQL proof. No model calls, provider calls, server restart or credential file changes.
 
+## `ws-r155-listening-test-suite-2026-09-13`
+
+Method: `node evals/run.mjs listeningtest` (the suite's own registry key), on the ws-r155 worktree, 2026-09-13. n=52 assertions across 10 sections: axis-id parity with `evals/voice-listening-benchmark/lib.mjs#AXES` (1), rating validation including 3 negative controls (5), pure verdict math (4), pair-identity math including 2 negative controls (5), verdict-definition shape (3), `recordVoiceListeningVerdict`'s real SQL text including 2 negative controls (10), the two readers (2), `decideVoiceActivation`'s full branch set including the law-4 negative control (5), `guardOwnedVoiceActivation` end to end including one negative control and one override-is-logged check (6), `ownedVoiceLikenessSummary`'s three honest states plus dedup including 3 negative controls (7), and migration/schema/relcheck/door text assertions (6). All 52 passed on the first real run (no fixture repair needed). Re-run alongside the two pre-existing suites that share the touched module: `node evals/run.mjs replicacalibration` (31 checks, unaffected) and `node evals/run.mjs voicepreference` (29 checks, unaffected).
+
+## `ws-r155-gates-2026-09-13`
+
+Method, all on the ws-r155 worktree, 2026-09-13, `NEON_URL` unset throughout (no live database touched):
+
+| check | result |
+|---|---|
+| `node node_modules/typescript/bin/tsc -b --force` | 0 errors |
+| `node scripts/check-copy.mjs` | 7 scopes clean, 21 negative controls, unchanged by this workstream |
+| `node scripts/check-mirrors.mjs` | 10 markers checked across 317 files, 0 disagree |
+| `node scripts/check-layout.mjs --only studio:listening` (new target) | 3 prose blocks judged across 390/834/1355px, 0 findings |
+| `node scripts/check-accessibility.mjs --target studio:listening` (new target) | 0 critical/serious (0 moderate, 0 minor) across 1 page, 0 keyboard findings, 2158ms |
+| `node evals/run.mjs listeningtest` | 52 of 52 |
+| full `node scripts/verify-release.mjs` (foreground, timeout, once at the end) | see the session's own final report for the exact summary line |
+
 ## `gate-on-the-merged-handoff206-tree-2026-09-13`
 
 Method: `node scripts/verify-release.mjs` (24 checks) on the build container, machine otherwise idle unless stated; `node evals/run.mjs` (410 pooled suites plus the port lane) alone; date 2026-09-13.

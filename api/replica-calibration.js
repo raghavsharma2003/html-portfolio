@@ -6,8 +6,11 @@ import {
   approveOwnedCalibration,
   buildOwnedCalibration,
   ownedCalibrationStatus,
+  ownedVoiceListeningHistory,
   recordOwnedPreference,
+  recordVoiceListeningVerdict,
 } from "./_replica-calibration.js";
+import { ownedVoiceLikenessSummary } from "./_replica-voice-preview.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -25,7 +28,17 @@ export default async function handler(req, res) {
     if (!allow(user.id, "replica_calibration_user", 120)) return res.status(429).json({ error: "slow_down" });
     if (req.method === "GET") {
       const calibration = await ownedCalibrationStatus(q, user.id, req.query?.replica_id);
-      return calibration ? res.status(200).json({ calibration }) : res.status(404).json({ error: "replica_not_found" });
+      if (!calibration) return res.status(404).json({ error: "replica_not_found" });
+      // WS-R155: "sounds like you" rides on the same GET the calibration
+      // scenarios already answer -- one owner-authenticated read, not a
+      // second door. A voice_likeness of null (no replica row visible under
+      // this owner) cannot happen here: ownedCalibrationStatus already
+      // proved the replica exists and is owned above.
+      const [voiceLikeness, listeningHistory] = await Promise.all([
+        ownedVoiceLikenessSummary(q, user.id, req.query?.replica_id),
+        ownedVoiceListeningHistory(q, user.id, req.query?.replica_id, 5),
+      ]);
+      return res.status(200).json({ calibration, voice_likeness: voiceLikeness, listening_history: listeningHistory });
     }
     const body = req.body || {};
     if (body.op === "choose") {
@@ -39,6 +52,10 @@ export default async function handler(req, res) {
     if (body.op === "approve") {
       const calibration = await approveOwnedCalibration(q, user.id, body);
       return calibration ? res.status(200).json({ calibration }) : res.status(409).json({ error: "calibration_stale_or_unavailable" });
+    }
+    if (body.op === "listening_submit") {
+      const verdict = await recordVoiceListeningVerdict(q, user.id, body);
+      return res.status(201).json({ verdict });
     }
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {

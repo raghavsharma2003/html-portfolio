@@ -24034,6 +24034,38 @@ User prioritized the preserved handover and usage limits. Run only the existing 
 
 Preserve the shared inert template but correct its obsolete assertion that OpenRouter is required for all functionality. The user's expert product uses Azure-only model serving. Document existing environment precedence and the static-module requirement, without changing runtime authority or requesting new credentials. Reverse if the supported expert serving configuration changes.
 
+## `voice-listening-verdict-reuses-the-calibration-table` (2026-09-13, WS-R155)
+
+**Decision.** A voice listening verdict (WS-R155, "sounds like you" and the listening test) is stored as a NEW `definition.schema` value (`vyakti.voice-listening-verdict.v1`) in the SAME `vy_replica_calibration` table a personality preference already lands in (migration 025), rather than a new table. Migration 166 adds exactly two nullable columns the table lacked for this: `pair_sha256` (the stable, order-independent identity of which two candidates and which reference were compared) and `winner_artifact_id` (the winning candidate's generation id, null on a tie).
+
+**Why.** `ownedCalibrationStatus` and `calibrationDirectives` in `api/_replica-calibration.js` already discriminate rows by `definition->>'schema'` and silently ignore any schema they do not recognise, so adding a second schema value is additive by construction: existing personality-calibration reads, the readiness gate, and the runtime-capability `calibration_version` FK are all untouched. A second table would need its own version sequence, its own owner/lifecycle checks duplicated from `calibrationState`, and its own place in every downstream list that already walks `vy_replica_calibration` (erasure, export, relcheck) for no benefit over a schema tag.
+
+**Reversal.** If a future voice-verdict requirement needs a column that would violate an existing personality-calibration constraint on this table (for example, a NOT NULL the personality row's own shape cannot satisfy, or a unique index whose key does not make sense for both row kinds), split the listening verdict into its own table and migrate `pair_sha256`/`winner_artifact_id` rows out, citing this decision as superseded.
+
+## `voice-listening-pair-identity-is-content-hashes-not-ids` (2026-09-13, WS-R155)
+
+**Decision.** `pair_sha256` is `sha256({schema, candidates: [leftSha256, rightSha256].sort(), reference_sha256})` — content hashes of the two candidates and the reference recording, never their `generation_id`s.
+
+**Why.** A generation id names one ROW, not one SOUND. If a candidate were ever resealed (the same audio, a new `generation_id`), an id-keyed pair would silently become a "new" pair with no verdict on record, and `guardOwnedVoiceActivation` would read `no_verdict_on_record` for a pair a human already blind-tested and rejected — exactly the class of hazard `cache-outlives-the-voice` (`rejected.md`, 2026-08-24) names for `vy_voice_fidelity`, restated here for the verdict side of the same feature.
+
+**Reversal.** If `vy_replica_generation` rows become genuinely immutable and content-addressed (the id IS a function of the audio bytes, enforced by a constraint), keying on ids becomes equivalent and simpler; switch then, citing the constraint that makes it safe.
+
+## `voice-listening-winner-artifact-carries-no-fk` (2026-09-13, WS-R155)
+
+**Decision.** `vy_replica_calibration.winner_artifact_id` has no foreign key. Eligibility (the winner is a real, sealed generation belonging to the same replica and owner) is proved by a WHERE-clause join at write time in `recordVoiceListeningVerdict`, and checked live by a new conditional `scripts/relcheck.mjs` sweep gated on the column's existence.
+
+**Why.** This wave's own binding rule (ws-common, restating migration 009's convention): "no foreign key on agent/replica/owner/person columns." The natural FK here would be composite on `(winner_artifact_id,replica_id,owner_user_id)`, and `replica_id`/`owner_user_id` are exactly the columns that rule names, so the answer is the same regardless of whether a matching target index exists. (A side investigation into that question found a real, separate mirror gap worth recording on its own — `rejected.md#voice-preference-fk-tuple-has-no-matching-unique-constraint` — but it does not change this decision either way.)
+
+**Reversal.** If this wave's no-replica-FK rule is itself superseded (a future decision would need to name what changed about the erasure or SQL-over-HTTP concerns that motivated it), add the FK against `vy_replica_generation(generation_id,replica_id,owner_user_id)` — migration 046's own `vy_replica_generation_owner_tuple_ix` already names the arbiter it would resolve against — and retire the relcheck sweep in favour of it.
+
+## `fidelity-score-is-0-100-only-at-the-display-layer` (2026-09-13, WS-R155)
+
+**Decision.** `api/_fidelity.js` keeps scoring on its native 0..1 cosine-similarity scale (unchanged); the brief's "a 0..100 number" is produced only in the front end (`Math.round(fidelity.score.mean * 100)` in `VoicePreviewPanel.tsx`'s new `VoiceLikenessCard`).
+
+**Why.** `_fidelity.js`'s own header explains why 0..1 is the scale the ECAPA-TDNN evidence and the activation floor/warn/target thresholds are all defined against; rescaling the STORED number would touch every threshold, every eval that asserts against `DEFAULT_FIDELITY_POLICY`, and the `evals/echosim`-adjacent voice suites this workstream's brief does not name. A presentation-only multiply is the smallest change that gives the owner "a 0..100 number" without touching the measured half of the feature.
+
+**Reversal.** If a future bench re-anchors the fidelity scale itself (not just its display), change the constant here and in every threshold at once, citing the new bench's measurement.
+
 ## `codex-handoff206-adopted-as-the-base` (2026-09-13, main loop)
 
 **Decision.** The platform branch `claude/vyakti-cloning-platform-aq05n4` fast-forwards onto Codex's `codex/handoff206` (182 commits over `61385c5`, 1,399 files) and continues from there. The sibling branches `codex/handoff-processing204` and `codex/handoff-voice-comparison106` are older snapshots of the same line (each is handoff206 minus later repairs, plus one experiment the handover already archives) and `codex/handoff-history-20260909` is an object archive, so none of them is merged as product source.

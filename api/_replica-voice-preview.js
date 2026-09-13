@@ -4,6 +4,7 @@ import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { PROVENANCE_POLICY, assertVoicePreviewAuthorization, canonicalJson } from "./_provenance/contracts.js";
 import { OPEN_CHATTERBOX_MODEL_COMMITMENT } from "./_voice/providers/open-chatterbox-preview.js";
 import { voiceLanguageConditioning, voiceScriptMode } from "./_voice/language-conditioning.js";
+import { clientFidelity, DEFAULT_FIDELITY_POLICY } from "./_fidelity.js";
 
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -1087,4 +1088,111 @@ export function voicePreviewReceiptCommitment(value) {
     reference_sha256: value.reference.sha256,
     model_commitment: value.generation.preview_model_commitment,
   });
+}
+
+// ── WS-R155: "Sounds like you" on Meet's voice sample view ────────────────
+//
+// The read half of the product feature the owner reweight names (SPEC-
+// GURUKUL.md #8.2): the latest measured fidelity score, the owner's own last
+// blind listening preference, and up to two recent sealed preview
+// candidates a NEW listening test could compare next, composed into the one
+// call the studio panel needs. Three honest states on the fidelity half --
+// never a fabricated number:
+//
+//   "pass"/"warn"/"fail"  a real vy_voice_fidelity row exists (api/_fidelity.js).
+//   "not_measured"        the voice is ready but no fidelity row was ever
+//                         computed -- named with why (no run yet) and what
+//                         would trigger one (the voice-evidence step of the
+//                         Azure processing pipeline scoring this profile).
+//   "no_voice_yet"        there is no ready voice profile at all.
+//
+// `stale` (from clientFidelity's own `Boolean(row.superseded_at)`) layers on
+// top of "pass"/"warn"/"fail" when the voice moved since that row was
+// computed -- `cache-outlives-the-voice` (context/rejected.md, 2026-08-24)
+// is exactly the hazard a fidelity row's own key already defends against;
+// this read surfaces that defense rather than re-deriving it.
+export async function ownedVoiceLikenessSummary(db, ownerUserId, id) {
+  const rid = replicaId(id);
+  const rows = await db(
+    `select r.replica_id, vp.voice_profile_id,
+            vf.status as fidelity_status, vf.score as fidelity_score,
+            vf.policy_version as fidelity_policy_version,
+            vf.computed_at as fidelity_computed_at, vf.superseded_at as fidelity_superseded_at,
+            refa.sha256 as reference_sha256
+       from vy_replica r
+       left join lateral (
+         select x.voice_profile_id from vy_replica_voice_profile x
+          where x.replica_id=r.replica_id and x.status='ready'
+          order by x.created_at desc limit 1
+       ) vp on true
+       left join lateral (
+         select f.status,f.score,f.policy_version,f.computed_at,f.superseded_at
+           from vy_voice_fidelity f
+          where f.replica_id=r.replica_id and f.owner_user_id=r.owner_user_id
+            and f.voice_profile_ref=vp.voice_profile_id and f.superseded_at is null
+          order by f.computed_at desc limit 1
+       ) vf on true
+       left join lateral (
+         select a.sha256 from vy_replica_processing_artifact a
+          where a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id and a.stage='voice_quality'
+          order by a.created_at desc limit 1
+       ) refa on true
+      where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid`,
+    [rid, ownerUserId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const candidateRows = await db(
+    `select generation_id, audio_sha256, created_at from vy_replica_generation
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and state='sealed'
+        and purpose='voice_preview' and audio_sha256 is not null
+      order by created_at desc limit 8`,
+    [rid, ownerUserId],
+  );
+  const seen = new Set();
+  const listeningCandidates = [];
+  for (const candidate of candidateRows) {
+    if (seen.has(candidate.audio_sha256)) continue;
+    seen.add(candidate.audio_sha256);
+    listeningCandidates.push({
+      generation_id: candidate.generation_id,
+      audio_sha256: candidate.audio_sha256,
+      created_at: candidate.created_at,
+    });
+    if (listeningCandidates.length === 2) break;
+  }
+  let fidelity;
+  if (row.voice_profile_id && row.fidelity_status) {
+    fidelity = {
+      ...clientFidelity({
+        status: row.fidelity_status,
+        score: row.fidelity_score,
+        policy_version: row.fidelity_policy_version,
+        computed_at: row.fidelity_computed_at,
+        superseded_at: row.fidelity_superseded_at,
+      }),
+      reason: null,
+      trigger: null,
+    };
+  } else if (row.voice_profile_id) {
+    fidelity = {
+      status: "not_measured", score: null, policy_version: DEFAULT_FIDELITY_POLICY.version,
+      activation_floor: DEFAULT_FIDELITY_POLICY.activationFloor, target: DEFAULT_FIDELITY_POLICY.target,
+      computed_at: null, stale: false, reason: "voice_fidelity_not_measured_yet",
+      trigger: "runs automatically the next time services/voice-evidence scores this voice profile against approved reference evidence",
+    };
+  } else {
+    fidelity = {
+      status: "no_voice_yet", score: null, policy_version: null, activation_floor: null, target: null,
+      computed_at: null, stale: false, reason: "no_ready_voice_profile",
+      trigger: "finish enrolling and building a voice profile before a fidelity score can exist",
+    };
+  }
+  return {
+    replica_id: row.replica_id,
+    fidelity,
+    reference_sha256: row.reference_sha256 || null,
+    listening_candidates: listeningCandidates,
+    listening_ready: listeningCandidates.length === 2 && Boolean(row.reference_sha256),
+  };
 }
