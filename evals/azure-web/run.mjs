@@ -16,6 +16,16 @@ const files = {
  'privacy.html':'Privacy', 'delete-account.html':'Delete', 'suites.html':'Suites', 'creators.html':'Creators',
  'assets/app-abcdefgh.js':'export const fixture=true;', 'assets/hindi.woff2':'synthetic-font-bytes',
  'vyakti-release.json':JSON.stringify({schema:1,product:'vyakti-clone',source_commitment:`sha256:${'a'.repeat(64)}`}),
+ // WS-R157: `vercel.json` gained its own headers rule for this exact source
+ // path (`/studio.webmanifest`). Without a real file at
+ // `dist/studio.webmanifest` the "all configured headers survive matching
+ // original routes" check below falls through to this server's generic
+ // not-found response instead of ever exercising the rule it exists to
+ // check. `.webmanifest`'s own Content-Type is this server's own MIME table
+ // entry two lines up (`application/manifest+json`, no charset param) --
+ // never restated in `vercel.json`, the same posture `room.webmanifest`/
+ // `manifest.webmanifest` already have.
+ 'studio.webmanifest':JSON.stringify({name:'Vyakti',short_name:'Vyakti',start_url:'/studio',display:'standalone'}),
 };
 const manifest = {contract:'vyakti-azure-web-artifact/v1',product:'vyakti-clone',source_commitment:`sha256:${'a'.repeat(64)}`,runtimeFiles:[],assets:Object.entries(files).map(([path,b])=>({path,sha256:digest(b),bytes:Buffer.byteLength(b)}))};
 mkdirSync(join(home,'dist'));mkdirSync(join(home,'api'));

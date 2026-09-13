@@ -18048,6 +18048,12 @@
       "kind": "open",
       "title": "The vyakti flavour has no release signing config; only assembleVyaktiDebug is built in CI",
       "at": "2026-09-13"
+    },
+    {
+      "id": "ws-r157-full-gate-first-pass-and-fix",
+      "kind": "measurement",
+      "title": "First full-gate run: 3 of 24 failed (2 contention, 1 real azureweb fixture gap); fixed and re-verified standalone (2026-09-13)",
+      "at": "context/measurements.md#ws-r157-full-gate-first-pass-and-fix"
     }
   ],
   "edges": [
@@ -30558,6 +30564,16 @@
       "src": "ws-r157-vyakti-release-signing-unconfigured",
       "rel": "blocks",
       "dst": "ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional"
+    },
+    {
+      "src": "ws-r157-full-gate-first-pass-and-fix",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-full-gate-first-pass-and-fix",
+      "rel": "measured_by",
+      "dst": "ws-r157-vyakti-app-suite"
     }
   ]
 }
