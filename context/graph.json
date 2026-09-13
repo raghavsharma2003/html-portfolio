@@ -19200,6 +19200,12 @@
       "kind": "rejection",
       "title": "A raw svg.includes() check on a long, word-wrapped card headline/disclosure line fails even when the renderer is correct, because wrapLines splits it across multiple <tspan> elements",
       "at": "context/rejected.md#ws-r173-card-headline-and-personline-wrap-across-tspans-breaking-svg-includes"
+    },
+    {
+      "id": "ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file",
+      "kind": "rejection",
+      "title": "first-five-minutes, dialogue-history-ui, feedback-dataset-ui failed once at load 17-62 (ten siblings gating concurrently); confirmed unrelated by zero file overlap and Playwright-timeout/assertion-race failure shape",
+      "at": "context/rejected.md#ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file"
     }
   ],
   "edges": [
@@ -32710,6 +32716,11 @@
       "src": "ws-r173-card-headline-and-personline-wrap-across-tspans-breaking-svg-includes",
       "dst": "ws-r173-room-cards-own-read-mirrors-the-about-pages-not-publicroombyslugs",
       "rel": "part_of"
+    },
+    {
+      "src": "ws-r173-touched-suites-2026-09-13",
+      "dst": "ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file",
+      "rel": "caused_by"
     }
   ]
 }
