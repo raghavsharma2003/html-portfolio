@@ -3378,6 +3378,27 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no browser.
   "history-scan": "history-scan/run.mjs",
+  // WS-R164 (wave twenty-two). The first five minutes, TEXT ONLY: a real
+  // Chromium starts at the real `site/vyakti.html` landing (served straight
+  // off disk, `evals/first-five-minutes/run.mjs`'s own `serveLandingPage`
+  // citation), clicks the hero's own primary action (this workstream's own
+  // change, `context/decisions.md#ws-r164-hero-cta-goes-straight-to-sign-
+  // in`), signs in for real (with its own wrong-OTP negative control),
+  // accepts the source-use agreement, and describes itself through
+  // `DescribeMe` with NO recording at all — proving a first text source
+  // needs no microphone. It then reloads and drives one real
+  // `POST /api/replica-dialogue` turn, accepting either an honest refusal
+  // or a real reply (never a crash), so the same suite keeps gating
+  // correctly on both sides of WS-R161's `text_ready` merge. Reuses
+  // `evals/rehearsal/personal.mjs`'s own exported fixture world
+  // (`startServer`, `serveLandingPage`, `EMAIL`, `OTP`) rather than a
+  // second, drifting copy of its hard-won storage-writer matchers. Two
+  // negative controls: the wrong OTP above, and a signed-out dialogue call.
+  //
+  // Offline, deterministic, $0, no DB, no network beyond 127.0.0.1, no
+  // model call, no GPU. Chromium only; gracefully skips (exit 0) if none
+  // is found.
+  "first-five-minutes": "first-five-minutes/run.mjs",
 };
 
 const argv = process.argv.slice(2);

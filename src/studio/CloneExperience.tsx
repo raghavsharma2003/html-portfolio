@@ -15,6 +15,7 @@ import { isPrivateTextId } from "./privateTextRehearsalApi";
 import VideoEnrollPanel from "./VideoEnrollPanel";
 import VoicePreviewPanel from "./VoicePreviewPanel";
 import CloneVerificationJourney, { type CloneVerificationJourneyProps } from "./CloneVerificationJourney";
+import { FirstFiveMinutesRail, firstFiveMinutesStep } from "./FirstFiveMinutes";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
 import { addContextFiles, fileToBase64, loadContextLocker } from "./contextLockerApi";
 import {
@@ -1308,6 +1309,18 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const showRooms = voiceWorkspaceReady || textWorkspaceOpen || (textReady && !upload && !voiceSaga && !activeCandidate);
   const readBlocked = workspaceReadState !== "ready" || Boolean(selected && !creatingNew && !agreementBusy && room !== "rehearsal" && consentReadState !== "ready");
 
+  // WS-R164: the first five minutes' own small rail — only for a person who
+  // has a real replica (past Agreement) and has not reached a working room
+  // yet. `reachedMeet` is `showRooms` itself, not a second condition, so
+  // this steps out of the way through the exact boolean the real Meet gate
+  // uses (see `FirstFiveMinutes.tsx`'s own header for why).
+  const firstFiveMinutesStepId = selected && !creatingNew && !readBlocked
+    ? firstFiveMinutesStep({
+        hasFirstSource: wizardInput.sourceCount > 0 || (wizardInput.contextItemCount ?? 0) > 0,
+        reachedMeet: showRooms,
+      })
+    : null;
+
   // WS-R157: the install card's own derived state, `RoomApp.tsx`'s own
   // shape restated for the studio. `showRooms && selected` is this file's
   // equivalent of the Room's `phase === "talking"` — a settled, ongoing use
@@ -1367,6 +1380,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
       </header>
 
         {selected && <ActivityPanel headless token={accessToken} replicaId={selected.replica_id} where="feed" showHeading={false} onAuthError={onAuthError} onAct={onActivityAct} onView={onActivityView} journeyPending={Boolean(progress.primarySourceId && !progress.canTest)} />}
+        {firstFiveMinutesStepId && <FirstFiveMinutesRail step={firstFiveMinutesStepId} />}
 
 
       <main className="vx-main" ref={mainRef}>

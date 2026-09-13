@@ -6,7 +6,7 @@
 // already-reviewed wording wherever this file's English matches it, adapting
 // only where this screen's own English differs (the nearline nearline-busy
 // states this file's English adds, and one extra extraction blocker key).
-import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
+import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
 
 const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
   title: "अपने AI को एक ठिकाना दें।",
@@ -1022,6 +1022,18 @@ const HI_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
   },
 };
 
+// WS-R164 (wave twenty-two). `copy.ts#FirstFiveMinutesCopy`'s own closed
+// block, restated here as its own block per the same rule.
+const HI_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+  railLabel: "आपका AI शुरू हो रहा है",
+  signInTitle: "साइन इन करें",
+  firstSourceTitle: "इसे अपने बारे में बताएं",
+  firstSourceHint: "अपनी आवाज़ रिकॉर्ड करें या लिखकर अपने बारे में बताएं। आमतौर पर एक दो मिनट में हो जाता है।",
+  meetTitle: "इससे मिलें",
+  meetHint: "इसे बनने में कुछ मिनट लग सकते हैं। इंतज़ार के दौरान आप अपने बारे में और बता सकते हैं।",
+  stepDoneLabel: "हो गया",
+};
+
 // `personalAuth` is deliberately absent here: `copy.ts#loadStudioCopy`
 // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
 // Hindi loader, so this file owns only the sections named above.
@@ -1036,4 +1048,5 @@ export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
   voicePreviewPanel: HI_VOICE_PREVIEW_PANEL,
   mirrorCallStudio: HI_MIRROR_CALL_STUDIO,
   cloneExperienceShell: HI_CLONE_EXPERIENCE_SHELL,
+  firstFiveMinutes: HI_FIRST_FIVE_MINUTES,
 };

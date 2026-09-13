@@ -256,6 +256,29 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
     "/api/context-items": { ...(ROUTES["/api/context-items"] as object), items: [PHRASE_ITEM] },
   },
 
+  // WS-R164 (wave twenty-two): a source exists (`sourceCount > 0`,
+  // `FirstFiveMinutes.tsx#firstFiveMinutesStep`'s "meetWait" precondition)
+  // but no PRIMARY voice source yet, so `currentPrimary` in
+  // `CloneExperience.tsx` stays null and the recorder scene still renders,
+  // exactly like `public-capture` above (this scenario reuses that
+  // scenario's own consent grant so the screen reaches the recorder rather
+  // than stalling on Agreement, and `processing`'s own supporting-source
+  // shape below it so this needed no new source shape either). The point of
+  // this scenario is the RAIL it exposes for the layout/accessibility
+  // gates, not a claim that this exact recorder-plus-rail combination is
+  // the real product's own path to this state.
+  "text-source-waiting": {
+    "/api/replica-consent": { consents: FIXTURE_CONSENTS.slice(0, 3) },
+    "/api/replica-source": {
+      sources: [{
+        source_id: "src-waiting-0001", replica_id: FIXTURE_REPLICA.replica_id,
+        kind: "audio", capture_mode: "upload", voice_role: "supporting", mime: "audio/mpeg", byte_size: 1_200_000,
+        state: "processing", contains_third_parties: false, rejection_code: "",
+        created_at: "2026-08-26T18:40:00.000Z", updated_at: "2026-08-26T18:41:00.000Z",
+      }],
+    },
+  },
+
   // The two states a static empty fixture cannot reach. Both mount the real
   // owner panel with a real draft shape; installStubFetch supplies either the
   // protected audio receipt or the server's honest 202 warming contract.

@@ -974,6 +974,24 @@ export interface CloneExperienceShellCopy {
   };
 }
 
+// WS-R164 (wave twenty-two): the first five minutes' own small rail,
+// `FirstFiveMinutes.tsx`. Its own closed block, appended rather than folded
+// into an existing section, per `docs/gurukul/waves/wave-22/ws-common.md`'s
+// own merge rule for this file. Three named steps only (sign in, tell it
+// about you, meet it), matching the brief's own three timed transitions
+// (landing to sign-in, sign-in to first source, first source to Meet); no
+// step number or version-stamp text (`DESIGN-LAW.md` §1), no fake-precise
+// duration (a range word, never a second count).
+export interface FirstFiveMinutesCopy {
+  railLabel: string;
+  signInTitle: string;
+  firstSourceTitle: string;
+  firstSourceHint: string;
+  meetTitle: string;
+  meetHint: string;
+  stepDoneLabel: string;
+}
+
 export interface StudioCopy {
   personalAuth: PersonalAuthCopy;
   expertSharePanel: ExpertSharePanelCopy;
@@ -986,6 +1004,7 @@ export interface StudioCopy {
   voicePreviewPanel: VoicePreviewPanelCopy;
   mirrorCallStudio: MirrorCallStudioCopy;
   cloneExperienceShell: CloneExperienceShellCopy;
+  firstFiveMinutes: FirstFiveMinutesCopy;
 }
 
 const EN_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
@@ -1994,6 +2013,16 @@ const EN_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
   },
 };
 
+const EN_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+  railLabel: "Getting your AI started",
+  signInTitle: "Sign in",
+  firstSourceTitle: "Tell it about you",
+  firstSourceHint: "Record your voice or describe yourself in writing. Usually a minute or two.",
+  meetTitle: "Meet it",
+  meetHint: "It can take a few minutes to build. You can keep adding sources while you wait.",
+  stepDoneLabel: "Done",
+};
+
 const EN_STUDIO_COPY: StudioCopy = {
   personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
   expertSharePanel: EN_EXPERT_SHARE_PANEL,
@@ -2006,6 +2035,7 @@ const EN_STUDIO_COPY: StudioCopy = {
   voicePreviewPanel: EN_VOICE_PREVIEW_PANEL,
   mirrorCallStudio: EN_MIRROR_CALL_STUDIO,
   cloneExperienceShell: EN_CLONE_EXPERIENCE_SHELL,
+  firstFiveMinutes: EN_FIRST_FIVE_MINUTES,
 };
 
 // The Hindi table is its own chunk (WS-R71's shape). `STUDIO_COPY_TABLE.hi`

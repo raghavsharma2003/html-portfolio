@@ -655,6 +655,25 @@ async function serveDistFile(res, relPath) {
   } catch { return false; }
 }
 
+// WS-R164 (wave twenty-two). `site/vyakti.html` is copied to `dist/index.html`
+// by `scripts/vercel-build.sh` (the "vyakti-clone" product branch,
+// `scripts/verify-deploy.mjs`'s own product-select logic), never by
+// `npx vite build` alone (`vite.config.*`'s own `rollupOptions.input` has no
+// entry for it — that comment is this file's own citation for why). This
+// walk's `ensureBuilt()` runs the bare `vite build` every other rehearsal
+// already runs, so it reads the SAME real, shipping file straight off disk
+// instead of reproducing the production build's own file-shuffle step, and
+// serves it at its own path (`/vyakti-landing.html`) rather than overloading
+// `/` (every OTHER route in this file already assumes `/` is `studio.html`).
+async function serveLandingPage(res) {
+  try {
+    const bytes = await readFile(join(ROOT, "site", "vyakti.html"));
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(bytes);
+    return true;
+  } catch { return false; }
+}
+
 // The studio's own fixture-safe empty shapes for every OTHER `/api/*` route
 // `StudioApp` reads on mount — copied from `evals/rehearsal/harness.mjs`'s
 // own `FALLBACK_JSON_ROUTES` (that table is a closure private to that file,
@@ -771,6 +790,19 @@ async function startServer() {
         return;
       }
 
+      if ((req.method === "GET" || req.method === "HEAD") && pathname === "/vyakti-landing.html") {
+        if (await serveLandingPage(res)) return;
+      }
+
+      // `/studio` -> the real built `studio.html` (`vercel.json`'s own plain
+      // rewrite, `harness.mjs`'s own `/r/:slug` precedent restated here) —
+      // the landing's hero CTA (this workstream's own change,
+      // `site/vyakti.html`) links to `/studio` with no `.html`, and this
+      // server otherwise has no rewrite table at all.
+      if (pathname === "/studio" && (req.method === "GET" || req.method === "HEAD")) {
+        if (await serveDistFile(res, "studio.html")) return;
+      }
+
       if (req.method === "GET" || req.method === "HEAD") {
         const rel = pathname === "/" ? "studio.html" : pathname.replace(/^\//, "");
         if (await serveDistFile(res, rel)) return;
@@ -822,15 +854,45 @@ async function main() {
       page.on("requestfailed", (request) => console.log(`  request failed: ${request.method()} ${request.url()} ${request.failure()?.errorText}`));
     }
 
-    // ── SIGN-IN ──────────────────────────────────────────────────────────
+    // ── LANDING TO SIGN-IN — WS-R164's own first step, the real
+    //    `site/vyakti.html` served straight off disk (`serveLandingPage`'s
+    //    own header for why never `dist/index.html`), one real click on the
+    //    hero's own primary action (`context/decisions.md#ws-r164-hero-cta-
+    //    goes-straight-to-sign-in`), never a direct `page.goto` of
+    //    `/studio.html` the way every earlier version of this walk did. ────
     let tStep = Date.now();
-    await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}/vyakti-landing.html`, { waitUntil: "domcontentloaded" });
+    const heroCta = page.locator("#loc-en .hero .btn");
+    await heroCta.waitFor({ state: "visible", timeout: 20_000 });
+    const heroCtaHref = await heroCta.getAttribute("href");
+    ok("landing: the hero's own primary action points straight at sign-in, never the apply form", heroCtaHref === "/studio", `href=${heroCtaHref}`);
+    await heroCta.click();
     await page.locator("#studio-email").waitFor({ state: "visible", timeout: 20_000 });
+    ok("landing: the real click reached the real AuthGate, carrying no ?mode= (personal studio by default)", new URL(page.url()).search.includes("mode=teacher") === false);
+    timings.landingToSignInMs = Date.now() - tStep;
+
+    // ── SIGN-IN ──────────────────────────────────────────────────────────
+    tStep = Date.now();
     ok("sign-in: the real AuthGate renders (no localStorage seed)", true);
     await page.locator("#studio-email").fill(EMAIL);
     await page.locator(".auth-card button.primary-button").first().click();
     await page.locator("#studio-code").waitFor({ state: "visible", timeout: 20_000 });
     ok("sign-in: send_otp through the real api/account.js door moved the UI to the code step", true);
+
+    // NEGATIVE CONTROL — a wrong OTP is refused with a sentence, never a
+    // stack (WS-R164's own law 3, and `context/rejected.md
+    // #ws-r164-wrong-otp-fell-through-to-a-misleading-error` — this walk is
+    // what found the real classification gap the fix beside it repairs).
+    await page.locator("#studio-code").fill("000000");
+    await page.locator(".auth-card button.primary-button").last().click();
+    const wrongCodeError = page.locator(".inline-error");
+    await wrongCodeError.waitFor({ state: "visible", timeout: 20_000 });
+    const wrongCodeText = (await wrongCodeError.textContent()) || "";
+    const looksLikeAStack = /error:|\bat\s+\S+:\d+:\d+|stack trace/i.test(wrongCodeText);
+    ok("NEGATIVE CONTROL — a wrong code is refused with a real sentence, never a stack", wrongCodeText.trim().length > 0 && !looksLikeAStack, `text=${JSON.stringify(wrongCodeText)}`);
+    ok("NEGATIVE CONTROL — a wrong code names the real thing wrong, not a generic outage", /did not match|invalid|incorrect/i.test(wrongCodeText), `text=${JSON.stringify(wrongCodeText)}`);
+    ok("NEGATIVE CONTROL — a wrong code clears the field rather than leaving a stale guess to resubmit", await page.locator("#studio-code").inputValue() === "");
+
     await page.locator("#studio-code").fill(OTP);
     await page.locator(".auth-card button.primary-button").last().click();
     await page.locator(".vx-agreement, .vx-shell").first().waitFor({ state: "visible", timeout: 20_000 });
@@ -1285,6 +1347,20 @@ async function main() {
     const postRevokeHasAgreement = await page.locator(".vx-agreement, .vx-drawer").count();
     ok("NEGATIVE CONTROL — after revoke, reloading never shows the voice workspace as if the replica were live", postRevokeHasRecorder === 0 || postRevokeHasAgreement >= 0);
 
+    // WS-R164's own three named transitions, aggregated from the granular
+    // steps above rather than measured a second time. This walk's own
+    // "first source" is Describe me (driven before recording, this file's
+    // own "record" section explains why); the third bucket therefore still
+    // includes the voice detour this SAME walk also drives — the dedicated
+    // text-only measurement (no recording at all) is
+    // `evals/first-five-minutes/run.mjs`'s own job, not a second copy of
+    // this walk's bucket.
+    const firstFiveMinutes = {
+      landingToSignInMs: (timings.landingToSignInMs || 0) + (timings.signInMs || 0),
+      signInToFirstSourceMs: (timings.agreementMs || 0) + (timings.describeMeMs || 0),
+      firstSourceToMeetMs: (timings.recordAndBuildMs || 0) + (timings.waitMs || 0) + (timings.reloadAfterBuildMs || 0) + (timings.meetTurnMs || 0),
+    };
+    console.log(`\nfirst five minutes (ms): ${JSON.stringify(firstFiveMinutes)}`);
     console.log(`\nwall clocks (ms): ${JSON.stringify(timings)}`);
   } finally {
     await browser.close();
@@ -1292,10 +1368,31 @@ async function main() {
   }
 }
 
-await main();
+// WS-R164 (wave twenty-two): `startServer`, `serveLandingPage`, `EMAIL` and
+// `OTP` are exported so `evals/first-five-minutes/run.mjs` can drive the
+// SAME real fixture world (`personalDb`'s own hard-won matchers, including
+// the storage-writer chain `context/rejected.md
+// #ws-r158-missing-storage-writer-fixture-denies-a-real-describe-me-save`
+// found) rather than a second, drifting copy of it — the general lesson
+// `ws-common.md`'s own merge-lessons section states for a widened door
+// (update every fixture that answers for it); here the door is unchanged
+// and the fixture world itself is what a second workstream needs intact.
+// This module still runs its OWN full walk exactly as before when executed
+// directly (`node evals/rehearsal/personal.mjs`, `evals/run.mjs`'s own
+// `rehearsal-personal` entry) — only a DIRECT import skips `main()`, so
+// nothing about this file's own gate contract changes.
+export { startServer, serveLandingPage, EMAIL, OTP };
 
-console.log(`\n${pass} passed, ${fail} failed`);
-if (fail > 0) {
-  console.log("failed:", failures.join(", "));
-  process.exitCode = 1;
+const isMain = (() => {
+  try { return pathToFileURL(process.argv[1] || "").href === import.meta.url; } catch { return false; }
+})();
+
+if (isMain) {
+  await main();
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  if (fail > 0) {
+    console.log("failed:", failures.join(", "));
+    process.exitCode = 1;
+  }
 }

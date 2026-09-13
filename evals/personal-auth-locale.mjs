@@ -197,6 +197,12 @@ try {
   check("Only an actual restored session reaches onAuthed", () => { assert.deepEqual(accepted.accepted, [fresh]); assert.deepEqual(accepted.errors, []); assert.deepEqual(accepted.checking, [true, false]); });
   // Execute the actual network callbacks with their dependencies injected.
   // This tests error classification, not SQL or live authentication.
+  // WS-R164: verifyCode now calls the real isStudioAuthDead classifier
+  // (studioAuth.ts), restated inline below rather than imported -- this
+  // file's own established convention throughout (the SESSION extraction
+  // two boundaries up defines the identical function the same way, for the
+  // same reason: the extracted body is pasted into a synthetic scope with
+  // no module graph of its own).
   for (const name of ["sendCode", "verifyCode"]) {
     const body = functionText(auth, name);
     const text = `export async function run(status) {
@@ -204,6 +210,7 @@ try {
       const errors = []; let cleared = false; const email = 'owner@example.com'; const code = '123456';
       const cause = status === null ? new TypeError('PRIVATE_PROVIDER_PAYLOAD') : new StudioAuthError(status);
       const sendEmailOtp = async () => { throw cause; }; const verifyEmailOtp = sendEmailOtp;
+      const isStudioAuthDead = cause => [400, 401, 403].includes(cause?.status);
       const setError = v => errors.push(v); const setBusy = () => {}; const setStep = () => {}; const setCode = () => { cleared = true; };
       const writeStoredSession = () => {}; const onAuthed = () => {}; const codeRef = { current: null }; const requestAnimationFrame = fn => fn();
       ${body}
@@ -218,14 +225,20 @@ try {
       if (name === "verifyCode") check(`Verification ${status} preserves the unrejected code`, () => assert.equal(result.cleared, false));
     }
     if (name === "verifyCode") {
-      for (const status of [400, 401]) {
+      // WS-R164: 403 moved INTO this loop, not out of it. The real door
+      // (`api/account.js`'s `verify_otp`) passes GoTrue's own status
+      // through unchanged, and a wrong or expired OTP token is 403, not
+      // 400/401 (`context/rejected.md
+      // #ws-r164-wrong-otp-fell-through-to-a-misleading-error`) — this
+      // suite used to assert the OPPOSITE ("Forbidden verifier is not a
+      // code mismatch", 403 => serviceUnavailableError), which is exactly
+      // the bug that entry documents, codified as an expectation here.
+      for (const status of [400, 401, 403]) {
         const result = await callback.run(status);
         check(`Verification ${status} resets a rejected code`, () => assert.deepEqual(result, { error: "codeMismatchError", cleared: true }));
       }
       const result = await callback.run(404);
       check("Missing verifier route is a platform error", () => assert.deepEqual(result, { error: "serviceUnavailableError", cleared: false }));
-      const forbidden = await callback.run(403);
-      check("Forbidden verifier is not a code mismatch", () => assert.deepEqual(forbidden, { error: "serviceUnavailableError", cleared: false }));
     }
   }
   const localeSource = await readFile(join(root, "src/studio/personalAuthLocale.tsx"), "utf8");

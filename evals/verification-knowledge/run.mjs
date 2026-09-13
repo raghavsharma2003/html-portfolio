@@ -14,7 +14,9 @@ assert.equal(sha(oldBytes),'b7fb64ac4965ba7af81ec4acff5cc9c7f42b052a0cb1f6d3f329
 const names=['src/studio/CloneExperience.tsx','src/studio/CloneVerificationJourney.tsx','src/studio/clone-verification-journey.css'];
 const hashes=Object.fromEntries(names.map(p=>[p,sha(readFileSync(join(root,p)))]));
 const current=readFileSync(join(root,names[0]),'utf8');
-assert(!old.includes('exitLabel="Back to knowledge"'));assert(current.includes('onExit={() => { setEnrichView("menu"); chooseRoom("enrich"); }} exitLabel="Back to knowledge"'));
+assert(!old.includes('exitLabel="Back to knowledge"'));// WS-R166 moved the label into the personal studio's copy registry: the property is the same exit handler with a registered label whose English text is still "Back to knowledge".
+const exitLabelMatch=current.match(/onExit=\{\(\) => \{ setEnrichView\("menu"\); chooseRoom\("enrich"\); \}\} exitLabel=(?:"Back to knowledge"|\{copy\.([\w.]+)\})/);assert(exitLabelMatch);
+if(exitLabelMatch[1]){const studioCopy=readFileSync(join(root,'src/studio/copy.ts'),'utf8');const key=exitLabelMatch[1].split('.').pop();assert(new RegExp(key+': "Back to knowledge"').test(studioCopy));}
 const normalize=s=>s.replaceAll('\r\n','\n');
 // The historical caller remains immutable. Permit only the separately reviewed
 // owner identity plumbing added for comparison preparation, not arbitrary drift.
@@ -23,7 +25,11 @@ const ownerPlumbing=[
  ['    accountScope, ownerUserId, workspaceReadState','    accountScope, workspaceReadState'],
  ['<CloneVerificationJourney ownerUserId={ownerUserId} token=','<CloneVerificationJourney token='],
 ];
-let navigationBaseline=normalize(current);
+// WS-R166 (wave twenty-two) moved the exit label into the personal studio's
+// copy registry; the registered English text is asserted above, and the
+// invocation is compared with the literal restored, so the historical
+// contract stays exact apart from that reviewed rewrite.
+let navigationBaseline=normalize(current).replace('exitLabel={copy.verification.backToKnowledge}','exitLabel="Back to knowledge"');
 for(const [before,after]of ownerPlumbing){assert.equal(navigationBaseline.split(before).length-1,1,'exact reviewed owner plumbing occurs once');navigationBaseline=navigationBaseline.replace(before,after);}
 // This suite owns the verification invocation, not the whole workspace file.
 // Reviewed Teach/evolve additions elsewhere must not invalidate its historical

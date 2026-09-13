@@ -19002,6 +19002,72 @@
       "kind": "measurement",
       "title": "Full gate 22/24 on both runs; five run-1 eval failures fixed, two run-2 failures cleared under lower load (2026-09-13)",
       "at": "context/measurements.md#ws-r169-full-gate-two-runs-2026-09-13"
+    },
+    {
+      "id": "ws-r164-hero-cta-goes-straight-to-sign-in",
+      "kind": "decision",
+      "title": "The landing's hero CTA goes straight to /studio sign-in, not the apply waitlist (2026-09-13)",
+      "at": "context/decisions.md#ws-r164-hero-cta-goes-straight-to-sign-in"
+    },
+    {
+      "id": "ws-r164-first-time-email-autofocus",
+      "kind": "decision",
+      "title": "PersonalAuthGate focuses the email field for every first-time visitor, not only resumeIntent (2026-09-13)",
+      "at": "context/decisions.md#ws-r164-first-time-email-autofocus"
+    },
+    {
+      "id": "ws-r164-personal-mjs-exports-fixture-world-for-reuse",
+      "kind": "decision",
+      "title": "personal.mjs exports its fixture world (startServer, serveLandingPage, EMAIL, OTP) behind an isMain guard (2026-09-13)",
+      "at": "context/decisions.md#ws-r164-personal-mjs-exports-fixture-world-for-reuse"
+    },
+    {
+      "id": "ws-r164-first-five-minutes-rail",
+      "kind": "decision",
+      "title": "A small, free-standing FirstFiveMinutesRail in CloneExperience.tsx, not the internal WizardRail (2026-09-13)",
+      "at": "context/decisions.md#ws-r164-first-five-minutes-rail"
+    },
+    {
+      "id": "ws-r164-wrong-otp-fell-through-to-a-misleading-error",
+      "kind": "rejection",
+      "title": "A wrong OTP (403) fell through to 'temporarily unavailable' instead of 'that code did not match' (2026-09-13)",
+      "at": "context/rejected.md#ws-r164-wrong-otp-fell-through-to-a-misleading-error"
+    },
+    {
+      "id": "ws-r164-personal-rehearsal-with-landing-wall-clock-2026-09-13",
+      "kind": "measurement",
+      "title": "personal.mjs's own landing-to-Meet wall clock, three named buckets, n=3 (2026-09-13)",
+      "at": "context/measurements.md#ws-r164-personal-rehearsal-with-landing-wall-clock-2026-09-13"
+    },
+    {
+      "id": "ws-r164-first-five-minutes-text-only-wall-clock-2026-09-13",
+      "kind": "measurement",
+      "title": "The text-only first five minutes (no recording), three named buckets, n=3 (2026-09-13)",
+      "at": "context/measurements.md#ws-r164-first-five-minutes-text-only-wall-clock-2026-09-13"
+    },
+    {
+      "id": "ws-r164-touched-suite-results-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R164's own touched-suite results: layout, accessibility, copy, typecheck, build (2026-09-13)",
+      "at": "context/measurements.md#ws-r164-touched-suite-results-2026-09-13"
+    },
+    {
+      "id": "ws-r164-new-rail-untagged-hindi-fails-the-accessibility-lang-check",
+      "kind": "rejection",
+      "title": "FirstFiveMinutesRail's own Hindi strings read as computed lang=en until lang={locale} was added (2026-09-13)",
+      "at": "context/rejected.md#ws-r164-new-rail-untagged-hindi-fails-the-accessibility-lang-check"
+    },
+    {
+      "id": "ws-r164-fixed-rail-intercepted-pointer-events-over-real-buttons",
+      "kind": "rejection",
+      "title": "FirstFiveMinutesRail's fixed overlay blocked a real click underneath until pointer-events:none (2026-09-13)",
+      "at": "context/rejected.md#ws-r164-fixed-rail-intercepted-pointer-events-over-real-buttons"
+    },
+    {
+      "id": "ws-r164-full-gate-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R164's one full gate run: 21/24 clean, 3 failures diagnosed and isolated-rerun (2026-09-13)",
+      "at": "context/measurements.md#ws-r164-full-gate-2026-09-13"
     }
   ],
   "edges": [
@@ -32341,6 +32407,51 @@
     {
       "src": "ws-r169-performance-budgets-and-browser-resource-flaked-under-wave-22-contention",
       "dst": "ws-r169-full-gate-two-runs-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r164-hero-cta-goes-straight-to-sign-in",
+      "dst": "ws-r164-personal-rehearsal-with-landing-wall-clock-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r164-first-five-minutes-rail",
+      "dst": "ws-r164-touched-suite-results-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r164-personal-mjs-exports-fixture-world-for-reuse",
+      "dst": "ws-r164-first-five-minutes-text-only-wall-clock-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r164-wrong-otp-fell-through-to-a-misleading-error",
+      "dst": "ws-r164-personal-rehearsal-with-landing-wall-clock-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r164-first-five-minutes-rail",
+      "dst": "ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r164-first-five-minutes-rail",
+      "dst": "ws-r164-new-rail-untagged-hindi-fails-the-accessibility-lang-check",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r164-first-five-minutes-rail",
+      "dst": "ws-r164-fixed-rail-intercepted-pointer-events-over-real-buttons",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r164-fixed-rail-intercepted-pointer-events-over-real-buttons",
+      "dst": "ws-r164-full-gate-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r164-wrong-otp-fell-through-to-a-misleading-error",
+      "dst": "ws-r164-full-gate-2026-09-13",
       "rel": "measured_by"
     }
   ]
