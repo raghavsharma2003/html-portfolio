@@ -169,6 +169,21 @@ const TARGETS = [
     steps: ["capture", "voice", "enrich"], mounted: ".vx-shell",
     panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu", minPanels: 1,
   },
+  // WS-R155. The blind listening test, opened straight from the voice room
+  // via `?listening=1` (CloneExperience.tsx's own deep-link for this,
+  // `room:checkins`/`room:handoff`'s own WS-R43 law restated: never a
+  // fixture prop that pre-opens a panel, a REAL query param the component
+  // itself already reads). The "voice-ready" scenario's `runtime.active:
+  // false` is what the "clone" target above relies on too (it is why
+  // `view=voice` alone already renders the sample panel, not the
+  // conversation one); this target adds `listening=1` on top of the exact
+  // same scenario so the two never drift against each other.
+  {
+    name: "studio:listening", fixture: "studio-layout-fixture.html",
+    query: () => "step=meet&scenario=voice-ready&view=voice&listening=1",
+    steps: ["default"], mounted: ".vx-shell",
+    panels: ".lt-panel", minPanels: 1,
+  },
   {
     name: "studio",
     fixture: "creator-layout-fixture.html",

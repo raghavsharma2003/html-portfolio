@@ -456,3 +456,56 @@ export interface CandidateEvaluation {
   dimensions?: CandidateEvalDimension[];
   assignment?: CandidateEvalAssignment | null;
 }
+
+// WS-R155: "Sounds like you" and the listening test.
+export type ListeningAxis = "owner_likeness" | "naturalness" | "indian_accent" | "pronunciation";
+export type ListeningRating = Record<ListeningAxis, number>;
+
+export interface VoiceFidelitySummary {
+  status: "pass" | "warn" | "fail" | "not_measured" | "no_voice_yet";
+  score: { mean: number | null; p10: number | null; worst: number | null; windows: number | null } | null;
+  policy_version: string | null;
+  activation_floor: number | null;
+  target: number | null;
+  computed_at: string | null;
+  stale: boolean;
+  reason: string | null;
+  trigger: string | null;
+}
+
+export interface VoiceListeningCandidate {
+  generation_id: string;
+  audio_sha256: string;
+  created_at: string;
+}
+
+export interface VoiceLikenessSummary {
+  replica_id: string;
+  fidelity: VoiceFidelitySummary;
+  reference_sha256: string | null;
+  listening_candidates: VoiceListeningCandidate[];
+  listening_ready: boolean;
+}
+
+export interface VoiceListeningVerdict {
+  replica_id: string;
+  version: number;
+  profile_version: number;
+  status: "draft" | "approved" | "retired";
+  pair_sha256: string;
+  winner: "left" | "right" | "tie";
+  winner_generation_id: string | null;
+  left_mean: number;
+  right_mean: number;
+  created_at: string;
+}
+
+export interface VoiceListeningHistoryEntry {
+  version: number;
+  winner_generation_id: string | null;
+  winner: "left" | "right" | "tie" | null;
+  order: "ab" | "ba" | null;
+  left_mean: number | null;
+  right_mean: number | null;
+  created_at: string;
+}

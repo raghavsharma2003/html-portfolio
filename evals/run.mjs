@@ -3047,6 +3047,19 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-month-note": "room-month-note/run.mjs",
+  // WS-R155. "Sounds like you" and the listening test. Pure verdict math
+  // (mean, winner, order-independent pair identity) checked against the
+  // SEALED listening harness's own four-axis ids
+  // (evals/voice-listening-benchmark/lib.mjs#AXES) so this never drifts into
+  // a second scorer; the real SQL recordVoiceListeningVerdict sends proves
+  // eligibility (sealed, owner-owned, matching content hashes, an approved
+  // person profile) the same way evals/voice-preference/run.mjs proves its
+  // sibling; and the activation guard (law 4, "a losing candidate cannot
+  // become primary without an explicit override that is logged") is
+  // exercised end to end, including the one branch that must refuse.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  listeningtest: "listening-test/run.mjs",
 };
 
 const argv = process.argv.slice(2);

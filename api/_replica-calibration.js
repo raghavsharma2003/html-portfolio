@@ -3,6 +3,7 @@
 // The browser chooses only a server-owned scenario and left/right/tie/neither.
 // Candidate strategies, runtime directives, hashes and model definitions are
 // built here; arbitrary client text never becomes behavior policy.
+import { randomUUID } from "node:crypto";
 import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 
@@ -378,3 +379,278 @@ export async function approveOwnedCalibration(db, ownerUserId, input) {
 }
 
 export { CORE_LAYERS as CALIBRATION_CORE_LAYERS };
+
+// ── WS-R155: "Sounds like you" and the listening test ─────────────────────
+//
+// A voice listening verdict is a paired blind comparison of two candidate
+// generations of the OWNER'S OWN voice (never a stranger's, never a
+// cross-provider claim -- `evals/voice-listening-benchmark`'s own law), rated
+// on the same sealed four-axis form that listening harness already uses:
+// owner likeness, naturalness, Indian accent fit, pronunciation. These axis
+// ids MUST stay identical to evals/voice-listening-benchmark/lib.mjs#AXES --
+// evals/listening-test/run.mjs asserts the two lists match by id on every
+// run, so a drift here fails loudly rather than quietly building a second
+// scorer (the brief's own words: "never a second scorer").
+//
+// The verdict lands as a NEW schema value in the SAME vy_replica_calibration
+// table a personality preference lands in (migration 166's own header
+// explains why: a row's kind is read from definition->>'schema', and
+// ownedCalibrationStatus/calibrationDirectives above already ignore any
+// schema they do not recognise, so this is additive by construction).
+//
+// context/rejected.md's law that a speaker-embedding cosine score does not
+// by itself settle likeness applies here in its human form too: two
+// candidates can legitimately tie a blind listener, and a tie is a stored,
+// honest outcome (winner_artifact_id null), never a forced pick.
+export const LISTENING_VERDICT_SCHEMA = "vyakti.voice-listening-verdict.v1";
+export const LISTENING_AXES = Object.freeze(["owner_likeness", "naturalness", "indian_accent", "pronunciation"]);
+const SORTED_LISTENING_AXES = Object.freeze([...LISTENING_AXES].sort());
+const SHA256_SHAPE = /^[0-9a-f]{64}$/;
+
+function listeningFail(code, status = 400, details) {
+  const error = Object.assign(new Error(code), { code, status });
+  if (details) error.details = details;
+  throw error;
+}
+
+/** All four axes present, each an integer 1..5, nothing extra. Pure. */
+export function validateListeningRating(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) listeningFail("listening_rating_invalid");
+  const keys = Object.keys(value).sort();
+  if (keys.length !== SORTED_LISTENING_AXES.length || keys.some((key, index) => key !== SORTED_LISTENING_AXES[index]))
+    listeningFail("listening_rating_axes_invalid");
+  const rating = {};
+  for (const axis of LISTENING_AXES) {
+    const score = Number(value[axis]);
+    if (!Number.isInteger(score) || score < 1 || score > 5) listeningFail("listening_rating_axes_invalid");
+    rating[axis] = score;
+  }
+  return Object.freeze(rating);
+}
+
+export function listeningRatingMean(rating) {
+  return LISTENING_AXES.reduce((total, axis) => total + rating[axis], 0) / LISTENING_AXES.length;
+}
+
+/**
+ * The pair's stable identity: content hashes only, never generation ids, so
+ * "the latest verdict for this exact pair" is a lookup and a redo of the
+ * same pair is found rather than guessed. Order-independent in the two
+ * candidates (sorted) so left/right on a redo does not mint a new pair.
+ */
+export function listeningPairSha256({ leftSha256, rightSha256, referenceSha256 }) {
+  const left = String(leftSha256 || "").toLowerCase();
+  const right = String(rightSha256 || "").toLowerCase();
+  const reference = String(referenceSha256 || "").toLowerCase();
+  if (!SHA256_SHAPE.test(left) || !SHA256_SHAPE.test(right) || !SHA256_SHAPE.test(reference)) listeningFail("listening_hash_invalid");
+  if (left === right) listeningFail("listening_distinct_candidates_required");
+  return sha256Hex({ schema: LISTENING_VERDICT_SCHEMA, candidates: [left, right].sort(), reference_sha256: reference });
+}
+
+/** Pure verdict math: higher mean across the four axes wins; equal means tie. */
+export function listeningVerdictFromRatings(leftRating, rightRating) {
+  const leftMean = listeningRatingMean(leftRating);
+  const rightMean = listeningRatingMean(rightRating);
+  const winner = leftMean > rightMean ? "left" : rightMean > leftMean ? "right" : "tie";
+  return Object.freeze({ leftMean, rightMean, winner });
+}
+
+export function buildListeningVerdictDefinition(input) {
+  const order = input?.order === "ba" ? "ba" : "ab";
+  const { leftMean, rightMean, winner } = listeningVerdictFromRatings(input.left.ratings, input.right.ratings);
+  return Object.freeze({
+    schema: LISTENING_VERDICT_SCHEMA,
+    order,
+    left: Object.freeze({ generation_id: input.left.generationId, audio_sha256: input.left.audioSha256, ratings: input.left.ratings, mean: leftMean }),
+    right: Object.freeze({ generation_id: input.right.generationId, audio_sha256: input.right.audioSha256, ratings: input.right.ratings, mean: rightMean }),
+    reference_sha256: input.referenceSha256,
+    winner,
+    note: input.note || "",
+  });
+}
+
+// No FK on winner_artifact_id (migration 166's own comment: vy_replica_
+// generation carries no unique constraint on the exact tuple this would
+// need). Eligibility is proved here instead, by the same WHERE-clause-join
+// pattern recordOwnedVoicePreference (api/_replica-voice-preference.js)
+// already uses for the identical left/right-generation relationship. The
+// advisory lock key is deliberately the SAME one buildOwnedCalibration uses
+// ('<replica_id>:calibration_build'): both writers mint the next `version`
+// for this table, so they must serialize against each other or a listening
+// verdict and a personality-calibration build could race onto one version.
+const LISTENING_INSERT_SQL = `with owned as (
+   select r.replica_id,r.owner_user_id,p.version as profile_version,
+          pg_advisory_xact_lock(hashtextextended(r.replica_id::text||':calibration_build',0))
+     from vy_replica r join lateral (
+       select version from vy_replica_profile x where x.replica_id=r.replica_id and x.status='approved'
+        order by version desc limit 1
+     ) p on true
+    where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
+      and r.policy_version=$3 and r.lifecycle not in ('revoked','purging')
+ ), candidates as (
+   select l.generation_id as left_id,rgen.generation_id as right_id
+     from vy_replica_generation l
+     join vy_replica_generation rgen on rgen.generation_id=$5::uuid and rgen.replica_id=l.replica_id
+       and rgen.owner_user_id=l.owner_user_id
+     join owned o on o.replica_id=l.replica_id and o.owner_user_id=l.owner_user_id
+    where l.generation_id=$4::uuid and l.replica_id=$1::uuid and l.owner_user_id=$2::uuid
+      and l.state='sealed' and rgen.state='sealed'
+      and l.purpose='voice_preview' and rgen.purpose='voice_preview'
+      and l.audio_sha256=$6 and rgen.audio_sha256=$7
+      and l.generation_id<>rgen.generation_id
+ ), inserted as (
+   insert into vy_replica_calibration
+     (replica_id,owner_user_id,version,profile_version,source_set_hash,definition,status,pair_sha256,winner_artifact_id)
+   select o.replica_id,o.owner_user_id,
+          coalesce((select max(version)+1 from vy_replica_calibration where replica_id=o.replica_id),1),
+          o.profile_version,$8,$9::jsonb,'approved',$10,$11::uuid
+     from owned o join candidates c on true
+   returning replica_id,version,profile_version,status,pair_sha256,winner_artifact_id,created_at
+ ) select * from inserted`;
+
+/**
+ * Record one completed blind listening trial as an approved calibration row.
+ * Atomic and idempotent-by-content: a genuine redo of the same pair mints a
+ * new version (source_set_hash includes a fresh attempt id so it never
+ * collides with an earlier attempt at the same pair), while pair_sha256
+ * groups every attempt at that pair for the "latest verdict" reader below.
+ */
+export async function recordVoiceListeningVerdict(db, ownerUserId, input) {
+  const rid = replicaId(input?.replica_id);
+  const leftId = replicaId(input?.left?.generation_id);
+  const rightId = replicaId(input?.right?.generation_id);
+  if (leftId === rightId) listeningFail("listening_distinct_candidates_required");
+  const leftSha = String(input?.left?.audio_sha256 || "").toLowerCase();
+  const rightSha = String(input?.right?.audio_sha256 || "").toLowerCase();
+  const referenceSha = String(input?.reference_sha256 || "").toLowerCase();
+  const pairSha = listeningPairSha256({ leftSha256: leftSha, rightSha256: rightSha, referenceSha256: referenceSha });
+  const leftRatings = validateListeningRating(input?.left?.ratings);
+  const rightRatings = validateListeningRating(input?.right?.ratings);
+  const definition = buildListeningVerdictDefinition({
+    order: input?.order,
+    left: { generationId: leftId, audioSha256: leftSha, ratings: leftRatings },
+    right: { generationId: rightId, audioSha256: rightSha, ratings: rightRatings },
+    referenceSha256: referenceSha,
+    note: clean(input?.note, 280),
+  });
+  const winnerId = definition.winner === "left" ? leftId : definition.winner === "right" ? rightId : null;
+  const sourceSetHash = sha256Hex({ schema: LISTENING_VERDICT_SCHEMA, pair_sha256: pairSha, attempt: randomUUID() });
+  const rows = await db(LISTENING_INSERT_SQL, [
+    rid, ownerUserId, REPLICA_POLICY_VERSION, leftId, rightId, leftSha, rightSha,
+    sourceSetHash, JSON.stringify(definition), pairSha, winnerId,
+  ]);
+  if (!rows[0]) listeningFail("listening_candidates_ineligible_or_profile_unapproved", 409);
+  const row = rows[0];
+  return Object.freeze({
+    replica_id: row.replica_id,
+    version: number(row.version),
+    profile_version: number(row.profile_version),
+    status: row.status,
+    pair_sha256: row.pair_sha256,
+    winner: definition.winner,
+    winner_generation_id: row.winner_artifact_id,
+    left_mean: definition.left.mean,
+    right_mean: definition.right.mean,
+    created_at: row.created_at,
+  });
+}
+
+/** The latest approved verdict for one specific content pair, or null if the
+ *  owner has never blind-tested that exact pair. Used both by the studio's
+ *  "sounds like you" read and by the activation guard below. */
+export async function latestVoiceListeningVerdict(db, ownerUserId, id, pairSha256) {
+  const rid = replicaId(id);
+  const rows = await db(
+    `select version,winner_artifact_id,definition,pair_sha256,created_at from vy_replica_calibration
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and pair_sha256=$3 and status='approved'
+      order by version desc limit 1`,
+    [rid, ownerUserId, pairSha256],
+  );
+  return rows[0] || null;
+}
+
+/** The owner's most recent listening verdicts of any pair, newest first --
+ *  "the owner's own last blind preference" on the Meet voice sample view. */
+export async function ownedVoiceListeningHistory(db, ownerUserId, id, limit = 10) {
+  const rid = replicaId(id);
+  const rows = await db(
+    `select version,definition,winner_artifact_id,pair_sha256,created_at from vy_replica_calibration
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and status='approved'
+        and definition#>>'{schema}'=$3
+      order by version desc limit $4`,
+    [rid, ownerUserId, LISTENING_VERDICT_SCHEMA, Math.max(1, Math.min(50, Number(limit) || 10))],
+  );
+  return rows.map((row) => {
+    const definition = typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition;
+    return {
+      version: number(row.version),
+      winner_generation_id: row.winner_artifact_id,
+      winner: definition?.winner || null,
+      order: definition?.order || null,
+      left_mean: definition?.left?.mean ?? null,
+      right_mean: definition?.right?.mean ?? null,
+      created_at: row.created_at,
+    };
+  });
+}
+
+// ── Law 4: "a losing candidate cannot become primary without an explicit
+// override that is logged" ─────────────────────────────────────────────────
+// Pure decision, so every branch is a fixture test with no database. The
+// three "allowed" reasons and the one "blocked" reason are the whole surface
+// a caller needs to reason about; `override` is a caller-declared intent,
+// never inferred from anything the client sends implicitly.
+export function decideVoiceActivation({ verdict, candidateGenerationId, override = false }) {
+  if (!verdict) return Object.freeze({ allowed: true, reason: "no_verdict_on_record" });
+  if (!verdict.winner_artifact_id) return Object.freeze({ allowed: true, reason: "verdict_was_a_tie" });
+  if (String(verdict.winner_artifact_id) === String(candidateGenerationId))
+    return Object.freeze({ allowed: true, reason: "candidate_won_latest_verdict" });
+  if (override) return Object.freeze({ allowed: true, reason: "override", overridden: true, blockedBy: String(verdict.winner_artifact_id) });
+  return Object.freeze({ allowed: false, reason: "candidate_lost_latest_verdict", blockedBy: String(verdict.winner_artifact_id) });
+}
+
+/**
+ * The DB-backed guard a runtime-activation caller runs before letting a
+ * candidate generation become the primary voice. Deliberately NOT wired into
+ * api/_replica-runtime.js's own activation query in this workstream: that
+ * query is a 100+ line qualification path this brief does not name, and
+ * bolting a new precondition onto it without walking that whole path first
+ * is exactly the kind of change that is riskier for being small. This guard
+ * is the self-contained, offline-testable half; wiring it into that call
+ * site is named as an open item in this workstream's report.
+ *
+ * Never throws for "not allowed" -- it returns the same decision shape
+ * decideVoiceActivation does, so a caller (a future HTTP door, or a test)
+ * chooses its own status code rather than parsing an error.
+ */
+export async function guardOwnedVoiceActivation(db, ownerUserId, input) {
+  const rid = replicaId(input?.replica_id);
+  const candidateId = replicaId(input?.candidate_generation_id);
+  if (!input?.current_generation_id) return decideVoiceActivation({ verdict: null, candidateGenerationId: candidateId });
+  const currentId = replicaId(input.current_generation_id);
+  if (candidateId === currentId) return Object.freeze({ allowed: true, reason: "candidate_is_current_primary" });
+  const rows = await db(
+    `select generation_id,audio_sha256 from vy_replica_generation
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and generation_id=any($3::uuid[])
+        and state='sealed' and audio_sha256 is not null`,
+    [rid, ownerUserId, [candidateId, currentId]],
+  );
+  const bySha = new Map(rows.map((row) => [String(row.generation_id), row.audio_sha256]));
+  const candidateSha = bySha.get(candidateId);
+  const currentSha = bySha.get(currentId);
+  const referenceSha = String(input?.reference_sha256 || "").toLowerCase();
+  if (!candidateSha || !currentSha || !SHA256_SHAPE.test(referenceSha))
+    return Object.freeze({ allowed: true, reason: "candidate_or_current_unresolved" });
+  const pairSha = listeningPairSha256({ leftSha256: candidateSha, rightSha256: currentSha, referenceSha256: referenceSha });
+  const verdict = await latestVoiceListeningVerdict(db, ownerUserId, rid, pairSha);
+  const decision = decideVoiceActivation({ verdict, candidateGenerationId: candidateId, override: Boolean(input?.override) });
+  if (decision.overridden) {
+    await db(
+      `insert into vy_replica_audit(replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
+        values ($1::uuid,$2::uuid,'voice.activation.override','voice_listening_verdict',$3,$4,'allowed',$5::jsonb)`,
+      [rid, ownerUserId, String(verdict?.version || ""), CALIBRATION_POLICY,
+        JSON.stringify({ candidate_generation_id: candidateId, current_generation_id: currentId, pair_sha256: pairSha, blocked_by: decision.blockedBy })],
+    );
+  }
+  return decision;
+}

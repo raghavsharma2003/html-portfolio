@@ -86,6 +86,17 @@ const TARGETS = [
     screens: ["capture", "voice", "enrich"],
     mounted: ".vx-shell",
   },
+  // WS-R155. The blind listening test, `check-layout.mjs`'s own
+  // "studio:listening" target restated for axe plus the keyboard walk: the
+  // fieldsets, radiogroups and labelled scales this screen adds are exactly
+  // the shape a11y regressions hide in.
+  {
+    name: "studio:listening",
+    fixture: "studio-layout-fixture.html",
+    query: () => "step=meet&scenario=voice-ready&view=voice&listening=1",
+    screens: ["default"],
+    mounted: ".vx-shell",
+  },
   {
     name: "room",
     fixture: "room-layout-fixture.html",

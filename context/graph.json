@@ -17994,6 +17994,84 @@
       "kind": "measurement",
       "title": "Gate runs on the merged handoff206 tree and the live catalog before and after the apply (2026-09-13)",
       "at": "context/measurements.md#gate-on-the-merged-handoff206-tree-2026-09-13"
+    },
+    {
+      "id": "voice-listening-verdict-reuses-the-calibration-table",
+      "kind": "decision",
+      "title": "A voice listening verdict is a new schema-tagged row in vy_replica_calibration, not a new table (2026-09-13, WS-R155)",
+      "at": "context/decisions.md#voice-listening-verdict-reuses-the-calibration-table"
+    },
+    {
+      "id": "voice-listening-pair-identity-is-content-hashes-not-ids",
+      "kind": "decision",
+      "title": "A verdict's pair identity is the two candidates' content hashes plus the reference hash, never a generation id (2026-09-13, WS-R155)",
+      "at": "context/decisions.md#voice-listening-pair-identity-is-content-hashes-not-ids"
+    },
+    {
+      "id": "voice-listening-winner-artifact-carries-no-fk",
+      "kind": "decision",
+      "title": "winner_artifact_id carries no FK, per this wave's no-replica-column-FK rule (2026-09-13, WS-R155)",
+      "at": "context/decisions.md#voice-listening-winner-artifact-carries-no-fk"
+    },
+    {
+      "id": "fidelity-score-is-0-100-only-at-the-display-layer",
+      "kind": "decision",
+      "title": "The fidelity score stays 0..1 internally; 0..100 is a VoicePreviewPanel display choice only (2026-09-13, WS-R155)",
+      "at": "context/decisions.md#fidelity-score-is-0-100-only-at-the-display-layer"
+    },
+    {
+      "id": "voice-preference-fk-tuple-has-no-matching-unique-constraint",
+      "kind": "rejection",
+      "title": "db/schema.sql mirrors migration 046's table but not its preceding unique-index fix (2026-09-13, WS-R155, corrected mid-session)",
+      "at": "context/rejected.md#voice-preference-fk-tuple-has-no-matching-unique-constraint"
+    },
+    {
+      "id": "ws-r155-listening-test-suite-2026-09-13",
+      "kind": "measurement",
+      "title": "evals/listening-test/run.mjs: 52 of 52 checks, first real run (2026-09-13)",
+      "at": "context/measurements.md#ws-r155-listening-test-suite-2026-09-13"
+    },
+    {
+      "id": "ws-r155-gates-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R155 touched-suite and gate results (2026-09-13)",
+      "at": "context/measurements.md#ws-r155-gates-2026-09-13"
+    },
+    {
+      "id": "ws-r155-voice-listening-verdict",
+      "kind": "component",
+      "title": "Voice listening verdict: recordVoiceListeningVerdict / latestVoiceListeningVerdict / ownedVoiceListeningHistory (api/_replica-calibration.js, migration 166)",
+      "at": "api/_replica-calibration.js"
+    },
+    {
+      "id": "ws-r155-voice-activation-guard",
+      "kind": "component",
+      "title": "decideVoiceActivation / guardOwnedVoiceActivation: law 4, a losing candidate needs a logged override (api/_replica-calibration.js)",
+      "at": "api/_replica-calibration.js"
+    },
+    {
+      "id": "ws-r155-voice-likeness-summary",
+      "kind": "component",
+      "title": "ownedVoiceLikenessSummary: the three honest fidelity states plus listening-candidate discovery (api/_replica-voice-preview.js)",
+      "at": "api/_replica-voice-preview.js"
+    },
+    {
+      "id": "ws-r155-listening-test-ui",
+      "kind": "component",
+      "title": "ListeningTest.tsx: the blind paired four-axis comparison screen, opened from CloneExperience's voice room",
+      "at": "src/studio/ListeningTest.tsx"
+    },
+    {
+      "id": "ws-r155-activation-guard-not-wired-into-runtime",
+      "kind": "open",
+      "title": "guardOwnedVoiceActivation exists standalone; wiring it into api/_replica-runtime.js's own activation query is not done (2026-09-13, WS-R155)",
+      "at": "api/_replica-calibration.js"
+    },
+    {
+      "id": "ws-r155-generation-playback-not-wired",
+      "kind": "open",
+      "title": "No endpoint fetches audio bytes for a past sealed generation; ListeningTest.tsx's audio playback is an honest placeholder (2026-09-13, WS-R155)",
+      "at": "src/studio/ListeningTest.tsx"
     }
   ],
   "edges": [
@@ -30439,6 +30517,71 @@
       "src": "codex-handoff206-adopted-as-the-base",
       "dst": "gate-on-the-merged-handoff206-tree-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r155-voice-listening-verdict",
+      "dst": "voice-listening-verdict-reuses-the-calibration-table",
+      "rel": "caused_by"
+    },
+    {
+      "src": "voice-listening-verdict-reuses-the-calibration-table",
+      "dst": "voice-listening-pair-identity-is-content-hashes-not-ids",
+      "rel": "constrains"
+    },
+    {
+      "src": "voice-listening-pair-identity-is-content-hashes-not-ids",
+      "dst": "voice-listening-winner-artifact-carries-no-fk",
+      "rel": "constrains"
+    },
+    {
+      "src": "voice-listening-winner-artifact-carries-no-fk",
+      "dst": "voice-preference-fk-tuple-has-no-matching-unique-constraint",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r155-voice-likeness-summary",
+      "dst": "fidelity-score-is-0-100-only-at-the-display-layer",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r155-voice-listening-verdict",
+      "dst": "ws-r155-listening-test-suite-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r155-voice-activation-guard",
+      "dst": "ws-r155-listening-test-suite-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r155-voice-likeness-summary",
+      "dst": "ws-r155-listening-test-suite-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r155-listening-test-ui",
+      "dst": "ws-r155-gates-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r155-voice-activation-guard",
+      "dst": "ws-r155-activation-guard-not-wired-into-runtime",
+      "rel": "blocks"
+    },
+    {
+      "src": "ws-r155-listening-test-ui",
+      "dst": "ws-r155-generation-playback-not-wired",
+      "rel": "blocks"
+    },
+    {
+      "src": "ws-r155-voice-activation-guard",
+      "dst": "ws-r155-voice-listening-verdict",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r155-listening-test-ui",
+      "dst": "ws-r155-voice-listening-verdict",
+      "rel": "part_of"
     }
   ]
 }

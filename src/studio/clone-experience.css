@@ -1554,3 +1554,12 @@
   .vx-read-state > button { width: min(100%, 360px); }
   .vx-read-state > p { text-align: center; }
 }
+
+/* WS-R155: "sounds like you" card on the voice sample view. */
+@layer components {
+  .voice-likeness { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; border: 1px solid var(--vx-line, rgba(16, 33, 27, 0.16)); margin-block: 16px; }
+  .voice-likeness h3 { margin: 0; font-size: 15px; }
+  .voice-likeness-score { margin: 0; font-size: 14px; }
+  .voice-likeness-score strong { font-size: 20px; }
+  .voice-likeness-preference { margin: 0; font-size: 13px; opacity: 0.8; }
+}

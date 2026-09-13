@@ -15,9 +15,10 @@
 // prove.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getReplicaReview } from "./processingApi";
+import { listeningTestWasTie, readVoiceLikeness, readVoiceListeningHistory } from "./calibrationApi";
 import { ReplicaApiError } from "./replicaApi";
 import { friendlyError } from "./errorCopy";
-import type { ReplicaReview } from "./types";
+import type { ReplicaReview, VoiceLikenessSummary, VoiceListeningHistoryEntry } from "./types";
 import { requestVoicePanelPreview, type VoicePanelFailed, type VoicePanelPending } from "./voicePanelApi";
 import { disabledReason, type DisabledReason } from "./blockerClass";
 import { DisabledAction } from "./BlockerNotice";
@@ -159,6 +160,54 @@ function elapsedLabel(milliseconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+// WS-R155: "Sounds like you" on this exact screen (SPEC-GURUKUL.md #8.2).
+// Three honest states, never a fabricated number -- api/_replica-voice-
+// preview.js's own ownedVoiceLikenessSummary names them precisely
+// (pass/warn/fail, not_measured, no_voice_yet), and this card renders each
+// one rather than collapsing them into a single "no score" line.
+function formatLikenessDate(value: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function VoiceLikenessCard({
+  likeness,
+  lastListeningTest,
+}: {
+  likeness: VoiceLikenessSummary | null;
+  lastListeningTest: VoiceListeningHistoryEntry | null;
+}) {
+  if (!likeness) return null;
+  const { fidelity } = likeness;
+  const measured = fidelity.status === "pass" || fidelity.status === "warn" || fidelity.status === "fail";
+  return (
+    <section className="voice-likeness" aria-label="Sounds like you">
+      <h3>Sounds like you</h3>
+      {measured && fidelity.score?.mean != null ? (
+        <p className="voice-likeness-score">
+          <strong>{Math.round(fidelity.score.mean * 100)} out of 100</strong>
+          {fidelity.computed_at ? `, measured on ${formatLikenessDate(fidelity.computed_at)}.` : "."}
+          {fidelity.stale ? " Your voice changed since this was measured, so a fresh score is due." : ""}
+        </p>
+      ) : (
+        <p className="voice-likeness-score">{fidelity.trigger || "Not measured yet."}</p>
+      )}
+      {lastListeningTest ? (
+        <p className="voice-likeness-preference">
+          {listeningTestWasTie(lastListeningTest)
+            ? `In your last listening test on ${formatLikenessDate(lastListeningTest.created_at)}, you rated both samples the same.`
+            : `In your last listening test on ${formatLikenessDate(lastListeningTest.created_at)}, you preferred one sample over the other.`}
+        </p>
+      ) : (
+        <p className="voice-likeness-preference">You have not run a listening test yet.</p>
+      )}
+    </section>
+  );
+}
+
 function stageLabel(pending: VoicePanelPending): string {
   if (pending.state === "processing") {
     if (/protect|watermark|seal/u.test(`${pending.phase} ${pending.stage}`)) return "Protecting your preview";
@@ -184,6 +233,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
 }) {
   const [review, setReview] = useState<ReplicaReview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [likeness, setLikeness] = useState<VoiceLikenessSummary | null>(null);
+  const [listeningHistory, setListeningHistory] = useState<VoiceListeningHistoryEntry[]>([]);
   const [language, setLanguage] = useState<PreviewLanguage>("hi-latn");
   const [text, setText] = useState<string>(WELCOME["hi-latn"]);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -229,6 +280,24 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
       })
       .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [onAuthError, replicaId, token]);
+
+  // WS-R155: "sounds like you" and the owner's last blind listening
+  // preference. A separate effect from the review fetch above -- this reads
+  // a different door (/api/replica-calibration) and a failure here must
+  // never block the rest of the panel from rendering.
+  useEffect(() => {
+    let live = true;
+    Promise.all([readVoiceLikeness(token, replicaId), readVoiceListeningHistory(token, replicaId)])
+      .then(([likenessValue, historyValue]) => {
+        if (!live) return;
+        setLikeness(likenessValue);
+        setListeningHistory(historyValue);
+      })
+      .catch((cause) => {
+        if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+      });
     return () => { live = false; };
   }, [onAuthError, replicaId, token]);
 
@@ -574,6 +643,8 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
             : "A private draft, generated from your own consented recording. Every clip opens with the spoken AI disclosure and carries an inaudible watermark. Previewing does not activate anything and does not let anyone else hear it."}
         </p>
       </div>
+
+      <VoiceLikenessCard likeness={likeness} lastListeningTest={listeningHistory[0] ?? null} />
 
       {draft && (
         <section className="voice-lineage" aria-label="Voice draft sources">

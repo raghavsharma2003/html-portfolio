@@ -8995,3 +8995,18 @@ create table if not exists vy_processing_gpu_child (
  claimed_at timestamptz not null default now(), response_at timestamptz,
  primary key(window_id,job_sha256), unique(window_id,operation)
 );
+
+-- BEGIN historical replica mirror: 166_voice_listening_verdict.sql
+-- Migration 166 - WS-R155, "Sounds like you" and the listening test. See the
+-- migration file itself for the full rationale; this table already existed
+-- (025_replica_calibration.sql) and only gains the two columns a voice
+-- listening verdict needs beyond a personality preference row.
+alter table vy_replica_calibration add column if not exists pair_sha256 text
+  constraint vy_replica_calibration_pair_hash check (pair_sha256 is null or pair_sha256 ~ '^[0-9a-f]{64}$');
+
+alter table vy_replica_calibration add column if not exists winner_artifact_id uuid;
+
+create index if not exists vy_replica_calibration_pair_ix
+  on vy_replica_calibration (replica_id, owner_user_id, pair_sha256, created_at desc)
+  where pair_sha256 is not null;
+-- END historical replica mirror: 166_voice_listening_verdict.sql

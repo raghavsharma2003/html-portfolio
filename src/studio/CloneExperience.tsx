@@ -1,7 +1,10 @@
 import "./clone-experience.css";
 import "./voice-field.css";
 import "./clone-verification-journey.css";
+import "./ListeningTest.css";
 import { initialMeetView } from "./workspaceNavigation";
+import { readVoiceLikeness } from "./calibrationApi";
+import { ReplicaApiError } from "./replicaApi";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ActivityPanel from "./ActivityPanel";
@@ -32,6 +35,7 @@ import type {
   SignedUpload,
   SourceKind,
   VoiceBuildIntent,
+  VoiceListeningCandidate,
 } from "./types";
 import type { WizardInput } from "./wizardModel";
 
@@ -40,6 +44,9 @@ const PersonModelStudio = lazy(() => import("./PersonModelStudio"));
 const ExpertSharePanel = lazy(() => import("./ExpertSharePanel"));
 const ExpertConversation = lazy(() => import("./ExpertConversation"));
 const PrivateTextRehearsal = lazy(() => import("./PrivateTextRehearsal"));
+const ListeningTest = lazy(() => import("./ListeningTest"));
+
+type ListeningLoadState = "idle" | "loading" | "ready" | "unavailable" | "error";
 
 const REQUIRED_SCOPES = ["capture", "transcription", "storage"] as const;
 const MINIMUM_RECORDING_MS = 12_000;
@@ -730,6 +737,13 @@ export default function CloneExperience(props: CloneExperienceProps) {
     return view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : "voice";
   });
   const [meetView, setMeetView] = useState<"conversation" | "sample">(() => initialMeetView(window.location.search, Boolean(runtimeStatus?.active)));
+  const [showListeningTest, setShowListeningTest] = useState(
+    () => new URLSearchParams(window.location.search).get("listening") === "1",
+  );
+  const [listeningLoad, setListeningLoad] = useState<ListeningLoadState>("idle");
+  const [listeningCandidates, setListeningCandidates] = useState<{
+    left: VoiceListeningCandidate; right: VoiceListeningCandidate; referenceSha256: string;
+  } | null>(null);
   const [enrichView, setEnrichView] = useState<EnrichView>("menu");
   const [agreementBusy, setAgreementBusy] = useState(false);
   const [agreementError, setAgreementError] = useState("");
@@ -966,6 +980,41 @@ export default function CloneExperience(props: CloneExperienceProps) {
     window.history.replaceState({ replica: selected?.replica_id, view: next }, "", `?${params.toString()}`);
   }
 
+  // WS-R155: the listening test needs two saved voice samples and the
+  // reference hash they were both measured against, fetched on demand
+  // rather than on every visit to the voice room -- readVoiceLikeness is the
+  // SAME read VoicePreviewPanel's own score card uses, so opening this never
+  // costs a second kind of request.
+  async function openListeningTest() {
+    if (!selected) return;
+    setShowListeningTest(true);
+    if (listeningLoad === "ready" || listeningLoad === "loading") return;
+    setListeningLoad("loading");
+    try {
+      const summary = await readVoiceLikeness(accessToken, selected.replica_id);
+      const candidates = summary?.listening_candidates || [];
+      if (summary?.listening_ready && candidates.length === 2 && summary.reference_sha256) {
+        setListeningCandidates({ left: candidates[0], right: candidates[1], referenceSha256: summary.reference_sha256 });
+        setListeningLoad("ready");
+      } else {
+        setListeningLoad("unavailable");
+      }
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) { onAuthError(cause); return; }
+      setListeningLoad("error");
+    }
+  }
+
+  // A deep link (`?listening=1`, the layout fixture's own way in) opens the
+  // test before the owner ever clicks the button; the effect below is what
+  // actually fetches candidates for that path, since openListeningTest above
+  // is only ever called from a click.
+  useEffect(() => {
+    if (!showListeningTest || listeningLoad !== "idle" || !selected) return;
+    openListeningTest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showListeningTest, selected?.replica_id]);
+
   async function continueAgreement() {
     if (agreementLockedRef.current) return;
     agreementLockedRef.current = true;
@@ -1200,7 +1249,29 @@ export default function CloneExperience(props: CloneExperienceProps) {
             <motion.div className="vx-scene vx-verification" key="verification" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>{voiceBuildIntent?.state === "failed" ? <aside className="vx-recovery" role="alert"><div><strong>{selectionReissue ? "Choose whether to use this saved recording." : "This exact recording could not build."}</strong><span>{selectionReissue ? voiceBuildIntent.last_error_code === "primary_selection_snapshot_missing" ? "This older request needs a new confirmation. Your saved recording is still available." : "Your selected recording changed. Confirm only if you want this saved recording to replace that choice." : voiceBuildIntent.last_error_code.replaceAll("_", " ") || "The private build stopped on our side."}</span>{selectionReissue && !onReadVoiceReissue ? <span>Checking this saved recording is unavailable here. Your previous request has been kept.</span> : null}{reissueError ? <span role="alert">{reissueError}</span> : null}</div>{selectionReissue ? <button type="button" disabled={reissueBusy || !onReadVoiceReissue} onClick={() => void reissueSavedRecording()}>{reissueBusy ? "Checking recording" : "Use this recording"}</button> : null}<button type="button" disabled={reissueBusy} onClick={() => void replaceRecording()}>Record again</button></aside> : recoveryJob ? <aside className="vx-recovery" role={recoveryJob.state === "waiting_on_you" ? "status" : "alert"}><div><strong>{recoveryJob.state === "waiting_on_you" ? "One action is needed" : "This step stopped"}</strong><span>{recoveryJob.state_reason}</span></div>{recoveryJob.next_action.kind !== "none" && recoveryJob.next_action.kind !== "wait" && recoveryJob.next_action.kind !== "owner_setup" ? <button type="button" disabled={recoveryBusy} onClick={() => void runRecoveryAction()}>{recoveryBusy ? "Checking" : recoveryJob.next_action.label}</button> : null}</aside> : null}<CloneVerificationJourney ownerUserId={ownerUserId} token={accessToken} replica={selected} consents={consents} sources={sources} review={review} candidateSourceId={activeCandidate?.source_id} buildIntent={voiceBuildIntent} reviewLoading={reviewLoading} challenge={challenge} livenessLoading={livenessLoading} onOpenSourcePermission={() => { void onGrantConsent().catch(onAuthError); }} onResetLegacyClone={onRevoke} onReturnToVoice={() => void replaceRecording()} onExit={() => { setEnrichView("menu"); chooseRoom("enrich"); }} exitLabel="Back to knowledge" onContinue={finishCandidateJourney} onCreateSourceUpload={onCreateUpload} onRetryUpload={onRetryUpload} onFinalizeSourceUpload={onFinalizeUpload} onDeleteSource={onDeleteSource} onSourcesChanged={onRefreshEnrollment} onIdentityChanged={onRefreshEnrollment} onCheckCaptureReadiness={onCheckCaptureReadiness} onIssueChallenge={onIssueChallenge} onStartFaceSession={onStartFaceSession} onPollFaceSession={onPollFaceSession} onCancelChallenge={onCancelChallenge} onCreateLivenessUpload={onCreateLivenessUpload} onFinalizeLiveness={onFinalizeLiveness} onVerifiedConsentChanged={onVerifiedConsentChanged} onRefreshReview={onRefreshReview} onAuthError={onAuthError} /></motion.div>
           ) : showRooms && selected ? (
             <motion.div className="vx-scene vx-room" key={room} initial={reduceMotion ? false : { opacity: 0, filter: "blur(7px)" }} animate={{ opacity: 1, filter: "blur(0px)" }} exit={reduceMotion ? undefined : { opacity: 0, filter: "blur(5px)" }} transition={{ duration: reduceMotion ? 0 : 0.2 }}>
-              {room === "voice" && <section className="vx-room__panel vx-room__voice vx-room__scroll"><div className="vx-stage-title"><h1>Meet {selected.display_name}.</h1><p>Ask a question or listen to a voice sample.</p></div><div className="vx-conversation-switch" role="group" aria-label="Meet experience"><button type="button" aria-pressed={meetView === "conversation"} onClick={() => setMeetView("conversation")}>Conversation</button><button type="button" aria-pressed={meetView === "sample"} onClick={() => setMeetView("sample")}>Voice sample</button><button type="button" onClick={() => chooseRoom("rehearsal")}>Private draft test</button></div>{meetView === "conversation" ? <Suspense fallback={<p role="status">Opening conversation</p>}><ExpertConversation key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} runtimeStatus={runtimeStatus} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} /></Suspense> : <VoicePreviewPanel token={accessToken} replicaId={selected.replica_id} wizardInput={wizardInput} onAuthError={onAuthError} testEnvironment onManageSources={() => chooseRoom("enrich")} />}</section>}
+              {room === "voice" && <section className="vx-room__panel vx-room__voice vx-room__scroll"><div className="vx-stage-title"><h1>Meet {selected.display_name}.</h1><p>Ask a question or listen to a voice sample.</p></div><div className="vx-conversation-switch" role="group" aria-label="Meet experience"><button type="button" aria-pressed={meetView === "conversation"} onClick={() => setMeetView("conversation")}>Conversation</button><button type="button" aria-pressed={meetView === "sample"} onClick={() => setMeetView("sample")}>Voice sample</button><button type="button" onClick={() => chooseRoom("rehearsal")}>Private draft test</button><button type="button" onClick={openListeningTest}>Listening test</button></div>{showListeningTest ? (
+                listeningLoad === "ready" && listeningCandidates ? (
+                  <Suspense fallback={<p role="status">Opening the listening test</p>}>
+                    <ListeningTest
+                      token={accessToken}
+                      replicaId={selected.replica_id}
+                      left={listeningCandidates.left}
+                      right={listeningCandidates.right}
+                      referenceSha256={listeningCandidates.referenceSha256}
+                      onClose={() => setShowListeningTest(false)}
+                      onAuthError={onAuthError}
+                    />
+                  </Suspense>
+                ) : (
+                  <section className="lt-panel" aria-live="polite">
+                    <h2>Listening test</h2>
+                    {listeningLoad === "loading" ? <p>Looking for two saved voice samples to compare.</p>
+                      : listeningLoad === "unavailable" ? <p>You need two saved voice samples before you can run a listening test.</p>
+                      : <p>We could not open the listening test. Nothing was recorded.</p>}
+                    <button type="button" className="lt-cancel" onClick={() => setShowListeningTest(false)}>Close</button>
+                  </section>
+                )
+              ) : meetView === "conversation" ? <Suspense fallback={<p role="status">Opening conversation</p>}><ExpertConversation key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} runtimeStatus={runtimeStatus} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} /></Suspense> : <VoicePreviewPanel token={accessToken} replicaId={selected.replica_id} wizardInput={wizardInput} onAuthError={onAuthError} testEnvironment onManageSources={() => chooseRoom("enrich")} />}</section>}
               {room === "share" && <section className="vx-room__panel vx-room__scroll">{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("enrich")}>Back to knowledge</button>}<Suspense fallback={<p role="status">Opening sharing</p>}><ExpertSharePanel key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} /></Suspense></section>}
               {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("voice")}>Back to voice</button>}<div className="vx-stage-title"><h1 id="knowledge-menu-title">Add more of you.</h1><p>Choose one thing. Every durable change remains a proposal until you accept it.</p></div><div className="vx-enrich-menu">{!voiceWorkspaceReady && <button type="button" onClick={() => chooseRoom("share")}><Icon name="spark" /><span><strong>Share your knowledge</strong><small>Review material for a text-only link</small></span><Icon name="chevron" /></button>}<button type="button" onClick={() => chooseRoom("rehearsal")}><Icon name="spark" /><span><strong>Test a private draft</strong><small>One text answer from your saved source</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("describe")}><Icon name="spark" /><span><strong>Describe me</strong><small>Write naturally</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("files")}><Icon name="add" /><span><strong>Files, images, links</strong><small>Add private context</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("video")}><Icon name="voice" /><span><strong>YouTube or video</strong><small>Bring your own material</small></span><Icon name="chevron" /></button><button type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}><Icon name="voice" /><span><strong>Improve my voice</strong><small>Add a stronger recording</small></span><Icon name="chevron" /></button></div></> : <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>Back to choices</button>{!voiceWorkspaceReady && <button className="vx-text-button" type="button" onClick={() => chooseRoom("voice")}>Record my voice instead</button>}{enrichView === "files" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-text-button" onClick={() => chooseRoom("share")}>Review text sharing</button>}{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || source.replicaId !== selected.replica_id || !isPrivateTextId(source.itemId) || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== source.replicaId) return;
