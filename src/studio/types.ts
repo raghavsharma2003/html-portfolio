@@ -370,6 +370,10 @@ export interface PrivateConversationSource { turn_id: string; created_at: string
 
 export interface ReplicaDialogueTurn {
   has_continuity?: boolean;
+  // WS-R167: whether this reply drew on the owner's own remembered facts
+  // from earlier Meet conversations (the same honest-transparency shape
+  // has_continuity already gives exact-quote continuity).
+  has_memory?: boolean;
   turn_id: string;
   session_id: string;
   reply: string;

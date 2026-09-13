@@ -9041,3 +9041,16 @@ create unique index if not exists vy_replica_vibe_live_ix
 
 create index if not exists vy_replica_vibe_owner_history_ix
  on vy_replica_vibe(replica_id, owner_user_id, version desc);
+-- BEGIN historical replica mirror: 170_owner_meet_memory_consent.sql
+-- Migration 170 - WS-R167, the owner's own continuity in Meet. See the
+-- migration file itself for the full rationale: one CHECK widening on an
+-- already-existing table/column, no new table, no new agent/replica/owner/
+-- person column.
+alter table vy_replica_consent drop constraint if exists vy_replica_consent_scope_check;
+
+alter table vy_replica_consent add constraint vy_replica_consent_scope_check check (scope in (
+  'capture','transcription','biometric','training',
+  'inference','storage','sharing','api','telephony',
+  'model_improvement','private_text_rehearsal','memory'
+));
+-- END historical replica mirror: 170_owner_meet_memory_consent.sql

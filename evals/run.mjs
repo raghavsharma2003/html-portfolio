@@ -3269,6 +3269,31 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   emotionos: "emotionos/run.mjs",
+
+  // WS-R167: the owner's own continuity in Meet. `api/_room-memory-authority.js`'s
+  // new OWNER_MEMORY_* section (an authority CTE keyed to the owner's own
+  // `vy_replica` + a 'memory'-scope `vy_replica_consent` grant, never a Room
+  // or `vy_room_follower` row) and `api/_replica-dialogue.js`'s new door ops
+  // (`memory_status`/`memory_toggle`/`memory_facts`/`memory_correct`/
+  // `memory_classify`/`memory_forget`/`relstate`/`relstate_reset`), plus
+  // `api/_room-relstate.js`'s owner key (`ownerRelStateFromReplica`/
+  // `ownerRelStateResetFromReplica`, reusing `roomRelStateFromFollower`/
+  // `roomRelStateResetFromFollower` UNCHANGED) and the new exclusion in
+  // `roomRelStateStageCounts` that keeps the owner's own dyad out of a
+  // creator's "how my followers are doing" aggregate. Proves, offline, with
+  // fake `db` functions and REQUIRED NEGATIVE CONTROLS: the consent-window
+  // epoch substitute (a message sent before the latest 'memory'-scope
+  // revoke can never become eligible again, however many times memory is
+  // re-enabled afterward), the structural partition from Room memory
+  // (`room_memory_follower_id is null`/`speaker_person_id is null` on every
+  // statement, and a fake two-row world — one Room-follower-authored, one
+  // owner-authored, same agent_id — proving each lane's own SQL shape
+  // returns only its own row), the door's memory-off branches (zero
+  // mutating queries issued), and migration 170's shape (the ONE schema
+  // change this workstream needed, mirrored in `db/schema.sql`).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "meet-continuity": "meet-continuity/run.mjs",
 };
 
 const argv = process.argv.slice(2);

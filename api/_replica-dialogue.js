@@ -1,6 +1,13 @@
 import {readPrivateContinuity, continuityReferences, continuityPrompt, privateContinuityPredicate as continuityPredicate,
   continuityFeedbackEligibilitySql, readPrivateContinuitySources} from "./_private-dialogue-continuity.js";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
+import {
+  OWNER_MEMORY_RECALL_SQL, OWNER_MEMORY_FACTS_SQL, OWNER_MEMORY_CORRECT_SQL,
+  OWNER_MEMORY_RETRACT_SQL, OWNER_MEMORY_RECLASSIFY_READ_SQL,
+  OWNER_MEMORY_CONSENT_STATUS_SQL, OWNER_MEMORY_CONSENT_GRANT_SQL, OWNER_MEMORY_CONSENT_REVOKE_SQL,
+  ownerMemoryAuthority,
+} from "./_room-memory-authority.js";
+import { ownerRelStateFromReplica, ownerRelStateResetFromReplica } from "./_room-relstate.js";
 import {
   DIALOGUE_SCHEMA,
   cleanDialogueText,
@@ -39,6 +46,149 @@ function safeUuid(value, code) {
 
 function cleanFailure(value) {
   return String(value?.code || value?.message || "dialogue_generation_failed").replace(/[^a-z0-9_.:-]/gi, "_").slice(0, 120);
+}
+
+// WS-R167: the owner's own remembered facts, folded into the SAME
+// `relationship` prompt segment `compileRelationshipTail` already fills -
+// `compileDialoguePrompt` (api/_dialogue/contracts.js) takes one
+// `relationship` string, not a second slot, so this stays additive rather
+// than widening that contract for one caller. Shape mirrors
+// `_room-surface.js`'s own `memories: facts.map(f => `- ${f.body}`)` line
+// for the non-expert Room reply exactly, so the two never drift apart.
+function ownerMemoryTail(facts) {
+  if (!Array.isArray(facts) || !facts.length) return "";
+  const lines = facts.slice(0, 30).map((f) => `- ${String(f.body || "").slice(0, 400)}`);
+  return `Remembered from earlier private Meet conversations (evidence-backed, never invented):\n${lines.join("\n")}`;
+}
+
+async function ownedSelfRuntime(db, ownerUserId, replicaIdInput) {
+  const rid = replicaId(replicaIdInput);
+  const runtime = await loadOwnedRuntimeContext(db, ownerUserId, rid);
+  if (!runtime) fail("dialogue_runtime_not_active");
+  return { rid, runtime };
+}
+
+async function ownerMemoryOn(db, rid, ownerUserId) {
+  const rows = await db(OWNER_MEMORY_CONSENT_STATUS_SQL, [rid, ownerUserId]);
+  return rows[0]?.memory_on === true;
+}
+
+// ── OP: memory_status / memory_toggle — "It remembers", the owner's own
+// honest on/off control, the same weight `vy_room_follower.memory_consent_at`
+// gives a follower. Deliberately NOT `_replica-consent.js` (out of this
+// workstream's touched-file list; see api/_room-memory-authority.js's own
+// header on why a fresh, narrow, local grant/revoke pair is used instead). ──
+
+export async function ownerMemoryStatus(db, ownerUserId, input) {
+  const { rid } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  return { memory_on: await ownerMemoryOn(db, rid, ownerUserId) };
+}
+
+export async function ownerMemoryToggle(db, ownerUserId, input) {
+  const { rid } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  if (input?.on === true) {
+    const receiptHash = createHash("sha256")
+      .update(`owner-memory-consent:${rid}:${ownerUserId}:${randomUUID()}`, "utf8")
+      .digest("hex");
+    const rows = await db(OWNER_MEMORY_CONSENT_GRANT_SQL, [rid, ownerUserId, receiptHash]);
+    if (!rows[0]) fail("dialogue_runtime_not_active");
+    return { memory_on: true };
+  }
+  if (input?.on === false) {
+    await db(OWNER_MEMORY_CONSENT_REVOKE_SQL, [rid, ownerUserId]);
+    return { memory_on: false };
+  }
+  fail("owner_memory_toggle_invalid", 400);
+}
+
+// ── OP: memory_facts / memory_correct / memory_forget / memory_classify —
+// the SAME op names and response shapes `api/room.js` already exposes for a
+// Room follower (`api/_room-surface.js`'s `roomRememberedThings` and
+// neighbours), over the owner's own dyad instead of a follower's. ──
+
+function exactOwnerMemoryReplacement(value) {
+  if (typeof value !== "string" || value.length < 3 || value.length > 400) fail("owner_memory_replacement_invalid", 400);
+  return value;
+}
+
+export async function ownerRememberedThings(db, ownerUserId, input) {
+  const { rid } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  if (!(await ownerMemoryOn(db, rid, ownerUserId))) return { facts: [] };
+  const facts = await db(OWNER_MEMORY_FACTS_SQL, ownerMemoryAuthority({ replica_id: rid, owner_user_id: ownerUserId }));
+  return {
+    facts: facts.map((f) => ({
+      id: String(f.id),
+      body: String(f.body),
+      kind: String(f.kind),
+      name: String(f.name),
+      created_at: f.created_at,
+      communication_classification: f.communication?.state || "not_applicable",
+    })),
+  };
+}
+
+// Classification is intentionally NOT dispatched to a live model here - the
+// Room's own metered wrapper (`_room-memory-consolidation.js`'s
+// `runMeteredRoomMemoryReclassification`) needs its own lease/budget path
+// wired for the owner lane, out of this workstream's scope
+// (context/decisions.md#ws-r167-owner-memory-consolidation-left-unmetered).
+// This still reads the real row (never fabricates a job) and reports the
+// honest, unconfirmed state rather than a fake success.
+async function attemptOwnerMemoryClassification(db, rid, ownerUserId, factId) {
+  const rows = await db(OWNER_MEMORY_RECLASSIFY_READ_SQL, [rid, ownerUserId, String(factId)]).catch(() => []);
+  return rows.length ? { classification: "unconfirmed" } : { classification: "not_applicable" };
+}
+
+export async function ownerCorrectRememberedThing(db, ownerUserId, input) {
+  const { rid } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  const text = exactOwnerMemoryReplacement(input?.replacement);
+  if (!(await ownerMemoryOn(db, rid, ownerUserId))) fail("owner_memory_not_enabled", 403);
+  if (!/^\d+$/.test(String(input?.fact_id || ""))) fail("owner_memory_fact_unavailable", 404);
+  const rows = await db(OWNER_MEMORY_CORRECT_SQL, [rid, ownerUserId, String(input.fact_id), text]);
+  if (!rows[0]) fail("owner_memory_fact_unavailable", 404);
+  const fact = { id: String(rows[0].fact_id), body: String(rows[0].body) };
+  if (rows[0].communication_classification !== "unclassified") return { fact, communication_classification: "not_applicable" };
+  const classification = await attemptOwnerMemoryClassification(db, rid, ownerUserId, fact.id);
+  return { fact, communication_classification: classification.classification };
+}
+
+export async function ownerReclassifyRememberedThing(db, ownerUserId, input) {
+  const { rid } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  if (!(await ownerMemoryOn(db, rid, ownerUserId))) fail("owner_memory_not_enabled", 403);
+  const result = await attemptOwnerMemoryClassification(db, rid, ownerUserId, input?.fact_id);
+  return { communication_classification: result.classification };
+}
+
+export async function ownerForgetRememberedThing(db, ownerUserId, input) {
+  const { rid } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  if (!(await ownerMemoryOn(db, rid, ownerUserId))) fail("owner_memory_not_enabled", 403);
+  if (!/^\d+$/.test(String(input?.fact_id || ""))) fail("owner_memory_fact_unavailable", 404);
+  const rows = await db(OWNER_MEMORY_RETRACT_SQL, [rid, ownerUserId, String(input.fact_id)]);
+  if (!rows[0]) fail("owner_memory_fact_unavailable", 404);
+  return { forgotten: true, fact_id: String(rows[0].fact_id) };
+}
+
+// ── OP: relstate / relstate_reset — "How we are" / "Start fresh" for the
+// owner's own Meet conversation, `api/_room-relstate.js`'s owner key. ──
+
+export async function ownerRelState(db, ownerUserId, input) {
+  const { runtime } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  const memoryOn = await ownerMemoryOn(db, runtime.replica.replica_id, ownerUserId);
+  return ownerRelStateFromReplica(db, {
+    personId: runtime.replica.subject_person_id,
+    agentId: runtime.replica.agent_id,
+    memoryOn,
+  });
+}
+
+export async function ownerRelStateReset(db, ownerUserId, input) {
+  const { runtime } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  const memoryOn = await ownerMemoryOn(db, runtime.replica.replica_id, ownerUserId);
+  return ownerRelStateResetFromReplica(db, {
+    personId: runtime.replica.subject_person_id,
+    agentId: runtime.replica.agent_id,
+    memoryOn,
+  });
 }
 
 async function ensureSession(db, ownerUserId, runtime, input) {
@@ -228,15 +378,22 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
   if (runtime.candidateBinding && resolveCandidateGenerator) generator = await resolveCandidateGenerator();
   assertCandidateGenerator(runtime, generator);
   const session = await ensureSession(db, ownerUserId, runtime, input);
-  const [snapshot, history, evidence] = await Promise.all([
+  const [snapshot, history, evidence, ownerFacts] = await Promise.all([
     loadPrivateRelationshipSnapshot(db, runtime, { strict: true }),
     loadSessionHistory(db, ownerUserId, runtime, session.session_id),
     rawInput.recall_previous === true && input.channel === "private_chat"
       ? readPrivateContinuity(db, ownerUserId, input.replica_id, session.session_id, input.message) : [],
+    // WS-R167: the owner's own extracted memory (facts consolidated from
+    // earlier Meet turns), never a follower's. `OWNER_MEMORY_RECALL_SQL`'s
+    // own authority CTE already returns nothing when the owner has memory
+    // off (context/decisions.md#ws-r167-owner-memory-epoch-is-a-consent-window),
+    // so this needs no separate consent branch here - the SAME "the SQL is
+    // the gate" discipline `api/_agentscope.js` names for the agent axis.
+    db(OWNER_MEMORY_RECALL_SQL, ownerMemoryAuthority({ replica_id: input.replica_id, owner_user_id: ownerUserId })).catch(() => []),
   ]);
   const prompt = compileDialoguePrompt({
     core: candidateRuntimeCore(runtime, input.message),
-    relationship: compileRelationshipTail(snapshot),
+    relationship: [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts)].filter(Boolean).join("\n\n"),
     evidence: continuityPrompt(evidence),
     history,
     message: input.message,
@@ -293,6 +450,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
     }
     return {
       has_continuity: evidence.length > 0,
+      has_memory: ownerFacts.length > 0,
       turn_id: finished.turn_id,
       session_id: finished.session_id,
       reply: output.reply,
@@ -365,6 +523,17 @@ export function createReplicaDialogueHandler({ db, requireUser, resolveGenerator
         const session = await openOwnedDialogueSession(db, user.id, req.body);
         return res.status(201).json({ session });
       }
+      // WS-R167: the owner's own continuity in Meet. Same op names and
+      // response shapes `api/room.js` exposes for a Room follower
+      // (`api/_room-surface.js`), over the owner's own dyad.
+      if (req.body?.op === "memory_status") return res.status(200).json(await ownerMemoryStatus(db, user.id, req.body));
+      if (req.body?.op === "memory_toggle") return res.status(200).json(await ownerMemoryToggle(db, user.id, req.body));
+      if (req.body?.op === "memory_facts") return res.status(200).json(await ownerRememberedThings(db, user.id, req.body));
+      if (req.body?.op === "memory_correct") return res.status(200).json(await ownerCorrectRememberedThing(db, user.id, req.body));
+      if (req.body?.op === "memory_classify") return res.status(200).json(await ownerReclassifyRememberedThing(db, user.id, req.body));
+      if (req.body?.op === "memory_forget") return res.status(200).json(await ownerForgetRememberedThing(db, user.id, req.body));
+      if (req.body?.op === "relstate") return res.status(200).json(await ownerRelState(db, user.id, req.body));
+      if (req.body?.op === "relstate_reset") return res.status(200).json(await ownerRelStateReset(db, user.id, req.body));
       if (req.body?.op) fail("unknown_op", 400);
       const generator = await resolveGenerator();
       const turn = await generateOwnedDialogue(db, user.id, req.body || {}, generator, aborter.signal, {resolveCandidateGenerator});
