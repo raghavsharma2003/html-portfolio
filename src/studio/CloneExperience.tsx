@@ -1328,13 +1328,14 @@ export default function CloneExperience(props: CloneExperienceProps) {
 
   // WS-R164: the first five minutes' own small rail — only for a person who
   // has a real replica (past Agreement) and has not reached a working room
-  // yet. `reachedMeet` is `showRooms` itself, not a second condition, so
-  // this steps out of the way through the exact boolean the real Meet gate
-  // uses (see `FirstFiveMinutes.tsx`'s own header for why).
+  // yet. `reachedMeet` follows the real Meet gates plus the direct private
+  // rehearsal room, so the fixed rail steps out of the way on every surface
+  // where a person is already testing a question (see
+  // `FirstFiveMinutes.tsx`'s own header for why).
   const firstFiveMinutesStepId = selected && !creatingNew && !readBlocked
     ? firstFiveMinutesStep({
         hasFirstSource: wizardInput.sourceCount > 0 || (wizardInput.contextItemCount ?? 0) > 0,
-        reachedMeet: showRooms || privateFirstMeet,
+        reachedMeet: showRooms || privateFirstMeet || room === "rehearsal",
       })
     : null;
 

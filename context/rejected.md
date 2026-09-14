@@ -19046,3 +19046,17 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** The callback fixture supplies explicit persisted and unpersisted sheet states, observes Meet forwarding, and retains invalid-context refusal. The Room check requires the exact current path-and-query argument and uses the old one-argument call as its negative control.
 
 **Reversal condition.** Change these fixtures only with a deliberate production route or authentication return contract change, and keep a negative that proves lost destination state is rejected.
+
+## standalone25-first-five-minutes-rail-missed-direct-rehearsal-20260914
+
+**Tried.** The rail's `reachedMeet` input covered `showRooms` and the newer `privateFirstMeet` route only.
+
+**What specifically broke.** A source's direct "Test" action opens `room === "rehearsal"`, which is a separate rendering branch. The fixed rail stayed mounted there and covered the private rehearsal heading in the 1440-pixel browser capture.
+
+**What replaced it.** The rail dismissal condition includes the direct rehearsal room. The existing browser fixture requires the real question heading and textarea to be visible with no `.ffm-rail` at both supported widths.
+
+**Reversal condition.** Remove the explicit room check only when the direct route no longer exists or the rail is proven non-obscuring in normal flow at both widths.
+
+## `wave25-otp-simulator-hid-correct-email-return`
+
+2026-09-14. Both browser rehearsals stopped waiting for #studio-code because the in-memory GoTrue simulator recognized path===otp only. The newly correct production authFetch sends otp?redirect_to=...; the simulator threw an unmodelled-route error. Increasing the20s timeout would hide the cause. Matching the fixed-origin OTP pathname plus its one allowed query key restored the63/63 and10/10 walks without changing production auth or loosening wrong-code refusal. The first-use10pass includes an explicitly permitted503 fake-generator refusal, so it must not be described as a successful real conversation.

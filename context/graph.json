@@ -20049,6 +20049,42 @@
       "kind": "rejection",
       "title": "Stale callback context and OTP call shape reject correct production code",
       "at": "context/rejected.md#standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914"
+    },
+    {
+      "id": "standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914",
+      "kind": "decision",
+      "title": "First Five Minutes rail dismisses on direct private rehearsal",
+      "at": "context/decisions.md#standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914"
+    },
+    {
+      "id": "standalone25-private-rehearsal-rail-clearance-20260914",
+      "kind": "measurement",
+      "title": "Private rehearsal rail clearance passes at phone and desktop widths",
+      "at": "context/measurements.md#standalone25-private-rehearsal-rail-clearance-20260914"
+    },
+    {
+      "id": "standalone25-first-five-minutes-rail-missed-direct-rehearsal-20260914",
+      "kind": "rejection",
+      "title": "Rail dismissal missed the direct private rehearsal route",
+      "at": "context/rejected.md#standalone25-first-five-minutes-rail-missed-direct-rehearsal-20260914"
+    },
+    {
+      "id": "wave25-auth-simulator-models-redirect-query",
+      "kind": "decision",
+      "title": "Rehearse the actual GoTrue email route",
+      "at": "context/decisions.md#wave25-auth-simulator-models-redirect-query"
+    },
+    {
+      "id": "wave25-auth-journeys-ci-and-repo-checkpoint-20260914",
+      "kind": "measurement",
+      "title": "Personal journeys pass after simulator repair; CI candidate rejected",
+      "at": "context/measurements.md#wave25-auth-journeys-ci-and-repo-checkpoint-20260914"
+    },
+    {
+      "id": "wave25-otp-simulator-hid-correct-email-return",
+      "kind": "rejection",
+      "title": "Correct email-return query exceeded the old auth simulator",
+      "at": "context/rejected.md#wave25-otp-simulator-hid-correct-email-return"
     }
   ],
   "edges": [
@@ -34154,6 +34190,26 @@
       "src": "standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914",
       "dst": "standalone25-first-flow-evals-track-real-caller-contracts-20260914",
       "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914",
+      "dst": "standalone25-private-rehearsal-rail-clearance-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-first-five-minutes-rail-missed-direct-rehearsal-20260914",
+      "dst": "standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914",
+      "rel": "caused_by"
+    },
+    {
+      "src": "wave25-auth-simulator-models-redirect-query",
+      "rel": "measured_by",
+      "dst": "wave25-auth-journeys-ci-and-repo-checkpoint-20260914"
+    },
+    {
+      "src": "wave25-otp-simulator-hid-correct-email-return",
+      "rel": "constrains",
+      "dst": "wave25-auth-simulator-models-redirect-query"
     }
   ]
 }

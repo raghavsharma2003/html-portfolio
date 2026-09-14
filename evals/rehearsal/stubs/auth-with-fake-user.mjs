@@ -78,7 +78,14 @@ const REHEARSAL_PERSONAL_OTP = "424242";
 let otpSent = false;
 
 export async function authFetch(path, body) {
-  if (path === "otp") {
+  // GoTrue carries emailRedirectTo in the request query, not its JSON body.
+  // Model that exact route while continuing to reject unknown operations.
+  const route = new URL(path, "https://rehearsal-auth.invalid/");
+  const otpQuery = [...route.searchParams.keys()];
+  const emailOtp = route.origin === "https://rehearsal-auth.invalid"
+    && route.pathname === "/otp" && !route.hash
+    && (otpQuery.length === 0 || (otpQuery.length === 1 && otpQuery[0] === "redirect_to"));
+  if (emailOtp) {
     if (String(body?.email || "").trim().toLowerCase() !== REHEARSAL_PERSONAL_EMAIL) {
       return new Response(JSON.stringify({ error: "unmodelled rehearsal OTP destination" }), { status: 400 });
     }

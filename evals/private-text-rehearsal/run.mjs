@@ -135,6 +135,7 @@ try{
  const check=async(name,fn)=>{await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);};
  for(const width of [390,1440])await check(`actual modern entry ${width}: pre-identity draft, explicit ask, result and withdrawal`,async()=>{
   await page.setViewportSize({width,height:900});await open('ready',true);assert.equal(await page.locator('.vx-shell').count(),1);assert.equal(new URL(page.url()).searchParams.get('replica'),RID);assert.equal(new URL(page.url()).searchParams.get('lang'),'hi');
+  assert(await page.getByRole('heading',{name:'Test your private draft.'}).isVisible());assert(await page.locator('#ptr-question').isVisible());assert.equal(await page.locator('.ffm-rail').count(),0);
   assert(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled());assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);assert.equal(askCount(),0);
   await page.getByRole('button',{name:'Edit draft details'}).click();await page.getByLabel('Your name',{exact:true}).fill('Synthetic Physics Teacher Revised');await page.getByRole('button',{name:'Save private draft'}).click();await page.getByText('Review source: pendulum-notes.txt').waitFor();assert.equal(draft.teachingStyle,'short visual explanations');assert(!Object.hasOwn(draft,'consentArtifactId'));assert(!Object.hasOwn(draft,'agentId'));
   await fill();await page.screenshot({path:join(artifact,`ready-${width}.png`),fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
