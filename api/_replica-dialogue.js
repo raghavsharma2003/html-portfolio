@@ -5,7 +5,7 @@ import {
   OWNER_MEMORY_RECALL_SQL, OWNER_MEMORY_FACTS_SQL, OWNER_MEMORY_CORRECT_SQL,
   OWNER_MEMORY_RETRACT_SQL, OWNER_MEMORY_RECLASSIFY_READ_SQL,
   OWNER_MEMORY_CONSENT_STATUS_SQL, OWNER_MEMORY_CONSENT_GRANT_SQL, OWNER_MEMORY_CONSENT_REVOKE_SQL,
-  ownerMemoryAuthority,
+  OWNER_MEMORY_LOG_SQL, ownerMemoryAuthority, ownerMeetDeviceId,
 } from "./_room-memory-authority.js";
 import { ownerRelStateFromReplica, ownerRelStateResetFromReplica } from "./_room-relstate.js";
 import {
@@ -533,6 +533,18 @@ export async function generateOwnedTextDialogue(db, ownerUserId, rawInput, gener
   signal?.throwIfAborted();
   const generated = await generator.generate({ prompt, signal });
   const output = validateDialogueOutput(generated?.output);
+  // Persist only a successfully answered owner's message. The SQL rechecks
+  // ownership and active memory consent, then gives the scheduled sweep a raw
+  // source row. Failure cannot erase a reply already generated; a later turn
+  // gets another bounded capture attempt.
+  if (identity) {
+    await db(OWNER_MEMORY_LOG_SQL, [
+      identity.replica_id,
+      ownerUserId,
+      ownerMeetDeviceId(identity.subject_person_id),
+      message,
+    ]).catch(() => null);
+  }
   return {
     has_continuity: false,
     has_memory: ownerFacts.length > 0,

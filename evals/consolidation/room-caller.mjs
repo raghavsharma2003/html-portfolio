@@ -28,6 +28,10 @@ const {default:handler}=await import('../../api/consolidate-sweep.js');
 const candidate={follower_id:'10000000-0000-4000-8000-000000000001',
   agent_id:'20000000-0000-4000-8000-000000000001',person_id:'30000000-0000-4000-8000-000000000001'};
 const row={...candidate,id:'41',memory_epoch:'7',content:'Please explain slowly.'};
+const ownerCandidate={replica_id:'50000000-0000-4000-8000-000000000001',
+  owner_user_id:'60000000-0000-4000-8000-000000000001',
+  agent_id:'70000000-0000-4000-8000-000000000001',person_id:'80000000-0000-4000-8000-000000000001'};
+const ownerRow={...ownerCandidate,id:'41',content:'Please explain slowly.'};
 const output=JSON.stringify({memories:[{source_id:'41',kind:'relationship',name:'preference',quote:row.content}]});
 function fixture(options={}) {
   const s={events:[],consent:true,lease:{run_id:'fixture-run',leased_by:'sweep'},spend:null,writes:0,http:0};
@@ -38,9 +42,15 @@ function fixture(options={}) {
     if(sql.includes('delete from vy_sweep_run')){s.events.push('heartbeat-prune');return[];}
     if(sql===R.ROOM_MEMORY_BATCH_SQL){s.events.push('batch');return s.consent?[{...row,follower_id:p[0],agent_id:p[1],person_id:p[2]}]:[];}
     if(sql===R.ROOM_MEMORY_COMMIT_SQL){s.events.push('commit');if(!s.consent)return[];s.writes++;return[{facts_written:1,observations_written:1}];}
+    if(sql===R.OWNER_MEMORY_BATCH_SQL){s.events.push('owner-batch');return s.consent?[{...ownerRow,replica_id:p[0]}]:[];}
+    if(sql===R.OWNER_MEMORY_COMMIT_SQL){s.events.push('owner-commit');if(!s.consent)return[];s.writes++;return[{facts_written:1,observations_written:0}];}
     if(sql===R.ROOM_MEMORY_DISCOVERY_SQL){s.events.push('room-discovery');return Array.from({length:options.discoveryCount||1},(_,i)=>
       ({...candidate,person_id:`30000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`,pending_rows:1,
         oldest_pending_at:`2026-09-0${8+i}T00:00:00Z`}));}
+    if(sql===R.OWNER_MEMORY_DISCOVERY_SQL){
+      if(!options.ownerCandidate)return[];
+      s.events.push('owner-discovery');return[{...ownerCandidate,pending_rows:1,oldest_pending_at:'2026-09-01T00:00:00Z'}];
+    }
     if(sql===W.ROOM_MEMORY_CLAIM_SQL){
       s.events.push('claim');
       if(s.lease?.leased_by.startsWith('room-memory:')&&!['settled','released'].includes(s.spend?.state))return[];
@@ -92,6 +102,8 @@ function fixture(options={}) {
       choices:[{finish_reason:options.incomplete?'length':'stop',message:{content:options.badOutput?'invalid':options.outputOverride??output}}]}));
   };
   s.run=()=>W.runMeteredRoomMemoryConsolidation(candidate,{queryFn:s.db,llm,runId:'fixture-run',env,fetchImpl:s.fetch});
+  s.runOwner=(customEnv=env)=>W.runMeteredOwnerMemoryConsolidation(ownerCandidate,
+    {queryFn:s.db,llm,runId:'fixture-run',env:customEnv,fetchImpl:s.fetch});
   s.sweep=async()=>{
     globalThis.__roomCallerDb=s.db;globalThis.fetch=s.fetch;
     let payload,status;
@@ -169,6 +181,28 @@ try {
     const s=fixture({budgetReady:false}),r=await s.sweep();assert.equal(r.status,503);
     assert.equal(r.payload.error,'room_memory_budget_unavailable');assert.equal(s.http,0);assert.equal(s.writes,0);
     assert.deepEqual(s.events,['heartbeat-start','readiness','heartbeat-finish','heartbeat-prune']);
+  });
+  await check('Room-only sweep dispatches an owner candidate through the shared metered wrapper',async()=>{
+    const s=fixture({ownerCandidate:true,discoveryCount:0});
+    // `discoveryCount:0` needs an explicit empty Room result in this fixture.
+    const original=s.db;
+    s.db=async(sql,p)=>sql===R.ROOM_MEMORY_DISCOVERY_SQL?[]:original(sql,p);
+    const r=await s.sweep();
+    assert.equal(r.status,200);assert.equal(r.payload.errored,0);assert.equal(r.payload.results[0].lane,'owner');
+    assert.equal(s.http,1);assert.equal(s.writes,1);assert.equal(s.spend.state,'settled');assert.equal(s.lease,null);
+    assert(s.events.includes('owner-discovery'));assert(s.events.includes('owner-batch'));assert(s.events.includes('owner-commit'));
+    assert(!s.events.includes('batch'));assert(!s.events.includes('commit'));
+  });
+  await check('owner memory refuses unavailable provider configuration before private source reads',async()=>{
+    const s=fixture();
+    const unavailable={...env};delete unavailable.AZURE_FOUNDRY_API_KEY;
+    await assert.rejects(s.runOwner(unavailable),/room_memory_foundry_binding_required/);
+    assert.equal(s.http,0);assert.equal(s.writes,0);assert(!s.events.includes('owner-batch'));
+  });
+  await check('owner memory budget denial restores the exact lease without a provider call or fact',async()=>{
+    const s=fixture({reserveDenied:true});
+    await assert.rejects(s.runOwner(),/provider_budget_reservation_denied/);
+    assert.equal(s.http,0);assert.equal(s.writes,0);assert.equal(s.spend,null);assert.equal(s.lease.leased_by,'sweep');
   });
   await check('first-preview Room cap remains one even when caller asks for three',async()=>{
     const s=fixture({discoveryCount:2}),r=await s.sweep();assert.equal(r.status,200);

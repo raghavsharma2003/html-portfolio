@@ -329,6 +329,9 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       setExchanges(current => [...current, { question, answer }]); setDraft("");
       setUncertain(false);
       if (answer.billing_state === "reconcile_required") setError(copy.errorReplySavedNeedsReconcile);
+      // Consolidation runs on the existing sweep. Refreshing after each turn
+      // lets a completed prior sweep appear without making this reply wait.
+      if (memoryOn) void loadMemory(() => requestEpoch === epoch.current && latestScope.current === scope);
       input.current?.focus();
     } catch (cause) {
       if (requestEpoch !== epoch.current) return;

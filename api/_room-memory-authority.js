@@ -1,5 +1,6 @@
 // Room memory is authorized by its source membership, never by another Room
 // that happens to share an agent/person. All writes below are single statements.
+import { createHash } from "node:crypto";
 import { isAzureOnlyServing } from "./_model-serving-policy.js";
 import { strictConsolidationConfig } from "./_consolidation-config.js";
 import { communicationFromProposal, COMMUNICATION_PROPOSAL_SCHEMA, COMMUNICATION_EXTRACTION_RULE } from './_learner-communication-contract.js';
@@ -486,16 +487,89 @@ const OWNER_MEMORY_AUTHORITY = `owner_authority as materialized (
  for update of r
 )`;
 
+// Text-ready Meet has no client device, but the memory graph requires every
+// raw record to belong to the owner's person. Use one stable v5 UUID per
+// person, in a namespace separate from every Room surface device.
+export function ownerMeetDeviceId(personId) {
+  const namespace = "6ba7b810-9dad-11d1-80b4-00c04fd430c8".replace(/-/g, "");
+  const digest = createHash("sha1")
+    .update(Buffer.concat([
+      Buffer.from(namespace, "hex"),
+      Buffer.from(`meet:${String(personId)}`, "utf8"),
+    ]))
+    .digest();
+  digest[6] = (digest[6] & 0x0f) | 0x50;
+  digest[8] = (digest[8] & 0x3f) | 0x80;
+  const value = digest.subarray(0, 16).toString("hex");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+// This statement is the text-ready lane's durable handoff to the scheduled
+// consolidator. Authority and memory consent are re-derived in SQL. A UUID
+// collision cannot relink another person's device because the conflict update
+// is allowed only when the existing person already matches.
+export const OWNER_MEMORY_LOG_SQL = `with ${OWNER_MEMORY_AUTHORITY},
+ device_ensured as (
+ insert into vy_person_device(device_id,person_id)
+ select $3::uuid,oa.person_id from owner_authority oa
+ on conflict (device_id) do update set device_id=excluded.device_id
+  where vy_person_device.person_id=excluded.person_id
+ returning device_id
+ )
+ insert into meera_log(agent_id,device_id,role,channel,kind,content,at)
+ select oa.agent_id,$3::uuid,'me','chat','text',$4::text,now()
+ from owner_authority oa join device_ensured d on d.device_id=$3::uuid
+ where length($4::text) between 1 and 4000
+ returning id`;
+
+// A partial forget can deliberately requeue surviving raw lineage. The
+// consolidator must read the person's suppression ledger before sending text
+// to a provider or deriving a replacement fact. A ledger read failure remains
+// a query failure; it is never interpreted as an empty ledger.
+const OWNER_MEMORY_NOT_SUPPRESSED = `not exists (
+ select 1 from meera_forget f
+ where f.agent_id=oa.agent_id
+ and f.device_id in (select d.device_id from vy_person_device d where d.person_id=oa.person_id)
+ and length(trim(f.term))>0 and position(lower(f.term) in lower(l.content))>0
+)`;
+
 const OWNER_MEMORY_PENDING_PREDICATE = `l.role='me' and l.channel in ('chat','call') and l.kind='text'
    and l.episode_id is null and l.room_memory_follower_id is null and l.speaker_person_id is null
    and l.at > oa.memory_window_floor
-   and exists(select 1 from vy_person_device d where d.device_id=l.device_id and d.person_id=oa.person_id)`;
+   and exists(select 1 from vy_person_device d where d.device_id=l.device_id and d.person_id=oa.person_id)
+   and ${OWNER_MEMORY_NOT_SUPPRESSED}`;
 
 export const OWNER_MEMORY_BATCH_SQL = `with ${OWNER_MEMORY_AUTHORITY}
  select l.id::text,l.content,l.at,l.device_id,oa.replica_id,oa.agent_id,oa.person_id
  from owner_authority oa join meera_log l on l.agent_id=oa.agent_id
  where ${OWNER_MEMORY_PENDING_PREDICATE}
  order by l.id limit ${ROOM_MEMORY_BATCH_CAP}`;
+
+// Oldest-first discovery for the existing room_only sweep. The same consent,
+// dyad, lane and suppression predicates used by BATCH are repeated here so a
+// candidate cannot be admitted on rows that the consolidator must refuse.
+export const OWNER_MEMORY_DISCOVERY_SQL = `select oa.replica_id,oa.agent_id,oa.owner_user_id,
+ oa.subject_person_id as person_id,count(*)::integer as pending_rows,min(l.at) as oldest_pending_at
+ from vy_replica oa join meera_log l on l.agent_id=oa.agent_id
+ where oa.lifecycle not in ('revoked','purging') and oa.subject_mode='self'
+ and oa.agent_id is not null and oa.subject_person_id is not null
+ and exists(select 1 from vy_replica_consent x
+   where x.replica_id=oa.replica_id and x.owner_user_id=oa.owner_user_id
+   and x.scope='memory' and x.revoked_at is null and (x.expires_at is null or x.expires_at>now()))
+ and l.role='me' and l.channel in ('chat','call') and l.kind='text'
+ and l.episode_id is null and l.room_memory_follower_id is null and l.speaker_person_id is null
+ and l.at > coalesce((select max(x.revoked_at) from vy_replica_consent x
+   where x.replica_id=oa.replica_id and x.owner_user_id=oa.owner_user_id
+   and x.scope='memory' and x.revoked_at is not null),'-infinity'::timestamptz)
+ and exists(select 1 from vy_person_device d where d.device_id=l.device_id and d.person_id=oa.subject_person_id)
+ and not exists (
+   select 1 from meera_forget f
+   where f.agent_id=oa.agent_id
+   and f.device_id in (select d.device_id from vy_person_device d where d.person_id=oa.subject_person_id)
+   and length(trim(f.term))>0 and position(lower(f.term) in lower(l.content))>0
+ )
+ group by oa.replica_id,oa.agent_id,oa.owner_user_id,oa.subject_person_id
+ order by oldest_pending_at limit $1`;
 
 export const OWNER_MEMORY_COMMIT_SQL = `with ${OWNER_MEMORY_AUTHORITY},
  expected as materialized (
@@ -681,17 +755,10 @@ export function ownerMemoryAdapter(db, candidate) {
  };
 }
 
-/** Reuses `runRoomMemoryConsolidation` (unmodified above) as A CALLER, never
- *  a fork: only the batch/commit SQL, the authority tuple and the system
- *  prompt differ. Matches the Room's own consolidation's honest state
- *  (`context/rejected.md`'s own note that no workstream has ever scheduled
- *  it to run): this function is offline-proven and callable, not wired to
- *  a live scheduler or the metered Azure lease/budget wrapper
- *  `_room-memory-consolidation.js` gives the Room — that wrapper's lease
- *  table (`meera_consolidate_lease`, keyed by (agent_id,person_id) alone,
- *  already generic) is reusable for the owner lane exactly as written
- *  whenever a future workstream wires either sweep to actually run; see
- *  `context/decisions.md#ws-r167-owner-memory-consolidation-left-unmetered`. */
+/** Reuses `runRoomMemoryConsolidation` as a caller, never a fork: only the
+ *  batch/commit SQL, authority tuple and system prompt differ. The scheduled
+ *  caller wraps this path in `_room-memory-consolidation.js` so the owner lane
+ *  now uses the same generic agent/person lease and provider meter as Room. */
 export async function runOwnerMemoryConsolidation(candidate, {queryFn,model,env=process.env}={}) {
  return runRoomMemoryConsolidation(candidate, {
    queryFn, model, env,
