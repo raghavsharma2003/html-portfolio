@@ -25413,3 +25413,7 @@ Root read-only Azure metadata on2026-09-14 showed app and revision template docu
 ## wave25-employer-laptop-microsoft-boundary
 
 2026-09-14. The owner explicitly forbids opening or using personal Microsoft accounts in any browser on this employer laptop. Existing authorized Azure API access is allowed. If new permissions require an interactive sign-in, give exact commands for the owner to run on a separate personal system. The Microsoft tab was closed. Reversal requires an explicit new owner instruction for a different device; never infer it from general deployment authorization.
+
+## wave25-private-rehearsal-followups-bind-a-settled-parent
+
+2026-09-14. A completed private draft answer may start an explicit follow-up. The new request stores only its parent request UUID in the existing content-free gate sidecar, and carries a fresh follow-up attestation. The server loads at most four whole exchanges and 12,000 characters by walking that parent chain. Every parent must belong to the authenticated owner and same replica, use the unchanged selected sheet, source, snapshot and authority epoch, retain live permission, and have a completed settled provider spend. The server rechecks the chain before dispatch, before answer commit and on reload. Prior answers are conversation context, never evidence or identity authority. Reverse this path when a named capability-free text session table provides the same encryption, withdrawal, budget and owner boundaries, or if measured owner use shows the explicit follow-up affordance is confusing.

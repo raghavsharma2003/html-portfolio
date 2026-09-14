@@ -48,7 +48,7 @@ export function createPrivateTextRehearsalHandler({db,requireUser,store,resolveG
    input={...input,replica_id:admitted.request.replica_id,request_id:admitted.request.request_id};requestInput=input;
    platformReady();const generator=adapterReady(await resolveGenerator());budget.foundryBudgetConfig(generator.billing.budget_env||env);
    const compiled=engine.compilePrivateExpertRehearsal(admitted.compilerInput);
-   const prompt={schema:'private_text_rehearsal/v1',messages:[{role:'system',content:compiled.system},{role:'user',content:compiled.question}]};
+   const prompt={schema:'private_text_rehearsal/v1',messages:[{role:'system',content:compiled.system},...compiled.history,{role:'user',content:compiled.question}]};
    prompt.prompt_hash=sha256Hex(canonicalJson(prompt));
    // No scoped rule text enters the prompt or shared-past record.
    if(aborter.signal.aborted)fail('rehearsal_request_aborted',409);
@@ -65,7 +65,7 @@ export function createPrivateTextRehearsalHandler({db,requireUser,store,resolveG
    catch(error){billing='reconcile_required';await budget.markFoundrySpendUncertain(db,reservation,error);}
    const output=rehearsalOutput(generated.output);
    const rules=compileNeverRules(await loadNeverRules(db,input.replica_id,owner));
-   const honesty=honestyContextFor(engine,compiled,[{role:'user',content:compiled.question}],{record:[],nameable:[]});
+   const honesty=honestyContextFor(engine,compiled,[...compiled.history,{role:'user',content:compiled.question}],{record:[],nameable:[]});
    const gated=gateReply(engine,output.reply,honesty,'private-rehearsal',rules,'expert_answer');
    if(!gated.gated||!gated.text||gated.neverRule)fail('rehearsal_answer_withheld',409);
    const rehearsal=await store.completePrivateTextRehearsal(db,owner,{replica_id:input.replica_id,request_id:input.request_id,dispatch_token:claim.dispatch_token,

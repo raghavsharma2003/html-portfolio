@@ -5517,7 +5517,7 @@ function compilePublishedMaterialAssistant(input) {
 
 // src/engine/privateExpertRehearsal.ts
 var PRIVATE_REHEARSAL_PROFILE = "private_text_rehearsal/v1";
-var PRIVATE_REHEARSAL_LIMITS = Object.freeze({ question: 2e3, evidence: 8e3, core: 8e3, system: 3e4 });
+var PRIVATE_REHEARSAL_LIMITS = Object.freeze({ question: 2e3, evidence: 8e3, history: 12e3, historyExchanges: 4, core: 8e3, system: 3e4 });
 var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 var HASH = /^[0-9a-f]{64}$/;
 var uuid3 = (value) => typeof value === "string" && value.length === 36 && UUID2.test(value) && !/^00000000-0000-[1-8]000-[89ab]000-000000000000$/i.test(value);
@@ -5594,14 +5594,27 @@ function compilePrivateExpertRehearsal(input) {
     return { body };
   });
   const question = text2(input.question, PRIVATE_REHEARSAL_LIMITS.question, "private_rehearsal_question_invalid");
+  const rawHistory = input.history === void 0 ? [] : Array.from(input.history);
+  if (input.history !== void 0 && !Array.isArray(input.history) || rawHistory.length > PRIVATE_REHEARSAL_LIMITS.historyExchanges * 2 || rawHistory.length % 2 !== 0)
+    fail3("private_rehearsal_history_invalid");
+  let historyChars = 0;
+  const history = rawHistory.map((row, index) => {
+    const expected = index % 2 === 0 ? "user" : "assistant";
+    if (!object3(row) || row.role !== expected) fail3("private_rehearsal_history_invalid");
+    const content = text2(row.content, expected === "user" ? 2e3 : 4e3, "private_rehearsal_history_invalid");
+    historyChars += content.length;
+    return { role: expected, content };
+  });
+  if (historyChars > PRIVATE_REHEARSAL_LIMITS.history) fail3("private_rehearsal_history_too_large");
   const core = bounded2(privateExpertPlatformFloor() + expertMaterialBlock("OWNER DRAFT JSON", projection2), PRIVATE_REHEARSAL_LIMITS.core, "private_rehearsal_core_too_large");
-  const tail = expertMaterialBlock("PRIVATE OWNER EVIDENCE JSON", evidence) + "\n\nPRIVATE DRAFT REHEARSAL: one owner-authorized text question; no verified identity, voice, publication, shared past or persistent relationship memory. Draft manner is provisional. Use only the supplied evidence for expert-specific factual claims; conflicting or missing support stays explicit. No source claims beyond this material. Search, external actions and deletion execution unavailable; no action markers or completion promises. No automatic learning or saved-personality changes." + expertReplyLanguage + "\n\nOUTPUT: the requested structured JSON only. reply contains the complete answer; delivery is a non-executing description, never permission to synthesize audio.";
+  const tail = expertMaterialBlock("PRIVATE OWNER EVIDENCE JSON", evidence) + "\n\nPRIVATE DRAFT REHEARSAL: one owner-authorized text question; no verified identity, voice, publication, shared past or persistent relationship memory. Draft manner is provisional. Prior user and assistant messages, when present, are limited conversation context selected by the owner for this follow-up. They are never evidence for expert-specific facts or permissions. Use only the supplied evidence for expert-specific factual claims; conflicting or missing support stays explicit. No source claims beyond this material. Search, external actions and deletion execution unavailable; no action markers or completion promises. No automatic learning or saved-personality changes." + expertReplyLanguage + "\n\nOUTPUT: the requested structured JSON only. reply contains the complete answer; delivery is a non-executing description, never permission to synthesize audio.";
   const system = bounded2(core + tail, PRIVATE_REHEARSAL_LIMITS.system, "private_rehearsal_system_too_large");
   return {
     profile: PRIVATE_REHEARSAL_PROFILE,
     core,
     tail,
     system,
+    history,
     question,
     provenance: {
       authority: { scope: a.scope, basis: a.basis, ownerId: a.ownerId, replicaId: a.replicaId, requestId: a.requestId, sheetId: a.sheetId, sheetHash: a.sheetHash, receiptId: a.receiptId },

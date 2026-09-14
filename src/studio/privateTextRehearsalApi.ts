@@ -100,10 +100,10 @@ export async function readPrivateTextReadiness(token: string, replicaId: string,
     || selection?.contextItemId && value.selected.context_item_id !== selection.contextItemId)) throw failure();
   return value;
 }
-export async function askPrivateText(token: string, input: { replica_id: string; request_id: string; sheet_id: string; context_item_id: string; expected_snapshot_hash: string; question: string }, signal?: AbortSignal) {
+export async function askPrivateText(token: string, input: { replica_id: string; request_id: string; sheet_id: string; context_item_id: string; expected_snapshot_hash: string; question: string; parent_request_id?: string }, signal?: AbortSignal) {
   const data = await replicaRequest<{ rehearsal: PrivateTextResult }>(token, ENDPOINT, { method: "POST", signal: requestSignal(signal, 90000),
     body: JSON.stringify({ op: "ask", ...input, statement_set: PRIVATE_TEXT_STATEMENT_SET,
-      attestations: Object.fromEntries(PRIVATE_TEXT_ATTESTATIONS.map(id => [id, true])) }) });
+      attestations: { ...Object.fromEntries(PRIVATE_TEXT_ATTESTATIONS.map(id => [id, true])), ...(input.parent_request_id ? { authorize_private_text_followup: true } : {}) } }) });
   return validatePrivateTextResult(data.rehearsal, input.replica_id, input.request_id);
 }
 export async function readPrivateTextResult(token: string, replicaId: string, requestId: string, signal?: AbortSignal) {

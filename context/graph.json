@@ -20391,6 +20391,24 @@
       "kind": "rejection",
       "title": "Do not solve missing Azure permissions through this laptop browser",
       "at": "context/rejected.md#wave25-browser-login-and-assumed-identity-rights"
+    },
+    {
+      "id": "wave25-private-rehearsal-followups-bind-a-settled-parent",
+      "kind": "decision",
+      "title": "Private rehearsal follow-ups bind a settled parent",
+      "at": "context/decisions.md#wave25-private-rehearsal-followups-bind-a-settled-parent"
+    },
+    {
+      "id": "wave25-private-rehearsal-followup-controls-20260914",
+      "kind": "measurement",
+      "title": "Private rehearsal follow-up controls pass",
+      "at": "context/measurements.md#wave25-private-rehearsal-followup-controls-20260914"
+    },
+    {
+      "id": "wave25-private-followup-cannot-trust-client-history-or-old-one-question-consent",
+      "kind": "rejection",
+      "title": "Client history and old one-question consent cannot authorize follow-ups",
+      "at": "context/rejected.md#wave25-private-followup-cannot-trust-client-history-or-old-one-question-consent"
     }
   ],
   "edges": [
@@ -34716,6 +34734,16 @@
       "src": "wave25-employer-laptop-microsoft-boundary",
       "rel": "caused_by",
       "dst": "wave25-browser-login-and-assumed-identity-rights"
+    },
+    {
+      "src": "wave25-private-rehearsal-followups-bind-a-settled-parent",
+      "rel": "measured_by",
+      "dst": "wave25-private-rehearsal-followup-controls-20260914"
+    },
+    {
+      "src": "wave25-private-followup-cannot-trust-client-history-or-old-one-question-consent",
+      "rel": "caused_by",
+      "dst": "wave25-private-rehearsal-followups-bind-a-settled-parent"
     }
   ]
 }

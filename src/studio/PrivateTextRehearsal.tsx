@@ -96,6 +96,7 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   const [question, setQuestion] = useState(() => typeof initialDraft?.question === "string" && initialDraft.question.length <= 2000 ? initialDraft.question : "");
   const [attested, setAttested] = useState<PrivateTextAttestation[]>([]);
   const [requestId, setRequestId] = useState<string | null>(() => savedRequest(replicaId));
+  const [parentRequestId, setParentRequestId] = useState<string | null>(null);
   const [result, setResult] = useState<PrivateTextResult | null>(null);
   const [refinementOpen, setRefinementOpen] = useState(false);
   const [erased, setErased] = useState(false);
@@ -124,7 +125,7 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; operation.current++; controller.current?.abort(); }; }, []);
   useEffect(() => {
     const abort = new AbortController(); const attempt = ++readOperation.current;
-    setLoading(true); setReadiness(null); setAttested([]);
+    setLoading(true); setReadiness(null); setAttested(value => parentRequestId ? value : []);
     void readPrivateTextReadiness(token, replicaId, selection, abort.signal).then(next => {
       if (!mounted.current || attempt !== readOperation.current) return;
       setReadiness(next); setLoading(false);
@@ -133,7 +134,7 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
       setLoading(false); handleError(cause, "We could not check the saved draft and source. Refresh availability to try the read again.");
     });
     return () => abort.abort();
-  }, [token, replicaId, selection.sheetId, selection.contextItemId, refresh]);
+  }, [token, replicaId, selection.sheetId, selection.contextItemId, refresh, parentRequestId]);
   useEffect(() => {
     const id = savedRequest(replicaId);
     if (!id) return;
@@ -149,7 +150,7 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   const ready = Boolean(readiness?.can_ask && selected && !editor && !loading && !requestId);
   const canAsk = ready && !busy && question.trim().length > 0 && question.length <= 2000 && PRIVATE_TEXT_ATTESTATIONS.every(id => attested.includes(id));
   function changeSelection(next: typeof selection) {
-    operation.current++; readOperation.current++; setSelection(next); setReadiness(null); setResult(null); setAttested([]); setError(""); setEditor(null);
+    operation.current++; readOperation.current++; setSelection(next); setReadiness(null); setResult(null); setParentRequestId(null); setAttested([]); setError(""); setEditor(null);
   }
   async function act(name: string, work: (signal: AbortSignal, current: () => boolean) => Promise<void>) {
     if (lock.current) return;
@@ -169,7 +170,8 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
       persistRequest(replicaId, id); setRequestId(id); setAttested([]);
       try {
         const next = await askPrivateText(token, { replica_id: replicaId, request_id: id, sheet_id: selected.sheet_id,
-          context_item_id: selected.context_item_id, expected_snapshot_hash: selected.snapshot_hash, question }, signal);
+          context_item_id: selected.context_item_id, expected_snapshot_hash: selected.snapshot_hash, question,
+          ...(parentRequestId ? { parent_request_id: parentRequestId } : {}) }, signal);
         if (current()) {
           if (next.state === "complete") { focus.finish(() => resultHeading.current); focusQueued = true; }
           setResult(next);
@@ -223,10 +225,10 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
     });
     if (!focusQueued) focus.cancel();
   }
-  function newQuestion() {
+  function newQuestion(parent: string | null = null) {
     if (busy) return;
     try { persistRequest(replicaId, null); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not clear the saved handle."); return; }
-    operation.current++; readOperation.current++; setReadiness(null); setRefinementOpen(false); setRequestId(null); setResult(null); setErased(false); setWithdrawalBilling(null); setNotFound(false); setQuestion(""); setAttested([]); setError(""); setRefresh(value => value + 1);
+    operation.current++; readOperation.current++; setReadiness(null); setRefinementOpen(false); setRequestId(null); setParentRequestId(parent); setResult(null); setErased(false); setWithdrawalBilling(null); setNotFound(false); setQuestion(""); setAttested(parent ? [...PRIVATE_TEXT_ATTESTATIONS] : []); setError(""); setRefresh(value => value + 1);
   }
   const canStartAnother = erased || result?.state === "withdrawn" || result && ["complete", "blocked"].includes(result.state) && ["settled", "not_started"].includes(result.billing_state);
   return <section className="ptr-panel" aria-labelledby="ptr-title">
@@ -243,7 +245,7 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
         }} /> : null}
         {unresolvedUsage(withdrawalBilling || result?.billing_state) ? <p role="status">Removing a test does not cancel incurred usage.</p> : null}
         {result?.failure_code ? <details><summary>Request details</summary><p>{result.failure_code.replaceAll("_", " ")}</p></details> : null}
-        <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button></> : null}{canStartAnother && !refinementOpen ? <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={newQuestion}>Prepare another question</button> : null}</div>
+        <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button></> : null}{canStartAnother && !refinementOpen ? <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => newQuestion(result?.state === "complete" ? result.request_id : null)}>{result?.state === "complete" ? "Ask a follow-up" : "Prepare another question"}</button> : null}</div>
       </section> : <>
         <section className="ptr-material" aria-label="Selected material">
           <div className="ptr-section-heading"><h2 ref={materialHeading} tabIndex={-1}>Choose what the answer uses.</h2><button type="button" disabled={Boolean(busy)} onClick={() => { setError(""); setRefresh(value => value + 1); }}>Refresh availability</button></div>
@@ -255,8 +257,9 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
           {selected && !editor ? <div className="ptr-review"><div><h3>{selected.material.draft.name}</h3><p>{selected.material.draft.identityWho}</p><p>Subject: {selected.material.draft.subjectDomain}</p></div><details open><summary>Review source: {selected.material.context.source_name}</summary><p className="ptr-source-body">{selected.material.context.body}</p></details></div> : null}
         </section>
         <form className="ptr-question" onSubmit={event => { event.preventDefault(); void ask(event.currentTarget); }}>
-          <label htmlFor="ptr-question">Your question<textarea id="ptr-question" rows={4} value={question} maxLength={2000} disabled={Boolean(busy)} onChange={event => { setQuestion(event.target.value); setAttested([]); }} /></label><p className="ptr-count">{question.length} / 2000 characters</p>
-          <fieldset disabled={!ready || Boolean(busy)}><legend>For this question and selected material</legend>{readiness?.statements.map(statement => <label className="ptr-attestation" key={statement.id}><input type="checkbox" checked={attested.includes(statement.id)} onChange={event => setAttested(value => event.target.checked ? [...value, statement.id] : value.filter(id => id !== statement.id))} /><span>{statement.text}</span></label>)}</fieldset>
+          {parentRequestId ? <p role="status">Your saved question and answer will be used only as context for this follow-up.</p> : null}
+          <label htmlFor="ptr-question">Your question<textarea id="ptr-question" rows={4} value={question} maxLength={2000} disabled={Boolean(busy)} onChange={event => { setQuestion(event.target.value); setAttested(value => parentRequestId ? value : []); }} /></label><p className="ptr-count">{question.length} / 2000 characters</p>
+          {!parentRequestId ? <fieldset disabled={!ready || Boolean(busy)}><legend>For this question and selected material</legend>{readiness?.statements.map(statement => <label className="ptr-attestation" key={statement.id}><input type="checkbox" checked={attested.includes(statement.id)} onChange={event => setAttested(value => event.target.checked ? [...value, statement.id] : value.filter(id => id !== statement.id))} /><span>{statement.text}</span></label>)}</fieldset> : null}
           <p className="ptr-retention">Permission lasts 30 days. Saved tests stay until you remove them.</p>
           <button className="vx-button vx-button--primary" type="submit" disabled={!canAsk}>{busy === "ask" ? "Asking privately" : "Ask privately"}</button>
         </form>

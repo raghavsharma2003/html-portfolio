@@ -16,7 +16,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const HASH=/^[0-9a-f]{64}$/;
 const isHash=value=>typeof value==='string'&&value.length===64&&HASH.test(value);
 const TEXT_FORMATS=['text','pdf','docx','markdown'];
-const OWNER_ERRORS=new Set(['rehearsal_authority_unavailable','rehearsal_permission_unavailable','rehearsal_inputs_changed','rehearsal_saved_draft_required','rehearsal_draft_name_required','rehearsal_draft_identityWho_required','rehearsal_draft_subjectDomain_required','rehearsal_draft_domain_unsupported','rehearsal_owner_text_context_required','rehearsal_context_too_large','rehearsal_account_attestation_required']);
+const OWNER_ERRORS=new Set(['rehearsal_authority_unavailable','rehearsal_permission_unavailable','rehearsal_inputs_changed','rehearsal_parent_unavailable','rehearsal_saved_draft_required','rehearsal_draft_name_required','rehearsal_draft_identityWho_required','rehearsal_draft_subjectDomain_required','rehearsal_draft_domain_unsupported','rehearsal_owner_text_context_required','rehearsal_context_too_large','rehearsal_account_attestation_required']);
 const LIVE="r.subject_mode='self' and r.policy_version=$5 and r.lifecycle in ('draft','consent_pending','enrolling','calibrating','ready','active')";
 const accountSql=`select distinct on(c.scope) c.consent_id,c.receipt_hash,c.scope,c.metadata from vy_replica_consent c
  where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.scope in ('capture','storage')
@@ -29,6 +29,8 @@ const json=value=>typeof value==='string'?JSON.parse(value):value;
 const hash=value=>sha256Hex(canonicalJson(value));
 const envOf=options=>options?.env||process.env;
 const binding=(row,role,content_hash)=>({owner_user_id:row.owner_user_id,replica_id:row.replica_id,request_id:row.request_id,role,content_hash});
+const FOLLOWUP_ATTESTATION='authorize_private_text_followup';
+const HISTORY_EXCHANGES=4,HISTORY_CHARS=12000;
 export const PRIVATE_TEXT_SELECTION_SQL=`select r.replica_id,r.owner_user_id,r.lifecycle,r.subject_mode,r.policy_version,r.private_text_epoch,
  s.sheet_id,s.sheet,s.status sheet_status,s.updated_at sheet_updated_at,
  i.item_id,i.source_id,i.format,i.status item_status,i.source_name,i.authorship,i.owner_speaker,i.consent_scope,i.content_sha256,
@@ -106,7 +108,7 @@ export async function readPrivateTextRehearsal(db,owner,input,options={}){
  if(row.state==='withdrawn'||row.state==='blocked')return wire(row);
  // A stale completed request may review current guidance, but cannot deliver its
  // old answer. Receipt and source validation above the snapshot comparison still apply.
- try{await currentAuthority(db,owner,row);}catch(e){if(OWNER_ERRORS.has(e.code))return {...wire(row),state:'blocked',failure_code:e.code,...(row.state==='complete'&&e.code==='rehearsal_inputs_changed'?{can_review_teaching:true}:{})};fail('rehearsal_read_unavailable',503,row);}
+ try{const s=await currentAuthority(db,owner,row);await privateFollowupHistory(db,owner,row,s,options);}catch(e){if(OWNER_ERRORS.has(e.code))return {...wire(row),state:'blocked',failure_code:e.code,...(row.state==='complete'&&e.code==='rehearsal_inputs_changed'?{can_review_teaching:true}:{})};fail('rehearsal_read_unavailable',503,row);}
  if(row.state!=='complete')return wire(row);
  return wire(row,decryptPrivateText(json(row.answer_envelope),binding(row,'answer',row.answer_hash),envOf(options)));
 }
@@ -150,7 +152,10 @@ function questionInput(input){
  if(!question||question.length>2000)fail('rehearsal_question_invalid',400);
  if(!isHash(input.expected_snapshot_hash))fail('rehearsal_snapshot_required',400);
  if(input.statement_set!==PRIVATE_TEXT_STATEMENT_SET||PRIVATE_TEXT_STATEMENTS.some(s=>input.attestations?.[s.id]!==true))fail('rehearsal_explicit_attestations_required',400);
- const payload={replica_id:uuid(input.replica_id),request_id:uuid(input.request_id),sheet_id:uuid(input.sheet_id),context_item_id:uuid(input.context_item_id),snapshot_hash:input.expected_snapshot_hash,question_hash:sha256Hex(question),statement_set:PRIVATE_TEXT_STATEMENT_SET,attestations:Object.fromEntries(PRIVATE_TEXT_STATEMENTS.map(s=>[s.id,true]))};
+ const parentRequestId=input.parent_request_id?uuid(input.parent_request_id,'rehearsal_parent_required'):null;
+ if(parentRequestId&&input.attestations?.[FOLLOWUP_ATTESTATION]!==true)fail('rehearsal_followup_attestation_required',400);
+ const attestations={...Object.fromEntries(PRIVATE_TEXT_STATEMENTS.map(s=>[s.id,true])),...(parentRequestId?{[FOLLOWUP_ATTESTATION]:true}:{})};
+ const payload={replica_id:uuid(input.replica_id),request_id:uuid(input.request_id),sheet_id:uuid(input.sheet_id),context_item_id:uuid(input.context_item_id),snapshot_hash:input.expected_snapshot_hash,question_hash:sha256Hex(question),statement_set:PRIVATE_TEXT_STATEMENT_SET,attestations,...(parentRequestId?{parent_request_id:parentRequestId}:{})};
  return {question,payload,requestHash:hash(payload)};
 }
 export const PRIVATE_TEXT_ADMIT_SQL=`with ${AUTHORITY_FENCE}, granted as (
@@ -159,17 +164,41 @@ export const PRIVATE_TEXT_ADMIT_SQL=`with ${AUTHORITY_FENCE}, granted as (
  on conflict do nothing returning consent_id
 ), admitted as (
  insert into vy_private_text_rehearsal(request_id,replica_id,owner_user_id,consent_id,receipt_hash,request_hash,question_hash,
- sheet_id,context_item_id,source_id,authority_epoch,snapshot_hash,snapshot,question_envelope)
+ sheet_id,context_item_id,source_id,authority_epoch,snapshot_hash,snapshot,question_envelope,gate_sidecar)
  select $3::uuid,$1::uuid,$2::uuid,g.consent_id,$11,$15,$16,($7::jsonb->>'sheet_id')::uuid,
- ($7::jsonb->>'context_item_id')::uuid,$4::uuid,$6::bigint,$17,$7::jsonb,$18::jsonb from granted g
+ ($7::jsonb->>'context_item_id')::uuid,$4::uuid,$6::bigint,$17,$7::jsonb,$18::jsonb,$19::jsonb from granted g
  returning request_id
 ) select request_id from admitted`;
+
+async function privateFollowupHistory(db,owner,current,s,options){
+ const history=[];let chars=0,parent=json(current.gate_sidecar)?.parent_request_id||null;
+ const seen=new Set([current.request_id]);
+ while(parent&&history.length<HISTORY_EXCHANGES*2){
+  if(seen.has(parent))fail('rehearsal_parent_cycle',409,current);seen.add(parent);
+  const row=await requestRow(db,owner,{replica_id:current.replica_id,request_id:parent});
+  if(!row||row.state!=='complete'||row.billing_state!=='settled'||row.spend_state!=='settled'
+    ||row.sheet_id!==current.sheet_id||row.context_item_id!==current.context_item_id||row.source_id!==current.source_id
+    ||row.snapshot_hash!==s.snapshotHash||String(row.authority_epoch)!==String(s.snapshot.authority_epoch))fail('rehearsal_parent_unavailable',409,current);
+  await currentAuthority(db,owner,row);
+  const question=decryptPrivateText(json(row.question_envelope),binding(row,'question',row.question_hash),envOf(options));
+  const answer=decryptPrivateText(json(row.answer_envelope),binding(row,'answer',row.answer_hash),envOf(options));
+  if(!question.trim()||question.length>2000||!answer.trim()||answer.length>4000)fail('rehearsal_parent_invalid',503,current);
+  if(chars+question.length+answer.length>HISTORY_CHARS)break;
+  history.unshift({role:'assistant',content:answer});history.unshift({role:'user',content:question});chars+=question.length+answer.length;
+  parent=json(row.gate_sidecar)?.parent_request_id||null;
+ }
+ return history;
+}
 export async function admitPrivateTextRehearsal(db,owner,input,options={}){
  const q=questionInput(input),existing=await requestRow(db,owner,input);
  if(existing?.state==='withdrawn'&&existing.request_hash==null)return {created:false,request:wire(existing),compilerInput:null};
  if(existing){if(existing.request_hash!==q.requestHash)fail('rehearsal_request_conflict',409,existing);return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};}
  privateTextKey(envOf(options));
  const s=await selection(db,owner,input);if(s.snapshotHash!==input.expected_snapshot_hash)fail('rehearsal_inputs_changed',409,input);
+ const prospective={request_id:q.payload.request_id,replica_id:q.payload.replica_id,owner_user_id:owner,sheet_id:s.snapshot.sheet_id,
+  context_item_id:s.snapshot.context_item_id,source_id:s.snapshot.source_id,snapshot_hash:s.snapshotHash,authority_epoch:s.snapshot.authority_epoch,
+  gate_sidecar:q.payload.parent_request_id?{parent_request_id:q.payload.parent_request_id}:{}};
+ const history=await privateFollowupHistory(db,owner,prospective,s,options);
  const now=options.now?new Date(options.now):new Date(),expires=new Date(now.getTime()+30*86400000),consentId=randomUUID();
  const metadata={receipt_format:'vyakti-consent-v1',canonicalization:'vyakti-canonical-json/v1',hash_algorithm:'sha256',statement_set:PRIVATE_TEXT_STATEMENT_SET,
  owner_user_id:owner,replica_id:q.payload.replica_id,request_id:q.payload.request_id,request_hash:q.requestHash,
@@ -177,7 +206,7 @@ export async function admitPrivateTextRehearsal(db,owner,input,options={}){
  granted_at:now.toISOString(),expires_at:expires.toISOString(),nonce:randomBytes(24).toString('hex'),attestations:q.payload.attestations};
  const questionEnvelope=encryptPrivateText(q.question,binding({owner_user_id:owner,...q.payload},'question',q.payload.question_hash),envOf(options));
  let rows;
- try{rows=await db(PRIVATE_TEXT_ADMIT_SQL,[...fenceArgs(owner,input,s),consentId,hash(metadata),now.toISOString(),expires.toISOString(),JSON.stringify(metadata),q.requestHash,q.payload.question_hash,s.snapshotHash,JSON.stringify(questionEnvelope)]);}
+ try{rows=await db(PRIVATE_TEXT_ADMIT_SQL,[...fenceArgs(owner,input,s),consentId,hash(metadata),now.toISOString(),expires.toISOString(),JSON.stringify(metadata),q.requestHash,q.payload.question_hash,s.snapshotHash,JSON.stringify(questionEnvelope),JSON.stringify(q.payload.parent_request_id?{parent_request_id:q.payload.parent_request_id}:{})]);}
  catch(e){if(e.code!=='23505')fail('rehearsal_admission_uncertain',503,input);rows=[];}
  if(!rows.length){const replay=await requestRow(db,owner,input);if(replay?.state==='withdrawn'&&replay.request_hash==null)return {created:false,request:wire(replay),compilerInput:null};if(replay&&replay.request_hash===q.requestHash)return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};fail(replay?'rehearsal_request_conflict':'rehearsal_admission_blocked',409,input);}
  // Confirm the durable request before giving a caller permission to reserve.
@@ -185,7 +214,7 @@ export async function admitPrivateTextRehearsal(db,owner,input,options={}){
  if(confirmed?.state==='withdrawn'&&confirmed.request_hash==null)return {created:false,request:wire(confirmed),compilerInput:null};
  if(!confirmed||confirmed.request_hash!==q.requestHash)fail('rehearsal_admission_uncertain',503,input);
  if(confirmed.state!=='admitted')return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};
- return {created:true,request:wire(confirmed),compilerInput:{authority:{scope:PRIVATE_TEXT_SCOPE,basis:'owner_question_attestation_v1',ownerId:owner,replicaId:q.payload.replica_id,requestId:q.payload.request_id,sheetId:s.snapshot.sheet_id,sheetHash:s.snapshot.sheet_hash,receiptId:consentId},draft:s.draft,contexts:s.contexts,question:q.question}};
+ return {created:true,request:wire(confirmed),compilerInput:{authority:{scope:PRIVATE_TEXT_SCOPE,basis:'owner_question_attestation_v1',ownerId:owner,replicaId:q.payload.replica_id,requestId:q.payload.request_id,sheetId:s.snapshot.sheet_id,sheetHash:s.snapshot.sheet_hash,receiptId:consentId},draft:s.draft,contexts:s.contexts,history,question:q.question}};
 }
 export const PRIVATE_TEXT_CLAIM_SQL=`with ${AUTHORITY_FENCE}
  update vy_private_text_rehearsal h set state='dispatched',dispatch_token_hash=$10,dispatched_at=now(),
@@ -200,7 +229,7 @@ export const PRIVATE_TEXT_CLAIM_SQL=`with ${AUTHORITY_FENCE}
 export async function claimPrivateTextRehearsal(db,owner,input,options={}){
  privateTextKey(envOf(options));const row=await requestRow(db,owner,input);if(!row)fail('rehearsal_not_found',404);
  if(row.state!=='admitted')fail('rehearsal_dispatch_unavailable',409,row);
- const s=await currentAuthority(db,owner,row),p=input.provider,v=input.reservation;
+ const s=await currentAuthority(db,owner,row),p=input.provider,v=input.reservation;await privateFollowupHistory(db,owner,row,s,options);
  if(!p||['family','name','version','model'].some(k=>typeof p[k]!=='string'||!p[k])||!isHash(p.prompt_hash))fail('rehearsal_provider_invalid',500,row);
  const spendHash=hash({operation:'dialogue',request_key:`private-text-rehearsal:${row.request_id}`,provider_family:p.family,provider_name:p.name,provider_version:p.version,model:p.model});
  if(!v||v.request_hash!==spendHash||v.state!=='reserved'||typeof v.reservation_id!=='string'||v.reservation_id.length!==36||!UUID.test(v.reservation_id)||typeof v.budget_id!=='string')fail('rehearsal_reservation_invalid',503,row);
@@ -212,7 +241,7 @@ export async function claimPrivateTextRehearsal(db,owner,input,options={}){
 }
 export const PRIVATE_TEXT_COMPLETE_SQL=`with ${AUTHORITY_FENCE}
  update vy_private_text_rehearsal h set state='complete',answer_envelope=$11::jsonb,answer_hash=$12,
- raw_envelope=$13::jsonb,raw_hash=$14,gate_sidecar=$15::jsonb,billing_state=$16,updated_at=now()
+ raw_envelope=$13::jsonb,raw_hash=$14,gate_sidecar=h.gate_sidecar||$15::jsonb,billing_state=$16,updated_at=now()
  from owned o where h.request_id=$3::uuid and h.replica_id=o.replica_id and h.owner_user_id=o.owner_user_id
  and h.state='dispatched' and h.dispatch_token_hash=$10 and h.authority_epoch=$6::bigint and ${receiptLive}
  and exists(select 1 from vy_provider_spend p where p.reservation_id=h.reservation_id and p.budget_id=h.budget_id
@@ -221,7 +250,7 @@ export const PRIVATE_TEXT_COMPLETE_SQL=`with ${AUTHORITY_FENCE}
 export async function completePrivateTextRehearsal(db,owner,input,options={}){
  const row=await requestRow(db,owner,input);if(!row)fail('rehearsal_not_found',404);
  if(row.state!=='dispatched'||sha256Hex(String(input.dispatch_token||''))!==row.dispatch_token_hash)fail('rehearsal_dispatch_unavailable',409,row);
- const s=await currentAuthority(db,owner,row),answer=input.answer,raw=typeof input.raw_output==='string'?input.raw_output:JSON.stringify(input.raw_output);
+ const s=await currentAuthority(db,owner,row),answer=input.answer,raw=typeof input.raw_output==='string'?input.raw_output:JSON.stringify(input.raw_output);await privateFollowupHistory(db,owner,row,s,options);
  if(typeof answer!=='string'||!answer.trim()||answer.length>4000||typeof raw!=='string'||raw.length>32000)fail('rehearsal_output_invalid',500,row);
  if(!['settled','reconcile_required'].includes(input.billing_state))fail('rehearsal_billing_unresolved',503,row);
  const ah=sha256Hex(answer),rh=sha256Hex(raw);
