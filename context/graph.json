@@ -19524,6 +19524,12 @@
       "kind": "measurement",
       "title": "Focused compiler, door and native identity controls for the Vyakti-only surface (2026-09-14)",
       "at": "context/measurements.md#wave-25-vyakti-surface-separation-2026-09-14"
+    },
+    {
+      "id": "wave-25-native-suite-rewrite-first-dropped-assetlinks-behaviour",
+      "kind": "rejection",
+      "title": "The first single-identity native suite rewrite dropped Vyakti assetlinks behavior (2026-09-14)",
+      "at": "context/rejected.md#wave-25-native-suite-rewrite-first-dropped-assetlinks-behaviour"
     }
   ],
   "edges": [
@@ -33344,6 +33350,11 @@
       "src": "wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity",
       "dst": "wave-25-meera-only-surface-and-suites-do-not-belong-in-vyakti",
       "rel": "caused_by"
+    },
+    {
+      "src": "wave-25-vyakti-surface-separation-2026-09-14",
+      "dst": "wave-25-native-suite-rewrite-first-dropped-assetlinks-behaviour",
+      "rel": "measured_by"
     }
   ]
 }

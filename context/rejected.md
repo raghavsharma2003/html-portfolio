@@ -18827,3 +18827,13 @@ never clicks there would have shipped the same defect silently.
 **What stayed because it has Vyakti callers.** The compiler, honesty and relational layers; the generated server bundle and its Room exports; `callHistory.ts`, used by the shared brain/server entry; `spokenText.ts`, used by Vyakti voice doors; the legacy agent UUID and `meera_*` relational/schema names, which are persisted data identifiers read by active API and migration paths; `notify/prefs.ts`, whose type is imported by the shared state store; and the Room/studio push worker, retargeted to Vyakti tags.
 
 **The rule.** Product separation follows real callers. Remove a product surface only after proving no Vyakti import; retain shared storage and engine seams while callers exist, even when their historical names are inconvenient.
+
+## `wave-25-native-suite-rewrite-first-dropped-assetlinks-behaviour` (2026-09-14)
+
+**Tried.** Replacing the dual-product `evals/vyakti-app/run.mjs` with a shorter suite that checked only the sole Capacitor, Android and iOS identity.
+
+**What specifically broke.** The first rewrite also removed the existing tests for the public `/.well-known/assetlinks.json` Vyakti door: unset/empty configuration, valid and lowercase certificate fingerprints, five malformed fingerprints, GET response shape, POST refusal, and the Vercel rewrite/header. Those checks protect current Vyakti deep links and are independent of the removed native flavour.
+
+**What fixed it.** The handler, malformed-input negative controls and Vercel routing checks were restored around the single-identity assertions. The focused suite now passes 51/51.
+
+**The rule.** When removing dual-product assertions from a mixed suite, classify each section by the behavior it protects. Preserve every section that exercises a Vyakti door, even when it was originally added in the same workstream as the retired product split.

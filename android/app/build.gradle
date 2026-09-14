@@ -7,10 +7,12 @@ android {
         applicationId "app.vyakti.studio"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 26
-        versionName "26.0"
+        versionCode 27
+        versionName "27.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField "int", "OTA_NATIVE_CONTRACT", "1"
+        // Plugin identity changed with the sole-product shell. OTA bundles
+        // built for this API must be refused by contract-1 APKs.
+        buildConfigField "int", "OTA_NATIVE_CONTRACT", "2"
         def vyaktiOrigin = System.getenv('VYAKTI_PUBLIC_APP_ORIGIN') ?: 'https://vyakti-replica-lab.vercel.app'
         def vyaktiHost = vyaktiOrigin.replaceFirst('^https?://', '').replaceFirst('/.*$', '')
         manifestPlaceholders = [vyaktiAppHost: vyaktiHost]
