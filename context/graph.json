@@ -20283,6 +20283,24 @@
       "kind": "rejection",
       "title": "Default conditioning and a code-only memory claim were insufficient",
       "at": "context/rejected.md#wave25-default-voice-conditioning-and-code-only-memory"
+    },
+    {
+      "id": "wave25-ci-fixtures-track-public-assets-and-current-journey",
+      "kind": "decision",
+      "title": "CI fixtures track public assets and the current journey",
+      "at": "context/decisions.md#wave25-ci-fixtures-track-public-assets-and-current-journey"
+    },
+    {
+      "id": "wave25-ci-regression-repairs-20260914",
+      "kind": "measurement",
+      "title": "Three integration regressions pass focused suites",
+      "at": "context/measurements.md#wave25-ci-regression-repairs-20260914"
+    },
+    {
+      "id": "wave25-retired-copy-assertions-and-unserved-public-assets",
+      "kind": "rejection",
+      "title": "Retired copy assertions and unserved public assets broke CI",
+      "at": "context/rejected.md#wave25-retired-copy-assertions-and-unserved-public-assets"
     }
   ],
   "edges": [
@@ -34543,6 +34561,16 @@
       "src": "wave25-default-voice-conditioning-and-code-only-memory",
       "rel": "caused_by",
       "dst": "wave25-private-preview-before-public-cutover"
+    },
+    {
+      "src": "wave25-ci-fixtures-track-public-assets-and-current-journey",
+      "rel": "measured_by",
+      "dst": "wave25-ci-regression-repairs-20260914"
+    },
+    {
+      "src": "wave25-retired-copy-assertions-and-unserved-public-assets",
+      "rel": "caused_by",
+      "dst": "wave25-ci-fixtures-track-public-assets-and-current-journey"
     }
   ]
 }

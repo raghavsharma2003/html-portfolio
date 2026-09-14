@@ -45,14 +45,35 @@ try {
       replacement.render(<PersonalStudioEntry restore={async()=>session} />);
     };
     window.startRecovery(); }`;
-  await build({ stdin: { contents: source, resolveDir: root, sourcefile: "personal-studio-entry-recovery.tsx", loader: "tsx" }, absWorkingDir: root, outdir: temp, entryNames: "fixture", bundle: true, splitting: true, format: "esm", platform: "browser", jsx: "automatic", logLevel: "silent", define: { "import.meta.env": "{}", "process.env.NODE_ENV": '"production"' }, loader: { ".woff2": "file", ".woff": "file", ".svg": "file", ".png": "file", ".webp": "file" } });
-  const mime = { ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".svg": "image/svg+xml" };
+  await build({
+    stdin: { contents: source, resolveDir: root, sourcefile: "personal-studio-entry-recovery.tsx", loader: "tsx" },
+    absWorkingDir: root,
+    outdir: temp,
+    entryNames: "fixture",
+    bundle: true,
+    splitting: true,
+    format: "esm",
+    platform: "browser",
+    jsx: "automatic",
+    logLevel: "silent",
+    define: { "import.meta.env": "{}", "process.env.NODE_ENV": '"production"' },
+    loader: { ".woff2": "file", ".woff": "file", ".svg": "file", ".png": "file", ".webp": "file" },
+    plugins: [{
+      name: "public-root-assets",
+      setup(bundle) {
+        bundle.onResolve({ filter: /^\/expert\// }, args => ({ path: args.path, external: true }));
+      },
+    }],
+  });
+  const mime = { ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".svg": "image/svg+xml", ".webp": "image/webp" };
   server = createServer(async (req, res) => {
     try {
       const path = new URL(req.url, "http://local").pathname;
       if (path === "/" || path === "/studio") { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><div id="studio-root"></div><script type="module" src="/fixture.js"></script>'); return; }
-      const file = resolve(temp, `.${decodeURIComponent(path)}`);
-      assert.ok(file.startsWith(resolve(temp) + sep));
+      const publicAsset = path.startsWith("/expert/");
+      const base = publicAsset ? resolve(root, "public") : resolve(temp);
+      const file = resolve(base, `.${decodeURIComponent(path)}`);
+      assert.ok(file.startsWith(base + sep));
       res.setHeader("content-type", mime[extname(file)] || "application/octet-stream"); res.end(await readFile(file));
     } catch { res.statusCode = 404; res.end("Not found"); }
   });

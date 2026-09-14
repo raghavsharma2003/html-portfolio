@@ -855,6 +855,7 @@ const PROVIDER_CALLER_MAPPED = {
 // this incident board observes its provider failures. Keep dormant adapters
 // in the inventory as long as their executable transport remains in source.
 const INJECTED_PROVIDER_EXCLUSIONS = {
+  "_internal-voice-proxy.js": "Exact-owner internal voice evaluation transport via internal-voice.js; its authenticated private experiment contract has a dedicated battery and is outside Room delivery.",
   "_correction/providers/azure-foundry.js": "Authenticated private owner candidate construction via replica-correction-candidate.js; checked below for exact budget, timeout and request-key wiring, outside Room delivery.",
   "_auth.js": "Supabase authentication; session errors use the auth API contract, outside Room provider delivery.",
   "_asr/providers/azure-speech-short.js": "Replica ASR input/result lifecycle; not a Room text delivery transport.",
@@ -890,6 +891,7 @@ const INJECTED_PROVIDER_EXCLUSIONS = {
 // named here so a future route can silently stop wiring the runtime without
 // making the exclusion look like coverage.
 const EXCLUDED_PROVIDER_CALLERS = {
+  "_internal-voice-proxy.js": ["internal-voice.js"],
   "_voice/allocation-runtime.js": ["voice-preview.js", "voice-allocation-supervise.js"],
 };
 // A named private lifecycle is not evidence of Room incident recording.
