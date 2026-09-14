@@ -20211,6 +20211,42 @@
       "kind": "rejection",
       "title": "The preserved R182 patch predates current forget requeue behavior",
       "at": "context/rejected.md#wave25-r182-preserved-patch-precedes-current-forget-requeue"
+    },
+    {
+      "id": "wave25-internal-owner-voice-runtime",
+      "kind": "decision",
+      "title": "Internal own-voice uses exact owner and private Blob attempts",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-internal-owner-voice-controls-20260914",
+      "kind": "measurement",
+      "title": "37 offline internal voice and lifecycle controls pass",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-deployed-broker-source-is-not-runtime-proof",
+      "kind": "rejection",
+      "title": "Current broker source cannot prove deployed child admission",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-reuse-recorded-owner-voice-anchor",
+      "kind": "decision",
+      "title": "Internal Hindi test reuses the recorded owner baseline",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-owner-anchor-effective-cfg-20260914",
+      "kind": "measurement",
+      "title": "38 controls pass including real provider CFG .78",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-unmatched-cfg-zero-is-not-baseline",
+      "kind": "rejection",
+      "title": "Conservative unknown language silently changed the measured baseline",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -34426,6 +34462,26 @@
       "src": "wave25-owner-text-memory-shares-room-meter",
       "rel": "supersedes",
       "dst": "ws-r167-owner-memory-consolidation-left-unmetered"
+    },
+    {
+      "src": "wave25-internal-owner-voice-runtime",
+      "rel": "measured_by",
+      "dst": "wave25-internal-owner-voice-controls-20260914"
+    },
+    {
+      "src": "wave25-deployed-broker-source-is-not-runtime-proof",
+      "rel": "constrains",
+      "dst": "wave25-internal-owner-voice-runtime"
+    },
+    {
+      "src": "wave25-reuse-recorded-owner-voice-anchor",
+      "rel": "measured_by",
+      "dst": "wave25-owner-anchor-effective-cfg-20260914"
+    },
+    {
+      "src": "wave25-unmatched-cfg-zero-is-not-baseline",
+      "rel": "constrains",
+      "dst": "wave25-reuse-recorded-owner-voice-anchor"
     }
   ]
 }

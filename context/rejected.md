@@ -19112,3 +19112,13 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** The implementation was manually reconciled onto current source. The text-ready caller records only a validated owner turn; the current scheduled sweep discovers it; the established Room meter handles the paid call; and owner discovery, batch and commit each suppress forgotten content for every device mapped to the same person. Focused tests prove next-turn retrieval, no resurrection, sibling isolation, provider refusal and budget refusal.
 
 **The rule.** A preserved patch is evidence of intent, not current authority. Rebase its behavior against every later identity, erasure, context-budget and caller change, and keep a negative control for the later failure mode that made blind restoration unsafe.
+
+
+## wave25-deployed-broker-source-is-not-runtime-proof (2026-09-14)
+
+The initial assumption that the deployed CPU broker already implemented the current six-field child callback was rejected by root Azure metadata: deployed Hindi/general brokers exposed only HMAC and runtime-origin configuration, with no allocation origin. Likewise, no verified shared durable filesystem was found, so fsync-based local attempt storage was rejected for Vercel/replica durability. The implementation uses existing private Blob conditional writes and documents the exact three-file CPU broker rebuild/configuration requirement. General GPU max2 is not selected; root identified existing dormant Hindi min0/max1 app, still requiring exact isolation tag, immutable image/config binding and live readback. Offline success must not be presented as voice readiness or a model result.
+
+
+## wave25-unmatched-cfg-zero-is-not-baseline (2026-09-14)
+
+Initial internal runner used .5/.5/.8 and unknown/unverified language. Existing Hindi conditioning correctly mapped that unknown mode to effectiveCFG0, so it did not reproduce the owner's previously measured .2/.78/.6 identity-anchor clips. Reject treating that unmatched setup as a quality baseline. Recovered same-reference historical receipt supports source-transcript mixed mode, not exact-reference language verification; restrict reuse to that hash and preserve the evidence limitation. Initial new test used nonexistent outbound field effective_cfg_weight; actual provider wire field is cfg_weight and returned receipt field effectiveCfgWeight. Corrected the test against real implementation; actual wire/receipt both .78.

@@ -25362,3 +25362,13 @@ Build the exact committed worker source on the existing sponsored subscription w
 **Why.** The owner consolidation functions already existed but had no caller, and the earlier owner path was intentionally left unmetered. Reusing the live scheduled caller and its metered wrapper makes memory grow without making a Meet reply wait on a provider call or weakening identity, purpose, consent, erasure or budget boundaries.
 
 **Reversal.** Replace the scheduled delivery mechanism only if an internal journey measures unacceptable delivery delay or missed work, and the replacement keeps the same authority, suppression, exact-source and budget controls. Change suppression matching only after a measured false-suppression case and an executable forget-and-no-resurrection negative control. A conversation fact may affect the persona sheet only after a separately designed explicit owner approval action.
+
+
+## wave25-internal-owner-voice-runtime (2026-09-14)
+
+The owner explicitly prioritized real internal own-voice experiments over public enrollment review on 2026-09-14. Implemented a same-origin Studio API backed by a small Azure CPU runtime with exact server-configured owner/replica, expiring purpose-bound reference authorization, one attempt by default, private WAV playback/ratings and revoke. Reuses the existing real Chatterbox adapter, HMAC admission protocol and supervised existing-revision Azure controller. Blob ETag compare-and-swap holds attempt, one-use children, reservation and cleanup observations across CPU processes. No identity/consent/genome rows are minted. Default private scope never grants public enrollment qualification. Reverse this design if the owner changes internal scope or a measured deployment requirement makes the existing CPU/Blob/controller composition unsuitable; preserve real owner binding and honest evidence during any change.
+
+
+## wave25-reuse-recorded-owner-voice-anchor (2026-09-14)
+
+The internal owner explicitly requested a matched historical hi-lesson baseline before spending on the CPU build. For exact retained reference SHA52a4a5fa05b293de8f99e6529f3d69d94fd9f0cafdcf7ca39985b76eda70b30c, restore style exaggeration.2/CFG.78/temperature.6, seed41001 from the retained runner schedule, and mixed/source_transcript attribution supported by the Aug29 same-reference provider receipt. Persist the profile and nonsecret receipt/runner hashes in both attempt and output receipt. No exact-window language claim; transcript SHA is unavailable and not invented. Other reference hashes inherit no historical language evidence. Reverse if the historical reference/receipt attribution is disproved or measured owner comparison supports another explicit internal profile. Public defaults are untouched.
