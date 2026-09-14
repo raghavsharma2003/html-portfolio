@@ -19179,3 +19179,8 @@ The previous controller assumed the app template and target revision template sh
 ## wave25-private-followup-cannot-trust-client-history-or-old-one-question-consent
 
 2026-09-14. Two tempting shortcuts were rejected. Sending the visible browser transcript back with `Why?` would let arbitrary client text become trusted conversation history and would not survive an authenticated reload. Reusing every older private rehearsal row automatically would also broaden a one-question attestation after the fact. The implemented path starts only from the owner's explicit `Ask a follow-up` action, records that prospective authorization on the new request, and resolves the parent chain from encrypted server rows. Failed, unsettled, foreign, withdrawn or changed-material parents refuse by name instead of disappearing into an empty history. Reconsider automatic continuity only with a prospectively scoped conversation grant and equivalent withdrawal boundaries.
+
+
+## wave25-attachable-identity-is-not-gpu-authority (2026-09-14)
+
+Read-only Azure metadata found the operator could attach four existing UMIs, but none had applicable direct/inherited assignments on HindiGPU across resource/group/subscription reads. Operator lacked roleAssignments/write and roleDefinitions/write. Reject assuming identity names or attachability confer GPU lifecycle authority, and do not request broad operator elevation. Use dedicated identity plus exact personal-device owner grant, then locally verify grant before three service writes.

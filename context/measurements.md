@@ -19014,3 +19014,8 @@ No new SQL statement or migration was added: the caller uses the existing runtim
 ## wave25-private-rehearsal-followup-controls-20260914
 
 2026-09-14. Focused local validation passed: private compiler 18 groups, private store 20 checks, private handler 22 groups, mounted private-text UI 21 groups at its existing 390 and 1440 pixel coverage, TypeScript with `npx tsc --noEmit`, Vite production build, copy law 6 scopes with 21 negative controls, engine bundle freshness, and SQL cast/parser 1,230 statements with zero conflicts, uncast sites or unparseable shapes. The new controls prove a settled same-owner/same-replica parent reaches the provider before the current question, foreign-owner, foreign-replica or failed parents supply no history, the explicit UI action sends only the parent UUID plus its follow-up attestation, and the saved child answer reloads without a paid retry. Tests used synthetic encrypted rows and an injected provider. No database, model, network, cloud or live owner journey ran.
+
+
+## wave25-personal-voice-grant-script-controls-20260914 (2026-09-14)
+
+2026-09-14, n1 Bash syntax check via Git bash -n, n4 embedded Python blocks compile. Static checks confirm exactly2 PUTcommands (role and assignment), no az login, fixedtenant/subscription/UMI principal/client, exactHindiGPUassignmentscope, deterministicrole b9ee16fd-4ff7-5d8d-825e-fe5c7593c1c6 and assignment8cb12aaa-d543-5276-90cb-199f8a535b5c. Existing mismatched grant is refused and both objects have GETreadback. No script execution, account login or Azure writes were performed by this check.

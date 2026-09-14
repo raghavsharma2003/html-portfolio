@@ -20427,6 +20427,24 @@
       "kind": "rejection",
       "title": "Two-column voice stage covered phone rating controls",
       "at": "context/rejected.md#wave25-internal-owner-voice-rating-overlap"
+    },
+    {
+      "id": "wave25-personal-device-grants-dedicated-voice-identity",
+      "kind": "decision",
+      "title": "Owner grants only dedicated voice identity from personal device",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-personal-voice-grant-script-controls-20260914",
+      "kind": "measurement",
+      "title": "Bash grant script syntax and exact scope controls pass",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-attachable-identity-is-not-gpu-authority",
+      "kind": "rejection",
+      "title": "Existing attachable identities did not possess Hindi GPU roles",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -34782,6 +34800,16 @@
       "src": "wave25-internal-owner-voice-studio-caller",
       "rel": "part_of",
       "dst": "wave25-internal-owner-voice-runtime"
+    },
+    {
+      "src": "wave25-personal-device-grants-dedicated-voice-identity",
+      "rel": "measured_by",
+      "dst": "wave25-personal-voice-grant-script-controls-20260914"
+    },
+    {
+      "src": "wave25-attachable-identity-is-not-gpu-authority",
+      "rel": "constrains",
+      "dst": "wave25-personal-device-grants-dedicated-voice-identity"
     }
   ]
 }

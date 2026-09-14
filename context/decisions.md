@@ -25425,3 +25425,8 @@ Root read-only Azure metadata on2026-09-14 showed app and revision template docu
 ## wave25-private-rehearsal-followups-bind-a-settled-parent
 
 2026-09-14. A completed private draft answer may start an explicit follow-up. The new request stores only its parent request UUID in the existing content-free gate sidecar, and carries a fresh follow-up attestation. The server loads at most four whole exchanges and 12,000 characters by walking that parent chain. Every parent must belong to the authenticated owner and same replica, use the unchanged selected sheet, source, snapshot and authority epoch, retain live permission, and have a completed settled provider spend. The server rechecks the chain before dispatch, before answer commit and on reload. Prior answers are conversation context, never evidence or identity authority. Reverse this path when a named capability-free text session table provides the same encryption, withdrawal, budget and owner boundaries, or if measured owner use shows the explicit follow-up affordance is confusing.
+
+
+## wave25-personal-device-grants-dedicated-voice-identity (2026-09-14)
+
+Owner forbids Microsoft-account browser use on the employer laptop and explicitly allows Azure API access. Root created dedicated UMI vyakti-internal-voice25-id via authorized API. Personal-device Cloud Shell script grants only the reviewed five resource/revision read and activate/deactivate actions at the existing Hindi GPU to that UMI, never broader privileges to the current operator service principal. Local deployment will verify the existing grant and attach UMI instead of attempting role writes. Reverse only with explicit owner change to device/account constraints or a new reviewed resource authority.
