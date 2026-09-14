@@ -508,9 +508,8 @@ export function renderHerCommitments(
 // holds) — this block is built and inserted by the Vyakti-agent-shape
 // constructor (`agents/fromSheet.ts::sheetToModule`), which controls what it
 // hands to `buildSystemPromptParts` and what it appends to the CORE that
-// function returns. Meera never calls that constructor (she is the static
-// `DEFAULT_AGENT`), so her compiled bytes cannot move by construction — no
-// code path here or in `fromSheet.ts` runs for her.
+// function returns. Every shipping compile now reaches this path through an
+// explicit sheet-backed module; there is no static product-persona fallback.
 //
 // Markers are exported (not a heuristic regex) so `evals/room-adversarial-
 // creator/run.mjs`'s scanner finds the REAL boundary from the real compiled

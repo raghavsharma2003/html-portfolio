@@ -1324,7 +1324,7 @@ function lintLine(line) {
   const words2 = wordsOf(trimmed);
   if (words2.length > MAX_WORDS) reasons.push(`too long: ${words2.length} words (cap ${MAX_WORDS})`);
   if (SENTENCE_SHAPED_RE.test(trimmed)) reasons.push("sentence-shaped (capital start + terminal punctuation)");
-  if (FIRST_PERSON_LINE_INITIAL_RE.test(trimmed)) reasons.push("first-person-Meera voice, line-initial");
+  if (FIRST_PERSON_LINE_INITIAL_RE.test(trimmed)) reasons.push("first-person persona voice, line-initial");
   return { line, reasons };
 }
 function lintBlock(text3, allowlist = []) {

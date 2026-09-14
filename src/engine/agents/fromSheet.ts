@@ -35,8 +35,8 @@
 // ── why agents/teacher.ts does NOT call sheetToModule ─────────────────────
 // It was written that way first, and it does not work: `registry.ts` →
 // `teacher.ts` → this file → `shapelint.ts` → `compiler.ts` → `registry.ts`,
-// and `compiler.ts` reads `DEFAULT_AGENT.CRISIS_LINES` AT MODULE SCOPE. Under
-// that edge `DEFAULT_AGENT` is undefined when the line runs and the whole
+// and the compiler used to read a default agent AT MODULE SCOPE. Under that
+// edge the default was undefined when the line ran and the whole
 // engine bundle throws on import — `storyCatalog.ts:41-42` records the
 // identical hazard from the other side. So the runtime registry's import graph
 // stays clear of `shapelint`, and the price is that the static path and this

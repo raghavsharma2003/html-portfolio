@@ -1,6 +1,6 @@
 // The Room's service worker (WS-R22 migration 085; precache and offline
 // shell added WS-R59; the push contract below rewritten WS-R81). `public/
-// push-sw.js`'s own shape, scoped to `/r/` rather than Meera's `/chat`.
+// push-sw.js`'s own shape, scoped to `/r/`.
 // Three jobs: hold the PWA install scope for the per-Room `manifest.
 // webmanifest` (`api/_room-manifest.js`), precache the built shell so a
 // follower on a bad connection opens the Room like an app instead of a
@@ -39,7 +39,7 @@
 // account-wide push kinds (a creator's weekly note, an operator's incident
 // alert) - a second FILE, not a second contract: its own header documents
 // the identical `{t, title, body, url}` shape. It does not share this
-// file's closed-kind drop, because it is also Meera's own worker (a
+// file's closed-kind drop, because it is also the account-wide worker (a
 // different product built in this same repo, out of this workstream's
 // scope to touch) - see that file's own header for why.
 //

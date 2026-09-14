@@ -18845,3 +18845,15 @@ Rejected the handoff's implied need to create a Foundry project and chat deploym
 ## `standalone25-processing-preview-flag` (2026-09-14)
 
 Rejected treating `VYAKTI_PREVIEW_PROCESSING_ENABLED` as the actual processing scheduler gate. ARM metadata shows `vyakti-replica-processing` is a scheduled Microsoft.App/jobs resource, and `run-once.js` plus the Vercel sweep contain no source read of that flag. Revisit if a current worker revision or deployment manifest adds the read.
+
+## `wave-25-meera-only-surface-and-suites-do-not-belong-in-vyakti` (2026-09-14)
+
+**Tried.** Keeping the legacy `/chat` application, static character fallback, live-call stack, dual native flavour and their registered regression suites beside the sheet-backed Vyakti studio and Rooms.
+
+**What specifically broke.** Caller tracing showed no Vyakti import of `src/voice/liveCall.ts`, `src/voice/speech.ts`, `src/components/**`, `src/native/**`, `src/sound/**`, the root chat entry or `evals/echosim/**`. Those files existed only for the removed product. The compiler still imported its character through the registry, and the native default still named `app.meera.companion`, so deleting only the web entry would have left two reachable identity fallbacks. The dual-product `vyakti-app` suite encoded that drift as expected behavior.
+
+**Removed after that caller audit.** The `/chat` entry and `api/chat.js`; the legacy React chat/component/style/native-notification/sound surface; `liveCall.ts`, `speech.ts`, `localHeart.ts`, the static character module and registry default; `evals/echosim/**`; the character persona-invariant runner; and these registry mappings whose source depended on the retired surface or route: `activity`, `ttt`, `tttparity`, `movevoice`, `milestones`, `teardown`, `chattail`, `callmem`, `sharenow`, `hernow`, `rupturechannel`, `burstwiring`, `sky`, `selfwiring`, `lanes`, `lifecycle`, `knows`, `sound`, `notify`, `composer`, `assetwire`, `trace`, and `resilience`. Historical suite source remains where it records prior behavior; it is no longer a release assertion for Vyakti. `vyakti-app` was rewritten around the sole native identity rather than removed.
+
+**What stayed because it has Vyakti callers.** The compiler, honesty and relational layers; the generated server bundle and its Room exports; `callHistory.ts`, used by the shared brain/server entry; `spokenText.ts`, used by Vyakti voice doors; the legacy agent UUID and `meera_*` relational/schema names, which are persisted data identifiers read by active API and migration paths; `notify/prefs.ts`, whose type is imported by the shared state store; and the Room/studio push worker, retargeted to Vyakti tags.
+
+**The rule.** Product separation follows real callers. Remove a product surface only after proving no Vyakti import; retain shared storage and engine seams while callers exist, even when their historical names are inconvenient.

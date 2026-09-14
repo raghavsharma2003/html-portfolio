@@ -1,4 +1,4 @@
-package app.meera.companion;
+package app.vyakti.studio;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -18,7 +18,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  *
  * <pre>
  *   import { Capacitor, registerPlugin } from "@capacitor/core";
- *   const Updater = registerPlugin("MeeraUpdater");
+ *   const Updater = registerPlugin("VyaktiUpdater");
  *   // after first paint of the real UI
  *   if (Capacitor.isNativePlatform()) Updater.markLaunchOk().catch(() =&gt; {});
  * </pre>
@@ -27,7 +27,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * something mounted (see OtaUpdater), so OTA works before the web app is
  * changed. It is weaker evidence than this call and is not the intended path.
  */
-@CapacitorPlugin(name = "MeeraUpdater")
+@CapacitorPlugin(name = "VyaktiUpdater")
 public class OtaPlugin extends Plugin {
 
   /** "I rendered." Idempotent; extra calls cost nothing. */

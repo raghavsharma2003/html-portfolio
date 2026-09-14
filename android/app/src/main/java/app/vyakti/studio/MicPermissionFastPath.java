@@ -1,4 +1,4 @@
-package app.meera.companion;
+package app.vyakti.studio;
 
 import android.Manifest;
 import android.content.Context;

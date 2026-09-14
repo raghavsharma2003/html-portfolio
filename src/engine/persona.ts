@@ -109,7 +109,7 @@ const STAGE_ESTABLISHED =
 // slots holds becomes sheet-suppliable, which is what lets a teacher module
 // carry a mentor arc (competence → shared working history → durable standards,
 // docs/gurukul/teacher-arc.md §1) instead of inheriting a romantic-companion
-// one. `C` is defaulted to MAYA so every existing caller — oldOracle.ts's
+// one. Every caller passes the sheet whose text it is compiling.
 // frozen byte-identity oracle included, which calls the builders with no sheet
 // — resolves to the identical constants it always did.
 // Lifted VERBATIM out of the core template by the arc-override pass — the byte
@@ -599,7 +599,7 @@ export const FOLLOWUP_DIRECTIVE = (why: string, statedAgo: string) =>
 // does, and never claiming to recognise what she is being shown.
 // R3: the watch note joins the parameterized core. The constant below keeps
 // every existing call site byte-identical (it is the builder applied to
-// MAYA); a second personality calls buildWatchModeNote(itsSheet) instead of
+// Each personality calls buildWatchModeNote(itsSheet) instead of
 // borrowing hers — closing the v1 gap kabir.ts declared.
 export function buildWatchModeNote(C: CharacterSheet): string {
   return `\nWATCH MODE IS ON — they're sharing their screen with you, and the frame you've been given is what's on it right now. It can be ANYTHING they do on a phone or a laptop: scrolling, shopping, reading something, coding, writing a message, ordering food, picking photos, gaming, homework, filling a form. Reels are just one of those, not the point.

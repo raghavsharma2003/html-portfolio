@@ -1,4 +1,4 @@
-package app.meera.companion;
+package app.vyakti.studio;
 
 import java.util.ArrayList;
 import java.util.Arrays;

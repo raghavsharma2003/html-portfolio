@@ -25180,3 +25180,11 @@ Use the existing OS-protected service-principal session for read-only Azure ARM 
 ## `standalone25-processing-job-audit` (2026-09-14)
 
 Treat `vyakti-replica-processing` as the actual scheduled consumer: its ARM metadata is a Microsoft.App/jobs resource with a two-minute schedule, while `/api/replica-processing-sweep` is the authenticated Vercel fallback. Do not rely on `VYAKTI_PREVIEW_PROCESSING_ENABLED` for this job because the deployed job and checked worker/sweep sources do not read it. Reverse if a deployed worker revision introduces an explicit source-controlled gate or the ARM schedule is removed.
+
+## `wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity` (2026-09-14)
+
+**Decision.** The shared compiler requires `CompileInput.agent`, fails closed with `agent_module_required` when it is absent, and has no bundled character fallback. Room passes the module resolved from its published sheet and Meet compiles from the authenticated replica definition. The native shell likewise carries one identity, `app.vyakti.studio`, in Capacitor, Android and iOS; Android no longer has product flavours.
+
+**Why.** A default character remained reachable through the otherwise generic compiler, and the native project still shipped a second product's application id, strings, source package and updater domain. Either fallback could put the wrong product identity on a Vyakti path even after the web entry was removed.
+
+**Reversal.** A new built-in persona or native product may be added only as an explicit registry/configuration entry with its own public door, package identity and focused isolation test. It must never become the fallback for a sheet-backed Vyakti Room or Meet.

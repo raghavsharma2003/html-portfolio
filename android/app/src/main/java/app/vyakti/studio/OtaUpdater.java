@@ -1,4 +1,4 @@
-package app.meera.companion;
+package app.vyakti.studio;
 
 import android.app.Activity;
 import android.content.Context;
@@ -60,13 +60,13 @@ import org.json.JSONObject;
  */
 final class OtaUpdater {
 
-  private static final String TAG = "MeeraOTA";
+  private static final String TAG = "VyaktiOTA";
 
   /** Our own prefs. Capacitor's serverBasePath is derived from this, never the
    *  other way round: it is a mechanism, this is the record. */
-  private static final String PREFS = "meera_ota";
+  private static final String PREFS = "vyakti_ota";
 
-  private static final String DEFAULT_MANIFEST = "https://meera-silk.vercel.app/ota/latest.json";
+  private static final String DEFAULT_MANIFEST = "https://vyakti-replica-lab.vercel.app/ota/latest.json";
 
   /** How long after page load the native fallback waits before deciding the app
    *  rendered. The real signal is the web app calling markLaunchOk(); this is
@@ -549,7 +549,7 @@ final class OtaUpdater {
    * update must not be able to repoint the updater at a different origin.
    */
   private static PluginConfig config(Context ctx) {
-    return CapConfig.loadDefault(ctx).getPluginConfiguration("MeeraUpdater");
+    return CapConfig.loadDefault(ctx).getPluginConfiguration("VyaktiUpdater");
   }
 
   private static String manifestUrl(Context ctx) {

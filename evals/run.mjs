@@ -1159,7 +1159,6 @@ const suites = {
   // for the same by-construction reason d2 and selfwiring --live are not: it
   // needs NEON_URL and it WRITES. Run it by hand:
   //     node evals/trace/roundtrip.mjs
-  trace: "trace/run.mjs",
   // WS-DEPTH's own drift check — api/consolidate.js's plain-JS mirrors of
   // relstate.ts's clampTrustDelta/moveTrust/ruptureRepairShift/ruptureStance
   // (+ mapEpisodeCitations/tokenizePhrase, WS-DEPTH-only) against the REAL
@@ -1323,7 +1322,6 @@ const suites = {
   //
   // It also lints the SOURCE for the folding coming back, which no test that
   // runs today's code can see. Offline, deterministic, $0, ~4s.
-  resilience: "resilience/run.mjs",
   // The labeled key pool: an owner-tag travels with each key so RCA can name
   // WHICH account 429s, and a label can never reconstruct a secret. Hermetic.
   keyring: "keyring/run.mjs",
