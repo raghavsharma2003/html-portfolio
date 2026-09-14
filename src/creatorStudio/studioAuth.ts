@@ -41,8 +41,10 @@ function toSession(data: any): StudioSession {
   };
 }
 
-export function sendEmailOtp(email: string) {
-  return accountPost({ op: "send_otp", email });
+export function sendEmailOtp(email: string, returnPath = "/studio") {
+  const path = returnPath.startsWith("/") ? returnPath : "/studio";
+  const redirect = `${window.location.origin}${path}`;
+  return accountPost({ op: "send_otp", email, redirect_to: redirect });
 }
 
 export async function verifyEmailOtp(email: string, token: string) {

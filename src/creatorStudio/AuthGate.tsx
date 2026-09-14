@@ -105,7 +105,7 @@ export default function AuthGate({
     setError("");
     setBusy(true);
     try {
-      await sendEmailOtp(email.trim());
+      await sendEmailOtp(email.trim(), "/studio");
       setStep("code");
     } catch (cause) {
       // A server-returned error code is not this screen's own copy — the

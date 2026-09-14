@@ -32,7 +32,7 @@ export default function PublicationSignIn({ locale, onAuthed }: {
     setBusy(true); setError(null);
     try {
       if (step === "email") {
-        await sendEmailOtp(email.trim());
+        await sendEmailOtp(email.trim(), "/studio");
         if (active()) { setCode(""); setStep("code"); }
       } else {
         const session = await verifyEmailOtp(email.trim(), code.trim());

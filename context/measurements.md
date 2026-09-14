@@ -18888,3 +18888,7 @@ Method: static contract tests on both liveness capture surfaces; n=2 UI sources 
 ## standalone25-capture-duration-headroom-measurement-20260914
 
 The mirrored UI constants are 25 seconds while identity_audio.py remains RATE * 30.
+
+## standalone25-email-redirect-forwarding-20260914
+
+Method: static source contracts plus Node syntax checks in isolated worktree; n=7 changed source files, date 2026-09-14. All email callers pass `/studio`; invalid schemes, credentials, fragments, and oversized redirects are rejected before GoTrue; Room-compatible caller paths remain accepted as absolute HTTP(S) URLs. No provider call or auth message was sent.

@@ -25281,3 +25281,7 @@ The sponsored Azure subscription and working Speech/Foundry access do not resolv
 ## standalone25-capture-duration-headroom-20260914
 
 2026-09-14. Set the browser auto-stop to 25 seconds, leaving five seconds of headroom under the strict 30-second decoder ceiling because wall timers can fire late and tabs can stall during upload handoff. The server remains authoritative and refuses decoded audio beyond 30 seconds. Reverse if the transport gains a measured hard deadline with equivalent protection.
+
+## standalone25-email-redirect-forwarding-20260914
+
+2026-09-14. Email sign-in callers pass the current HTTPS origin and `/studio` return path to the server proxy; the proxy validates absolute HTTP(S) URLs and forwards `redirect_to` to Supabase GoTrue. Reconsider if the deployed allow-list intentionally excludes the canonical studio origin or if a signed return-state design replaces URL forwarding.

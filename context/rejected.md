@@ -18987,3 +18987,13 @@ A 60-second LivenessCapture auto-stop was rejected because services/voice-eviden
 ## standalone25-capture-duration-zero-margin-rejected-20260914
 
 A 30-second UI timer was rejected as zero-margin: browser scheduling and upload handoff can overshoot the decoder's strict 30-second limit by milliseconds. A 25-second UX budget preserves an honest server-side refusal for stalled or oversized captures without silent trimming.
+
+## standalone25-email-redirect-unvalidated-20260914
+
+**Tried.** Forwarded the email address to Supabase without `redirect_to`, relying on project `site_url`.
+
+**What specifically broke.** The caller could not request the current Studio return URL, and the existing management read had no credential to verify whether the configured site URL/allow-list matched the deployed host.
+
+**What replaced it.** Callers provide the current origin plus a bounded path; the API rejects non-web URLs and lets Supabase enforce its configured allow-list. No cloud configuration was changed.
+
+**Reversal condition.** Remove forwarding only after a verified deployed allow-list and a measured flow proves every supported Studio/Room host returns correctly without it.
