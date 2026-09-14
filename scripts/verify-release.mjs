@@ -55,6 +55,21 @@ const record = (name, ok, detail) => {
   console.log(`${ok ? "  ok  " : "FAIL  "}${name.padEnd(30)} ${detail ?? ""}`);
 };
 
+function failureExcerpt(value, jsonExpected) {
+  const output = safeGateOutput(value).trim();
+  if (jsonExpected) {
+    try {
+      const report = JSON.parse(output);
+      if (Array.isArray(report.findings) && report.findings.length) {
+        return report.findings.slice(0, 12).map(({ target, metric, detail }) =>
+          `${target || "gate"} ${metric || "finding"}: ${detail || "failed"}`,
+        ).join("\n      ");
+      }
+    } catch {}
+  }
+  return output.split("\n").slice(-12).join("\n      ");
+}
+
 async function saveGateLog(name, stdout, stderr) {
   const stem = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   await writeFile(join(logDirectory, `${stem}.stdout.log`), safeGateOutput(stdout));
@@ -70,7 +85,7 @@ const gate = async (name, cmd, cmdArgs) => {
   } catch (e) {
     // the useful part of a failed build is its output, not the exit code
     await saveGateLog(name, e.stdout, e.stderr);
-    const out = safeGateOutput(`${e.stdout ?? ""}${e.stderr ?? ""}`).trim().split("\n").slice(-12).join("\n      ");
+    const out = failureExcerpt(`${e.stdout ?? ""}${e.stderr ?? ""}`, cmdArgs.includes("--json"));
     record(name, false, `\n      ${out}`);
   }
 };

@@ -32,12 +32,12 @@
     background: #f4f1e9;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
-    --paper: #f4f1e9;
+    --paper: #f7f7f4;
     --paper-deep: #ebe6da;
     --panel: rgba(255, 254, 249, 0.9);
-    --panel-solid: #fffef9;
-    --ink: #171915;
-    --ink-soft: #52564e;
+    --panel-solid: #ffffff;
+    --ink: #161817;
+    --ink-soft: #4f5651;
     --ink-faint: #7a7e74;
     /* WCAG 1.4.3 (text contrast) — WS-R50. `--ink-faint` measures 3.47:1 to
      * 4.1:1 against the backgrounds it is actually painted on in this file
@@ -57,9 +57,9 @@
     --ink-faint-aa: #565a4f;
     --line: rgba(28, 32, 26, 0.12);
     --line-strong: rgba(28, 32, 26, 0.22);
-    --forest: #17493b;
-    --forest-deep: #0e352a;
-    --forest-soft: #e1eee7;
+    --forest: #245746;
+    --forest-deep: #173f33;
+    --forest-soft: #e7ede9;
     --signal: #ed693d;
     --signal-soft: #fce9df;
     --danger: #9d302d;

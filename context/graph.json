@@ -20451,6 +20451,24 @@
       "kind": "measurement",
       "title": "Private follow-up SQL planned live and focused integration checks passed",
       "at": "context/measurements.md#wave25-private-followup-live-sql-plan-20260914"
+    },
+    {
+      "id": "wave25-premium-palette-is-shared-and-mobile-auth-opens-on-the-action",
+      "kind": "decision",
+      "title": "Premium palette is shared and mobile auth opens on the action",
+      "at": "context/decisions.md#wave25-premium-palette-is-shared-and-mobile-auth-opens-on-the-action"
+    },
+    {
+      "id": "wave25-premium-release-contrast-and-mobile-auth-20260914",
+      "kind": "measurement",
+      "title": "Premium release contrast and mobile auth measurements",
+      "at": "context/measurements.md#wave25-premium-release-contrast-and-mobile-auth-20260914"
+    },
+    {
+      "id": "wave25-separate-premium-tokens-and-blurred-mobile-auth-broke-release-evidence",
+      "kind": "rejection",
+      "title": "Separate premium tokens and blurred mobile auth broke release evidence",
+      "at": "context/rejected.md#wave25-separate-premium-tokens-and-blurred-mobile-auth-broke-release-evidence"
     }
   ],
   "edges": [
@@ -34816,6 +34834,16 @@
       "src": "wave25-attachable-identity-is-not-gpu-authority",
       "rel": "constrains",
       "dst": "wave25-personal-device-grants-dedicated-voice-identity"
+    },
+    {
+      "src": "wave25-premium-palette-is-shared-and-mobile-auth-opens-on-the-action",
+      "rel": "measured_by",
+      "dst": "wave25-premium-release-contrast-and-mobile-auth-20260914"
+    },
+    {
+      "src": "wave25-separate-premium-tokens-and-blurred-mobile-auth-broke-release-evidence",
+      "rel": "caused_by",
+      "dst": "wave25-premium-palette-is-shared-and-mobile-auth-opens-on-the-action"
     }
   ]
 }

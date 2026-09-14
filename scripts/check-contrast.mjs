@@ -90,8 +90,8 @@ if (!roomEntry.includes('import "../creatorStudio/design/foundation.css";')) {
 }
 
 const actual = evaluatePalette(foundationSource, studioSource, statusSource);
-const lowContrastMutant = foundationSource.replace("--ink: #171915;", "--ink: #f4f1e9;");
-const driftMutant = studioSource.replace("--forest: #17493b;", "--forest: #ffffff;");
+const lowContrastMutant = foundationSource.replace("--ink: #161817;", "--ink: #f7f7f4;");
+const driftMutant = studioSource.replace("--forest: #245746;", "--forest: #ffffff;");
 const lowContrastCaught = evaluatePalette(lowContrastMutant, studioSource, statusSource).findings
   .some((finding) => finding.includes("body ink on paper"));
 const driftCaught = evaluatePalette(foundationSource, driftMutant, statusSource).findings
