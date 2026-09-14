@@ -132,6 +132,26 @@ export async function readMeetMemoryFacts(token: string, replicaId: string): Pro
   return data.facts;
 }
 
+export type MeetMemoryDrain = {
+  state: "updated" | "idle" | "pending" | "off";
+  facts_written: number;
+  sources_consumed: number;
+  reason?: string;
+};
+
+export async function requestMeetMemoryDrain(token: string, replicaId: string, requestId: string): Promise<MeetMemoryDrain> {
+  const data = await replicaRequest<{ memory: MeetMemoryDrain }>(token, "/api/replica-memory-drain", {
+    method: "POST",
+    signal: AbortSignal.timeout(70_000),
+    body: JSON.stringify({ replica_id: replicaId, request_id: requestId }),
+  });
+  const memory = data.memory;
+  if (!memory || !["updated", "idle", "pending", "off"].includes(memory.state)
+    || !Number.isSafeInteger(memory.facts_written) || memory.facts_written < 0
+    || !Number.isSafeInteger(memory.sources_consumed) || memory.sources_consumed < 0) invalidMemory();
+  return memory;
+}
+
 export async function correctMeetMemoryFact(token: string, replicaId: string, factId: string, replacement: string): Promise<MeetMemoryFact> {
   const data = await replicaRequest<{ fact: { id: string; body: string }; communication_classification: string }>(token, "/api/replica-dialogue", {
     method: "POST", body: JSON.stringify({ op: "memory_correct", replica_id: replicaId, fact_id: factId, replacement }),

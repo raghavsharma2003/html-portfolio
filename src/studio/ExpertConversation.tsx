@@ -3,7 +3,7 @@ import PrivateSelectionRecovery from './PrivateSelectionRecovery';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDialogueTurn, fetchProtectedTurnVoice, readDialogueHistory, openDialogueSession,
   readMeetMemoryStatus, setMeetMemoryOn, readMeetMemoryFacts, correctMeetMemoryFact, forgetMeetMemoryFact,
-  readMeetRelState, resetMeetRelState } from "./dialogueApi";
+  readMeetRelState, resetMeetRelState, requestMeetMemoryDrain } from "./dialogueApi";
 import type { MeetMemoryFact, MeetRelState } from "./dialogueApi";
 import { readRuntimeStatus } from "./runtimeApi";
 import { ReplicaApiError } from "./replicaApi";
@@ -329,9 +329,17 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       setExchanges(current => [...current, { question, answer }]); setDraft("");
       setUncertain(false);
       if (answer.billing_state === "reconcile_required") setError(copy.errorReplySavedNeedsReconcile);
-      // Consolidation runs on the existing sweep. Refreshing after each turn
-      // lets a completed prior sweep appear without making this reply wait.
-      if (memoryOn) void loadMemory(() => requestEpoch === epoch.current && latestScope.current === scope);
+      // The reply is visible before this bounded request starts. Its own HTTP
+      // request awaits the exact owner-only consolidator, then refreshes once;
+      // a memory outage never retracts an answer that already completed.
+      if (memoryOn) void requestMeetMemoryDrain(token, replicaId, traceId).then(
+        () => loadMemory(() => requestEpoch === epoch.current && latestScope.current === scope),
+        (cause) => {
+          if (requestEpoch !== epoch.current || latestScope.current !== scope) return;
+          setMemoryError(memoryCopy.errorStatusUnavailable);
+          if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+        },
+      );
       input.current?.focus();
     } catch (cause) {
       if (requestEpoch !== epoch.current) return;

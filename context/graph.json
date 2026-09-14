@@ -20337,6 +20337,24 @@
       "kind": "rejection",
       "title": "Retired copy assertions and unserved public assets broke CI",
       "at": "context/rejected.md#wave25-retired-copy-assertions-and-unserved-public-assets"
+    },
+    {
+      "id": "wave25-owner-memory-drains-after-a-successful-meet-turn",
+      "kind": "decision",
+      "title": "Owner memory drains after a successful Meet turn",
+      "at": "context/decisions.md#wave25-owner-memory-drains-after-a-successful-meet-turn"
+    },
+    {
+      "id": "wave25-owner-memory-post-turn-delivery-20260914",
+      "kind": "measurement",
+      "title": "Post-turn owner memory delivery passes bounded focused controls",
+      "at": "context/measurements.md#wave25-owner-memory-post-turn-delivery-20260914"
+    },
+    {
+      "id": "wave25-preview-cron-only-memory-has-no-caller",
+      "kind": "rejection",
+      "title": "Preview cron-only memory has no caller",
+      "at": "context/rejected.md#wave25-preview-cron-only-memory-has-no-caller"
     }
   ],
   "edges": [
@@ -34627,6 +34645,21 @@
       "src": "wave25-retired-copy-assertions-and-unserved-public-assets",
       "rel": "caused_by",
       "dst": "wave25-ci-fixtures-track-public-assets-and-current-journey"
+    },
+    {
+      "src": "wave25-owner-memory-drains-after-a-successful-meet-turn",
+      "rel": "measured_by",
+      "dst": "wave25-owner-memory-post-turn-delivery-20260914"
+    },
+    {
+      "src": "wave25-preview-cron-only-memory-has-no-caller",
+      "rel": "caused_by",
+      "dst": "wave25-owner-memory-drains-after-a-successful-meet-turn"
+    },
+    {
+      "src": "wave25-owner-memory-drains-after-a-successful-meet-turn",
+      "rel": "part_of",
+      "dst": "wave25-owner-text-memory-shares-room-meter"
     }
   ]
 }

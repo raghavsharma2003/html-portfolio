@@ -19145,3 +19145,13 @@ The previous controller assumed the app template and target revision template sh
 ## `wave25-retired-copy-assertions-and-unserved-public-assets`
 
 2026-09-14. The integration gate broke in three ways after otherwise valid product work. A browser fixture bundled root-relative public CSS URLs as filesystem imports and could not resolve the committed auth image. The remote-fetch inventory did not name the new internal voice proxy or prove its shipping caller remained connected. The landing suite required retired HumanOS, EmotionOS, RelationOS and apprentice copy, while two mutation controls replaced strings no longer present and therefore could pass or fail without testing the current page. Copying the public image into source CSS, restoring internal jargon to user copy, or weakening equality to a count-only pass would hide those defects. Fixtures now model the public root, the provider exclusion names its caller, and landing mutations first prove they changed the shipping source.
+
+## `wave25-preview-cron-only-memory-has-no-caller`
+
+**Tried.** Automatic owner memory relied on the existing hourly `room_only` Vercel cron after a successful Meet turn wrote a source.
+
+**What specifically broke.** The private product target is a protected Preview deployment, and Vercel cron runs only on Production. A Preview conversation could therefore persist a correct source, have valid consolidation code at both ends, and still never call it. Setting the five Room consolidation variables made the lane valid but did not create a Preview caller. Calling the broad sweep from Studio would have scanned and sorted global Room and owner candidates, exceeding the one owner and one requested replica scope of the user action.
+
+**What replaced it.** Studio starts one authenticated same-origin POST after a successful answer when memory is on. The endpoint resolves only that owner's requested replica, uses one existing agent/person lease and one existing metered owner batch, and leaves the hourly sweep in place for eventual catch-up. Configuration failure, memory off, a held lease and duplicate settled spend remain distinct non-success outcomes.
+
+**The rule.** A scheduled capability is not delivered on an environment where its scheduler does not run. Add a caller at the narrowest already-authorized product event; never turn an owner action into a global backlog drain.

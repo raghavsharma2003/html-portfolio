@@ -160,6 +160,20 @@ async function ownerMemoryOn(db, rid, ownerUserId) {
   return rows[0]?.memory_on === true;
 }
 
+// The post-turn delivery endpoint needs the exact same owner/runtime/memory
+// authority as the visible Meet controls. Keep that resolution here so the
+// endpoint cannot grow a looser replica lookup or a second text-ready rule.
+export async function ownerMemoryDrainCandidate(db, ownerUserId, input) {
+  const { rid, runtime } = await ownedSelfRuntime(db, ownerUserId, input?.replica_id);
+  if (!(await ownerMemoryOn(db, rid, ownerUserId))) return null;
+  return Object.freeze({
+    replica_id: rid,
+    owner_user_id: ownerUserId,
+    agent_id: runtime.replica.agent_id,
+    person_id: runtime.replica.subject_person_id,
+  });
+}
+
 // ── OP: memory_status / memory_toggle — "It remembers", the owner's own
 // honest on/off control, the same weight the Room follower row's memory consent column
 // gives a follower. Deliberately NOT `_replica-consent.js` (out of this
