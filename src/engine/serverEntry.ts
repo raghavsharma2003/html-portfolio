@@ -48,6 +48,7 @@ export {
   MATERIAL_BLOCK_OPEN,
   MATERIAL_BLOCK_CLOSE,
   renderCreatorMaterial,
+  renderCreatorMaterialParts,
   type MaterialLine,
 } from "./compiler";
 // WS-R121: the platform-owned boundary/stage shapes, exported for the same

@@ -53,6 +53,7 @@ import {
   RECIPROCITY_BUDGET,
   DISCLOSURE_WEIGHT,
   compile,
+  TEST_AGENT,
   TAIL_MANIFEST,
   TAIL_ORDER,
   applyDropOrder,
@@ -310,6 +311,7 @@ console.log("\n§6 compile(): absent state moves zero bytes, present state moves
 // ═════════════════════════════════════════════════════════════════════════
 
 const BASE = {
+  agent: TEST_AGENT,
   user: { name: "Sam", vibe: ["company"], facts: { city: "Pune" } },
   messageCount: 120,
   medium: "text",

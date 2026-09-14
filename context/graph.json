@@ -19695,6 +19695,24 @@
       "kind": "rejection",
       "title": "Bandwidth fixes do not establish current worker behavior",
       "at": "context/rejected.md#wave25-bandwidth-fix-does-not-prove-worker-current"
+    },
+    {
+      "id": "wave25-creator-stage-material-is-tail-state",
+      "kind": "decision",
+      "title": "Creator stage material is selected tail state while stable creator material stays in core (2026-09-14)",
+      "at": "context/decisions.md#wave25-creator-stage-material-is-tail-state"
+    },
+    {
+      "id": "wave25-explicit-agent-regression-and-core-stability-20260914",
+      "kind": "measurement",
+      "title": "Explicit-agent regressions and 44-turn core stability pass offline (2026-09-14)",
+      "at": "context/measurements.md#wave25-explicit-agent-regression-and-core-stability-20260914"
+    },
+    {
+      "id": "wave25-active-creator-stage-material-cannot-live-in-core",
+      "kind": "rejection",
+      "title": "Active creator stage material cannot live in the provider cache core (2026-09-14)",
+      "at": "context/rejected.md#wave25-active-creator-stage-material-cannot-live-in-core"
     }
   ],
   "edges": [
@@ -33605,6 +33623,21 @@
       "src": "wave25-bandwidth-fix-does-not-prove-worker-current",
       "rel": "constrains",
       "dst": "wave25-source-checkpoint-preserves-release-blockers"
+    },
+    {
+      "src": "wave25-creator-stage-material-is-tail-state",
+      "dst": "wave25-explicit-agent-regression-and-core-stability-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave25-creator-stage-material-is-tail-state",
+      "dst": "wave25-active-creator-stage-material-cannot-live-in-core",
+      "rel": "caused_by"
+    },
+    {
+      "src": "wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity",
+      "dst": "wave25-explicit-agent-regression-and-core-stability-20260914",
+      "rel": "measured_by"
     }
   ]
 }

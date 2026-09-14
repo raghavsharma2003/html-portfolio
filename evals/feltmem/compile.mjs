@@ -230,7 +230,7 @@ export async function compileProbes({ root = ROOT, arm = "current", engine } = {
       if (!ctxCache.has(d.id)) ctxCache.set(d.id, dyadContext(E, d, F.NOW, arm));
       const ctx = ctxCache.get(d.id);
       const input = laneInput(E, d, probe, ctx);
-      const compiled = E.compile(input);
+      const compiled = E.compile({ ...input, agent: E.TEST_AGENT });
       rows.push({
         arm,
         probeId: probe.id,

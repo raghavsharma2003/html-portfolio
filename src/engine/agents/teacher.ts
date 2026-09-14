@@ -106,6 +106,18 @@ function renderDemoTeacherMaterial(lines: readonly { label: string; value: strin
     `${MATERIAL_BLOCK_OPEN}\n${body}\n${MATERIAL_BLOCK_CLOSE}`
   );
 }
+
+function renderDemoTeacherMaterialParts(
+  stableLines: readonly { label: string; value: string }[],
+  selectedLine: { label: string; value: string },
+): { readonly core: string; readonly tail: string } {
+  const selectedValue = selectedLine.value?.trim();
+  const full = renderDemoTeacherMaterial([...stableLines, selectedLine]);
+  if (!selectedValue || !full) return { core: full, tail: "" };
+  const tail = `${selectedLine.label}: ${selectedValue}\n${MATERIAL_BLOCK_CLOSE}`;
+  if (!full.endsWith(tail)) throw new Error("creator_material_stage_split_failed");
+  return { core: full.slice(0, -tail.length), tail };
+}
 const DEMO_TEACHER_STATIC_MATERIAL = MATERIAL_FIELDS.map(({ key, label }) => ({
   label,
   value: String(DEMO_TEACHER[key] ?? ""),
@@ -131,13 +143,12 @@ export const demoTeacherAgent: AgentModule = {
     dimsStage?: DimsStage,
   ) => {
     const activeStageText = stageParagraphFor(messageCount, dimsStage, DEMO_TEACHER);
-    const material = renderDemoTeacherMaterial([
+    const material = renderDemoTeacherMaterialParts([
       ...DEMO_TEACHER_STATIC_MATERIAL,
       { label: BOUNDARY_MATERIAL_LABEL, value: String(DEMO_TEACHER.boundaryParagraph ?? "") },
-      { label: STAGE_MATERIAL_LABEL, value: activeStageText },
-    ]);
+    ], { label: STAGE_MATERIAL_LABEL, value: activeStageText });
     const parts = buildSystemPromptParts(user, messageCount, medium, dimsStage, DEMO_TEACHER_SANITIZED);
-    return { core: parts.core + material, tail: parts.tail };
+    return { core: parts.core + material.core, tail: material.tail + parts.tail };
   },
   buildSpeechStyle: (engine: VoiceEngine | "live") => buildSpeechStyle(engine, DEMO_TEACHER),
 

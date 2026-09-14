@@ -25212,3 +25212,11 @@ Restore private rehearsal, feedback and evaluation key IDs and exact versioned K
 ## `wave25-source-checkpoint-preserves-release-blockers`
 
 2026-09-14. Preserve the integrated standalone source on the owner-selected branch while the complete gate runs. Automatic Vercel Git deployment is explicitly disabled in the candidate; main deployment remains behind its full gate. Source checkpoint is not production acceptance. Reverse this sequencing if Git deployment disabling is not honored; stop before any unverified production cutover. Current source base for the running gate is a672136b.
+
+## `wave25-creator-stage-material-is-tail-state` (2026-09-14, wave 25)
+
+**Decision.** A sheet-backed agent splits its single creator-material block at the active stage row. Stable creator facts and the raw boundary description remain in CORE; the one raw stage selected by `stageParagraphFor` and the existing closing marker begin TAIL. Concatenating both parts preserves the previous material block byte for byte, so authority, active-stage content and total prompt budget do not change. Both `teacher.ts` and `fromSheet.ts` use this shape.
+
+**Why.** The raw selected stage was appended to CORE, so crossing message count 149 to 150 produced two core hashes in one 44-turn session and forfeited the provider cache prefix. The platform-owned active-stage instruction already lived in TAIL; the creator's matching stage description is turn state too.
+
+**Reversal.** Move stage material back into CORE only if the provider cache no longer keys on that prefix and a focused session measurement shows the change improves reply quality without reintroducing multiple core hashes. Any alternate split must retain exact selected content, platform authority and static/dynamic module parity without raising either budget.

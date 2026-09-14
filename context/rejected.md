@@ -18903,3 +18903,13 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 ## `wave25-bandwidth-fix-does-not-prove-worker-current`
 
 2026-09-14. Reading only the corrected-bandwidth result would wrongly clear the processing worker for the new product. The same retained image-byte recovery receipt identifies missing newer Azure-only enforcement, purpose authority, tracked storage leases and erase/abort fences. Keep the narrow bandwidth proof; prepare a worker-specific update for the actual missing behavior. Do not rebuild merely from a historical statement that the bandwidth fix was never deployed, and do not call the current image equal to the new source.
+
+## `wave25-active-creator-stage-material-cannot-live-in-core` (2026-09-14, wave 25)
+
+**Tried.** Appending the whole creator-material block, including the raw stage selected from message count, to the agent module's CORE.
+
+**What specifically broke.** The 44-turn drift sweep crossed 149 to 150 and observed two distinct cores for both chat and call. Safety anchors and active-stage selection still passed, which made this a costly hidden cache-identity defect rather than a visible prompt failure. Separately, shared eval callers that relied on a removed default persona stopped at `agent_module_required`, and two suites read retired surface files.
+
+**What replaced it.** The material block is split without changing its combined bytes: stable rows remain in CORE and the selected stage row starts TAIL. Shared eval harnesses explicitly bind the real demo teacher fixture, keep missing-agent refusal as a negative control, and inspect the surviving Meet voice client and shared sync engine instead of deleted product files.
+
+**Reversal condition.** Reconsider only with a measured provider-cache mechanism that does not depend on core byte identity and a replacement suite that preserves the 44-turn safety, budget, stage-boundary and static/dynamic parity checks. Restoring an implicit persona fallback is not an acceptable reversal.

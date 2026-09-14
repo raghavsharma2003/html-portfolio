@@ -44,8 +44,9 @@ const ENTRY = join(OUT, "entry.ts");
 writeFileSync(
   ENTRY,
   `export * from ${JSON.stringify(join(REPO, "src/engine/agents/fromSheet"))};\n` +
-    `export { DEMO_TEACHER } from ${JSON.stringify(join(REPO, "src/engine/agents/characters/demoTeacher"))};\n` +
-    `export { getAgent } from ${JSON.stringify(join(REPO, "src/engine/agents/registry"))};\n` +
+  `export { DEMO_TEACHER } from ${JSON.stringify(join(REPO, "src/engine/agents/characters/demoTeacher"))};\n` +
+  `export { getAgent } from ${JSON.stringify(join(REPO, "src/engine/agents/registry"))};\n` +
+    `export { renderCreatorMaterial, renderCreatorMaterialParts } from ${JSON.stringify(join(REPO, "src/engine/compiler"))};\n` +
     `export { PUBLISHED_HELPLINES } from ${JSON.stringify(join(REPO, "src/engine/honesty"))};\n`,
 );
 const BUNDLE = join(OUT, "teachersheet.bundle.mjs");
@@ -63,6 +64,8 @@ const {
   PLACEHOLDER_CONSENT_ARTIFACT_ID,
   DEMO_TEACHER,
   getAgent,
+  renderCreatorMaterial,
+  renderCreatorMaterialParts,
   PUBLISHED_HELPLINES,
 } = M;
 
@@ -171,6 +174,46 @@ ok(
 ok("CRISIS_LINES carried through the constructor", built.CRISIS_LINES === DEMO_TEACHER.crisisLines);
 ok("slug/displayName/personaVersion come off the sheet", built.slug === DEMO_TEACHER.slug &&
   built.displayName === DEMO_TEACHER.name && built.personaVersion === DEMO_TEACHER.version);
+
+// The creator-authored active stage used to sit in CORE, so the 149 -> 150
+// transition changed the provider cache prefix in a live session. Stable
+// creator material stays in CORE; exactly the selected raw stage stays in
+// TAIL. Both module constructors must make the same split.
+console.log("\n── creator material is cache-stable across the 149 -> 150 stage boundary ──");
+const materialStable = [{ label: "who", value: "teacher" }];
+const materialSelected = { label: "stage", value: "regular student" };
+const splitMaterial = renderCreatorMaterialParts(materialStable, materialSelected);
+ok(
+  "splitting the material block changes zero combined bytes and adds zero budget",
+  splitMaterial.core + splitMaterial.tail === renderCreatorMaterial([...materialStable, materialSelected]),
+);
+const materialPartsAt = (agent, messageCount) => agent.buildSystemPromptParts(
+  { name: "", vibe: [], facts: {} }, messageCount, "text",
+);
+const dynamic149 = materialPartsAt(built, 149);
+const dynamic150 = materialPartsAt(built, 150);
+const static149 = materialPartsAt(registered, 149);
+const static150 = materialPartsAt(registered, 150);
+ok("dynamic sheet CORE stays byte-identical across 149 -> 150", dynamic149.core === dynamic150.core);
+ok("static teacher CORE stays byte-identical across 149 -> 150", static149.core === static150.core);
+ok("the stage transition changes TAIL", dynamic149.tail !== dynamic150.tail);
+ok(
+  "149 carries only the raw getting-close stage in TAIL",
+  dynamic149.tail.includes(DEMO_TEACHER.stageGettingClose) &&
+    !dynamic149.tail.includes(DEMO_TEACHER.stageEstablished) &&
+    !dynamic149.core.includes(DEMO_TEACHER.stageGettingClose),
+);
+ok(
+  "150 carries only the raw established stage in TAIL",
+  dynamic150.tail.includes(DEMO_TEACHER.stageEstablished) &&
+    !dynamic150.tail.includes(DEMO_TEACHER.stageGettingClose) &&
+    !dynamic150.core.includes(DEMO_TEACHER.stageEstablished),
+);
+ok(
+  "static and sheet-backed modules remain byte-identical on both sides of the boundary",
+  static149.core === dynamic149.core && static149.tail === dynamic149.tail &&
+    static150.core === dynamic150.core && static150.tail === dynamic150.tail,
+);
 
 // ── 4. the consent gate, and its negative control ──────────────────────────
 console.log("\n── the consent gate: registration is impossible without a consent artifact ──");
