@@ -1338,7 +1338,8 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const firstFiveMinutesStepId = selected && !creatingNew && !readBlocked
     ? firstFiveMinutesStep({
         hasFirstSource: wizardInput.sourceCount > 0 || (wizardInput.contextItemCount ?? 0) > 0,
-        reachedMeet: showRooms || privateFirstMeet || room === "rehearsal",
+        reachedMeet: showRooms || privateFirstMeet || room === "rehearsal"
+          || (room === "voice" && meetView === "sample" && internalVoiceAvailability === "enabled"),
       })
     : null;
 
@@ -1415,6 +1416,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
           ) : internalVoiceAvailability === "enabled" && selected && room === "voice" && meetView === "sample" ? (
             <motion.div className="vx-scene vx-room" key={`internal-voice:${selected.replica_id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <section className="vx-room__panel vx-room__voice vx-room__scroll"><Suspense fallback={null}>
+                <div className="vx-conversation-switch" role="group" aria-label={copy.rooms.voice.meetExperienceAria}><button type="button" aria-pressed={meetView === "conversation"} onClick={() => setMeetView("conversation")}>{copy.rooms.voice.conversation}</button><button type="button" aria-pressed={meetView === "sample"} onClick={() => setMeetView("sample")}>{copy.rooms.voice.voiceSample}</button></div>
                 <InternalVoicePanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} />
               </Suspense></section>
             </motion.div>

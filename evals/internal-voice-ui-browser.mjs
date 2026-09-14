@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 
 const root = join(fileURLToPath(new URL("..", import.meta.url)));
 const dist = join(root, "dist");
-const port = 8962;
+const port = 8963;
 const replica = "fixture-replica-0001";
+const screenshotPath = join(root, "scratchpad", "internal-voice-ui", "internal-voice-owner-390.png");
 const wav = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(40)]);
 const mime = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2" };
 
@@ -105,6 +106,8 @@ try {
   assert.equal(posts, 1, "polling must not create another synthesis");
   assert.ok(polls >= 1, "same run UUID was not polled");
   assert.equal(await panel.locator('audio[src^="blob:"]').count(), 2);
+  await mkdir(join(root, "scratchpad", "internal-voice-ui"), { recursive: true });
+  await page.screenshot({ path: screenshotPath, fullPage: true });
   for (const fieldset of await panel.locator("fieldset").all()) await fieldset.getByRole("button", { name: /4 of 5$/ }).click();
   await page.getByRole("button", { name: "Save ratings" }).click();
   await page.getByRole("heading", { name: "Ratings saved" }).waitFor();
@@ -115,6 +118,11 @@ try {
   await page.getByRole("button", { name: "Remove sample" }).click();
   await page.getByRole("heading", { name: "Sample removed" }).waitFor();
   assert.equal(await panel.locator("audio").count(), 0);
+  const voiceTab = page.getByRole("button", { name: "Voice", exact: true });
+  assert.equal(await voiceTab.getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: "Talk", exact: true }).click();
+  await panel.waitFor({ state: "detached" });
+  assert.equal(new URL(page.url()).searchParams.get("step"), "meet", "Talk must remain in Meet");
 
   phase = "unknown";
   runId = "33333333-3333-4333-8333-333333333333";

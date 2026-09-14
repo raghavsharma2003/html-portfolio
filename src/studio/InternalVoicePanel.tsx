@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStudioLocale } from "./localeContext";
+import "./internal-voice-panel.css";
 import {
   fetchInternalVoiceAudio,
   generateInternalVoice,
@@ -293,9 +294,9 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
   const savedRatings = run?.ratings;
 
   return (
-    <section className="hear-voice" data-internal-voice aria-labelledby="internal-voice-title">
+    <section className="hear-voice internal-voice-panel" data-internal-voice aria-labelledby="internal-voice-title">
       <div className="section-heading">
-        <div><p className="eyebrow">{copy.eyebrow}</p><span className="hear-voice-state idle">{copy.badge}</span><h2 id="internal-voice-title">{copy.heading}</h2></div>
+        <div className="internal-voice-panel__title"><p className="eyebrow">{copy.eyebrow}</p><span className="hear-voice-state idle">{copy.badge}</span><h2 id="internal-voice-title">{copy.heading}</h2></div>
         <p>{copy.intro}</p>
       </div>
       <div className="hear-voice-body">
@@ -322,7 +323,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
           {terminalRetry ? <button className="review-refresh" type="button" disabled={busy} onClick={() => void loadStatus(run.run_id)}>{copy.checkAgain}</button> : null}
           {pending ? <button className="review-refresh" type="button" disabled={busy} onClick={() => void revoke()}>{copy.cancel}</button> : null}
           {run && !pending && run.state !== "revoked" ? <button className="review-refresh" type="button" disabled={busy} onClick={() => void revoke()}>{copy.revoke}</button> : null}
-          {run || audioError || errorCode ? <details>
+          {run || audioError || errorCode ? <details className="hear-voice-request-details">
             <summary>{copy.details}</summary>
             {run ? <small className="hear-voice-request-receipt">{copy.request.replace("{id}", run.run_id.slice(0, 8))}</small> : null}
             {audioError ? <small role="alert">{copy.errorCode.replace("{code}", audioError)}</small> : null}
@@ -334,7 +335,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
           </details> : null}
         </div>
       </div>
-      {run?.state === "ready" && !savedRatings ? <section aria-labelledby="internal-voice-rating-title">
+      {run?.state === "ready" && !savedRatings ? <section className="internal-voice-panel__rating" aria-labelledby="internal-voice-rating-title">
         <h3 id="internal-voice-rating-title">{copy.rateHeading}</h3>
         <p className="voice-preview-language-help">{copy.rateHelp}</p>
         {RATING_KEYS.map((key) => <fieldset className="voice-preview-language" key={key}>
@@ -345,7 +346,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
         </fieldset>)}
         <button className="button primary-button hear-voice-go" type="button" disabled={busy || RATING_KEYS.some((key) => !ratings[key])} onClick={() => void saveRatings()}>{copy.submitRatings}</button>
       </section> : null}
-      {savedRatings ? <section aria-label={copy.ratingsSaved}><h3>{copy.ratingsSaved}</h3><dl className="hear-voice-proof">
+      {savedRatings ? <section className="internal-voice-panel__rating" aria-label={copy.ratingsSaved}><h3>{copy.ratingsSaved}</h3><dl className="hear-voice-proof">
         {RATING_KEYS.map((key) => <div key={key}><dt>{copy.axes[key]}</dt><dd>{savedRatings[key]} / 5</dd></div>)}
       </dl></section> : null}
     </section>
