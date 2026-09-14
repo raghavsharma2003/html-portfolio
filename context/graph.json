@@ -20511,6 +20511,12 @@
       "kind": "decision",
       "title": "Retain complete sanitized CI gate diagnostics",
       "at": "context/decisions.md#wave25-retain-ci-gate-diagnostics"
+    },
+    {
+      "id": "wave25-owner-material-and-probe-integration-20260914",
+      "kind": "measurement",
+      "title": "Owner source inventory and voice-probe integration verified",
+      "at": "context/measurements.md#wave25-owner-material-and-probe-integration-20260914"
     }
   ],
   "edges": [
