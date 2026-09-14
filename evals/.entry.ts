@@ -224,7 +224,8 @@ export {
 // WS-K (ROADMAP-100X item 2). The injected persona module, so evals/drift.mjs
 // can compile a REAL session and — for its negative controls — a deliberately
 // broken copy of the same module.
-export { DEFAULT_AGENT, getAgent, listAgents } from "../src/engine/agents/registry";
+export { getAgent, listAgents } from "../src/engine/agents/registry";
+export { demoTeacherAgent as TEST_AGENT } from "../src/engine/agents/teacher";
 
 // WS-Q. The clone aliveness seam, so evals/clonelife/run.mjs and evals/drift.mjs
 // can drive the REAL modules rather than a copy: the clone's present, the

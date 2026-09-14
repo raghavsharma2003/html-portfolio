@@ -612,7 +612,6 @@ const suites = {
   // WS-ACTIVITY. The generic "what we are doing together" seam and its chess
   // adapter — plus the control that keeps dialogue out of it, since a line she
   // could say in this block is a line she would say every single game.
-  activity: "activity.mjs",
   // Light/dark. Structural, because every way a theme breaks is silent — a
   // dark block reachable one way and not the other looks perfect to whoever
   // happened to have the matching OS setting.
@@ -620,7 +619,6 @@ const suites = {
   // WS-GAMES: would-you-rather — deck lint, her-pick determinism, shapelint.
   wyr: "wyr.mjs",
   // WS-GAMES: tic-tac-toe — exhaustive legality + bounded imperfection.
-  ttt: "ttt.mjs",
   // WS-TTT. CHESS PARITY for tic-tac-toe, which is a different question from
   // the one `ttt.mjs` answers: that suite proves she plays the game legally
   // and imperfectly, and this one proves the REST OF THE PRODUCT reaches it.
@@ -643,7 +641,6 @@ const suites = {
   //
   // Hermetic (pinned clock and TZ, no ambient config), offline, deterministic,
   // $0, ~5s. Re-bundles from the real source on every run.
-  tttparity: "ttt/parity.mjs",
   relleak: "relational/leak.mjs",
   // WS-K (ROADMAP-100X item 1). The disclosure-reciprocity ledger and its T17
   // wiring. Wired here on the same `dead-writers` test as everything else, and
@@ -759,21 +756,18 @@ const suites = {
   // moved. Carries the owner's exact case as a permanent fixture and its own
   // negative control (the pre-fix note shape, which MUST be rejected).
   // Offline, deterministic, $0, ~3s.
-  movevoice: "movevoice.mjs",
   // WS-GAMEPLAY: the chat-initiated game invite (src/engine/gameInvite.ts).
   // Deliberately lopsided toward NEGATIVE cases — a missed invite costs one
   // trip to the games menu, a spurious one is the app interrupting a
   // conversation to sell a board.
   gameinvite: "game-invite.mjs",
   // WS-GAMIFY: moments fire once, largest-tier-only, charter-clean.
-  milestones: "milestones.mjs",
   // WS-SYNC: the push list, merge semantics and account-switch reset agree.
   sync: "sync.mjs",
   // WS-STATE: the boundary cluster. Move-record validation at the game
   // boundary, user coercion at every adopt, the cross-tab merge, and THE
   // CLASS CHECK: every optional AppState field is either wiped by the
   // teardown or exempted in writing. Offline, $0, ~2s.
-  teardown: "teardown.mjs",
   // Human-replica control plane: consent capability, verified self-only live
   // challenge, versioned eval verdicts, lifecycle, private object paths and
   // content-free audit. Offline and provider-free.
@@ -1061,7 +1055,7 @@ const suites = {
   // have explicit strict migrations with a working negative control.
   agentstrict: "agent/strict-readiness.mjs",
   agentroom: "agentroom.mjs",
-  persona: "persona-invariants.mjs",
+  "vyakti-standalone": "vyakti-standalone/run.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
   // so it belongs in CI by the same test the D0/D1 note below applies. Wired
@@ -1074,7 +1068,6 @@ const suites = {
   // frozen-at-connect compile site carries it. Offline, deterministic, $0,
   // ~2s — wired here rather than left standalone for the reason T-H4 gives:
   // `dead-writers` does not stop applying to evals.
-  chattail: "chattail/run.mjs",
   // WS-CALLMEM. The four voice-call defects the first external tester found:
   // the call lane never carried what was said on the PREVIOUS call (chat did,
   // as turns), a long call loses its own beginning to the server's sliding
@@ -1082,7 +1075,6 @@ const suites = {
   // announced a check and then invented. Offline, deterministic, $0, ~3s —
   // wired here rather than left standalone because `dead-writers` does not
   // stop applying to evals.
-  callmem: "callmem/run.mjs",
   // WS-SHARENOW. The share he had one minute before he called back: he
   // screen-shared, hung up, called again sixty seconds later, asked what they
   // had watched, and she did not know. The shared-history block DID carry
@@ -1094,7 +1086,6 @@ const suites = {
   // carries the owner's exact scenario as a permanent fixture, plus its honest
   // half: a share she was quiet through says so instead of inventing.
   // Offline, deterministic, $0, ~3s.
-  sharenow: "sharenow/run.mjs",
   surface: "surface.mjs",
   // WS-MEMORY: finished games become graph episodes; the laundering predicate;
   // photo-forget path round-trips. Offline, db-free (config stub), ~2s.
@@ -1113,23 +1104,19 @@ const suites = {
   // must — plus its own negative control (the pre-fix scene, seen going empty
   // on exactly the pickup that broke). Offline, deterministic, $0, ~3s, and
   // it re-bundles from the real source like everything else here.
-  hernow: "hernow.mjs",
   // WS-AFFECT: one rupture, every channel — the T2 stance block compiles
   // byte-identical across chat/cascade/live/watch, lapses cross all four
   // together, the record never moves, and G2 holds in both directions on
   // both lanes. Offline, $0.
-  rupturechannel: "rupture-channel/run.mjs",
   // WS-BURST. The greet-once predicate (src/engine/greeting.ts) and the
   // structural proof that a burst reaches the model as ONE user turn.
   greeting: "greeting.mjs",
   // WS-BURST. The wiring itself: the policy stays in the engine, and the
   // reply chain's flags are taken once and released in a finally — the
   // busy-held-across-recursion class made impossible rather than avoided.
-  burstwiring: "burstwiring.mjs",
   // WS-WORLD. The sky-is-the-clock table: five states, their boundaries to
   // the minute, the away.ts dark-window invariant, the moon, and the ?sky=
   // seam the screenshot battery drives. Offline, deterministic, $0, ~2s.
-  sky: "sky.mjs",
   // WS-TIME. The two clocks (src/engine/timeline.ts) — her day as a pure
   // function of the hour, and what has moved in HIS world since they last
   // spoke. DB-free, network-free, model-free and ~11s, including its own
@@ -1161,7 +1148,6 @@ const suites = {
   // workflow has no NEON_URL at all). Same by-construction exclusion the D2
   // note above describes — run it by hand:
   //     node evals/self/wiring.mjs --live
-  selfwiring: "self/wiring.mjs",
   // WS-TRACE (docs/TRACE.md). The OFFLINE half: the content firewall, the
   // correlator replayed over two REAL production turns, the tap's cost, and a
   // structural check that no trace write sits on any reply path. No database,
@@ -1225,7 +1211,6 @@ const suites = {
   // every lane that claims it" — so the next dark block is caught at commit
   // time instead of by a paying tester. Carries its own negative control
   // (the pre-fix live lane must be seen going dark). Offline, $0, ~3s.
-  lanes: "lanes/run.mjs",
   // WS-LIFECYCLE. THE OVERLAP MATRIX: 10 lifecycle events x 5 concurrent
   // contexts, a verdict in every one of the 50 cells, and the carrier named —
   // `assembly`, `direct`, `state` or `silent` — with a written reason.
@@ -1242,7 +1227,6 @@ const suites = {
   // and the real CALL_OPEN_DIRECTIVE off real board sessions, never a model of
   // them. Carries seven negative controls, including the pre-fix tree going
   // dark. Offline, $0, ~3s.
-  lifecycle: "lifecycle/run.mjs",
   // WS-MEMEVAL / survey A4. The adversarial Hinglish forget battery. NOT a
   // gate: it reports a measured baseline against the CURRENT lexical matcher,
   // which is known to be poor on cross-lingual referents — a gate that fails
@@ -1295,7 +1279,6 @@ const suites = {
   // against the real SQL in api/memory.js, ritual rows included as the
   // negative), and drifting into a surveillance dashboard (no count rendered,
   // no clock stamp anywhere, decided on the component's bytes). Offline, $0.
-  knows: "knows.mjs",
   // WS-SOUND. The sound layer (src/sound/): the vocabulary is closed and every
   // cue declares its haptic level, its mix and its span; there is exactly one
   // path from a component to the speaker and it is downstream of every gate;
@@ -1312,7 +1295,6 @@ const suites = {
   //
   // Offline, deterministic, $0, no browser, no network, ~2s. It re-bundles
   // from the REAL source on every run, same as this file does.
-  sound: "sound.mjs",
   // WS-NOTIFY. The notification lane (src/notify/): a lock screen may only ever
   // carry text she actually sent, which is asserted by the ABSENCE of any
   // constructor that could produce a generic line rather than by grepping for
@@ -1322,7 +1304,6 @@ const suites = {
   // site takes a delay or an interval, enforced over the SOURCE because the
   // failure it prevents is a future edit and no test that runs today's code can
   // see one. Offline, deterministic, $0, ~3s.
-  notify: "notify.mjs",
   // WS-RESILIENCE. The upstream failure ladder. On 2026-08-24 three of the
   // owner's turns died on a SINGLE Google 502 with `retries:0`, `fallbacks:[]`
   // and eight healthy keys untried, because api/chat.js folded every non-quota
@@ -1364,7 +1345,6 @@ const suites = {
   //
   // Offline, deterministic, $0, ~2s. Re-bundles from the real source on every
   // run, like everything else here.
-  composer: "composer/run.mjs",
   // WS-ASSETWIRE. Fifty-one generated files landed at their final paths
   // referenced by NOTHING, and this suite is what stops that being true again
   // in either direction: every path the app can request resolves on disk, and
@@ -1387,7 +1367,6 @@ const suites = {
   // deterministic, $0, ~2s. Its BROWSER half (evals/assetwire-browser.mjs) is
   // deliberately not in this map, same by-construction reason the composer
   // note above gives: it needs a built app on a port.
-  assetwire: "assetwire/run.mjs",
   // WS-M. The SQL parameter-type gate for the replica/gurukul API.
   //
   // Wired here rather than left standalone for the reason that matters most in

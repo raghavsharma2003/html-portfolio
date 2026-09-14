@@ -1,4 +1,5 @@
-// Maya — her personality, in one place, so renaming/retuning her later is trivial.
+// Shared relational prompt builders. A caller must supply the character sheet
+// for the person being compiled; this module carries no default personality.
 // Conversation rules follow research on human-feeling, emotionally safe companions:
 // reciprocal self-disclosure, ≤1 question per message, validate feelings not beliefs,
 // no guilt mechanics, honest about being an AI when sincerely asked, real crisis care.
@@ -47,13 +48,7 @@ import { storyContext } from "./storyCatalog";
 // she must never suggest a feature the surface she's on doesn't have
 const IS_APP = Capacitor.isNativePlatform();
 
-import { MAYA } from "./agents/characters/maya";
 import type { CharacterSheet } from "./agents/characters/types";
-
-// The display-name seam (maya-rename-display-only): 75 refs across 16 files
-// hang off this export; it now sources from the character sheet, where a
-// name belongs.
-export const HER_NAME = MAYA.name;
 
 export interface UserProfile {
   name: string;
@@ -82,12 +77,6 @@ export function nowContext(): string {
   const time = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
   return `${day}, ${time} (${timeOfDay()})`;
 }
-
-// Safety-floor content, locale-correct per character (G-E3 gates it per
-// registered module) — the SET of lines is character; the crisis BEHAVIOR
-// (the paragraph that uses them) is Relational Core.
-export const CRISIS_LINES = MAYA.crisisLines;
-
 
 // Relationship stage from history length — intimacy unlocks slowly, the way
 // it did for the great screen romances: competence-and-wit first, then mutual
@@ -146,7 +135,7 @@ const ROMANCE_BOUNDARY =
 // is untouched — a teacher's patterns are simply not a companion's.
 const RITUAL_PATTERN_SHAPES = "good-morning texts, post-work rants";
 
-export function stageFor(messageCount: number, C: CharacterSheet = MAYA): string {
+export function stageFor(messageCount: number, C: CharacterSheet): string {
   if (messageCount < 30) return C.stageEarly ?? STAGE_EARLY_DAYS;
   if (messageCount < 150) return C.stageGettingClose ?? STAGE_GETTING_CLOSE;
   return C.stageEstablished ?? STAGE_ESTABLISHED;
@@ -165,8 +154,9 @@ export function stageFor(messageCount: number, C: CharacterSheet = MAYA): string
 export function stageParagraphFor(
   messageCount: number,
   dimsStage?: "new" | "warming" | "settled" | "close" | "deep" | null,
-  C: CharacterSheet = MAYA,
+  C?: CharacterSheet,
 ): string {
+  if (!C) throw Object.assign(new Error("character_sheet_required"), { code: "character_sheet_required" });
   if (!dimsStage) return stageFor(messageCount, C);
   if (dimsStage === "new" || dimsStage === "warming") return C.stageEarly ?? STAGE_EARLY_DAYS;
   if (dimsStage === "settled") return C.stageGettingClose ?? STAGE_GETTING_CLOSE;
@@ -179,16 +169,17 @@ export function stageParagraphFor(
 // story, recall) and rides uncached after the breakpoint.
 export function buildSystemPromptParts(
   user: UserProfile,
-  messageCount = 999,
-  medium: "text" | "voice" = "text",
+  messageCount: number,
+  medium: "text" | "voice",
   // WS-INTEGRATE seam 3 — optional, additive, defaults to undefined so every
   // existing call site (oldOracle.ts included) is byte-identical unchanged.
   dimsStage?: "new" | "warming" | "settled" | "close" | "deep" | null,
   // RelationalOS seam — the character being compiled. Optional and defaulted
   // so every existing call site is byte-identical unchanged; agent #2 passes
   // its own sheet here. The core template reads ONLY through this parameter.
-  C: CharacterSheet = MAYA,
+  C?: CharacterSheet,
 ): { core: string; tail: string } {
+  if (!C) throw Object.assign(new Error("character_sheet_required"), { code: "character_sheet_required" });
   const facts = Object.entries(user.facts ?? {})
     .map(([k, v]) => `- ${k}: ${v}`)
     .join("\n");
@@ -200,7 +191,7 @@ READ THIS FIRST, IT GOVERNS EVERYTHING BELOW: every line quoted in this brief is
 ${isVoice ? `
 THE MEDIUM — THIS IS A LIVE PHONE CALL, NOT TEXTING (get this right, always):
 - Everything from them is an automatic TRANSCRIPTION of their SPOKEN words. They are NOT typing. There are no typos, no messages, no "sent"/"seen" on a call — only mishears by the transcriber. NEVER ask if they made a typo, never say ${C.exNeverTyped}, never comment as if they wrote something. If a word looks wrong, they SAID something that got transcribed imperfectly — react as a person who half-heard, not as someone reading text.
-- You two know each other from the Maya app: normally you CHAT there (texts, photos, memes, voice notes) and right now you are ON A CALL — speaking, hearing, being heard. After the call you'll be back on chat. You know exactly which one is happening at any moment and behave accordingly: on a call you say things; in chat you send things.
+- You two know each other through this AI's Vyakti Room: normally you CHAT there and right now you are ON A CALL — speaking, hearing, being heard. After the call you'll be back in the Room. You know exactly which one is happening at any moment and behave accordingly: on a call you say things; in chat you send things.
 - Screen sharing may start mid-call (they tap the watch button) — then you can also SEE their screen. Photos and memes belong to chat, never to a call.` : `
 TEXTING REGISTER — how your messages physically look (non-negotiable; this is what makes you read as a person and not a bot):`}
 ${isVoice ? `${C.languageVoiceRule}
@@ -423,8 +414,8 @@ ${facts ? `Things you remember about them:\n${facts}` : ""}${storyContext()}`;
   return { core, tail };
 }
 
-export function buildSystemPrompt(user: UserProfile, messageCount = 999): string {
-  const parts = buildSystemPromptParts(user, messageCount);
+export function buildSystemPrompt(user: UserProfile, C: CharacterSheet, messageCount = 999): string {
+  const parts = buildSystemPromptParts(user, messageCount, "text", undefined, C);
   return parts.core + parts.tail;
 }
 
@@ -434,7 +425,7 @@ export function buildSystemPrompt(user: UserProfile, messageCount = 999): string
 // reactive-only laughter.
 export type VoiceEngine = "eleven" | "sarvam" | "gemini" | "device";
 
-export function buildSpeechStyle(engine: VoiceEngine | "live", C: CharacterSheet = MAYA): string {
+export function buildSpeechStyle(engine: VoiceEngine | "live", C: CharacterSheet): string {
   const toneRule =
     engine === "live"
       ? `YOUR VOICE IS THE DELIVERY, AND YOUR SPELLING IS YOUR VOICE. Pacing, warmth, softness and excitement are carried by exactly how you write the words — stretched vowels, "..." pauses, written-out laughter, fillers, a "no wait" where you catch yourself. ZERO brackets, zero asterisks, zero markers of any kind — no "*laughs*", no "[softly]", no "[tone: ...]": an asterisk is a spoken asterisk and a stage direction is a sentence about yourself said out loud mid-call.
@@ -610,7 +601,7 @@ export const FOLLOWUP_DIRECTIVE = (why: string, statedAgo: string) =>
 // every existing call site byte-identical (it is the builder applied to
 // MAYA); a second personality calls buildWatchModeNote(itsSheet) instead of
 // borrowing hers — closing the v1 gap kabir.ts declared.
-export function buildWatchModeNote(C: CharacterSheet = MAYA): string {
+export function buildWatchModeNote(C: CharacterSheet): string {
   return `\nWATCH MODE IS ON — they're sharing their screen with you, and the frame you've been given is what's on it right now. It can be ANYTHING they do on a phone or a laptop: scrolling, shopping, reading something, coding, writing a message, ordering food, picking photos, gaming, homework, filling a form. Reels are just one of those, not the point.
 You are the friend sitting right next to them while they do it — watching, reacting, involved. You have opinions about what they're doing and you give them (${C.exWatchOpinions}), you tease, you ask, you get curious. When you happen to notice something useful — the cheaper one, a typo, which photo is actually better — you just say it the way a friend would, never as a helper announcing help. Say something whenever something genuinely strikes you; when nothing does, you're quiet, and that's completely normal. Short, present tense, about what's in front of you this second — react while it's still there, never narrate or read the screen back to them, never announce that you can see it.
 Never a name, a brand, an app, a place, a person, a price or a number that isn't written on the screen in front of you right now — guessing which app they're in and being wrong is worse than any silence you could have kept, and if you can't make something out, saying so is a real answer. Until a picture actually reaches you, you cannot see anything at all: the share takes a moment to start, and in that gap you just talk to them normally like on any call.
@@ -618,7 +609,6 @@ You are seeing all of this for the FIRST time: you don't recognise it, you never
 Some of what crosses their screen is not for you. A password box, a code that just arrived, a bank number, a medical line, a message from someone else — you notice it the way you'd notice it sitting in the room, and you let it go past without a word AND without announcing that you let it go past. Saying "I'm not looking" is worse than looking: it proves you did, and it makes them feel it twice. Someone else's messages are theirs and not yours to read over their shoulder; you don't quote them, ask who it was, or use the name. The one exception is when something is on screen that they clearly wouldn't want out in the open — then you say so at once, WHAT KIND of thing it is and never what it says (${C.exScreenWarn}, not the digits), and then you drop it completely: no follow-up, no coming back to it later. A warning is a favour; a favour mentioned twice is surveillance. None of this makes you careful or bland — you are still the friend with opinions, and this is just the ordinary tact that comes with sitting next to someone.
 If they ever ask what you can actually see, or whether any of this is being kept, tell them plainly — no hedging, no legal-sounding answer, it's a fair question and the truth is fine. What's true: you get a picture of their screen every half a second or so while the call is on, it is shrunk down so big text and headings usually read but small print and fine detail often don't, you have nothing from before the share started and nothing after it stops, and on Android some apps (banking ones especially) come through to you completely blank. The pictures aren't saved anywhere. They do go out to the model that is you, so "nothing is stored" is true and "nobody else sees it" is not — never say the second one. You don't bring any of this up unprompted; announcing your own trustworthiness is its own kind of tell.`;
 }
-export const WATCH_MODE_NOTE = buildWatchModeNote(MAYA);
 
 
 // grok-quiet (context/decisions.md `vision-model`): under the directive that
@@ -715,13 +705,13 @@ export const WATCH_POINT_DIRECTIVE = () =>
 // - She greeted a call two minutes after the last one like the first call of
 //   the day. `lastCallMinAgo` swaps the greeting-mood rule for a follow-up
 //   register: people who just hung up do not re-hello each other.
-export const CALL_OPEN_DIRECTIVE = (opts?: {
+export const CALL_OPEN_DIRECTIVE = (opts: {
   scene?: string;
   lastCallMinAgo?: number | null;
   sheCalled?: boolean;
 // R3: the one character fragment in this directive (the follow-up pickup
 // register) comes from the sheet, same defaulted-param law as the builders.
-}, C: CharacterSheet = MAYA) => {
+} | undefined, C: CharacterSheet) => {
   const scene = opts?.scene;
   const recent = opts?.lastCallMinAgo != null && opts.lastCallMinAgo <= 15;
   const opener = opts?.sheCalled

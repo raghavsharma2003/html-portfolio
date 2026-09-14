@@ -216,7 +216,7 @@ export const PUBLISHED_HELPLINES: readonly string[] = [
  * memory.ts, storyCatalog.ts, telemetry.ts); this is an eighth copy of a
  * constant, which is worth one line to avoid a gate that eats a true sentence.
  */
-export const APP_ADDRESSES: readonly string[] = ["meera-silk.vercel.app", "https://meera-silk.vercel.app"];
+export const APP_ADDRESSES: readonly string[] = ["vyakti-replica-lab.vercel.app", "https://vyakti-replica-lab.vercel.app"];
 
 /** Every actionable identifier in a piece of text. */
 export function findActionable(text: string, allowed?: AllowedIdentifiers): ActionableHit[] {

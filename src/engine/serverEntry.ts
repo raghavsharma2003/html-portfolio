@@ -108,7 +108,7 @@ export {
   type ParticipationDecision,
   type RoomAction,
 } from "./room";
-export { CRISIS_LINES, type UserProfile } from "./persona";
+export type { UserProfile } from "./persona";
 
 // ── parse-and-gate, for every non-web surface (ticket #102) ────────────────
 // api/_surface.js is a plain-JS Vercel function under the same zero-imports-

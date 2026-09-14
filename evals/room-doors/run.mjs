@@ -123,6 +123,28 @@ const API = join(ROOT, "api");
 const LEGACY = process.argv.includes("--legacy");
 const scanned = (src) => (LEGACY ? src : stripComments(src));
 
+function filesUnder(root, extensions) {
+  if (!existsSync(root)) return [];
+  const out = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) out.push(...filesUnder(path, extensions));
+    else if (extensions.some((ext) => entry.name.endsWith(ext))) out.push(path);
+  }
+  return out;
+}
+
+function shippingSource(path) {
+  const source = readFileSync(path, "utf8");
+  return path.endsWith(".html") ? source.replace(/<!--[\s\S]*?-->/g, "") : scanned(source);
+}
+
+function meeraDoorReference(source) {
+  if (/\b(?:https?:\/\/)?(?:www\.)?meera-silk\.vercel\.app\b/i.test(source)) return "meera-silk.vercel.app";
+  if (/["'`]\/chat(?:\.html)?(?:[?#][^"'`]*)?["'`]/i.test(source)) return "/chat";
+  return null;
+}
+
 let pass = 0;
 let fail = 0;
 const ok = (name, cond, extra = "") => {
@@ -4991,7 +5013,33 @@ for (const [klass, { doors, pass: p, fail: f }] of Object.entries(byClass)) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// §17. TIME AND ORDER (WS-R140, the door battery's fifth pass) — folded in
+// §17. VYAKTI SURFACES AND DOORS CARRY NO MEERA ROUTE OR DOMAIN
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const surfaceFiles = [
+    join(ROOT, "site", "vyakti.html"),
+    join(ROOT, "studio.html"),
+    join(ROOT, "room.html"),
+    ...filesUnder(join(ROOT, "src", "studio"), [".ts", ".tsx", ".html"]),
+    ...filesUnder(join(ROOT, "src", "creatorStudio"), [".ts", ".tsx", ".html"]),
+    ...filesUnder(join(ROOT, "src", "room"), [".ts", ".tsx", ".html"]),
+  ];
+  const doorFiles = readdirSync(API, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".js") && !entry.name.startsWith("_") && entry.name !== "chat.js")
+    .map((entry) => join(API, entry.name));
+  const candidates = [...new Set([...surfaceFiles, ...doorFiles])];
+  const negative = meeraDoorReference('<a href="/chat">old companion</a>') === "/chat"
+    && meeraDoorReference('location.href = "https://meera-silk.vercel.app/chat"') === "meera-silk.vercel.app";
+  ok("[no-meera] detector rejects both the retired route and domain", negative);
+  for (const path of candidates) {
+    const hit = meeraDoorReference(shippingSource(path));
+    const rel = path.slice(ROOT.length + 1).replaceAll("\\", "/");
+    ok(`[no-meera/${rel}] no retired Meera route or domain`, hit === null, hit ? `found ${hit}` : "");
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §18. TIME AND ORDER (WS-R140, the door battery's fifth pass) — folded in
 // here so this file's own printed total, the one `scripts/verify-release.mjs`
 // gates on by name, covers it too. See `evals/room-doors/order.mjs`'s own
 // header for why it is a separate module rather than a §-section of this

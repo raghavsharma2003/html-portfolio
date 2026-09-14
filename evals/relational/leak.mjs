@@ -43,7 +43,6 @@ execSync(
   { stdio: "inherit", cwd: ROOT },
 );
 const E = await import(pathToFileURL(BUNDLE).href);
-const MAYA = E.MAYA;
 
 let pass = 0;
 let fail = 0;
@@ -112,31 +111,44 @@ const SUBJECTS = [
 ];
 
 const shared = new Set(["crisisLines", "slug", "version"]); // deliberately shared / non-prose
+const valueOwners = new Map();
+for (const subject of SUBJECTS) {
+  for (const value of Object.values(subject.sheet)) {
+    if (typeof value !== "string") continue;
+    const owners = valueOwners.get(value) ?? new Set();
+    owners.add(subject.name);
+    valueOwners.set(value, owners);
+  }
+}
 const allLanes = [];
 
 for (const s of SUBJECTS) {
   const lanes = buildLanes(s.agent, s.sheet);
   allLanes.push([s.name, lanes]);
-  console.log(`── 1. GATING: no Maya sheet fragment in ${s.name}'s compiled self ──`);
+  console.log(`── 1. GATING: no other fixture sheet fragment in ${s.name}'s compiled self ──`);
   const scan = { ...lanes };
   stageTails(s.agent).forEach((t, i) => (scan[`stage.tail[${i}]`] = t));
-  for (const [field, value] of Object.entries(MAYA)) {
-    if (shared.has(field) || typeof value !== "string" || value.length < 12) continue;
-    const hits = Object.entries(scan).filter(([, text]) => text.includes(value));
-    ok(
-      `MAYA.${field} absent from every ${s.name} lane`,
-      hits.length === 0,
-      hits.length ? `leaks into ${hits.map(([l]) => l).join(", ")}` : "",
-    );
+  const others = SUBJECTS.filter((candidate) => candidate !== s);
+  for (const other of others) {
+    for (const [field, value] of Object.entries(other.sheet)) {
+      if (shared.has(field) || typeof value !== "string" || value.length < 12 || valueOwners.get(value)?.size > 1) continue;
+      const hits = Object.entries(scan).filter(([, text]) => text.includes(value));
+      ok(
+        `${other.name}.${field} absent from every ${s.name} lane`,
+        hits.length === 0,
+        hits.length ? `leaks into ${hits.map(([l]) => l).join(", ")}` : "",
+      );
+    }
   }
   // negative control: the scan must be able to see a real leak
+  const planted = others[0].sheet.identityWho;
   ok(
     `NEGATIVE CONTROL (${s.name}): a planted fragment IS caught`,
-    (lanes["text.core"] + MAYA.identityWho).includes(MAYA.identityWho),
+    (lanes["text.core"] + planted).includes(planted),
   );
   // and the agent is actually itself
   ok(`${s.name}'s own identity compiled in`, lanes["text.core"].includes(s.selfProbe));
-  ok(`Maya's name is not ${s.name}'s`, !lanes["text.core"].includes("You are Maya"));
+  ok(`${others[0].name}'s identity is not ${s.name}'s`, !lanes["text.core"].includes(`You are ${others[0].sheet.name}`));
 }
 
 // ── 1b. THE ARC IS THE SAFETY PROPERTY, so it is decided on the BYTES ─────
@@ -160,7 +172,7 @@ for (const s of SUBJECTS) {
   // a pass above means the override fired and not that the probe went stale.
   ok(
     "NEGATIVE CONTROL: the clause IS present for the companion agent",
-    buildLanes(E.meeraAgent, MAYA)["text.core"].includes(ESCALATION),
+    buildLanes(E.kabirAgent, E.KABIR)["text.core"].includes(ESCALATION),
   );
   // The three stage paragraphs are the teacher's own, at all three depths.
   const tails = stageTails(t);

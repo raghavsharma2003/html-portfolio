@@ -59,7 +59,7 @@
 // output table, not just here.
 import {
   compile,
-  DEFAULT_AGENT,
+  TEST_AGENT,
   lintLine,
   assertManifestArithmetic,
   CORE_CAP,
@@ -91,12 +91,12 @@ const USER = { name: "Sam", vibe: ["company"], facts: { city: "Pune" } };
  *  cache key and the same budget as the shipping brief, and `src/engine/
  *  persona.ts` is never touched by this experiment. */
 function agentFor(arm) {
-  if (!arm.text) return DEFAULT_AGENT;
+  if (!arm.text) return TEST_AGENT;
   return {
-    ...DEFAULT_AGENT,
-    personaVersion: `${DEFAULT_AGENT.personaVersion}+ex${arm.id}`,
+    ...TEST_AGENT,
+    personaVersion: `${TEST_AGENT.personaVersion}+ex${arm.id}`,
     buildSystemPromptParts(user, count, medium, dimsStage) {
-      const parts = DEFAULT_AGENT.buildSystemPromptParts(user, count, medium, dimsStage);
+      const parts = TEST_AGENT.buildSystemPromptParts(user, count, medium, dimsStage);
       return { ...parts, core: `${parts.core}\n\n${arm.text}` };
     },
   };

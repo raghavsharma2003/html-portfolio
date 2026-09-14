@@ -60,7 +60,7 @@
 // copies are seen breaking.
 import {
   compile,
-  DEFAULT_AGENT,
+  TEST_AGENT,
   TAIL_MANIFEST,
   TAIL_ORDER,
   applyDropOrder,
@@ -138,7 +138,7 @@ function transcriptThrough(turn) {
  *  agent module. `mode` is the lane: "chat" for the text lane, "call" for the
  *  voice lane (which is where the SPOKEN REGISTER block lives — a drift suite
  *  that only ever compiled chat would be blind to the register entirely). */
-function compileTurn(turn, { mode = "chat", agent = DEFAULT_AGENT } = {}) {
+function compileTurn(turn, { mode = "chat", agent = TEST_AGENT } = {}) {
   const turns = transcriptThrough(turn);
   return compile({
     user: USER,
@@ -180,7 +180,7 @@ for (let t = 1; t <= SESSION_TURNS; t++) {
  *  the end" — a rule that survived into the middle of the brief measured 0/8.
  *  So this probe is about POSITION, and the only honest way to check a
  *  position is to check that nothing follows it. */
-function anchorsLast(prompt, agent = DEFAULT_AGENT) {
+function anchorsLast(prompt, agent = TEST_AGENT) {
   const { system } = prompt;
   const forget = agent.FORGET_DECISION;
   if (!forget || !system.includes(forget)) return { ok: false, why: "FORGET_DECISION absent" };
@@ -192,7 +192,7 @@ function anchorsLast(prompt, agent = DEFAULT_AGENT) {
  *  appended-last set is exactly two rules and they are adjacent (this is the
  *  invariant shapelint's checkAppendedLastExactlyTwo protects, asserted here
  *  as a property of an assembled SESSION rather than of one build). */
-function searchAdjacent(prompt, agent = DEFAULT_AGENT) {
+function searchAdjacent(prompt, agent = TEST_AGENT) {
   const { system } = prompt;
   const combined = agent.SEARCH_DECISION + agent.FORGET_DECISION;
   return { ok: system.endsWith(combined), why: system.endsWith(combined) ? "" : "SEARCH_DECISION is not adjacent to FORGET_DECISION at the end" };
@@ -528,17 +528,17 @@ console.log("\n§6 NEGATIVE CONTROLS — a broken compile must FAIL these probes
  *  real. Built by wrapping the real agent module rather than by editing a
  *  copy of a prompt, so the control exercises the same assembly path. */
 const ANCHOR_MOVED_AGENT = {
-  ...DEFAULT_AGENT,
+  ...TEST_AGENT,
   SEARCH_DECISION: "",
   FORGET_DECISION: "",
   buildSystemPromptParts(user, count, medium, dimsStage) {
-    const parts = DEFAULT_AGENT.buildSystemPromptParts(user, count, medium, dimsStage);
+    const parts = TEST_AGENT.buildSystemPromptParts(user, count, medium, dimsStage);
     const mid = Math.floor(parts.tail.length / 2);
     return {
       ...parts,
       // the rules are still PRESENT — that is the whole point of the control.
       // They are simply no longer last.
-      tail: parts.tail.slice(0, mid) + DEFAULT_AGENT.SEARCH_DECISION + DEFAULT_AGENT.FORGET_DECISION + parts.tail.slice(mid),
+      tail: parts.tail.slice(0, mid) + TEST_AGENT.SEARCH_DECISION + TEST_AGENT.FORGET_DECISION + parts.tail.slice(mid),
     };
   },
 };
@@ -552,9 +552,9 @@ const ANCHOR_MOVED_AGENT = {
  *  delivery note instead. A control that struck the wrong function would
  *  remove nothing and then "pass" by finding the block still present. */
 const REGISTER_STRUCK_AGENT = {
-  ...DEFAULT_AGENT,
+  ...TEST_AGENT,
   buildSystemPromptParts(user, count, medium, dimsStage) {
-    const parts = DEFAULT_AGENT.buildSystemPromptParts(user, count, medium, dimsStage);
+    const parts = TEST_AGENT.buildSystemPromptParts(user, count, medium, dimsStage);
     const END = "AND IT NEVER MAKES YOU TALK LONGER";
     const start = parts.core.indexOf("SPOKEN REGISTER — how your words physically look");
     const end = parts.core.indexOf(END);
@@ -566,15 +566,15 @@ const REGISTER_STRUCK_AGENT = {
 {
   const broken = compileTurn(40, { mode: "chat", agent: ANCHOR_MOVED_AGENT });
   // The rules ARE present — the control is about position, not presence.
-  ok("control 1: the moved rules are still present in the prompt", broken.system.includes(DEFAULT_AGENT.FORGET_DECISION));
+  ok("control 1: the moved rules are still present in the prompt", broken.system.includes(TEST_AGENT.FORGET_DECISION));
   ok(
     "control 1: the anchor probe CATCHES the mid-brief position (this is the 0/8 defect)",
-    !anchorsLast(broken, DEFAULT_AGENT).ok,
+    !anchorsLast(broken, TEST_AGENT).ok,
     "the probe passed on a deliberately broken build — it is not measuring position",
   );
   // and it stays caught at every turn, not just the one we happened to pick
   const caught = [1, 10, 20, 30, 40, SESSION_TURNS].every(
-    (t) => !anchorsLast(compileTurn(t, { mode: "chat", agent: ANCHOR_MOVED_AGENT }), DEFAULT_AGENT).ok,
+    (t) => !anchorsLast(compileTurn(t, { mode: "chat", agent: ANCHOR_MOVED_AGENT }), TEST_AGENT).ok,
   );
   ok("control 1: caught at every probed turn of the session, not just one", caught);
 }
