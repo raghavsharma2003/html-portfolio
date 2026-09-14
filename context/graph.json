@@ -20121,6 +20121,24 @@
       "kind": "rejection",
       "title": "Byte equality rejected valid existing credentials",
       "at": "context/rejected.md#wave25-byte-equality-is-not-project-identity"
+    },
+    {
+      "id": "wave25-android-ci-asserts-only-current-native-callers",
+      "kind": "decision",
+      "title": "Android CI asserts only current native callers",
+      "at": "context/decisions.md#wave25-android-ci-asserts-only-current-native-callers"
+    },
+    {
+      "id": "wave25-retired-native-watch-harnesses-cannot-be-retargeted",
+      "kind": "rejection",
+      "title": "Retired native watch harnesses cannot be retargeted to an absent runtime",
+      "at": "context/rejected.md#wave25-retired-native-watch-harnesses-cannot-be-retargeted"
+    },
+    {
+      "id": "wave25-android-workflow-current-native-surface-20260914",
+      "kind": "measurement",
+      "title": "Focused Android workflow and current native surface verification",
+      "at": "context/measurements.md#wave25-android-workflow-current-native-surface-20260914"
     }
   ],
   "edges": [
@@ -34271,6 +34289,21 @@
       "src": "wave25-byte-equality-is-not-project-identity",
       "rel": "constrains",
       "dst": "wave25-project-bound-development-credentials"
+    },
+    {
+      "src": "wave25-android-ci-asserts-only-current-native-callers",
+      "rel": "measured_by",
+      "dst": "wave25-android-workflow-current-native-surface-20260914"
+    },
+    {
+      "src": "wave25-android-ci-asserts-only-current-native-callers",
+      "rel": "caused_by",
+      "dst": "wave25-retired-native-watch-harnesses-cannot-be-retargeted"
+    },
+    {
+      "src": "wave25-retired-native-watch-harnesses-cannot-be-retargeted",
+      "rel": "constrains",
+      "dst": "wave-25-meera-only-surface-and-suites-do-not-belong-in-vyakti"
     }
   ]
 }
