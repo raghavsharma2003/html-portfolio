@@ -528,7 +528,10 @@
   }
 
   .vx-agreement {
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto;
+    align-content: start;
+    gap: 28px;
+    padding-top: max(178px, calc(162px + env(safe-area-inset-top)));
     padding-bottom: max(28px, env(safe-area-inset-bottom));
   }
 
@@ -1635,4 +1638,76 @@
   .voice-likeness-preference { margin: 0; font-size: 13px; opacity: 0.8; }
   /* WS-R179: the method behind the number. */
   .voice-likeness-method { margin: 0; font-size: 12px; opacity: 0.7; }
+}
+
+@layer components {
+  .vx-shell {
+    background:
+      radial-gradient(ellipse 54% 44% at 50% 52%, rgba(181, 191, 185, 0.2), transparent 72%),
+      linear-gradient(180deg, #ffffff 0%, var(--vx-paper) 62%, #eef0ed 100%);
+  }
+
+  .vx-header {
+    border-bottom: 1px solid rgba(31, 38, 34, 0.07);
+    background: rgba(249, 250, 248, 0.82);
+    backdrop-filter: blur(20px) saturate(140%);
+  }
+
+  .vx-room-nav {
+    border: 1px solid rgba(31, 38, 34, 0.08);
+    background: rgba(251, 252, 250, 0.9);
+    box-shadow: 0 18px 52px rgba(28, 36, 31, 0.13);
+    backdrop-filter: blur(20px) saturate(140%);
+  }
+
+  .vx-room__voice .hear-voice-body,
+  .expert-conversation__composer {
+    border: 1px solid rgba(31, 38, 34, 0.1);
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 22px 58px rgba(29, 38, 32, 0.08);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .vx-header,
+  .vx-room-nav { background: #fff; backdrop-filter: none; }
+}
+
+@media (max-width: 720px) {
+  .vx-agreement {
+    gap: 18px;
+    padding-top: max(196px, calc(180px + env(safe-area-inset-top)));
+  }
+
+  .vx-conversation-switch {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: calc(100% - 20px);
+    gap: 3px;
+    margin: 2px 10px 14px;
+  }
+
+  .vx-conversation-switch button {
+    min-width: 0;
+    padding-inline: 5px;
+    font-size: 13px;
+  }
+
+  .expert-conversation {
+    width: calc(100% - 20px);
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .expert-conversation__status,
+  .expert-conversation__composer {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .expert-conversation__status > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 }

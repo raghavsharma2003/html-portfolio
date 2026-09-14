@@ -1,15 +1,16 @@
 /* Expert workspace extension. Existing warm Vyakti identity, clear task hierarchy. */
-.expert-entry-visual { margin: 28px 0 20px; max-width: 560px; }
-.expert-entry-visual img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 16px; }
+.expert-entry-visual { margin: 32px 0 22px; max-width: 610px; }
+.expert-entry-visual picture { display: block; overflow: hidden; border: 1px solid rgba(255, 255, 255, .86); border-radius: 24px; background: #eceeeb; box-shadow: 0 26px 70px rgba(32, 39, 35, .12); }
+.expert-entry-visual img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; object-position: 58% 50%; }
 .expert-entry-visual figcaption { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; color: var(--ink-soft, #515c57); font-size: 13px; }
-.auth-page:has(.expert-entry-visual) { background: #f8f8f5; gap: 24px 6vw; font-family: "Instrument Sans Variable", sans-serif; }
+.auth-page:has(.expert-entry-visual) { background: radial-gradient(circle at 90% 10%, #e8eae7 0, transparent 32rem), #f7f7f4; gap: 24px 7vw; font-family: "Instrument Sans Variable", sans-serif; }
 .auth-page:has(.expert-entry-visual)::before, .auth-page:has(.expert-entry-visual)::after, .auth-page:has(.expert-entry-visual) .ambient { display: none; }
-.auth-page:has(.expert-entry-visual) .auth-brand { color: #173e32; }
-.auth-page:has(.expert-entry-visual) .auth-intro { padding: 20px 0; color: #192b24; }
+.auth-page:has(.expert-entry-visual) .auth-brand { color: #1a3028; }
+.auth-page:has(.expert-entry-visual) .auth-intro { padding: 20px 0 42px; color: #192b24; }
 .auth-page:has(.expert-entry-visual) .auth-intro h1 { font: 500 clamp(38px, 4.5vw, 64px)/1.04 "Instrument Sans Variable", sans-serif; letter-spacing: -.035em; max-width: 560px; text-wrap: balance; margin-bottom: 18px; }
 .auth-page:has(.expert-entry-visual) .auth-intro > p { color: #4b5b53; max-width: 460px; margin-bottom: 0; font-size: 17px; }
 .auth-page:has(.expert-entry-visual) .trust-strip { color: #42564b; font-size: 12px; gap: 14px; }
-.auth-page:has(.expert-entry-visual) .auth-card { border: 0; box-shadow: none; background: transparent; padding: 28px 0; max-width: 390px; backdrop-filter: none; }
+.auth-page:has(.expert-entry-visual) .auth-card { border: 1px solid rgba(29, 35, 32, .1); box-shadow: 0 28px 74px rgba(28, 35, 31, .1); background: rgba(255, 255, 255, .8); padding: 34px; max-width: 430px; backdrop-filter: blur(20px) saturate(135%); }
 .auth-page:has(.expert-entry-visual) .auth-card h2 { font-family: "Instrument Sans Variable", sans-serif; font-size: 30px; font-weight: 500; }
 .auth-page:lang(hi):has(.expert-entry-visual) .auth-intro h1 { font-family: "Noto Sans Devanagari", "Instrument Sans Variable", sans-serif; letter-spacing: -.015em; line-height: 1.16; }
 .auth-page:lang(hi):has(.expert-entry-visual) .auth-card h2 { font-family: "Noto Sans Devanagari", "Instrument Sans Variable", sans-serif; letter-spacing: -.015em; line-height: 1.2; }
@@ -59,8 +60,9 @@
   .auth-page:has(.expert-entry-visual) .auth-intro { padding: 12px 0 0; }
   .auth-page:has(.expert-entry-visual) .trust-strip { display: none; }
   .expert-entry-visual { margin: 20px 0 16px; }
-  .expert-entry-visual img { aspect-ratio: 2.6 / 1; object-position: 50% 43%; }
-  .auth-page:has(.expert-entry-visual) .auth-card { margin: 0; padding-block: 18px; width: 100%; max-width: none; }
+  .expert-entry-visual picture { border-radius: 18px; }
+  .expert-entry-visual img { aspect-ratio: 2.55 / 1; object-position: 62% 50%; }
+  .auth-page:has(.expert-entry-visual) .auth-card { margin: 0; padding: 24px; width: 100%; max-width: none; }
   .expert-entry-visual figcaption { font-size: 12px; }
   .expert-conversation__status { flex-wrap: wrap; gap: 6px; }
   .vx-conversation-switch button { padding-inline: 14px; }

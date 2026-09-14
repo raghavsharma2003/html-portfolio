@@ -9,7 +9,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Vyakti" />
   <meta property="og:description" content="Build the AI version of you, test it, tweak it, and deploy it: a private, continuing relationship with everyone who talks to it." />
-  <meta name="theme-color" content="#f4f1e9" />
+  <meta name="theme-color" content="#f7f7f4" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
   <!--
@@ -107,27 +107,27 @@
        omission (DESIGN-SYSTEM §5.1): a records office has no night mode. */
     :root {
       color-scheme: light;
-      --paper: #f4f1e9;
-      --paper-deep: #ebe6da;
-      --panel: #fffef9;
-      --ink: #171915;
-      --ink-soft: #52564e;
-      --ink-faint: #676b62; /* AA on paper (4.82:1) and on panel (5.39:1) */
-      --line: rgba(28, 32, 26, 0.12);
-      --line-strong: rgba(28, 32, 26, 0.22);
+      --paper: #f6f6f3;
+      --paper-deep: #ecece8;
+      --panel: #ffffff;
+      --ink: #161817;
+      --ink-soft: #4f5551;
+      --ink-faint: #626963;
+      --line: rgba(28, 33, 30, 0.12);
+      --line-strong: rgba(28, 33, 30, 0.22);
 
       /* ONE accent. Forest is it. */
-      --forest: #17493b;
-      --forest-deep: #0e352a;
-      --forest-soft: #e1eee7;
+      --forest: #245746;
+      --forest-deep: #173f33;
+      --forest-soft: #e5ede8;
 
       --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Devanagari", sans-serif;
       --serif: Georgia, "Times New Roman", serif;
       --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
       --radius-control: 10px;
-      --radius: 20px;
-      --radius-lg: 28px;
+      --radius: 18px;
+      --radius-lg: 26px;
 
       /* Tracking is size-specific (DESIGN-LAW §2). One letter-spacing value
          across all sizes is always wrong somewhere: display type needs the
@@ -145,7 +145,7 @@
       --space-section: clamp(56px, 9vw, 108px);
       --space-pad: clamp(22px, 4vw, 44px);
 
-      --shadow: 0 24px 70px rgba(41, 43, 35, 0.1), 0 3px 12px rgba(41, 43, 35, 0.04);
+      --shadow: 0 30px 80px rgba(30, 36, 32, 0.12), 0 3px 12px rgba(30, 36, 32, 0.05);
       --motion-instant: 90ms;
       --motion-quick: 160ms;
       --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -339,6 +339,113 @@
     @media print {
       main > #boundary, main > #boundary-hi { content-visibility: visible; contain-intrinsic-block-size: none; }
     }
+
+    /* Premium journey pass. The structure and form handlers remain the same. */
+    body {
+      background:
+        radial-gradient(circle at 92% 4%, rgba(198, 204, 200, 0.32), transparent 30rem),
+        var(--paper);
+    }
+    .wrap { width: min(1240px, 100% - 2 * var(--space-pad)); }
+    .nav { padding: 18px 0; border-bottom: 1px solid rgba(28, 33, 30, 0.07); }
+    .brand .vyakti-mark { display: inline-flex; align-items: baseline; gap: 8px; }
+    .brand .vyakti-mark__glyph { color: #b33c2d; font-family: var(--dev); font-size: 25px; font-weight: 700; letter-spacing: -0.09em; }
+    .brand .vyakti-mark__word { color: var(--ink); font-size: 17px; font-weight: 720; letter-spacing: -0.035em; }
+    .brand .vyakti-mark__word small { margin-left: 1px; color: #b33c2d; font-size: 9px; font-weight: 700; }
+    .nav-link { text-decoration: none; }
+    .lang-toggle { min-height: 44px; padding-inline: 17px; }
+    .btn { min-height: 54px; padding-inline: 28px; box-shadow: 0 12px 30px rgba(36, 87, 70, 0.16); }
+
+    .hero { padding: clamp(28px, 4vw, 60px) 0 clamp(64px, 8vw, 104px); }
+    .hero .wrap {
+      min-height: min(700px, calc(100svh - 106px));
+      display: grid;
+      grid-template-columns: minmax(260px, 0.82fr) minmax(360px, 1.18fr);
+      grid-template-rows: 1fr auto auto auto 1fr;
+      align-items: center;
+      gap: 0 clamp(28px, 4vw, 68px);
+    }
+    .hero h1 { grid-column: 1; grid-row: 2; max-width: 12ch; font-size: clamp(48px, 5.4vw, 76px); }
+    .hero p.lede { grid-column: 1; grid-row: 3; max-width: 36ch; margin-top: 24px; }
+    .hero .btn { grid-column: 1; grid-row: 4; width: fit-content; margin-top: 32px; }
+    .hero p.fine { grid-column: 1; grid-row: 5; align-self: start; max-width: 38ch; margin-top: 16px; }
+    .hero-visual {
+      position: relative;
+      grid-column: 2;
+      grid-row: 1 / -1;
+      margin: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.88);
+      border-radius: 30px;
+      background: var(--paper-deep);
+      box-shadow: var(--shadow);
+    }
+    .hero-visual::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: inset 0 0 0 1px rgba(22, 24, 23, 0.05);
+      pointer-events: none;
+    }
+    .hero-visual img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: 55% 50%; }
+
+    .journey { border-top: 1px solid var(--line); }
+    .journey .wrap { display: grid; grid-template-columns: minmax(260px, 0.78fr) minmax(420px, 1.22fr); gap: clamp(46px, 8vw, 120px); }
+    .journey .head { align-self: start; position: sticky; top: 108px; }
+    .journey .head h2 { max-width: 16ch; font-size: clamp(38px, 4.4vw, 58px); }
+    .journey .head p { max-width: 44ch; font-size: 16px; }
+    .journey .claims { max-width: none; margin: 0; gap: 0; border-top: 1px solid var(--line-strong); }
+    .journey .claims p { padding: 26px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
+    .journey .claims b { display: block; margin-bottom: 8px; font-size: 17px; }
+
+    .floor, .limits { box-shadow: 0 18px 50px rgba(30, 36, 32, 0.06); }
+    .floor { border-color: var(--line); background: linear-gradient(135deg, #eef2ef, #e6ece8); }
+    .limits { border-style: solid; background: rgba(255, 255, 255, 0.72); }
+    .apply-form { grid-template-columns: 1fr 1fr; max-width: none; }
+    .apply-field:last-of-type { grid-column: 1 / -1; }
+    .apply-form button, .apply-note { grid-column: 1 / -1; }
+    .apply-field input, .apply-field textarea { min-height: 50px; }
+    .close { border-top: 1px solid var(--line); }
+    .foot { background: rgba(236, 236, 232, 0.7); }
+
+    /* Private internal build: the public Rooms application lane is paused. */
+    #boundary, #boundary-hi, #apply, #apply-hi, .close { display: none; }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .hero h1, .hero .lede, .hero .btn, .hero .fine, .hero-visual {
+        animation: hero-settle 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      .hero .lede { animation-delay: 70ms; }
+      .hero .btn { animation-delay: 110ms; }
+      .hero .fine { animation-delay: 140ms; }
+      .hero-visual { animation-delay: 50ms; }
+    }
+    @keyframes hero-settle { from { opacity: 0; transform: translateY(12px); } }
+
+    @media (max-width: 760px) {
+      .nav .wrap { flex-wrap: nowrap; }
+      .brand small, .nav-link { display: none; }
+      .hero { padding-top: 24px; }
+      .hero .wrap {
+        min-height: 0;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        gap: 0;
+      }
+      .hero h1, .hero p.lede, .hero .btn, .hero p.fine, .hero-visual { grid-column: 1; grid-row: auto; }
+      .hero h1 { font-size: clamp(43px, 13vw, 58px); }
+      .hero p.lede { font-size: 17px; }
+      .hero .btn { width: 100%; }
+      .hero-visual { margin-top: 32px; border-radius: 22px; }
+      .hero-visual img { aspect-ratio: 4 / 3; object-position: 63% 50%; }
+      .journey .wrap { grid-template-columns: 1fr; gap: 32px; }
+      .journey .head { position: static; }
+      .journey .head h2 { max-width: 15ch; font-size: 38px; }
+      .journey .claims p { padding-block: 22px; }
+      .apply-form { grid-template-columns: 1fr; }
+      .apply-field:last-of-type, .apply-form button, .apply-note { grid-column: 1; }
+    }
   </style>
 </head>
 <body>
@@ -347,11 +454,10 @@
   <nav class="nav" aria-label="Primary">
     <div class="wrap">
       <a class="brand" href="/" aria-label="Vyakti home">
-        <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span><b>VYAKTI</b><br /><small>ROOMS</small></span>
+        <span class="vyakti-mark"><span class="vyakti-mark__glyph" aria-hidden="true" lang="hi">व्य</span><span class="vyakti-mark__word">vyakti<small>.ai</small></span></span>
       </a>
       <span class="nav-spacer"></span>
-      <a class="nav-link" href="#boundary">The privacy boundary</a>
+      <a class="nav-link" href="/studio">Studio</a>
       <button class="lang-toggle" type="button" data-set-lang="hi"><span lang="hi">हिन्दी</span></button>
     </div>
   </nav>
@@ -361,99 +467,76 @@
     <!-- ══ 1. hero. Four elements: the one line, one button, one fine print. -->
     <header class="hero">
       <div class="wrap">
-        <h1>Build the AI version of <em>you</em>.</h1>
-        <p class="lede">
-          Test it, tweak it, and deploy it: the way people reach you when you cannot answer yourself.
-        </p>
-        <a class="btn" href="/studio">Sign in and start building</a>
-        <p class="fine">Free to build. You set what your followers pay. Our share is one number, shown before you publish.</p>
+        <h1>Build an AI that feels like <em>you</em>.</h1>
+        <p class="lede">Give it your work. Talk to it. Shape what it becomes.</p>
+        <a class="btn" href="/studio">Open your studio</a>
+        <p class="fine">Start privately with one file, link, or recording.</p>
+        <picture class="hero-visual">
+          <source media="(max-width: 760px)" srcset="/site/assets/vyakti-mirror-960.webp" />
+          <img src="/site/assets/vyakti-mirror-1600.webp" alt="A woman stands beside a curved silver mirror, with her reflection visible" width="1600" height="901" fetchpriority="high" />
+        </picture>
       </div>
     </header>
 
     <!-- ══ 2. build it: HumanOS ═══════════════════════════════════════════ -->
-    <section aria-labelledby="build-title">
+    <section class="journey journey-feed" aria-labelledby="build-title">
       <div class="wrap">
         <div class="head">
-          <h2 id="build-title">Build it: everything human about you, in one place it can use.</h2>
-          <p>
-            <b>HumanOS</b> is who you are: your identity, your values, your style, what you know, what you would
-            never say, and your voice. You give it your own material, in your own words, and correct it from there.
-          </p>
+          <h2 id="build-title">Feed it the work that made you.</h2>
+          <p>Bring your writing, voice, videos, and context into one private studio.</p>
         </div>
 
         <div class="claims">
           <p>
-            <b>Readiness is one number.</b> Five parts feed it: whether your AI knows your material, sounds
-            like you, thinks like you, knows what not to say, and is still up to date. One number, five parts,
-            one suggested action. Publishing is locked while any part is too far behind the rest.
+            <b>Start with one source.</b> A file, link, or recording is enough to begin.
           </p>
           <p>
-            <b>The interview asks what your archive did not answer.</b> Instead of guessing, it finds the
-            gaps in what you have given it and asks you directly. Nothing about your AI changes until you
-            answer.
+            <b>Fill the gaps together.</b> Your AI asks what your material cannot answer.
           </p>
           <p>
-            <b>An unfinished AI is an apprentice, not broken.</b> You show it your work, it asks, you correct
-            it. That loop is the product, not a setup step you get through once.
+            <b>Stay in control.</b> Nothing changes until you review it.
           </p>
         </div>
       </div>
     </section>
 
     <!-- ══ 3. test it, tweak it: EmotionOS ═════════════════════════════════ -->
-    <section aria-labelledby="test-title">
+    <section class="journey journey-meet" aria-labelledby="test-title">
       <div class="wrap">
         <div class="head">
-          <h2 id="test-title">Test it, tweak it: how it feels when it talks.</h2>
-          <p>
-            <b>EmotionOS</b> is how it feels and expresses itself: its vibe, its warmth, its energy, its humour,
-            and how it reads the person it is talking to before it answers. You talk to it yourself, and correct
-            what does not sound like you.
-          </p>
+          <h2 id="test-title">Meet the first draft. Then make it yours.</h2>
+          <p>Ask a real question, hear the answer, and shape how your AI responds.</p>
         </div>
 
         <div class="claims">
           <p>
-            <b>You review what it says.</b> The Review queue puts one answer in front of you at a time:
-            Sounds right, Close, fix it, or Never say this. A correction is never just a note. It becomes
-            material your AI can point back to.
+            <b>Talk naturally.</b> Use the same questions people already bring to you.
           </p>
           <p>
-            <b>Whether it sounds like you is measured, not promised.</b> This platform checks its voice
-            against yours rather than only claiming a match, and it never states a number here without a real
-            measurement behind it.
+            <b>Correct in the moment.</b> Keep what works, fix what misses, and mark what it should never say.
           </p>
+          <p><b>Measure before you trust it.</b> Voice likeness is shown only when a real measurement exists.</p>
         </div>
       </div>
     </section>
 
     <!-- ══ 4. deploy it: RelationOS ════════════════════════════════════════ -->
-    <section aria-labelledby="deploy-title">
+    <section class="journey journey-deploy" aria-labelledby="deploy-title">
       <div class="wrap">
         <div class="head">
-          <h2 id="deploy-title">Deploy it: a private, continuing relationship with everyone who talks to it.</h2>
-          <p>
-            <b>RelationOS</b> is how it treats each person: private memory for every relationship, trust that
-            builds over time, and check-ins that follow up. Everyone who talks to it gets their own Room:
-            "Your Room. Your AI, your people." It is labelled as an AI on every screen they see, never
-            presented as you.
-          </p>
+          <h2 id="deploy-title">Deploy it when it is ready.</h2>
+          <p>Open a Room where your AI can answer, remember, and keep learning from your review.</p>
         </div>
 
         <div class="claims">
           <p>
-            <b>It remembers them, specifically.</b> Not a transcript, a continuing relationship: it checks in
-            on them, and carries what they have told it forward, in their Room alone.
+            <b>One relationship at a time.</b> Each person gets a private Room with its own memory.
           </p>
           <p>
-            <b>Nobody else ever sees it.</b> What a follower says stays in their own private scope. It never
-            writes back into your AI's shared material, and it never reaches another follower's Room. Not
-            even you see it verbatim: at most, counts over a pattern that at least five different people
-            share, and only if you have opted in to seeing that much.
+            <b>Choose what goes live.</b> Your AI stays private until you decide to publish it.
           </p>
           <p>
-            <b>Free means free, plainly.</b> A free follower gets 20 messages a month, no voice calls, and no
-            check-ins. What is paid is a number you set, not one we pick for you.
+            <b>Keep shaping it.</b> Return to Meet whenever an answer needs your touch.
           </p>
         </div>
       </div>
@@ -551,7 +634,7 @@
 
   <footer class="foot">
     <div class="wrap">
-      <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="brand" aria-hidden="true"><span class="vyakti-mark"><span class="vyakti-mark__glyph" lang="hi">व्य</span><span class="vyakti-mark__word">vyakti<small>.ai</small></span></span></span>
       <p>Vyakti turns your own material into a private AI, with a private, continuing relationship for every person who talks to it.</p>
       <span class="nav-spacer"></span>
       <a href="/privacy">Privacy and Terms</a>
@@ -563,11 +646,10 @@
   <nav class="nav" aria-label="मुख्य">
     <div class="wrap">
       <a class="brand" href="/" aria-label="Vyakti होम">
-        <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span><b>VYAKTI</b><br /><small>ROOMS</small></span>
+        <span class="vyakti-mark"><span class="vyakti-mark__glyph" aria-hidden="true" lang="hi">व्य</span><span class="vyakti-mark__word">vyakti<small>.ai</small></span></span>
       </a>
       <span class="nav-spacer"></span>
-      <a class="nav-link" href="#boundary-hi">गोपनीयता की सीमा</a>
+      <a class="nav-link" href="/studio?lang=hi">स्टूडियो</a>
       <button class="lang-toggle" type="button" data-set-lang="en">English</button>
     </div>
   </nav>
@@ -576,96 +658,73 @@
 
     <header class="hero">
       <div class="wrap">
-        <h1>अपना <em>AI</em> वर्शन बनाएं।</h1>
-        <p class="lede">
-          इसे टेस्ट करें, बदलें, और दुनिया में लॉन्च करें: जब आप खुद जवाब न दे सकें, तब भी लोग आप तक पहुंच सकें।
-        </p>
-        <a class="btn" href="/studio?lang=hi">साइन इन करें और बनाना शुरू करें</a>
-        <p class="fine">बनाना मुफ़्त है। आपके फॉलोअर क्या देंगे, यह आप तय करते हैं। हमारा हिस्सा एक ही नंबर है, जो पब्लिश करने से पहले दिखाया जाता है।</p>
+        <h1>ऐसा <em>AI</em> बनाएं, जो आपका लगे।</h1>
+        <p class="lede">इसे अपना काम दें। इससे बात करें। इसे अपने अंदाज़ में ढालें।</p>
+        <a class="btn" href="/studio?lang=hi">अपना स्टूडियो खोलें</a>
+        <p class="fine">एक फ़ाइल, लिंक या रिकॉर्डिंग से निजी तौर पर शुरू करें।</p>
+        <picture class="hero-visual">
+          <source media="(max-width: 760px)" srcset="/site/assets/vyakti-mirror-960.webp" />
+          <img src="/site/assets/vyakti-mirror-1600.webp" alt="एक महिला घुमावदार चांदी के आईने के पास खड़ी है और उसमें उसका प्रतिबिंब दिख रहा है" width="1600" height="901" fetchpriority="high" />
+        </picture>
       </div>
     </header>
 
-    <section aria-labelledby="build-title-hi">
+    <section class="journey journey-feed" aria-labelledby="build-title-hi">
       <div class="wrap">
         <div class="head">
-          <h2 id="build-title-hi">बनाएं: आपके बारे में हर इंसानी बात, एक जगह जिसे यह इस्तेमाल कर सके।</h2>
-          <p>
-            <b>HumanOS</b> आपकी पहचान है: आपके मूल्य, आपका अंदाज़, आप क्या जानते हैं, आप क्या कभी नहीं कहेंगे, और
-            आपकी आवाज़। आप इसे अपनी ही सामग्री, अपने ही शब्दों में देते हैं, और वहीं से इसे सुधारते हैं।
-          </p>
+          <h2 id="build-title-hi">इसे वह काम दें जिसने आपको बनाया है।</h2>
+          <p>अपना लेखन, आवाज़, वीडियो और संदर्भ एक निजी स्टूडियो में लाएं।</p>
         </div>
 
         <div class="claims">
           <p>
-            <b>Readiness एक नंबर है।</b> पांच हिस्से इसे बनाते हैं: क्या आपका AI आपकी सामग्री जानता है, आपकी तरह
-            बोलता है, आपकी तरह सोचता है, क्या न कहना है यह जानता है, और अभी भी अपडेट है। एक नंबर, पांच हिस्से,
-            एक सुझाया गया कदम। जब तक कोई हिस्सा बाकी से बहुत पीछे है, पब्लिश करना लॉक रहता है।
+            <b>एक स्रोत से शुरू करें।</b> शुरुआत के लिए एक फ़ाइल, लिंक या रिकॉर्डिंग काफ़ी है।
           </p>
           <p>
-            <b>इंटरव्यू वह पूछता है जो आपके आर्काइव ने नहीं बताया।</b> अंदाज़ा लगाने के बजाय, यह उन कमियों को
-            ढूंढता है जो आपने अभी तक नहीं भरीं, और सीधे आपसे पूछता है। जब तक आप जवाब नहीं देते, आपके AI में
-            कुछ नहीं बदलता।
+            <b>कमियां साथ में भरें।</b> आपकी सामग्री जिस बात का जवाब नहीं देती, आपका AI वह आपसे पूछता है।
           </p>
           <p>
-            <b>अधूरा AI एक शागिर्द है, टूटा हुआ नहीं।</b> आप इसे अपना काम दिखाते हैं, यह पूछता है, आप सुधारते हैं।
-            यही चक्र प्रोडक्ट है, कोई एक बार का सेटअप कदम नहीं।
+            <b>नियंत्रण अपने पास रखें।</b> जब तक आप रिव्यू नहीं करते, कुछ नहीं बदलता।
           </p>
         </div>
       </div>
     </section>
 
-    <section aria-labelledby="test-title-hi">
+    <section class="journey journey-meet" aria-labelledby="test-title-hi">
       <div class="wrap">
         <div class="head">
-          <h2 id="test-title-hi">टेस्ट करें, बदलें: बात करते वक्त इसका एहसास कैसा है।</h2>
-          <p>
-            <b>EmotionOS</b> तय करता है कि यह कैसा महसूस होता है और खुद को कैसे जताता है: इसका वाइब, इसकी
-            गर्मजोशी, इसकी एनर्जी, इसका ह्यूमर, और जवाब देने से पहले सामने वाले को पढ़ने का तरीका। आप खुद इससे
-            बात करते हैं, और जो आपकी तरह नहीं लगता उसे ठीक करते हैं।
-          </p>
+          <h2 id="test-title-hi">पहला रूप देखें। फिर उसे अपना बनाएं।</h2>
+          <p>असल सवाल पूछें, जवाब सुनें और अपने AI का तरीका सुधारें।</p>
         </div>
 
         <div class="claims">
           <p>
-            <b>आप देखते हैं यह क्या कह रहा है।</b> Review queue एक बार में एक जवाब आपके सामने रखता है: सही
-            लगा, लगभग सही है ठीक करें, या यह कभी मत कहना। एक सुधार सिर्फ एक नोट नहीं होता। यह ऐसी सामग्री बन
-            जाता है जिसकी तरफ आपका AI दोबारा इशारा कर सकता है।
+            <b>सहज तरीके से बात करें।</b> वही सवाल पूछें जो लोग पहले से आपके पास लाते हैं।
           </p>
           <p>
-            <b>यह आपकी तरह लगता है या नहीं, यह मापा जाता है, सिर्फ कहा नहीं जाता।</b> यह प्लेटफ़ॉर्म इसकी आवाज़
-            को आपकी आवाज़ से जांचता है, सिर्फ मेल होने का दावा नहीं करता, और बिना असली माप के यहां कभी कोई
-            नंबर नहीं बताया जाता।
+            <b>उसी समय सुधारें।</b> जो सही है उसे रखें, जो चूका उसे ठीक करें और जो कभी नहीं कहना चाहिए उसे चिन्हित करें।
           </p>
+          <p><b>भरोसा करने से पहले मापें।</b> आवाज़ की समानता तभी दिखाई जाती है जब उसका असली माप मौजूद हो।</p>
         </div>
       </div>
     </section>
 
-    <section aria-labelledby="deploy-title-hi">
+    <section class="journey journey-deploy" aria-labelledby="deploy-title-hi">
       <div class="wrap">
         <div class="head">
-          <h2 id="deploy-title-hi">लॉन्च करें: हर उस व्यक्ति के साथ एक निजी, चलती रहने वाली रिश्तेदारी जो इससे बात करता है।</h2>
-          <p>
-            <b>RelationOS</b> तय करता है कि यह हर व्यक्ति के साथ कैसा बर्ताव करता है: हर रिश्ते के लिए अलग
-            निजी याददाश्त, समय के साथ बनता भरोसा, और चेक-इन जो फॉलो-अप करते हैं। जो भी इससे बात करता है उसे
-            अपना खुद का Room मिलता है: "आपका Room. आपका AI, आपके लोग।" हर स्क्रीन पर यह AI के तौर पर लेबल
-            किया जाता है, कभी आप के तौर पर नहीं।
-          </p>
+          <h2 id="deploy-title-hi">तैयार होने पर इसे उपलब्ध कराएं।</h2>
+          <p>एक Room खोलें जहां आपका AI जवाब दे सके, याद रख सके और आपके रिव्यू से बेहतर होता रहे।</p>
         </div>
 
         <div class="claims">
           <p>
-            <b>यह उन्हें याद रखता है, खास तौर पर।</b> सिर्फ एक ट्रांसक्रिप्ट नहीं, एक चलती रिश्तेदारी: यह
-            उनका हाल पूछता है, और उन्होंने जो बताया है उसे आगे ले जाता है, सिर्फ उनके अपने Room में।
+            <b>एक समय में एक रिश्ता।</b> हर व्यक्ति को अपनी निजी याददाश्त वाला Room मिलता है।
           </p>
           <p>
-            <b>कोई और इसे कभी नहीं देखता।</b> एक फॉलोअर जो कहता है वह उसके अपने निजी दायरे में रहता है। यह
-            आपके AI की साझा सामग्री में कभी वापस नहीं जुड़ता, और यह किसी और फॉलोअर के Room तक कभी नहीं पहुंचता।
-            यहां तक कि आप भी इसे शब्दशः नहीं देखते: ज़्यादा से ज़्यादा, एक पैटर्न की गिनती जो कम से कम पांच
-            अलग लोग साझा करते हैं, और वह भी सिर्फ तब जब आपने इसे देखने के लिए सहमति दी हो।
+            <b>आप तय करें क्या लाइव होगा।</b> जब तक आप पब्लिश नहीं करते, आपका AI निजी रहता है।
           </p>
           <p>
-            <b>मुफ़्त का मतलब साफ़ तौर पर मुफ़्त है।</b> एक मुफ़्त फॉलोअर को महीने में 20 मैसेज मिलते हैं,
-            कोई वॉइस कॉल नहीं, और कोई चेक-इन नहीं। जो पेड है वह वह नंबर है जो आप तय करते हैं, हम नहीं।
+            <b>इसे बेहतर बनाते रहें।</b> जब भी किसी जवाब को आपकी जरूरत हो, Meet में लौटें।
           </p>
         </div>
       </div>
@@ -758,7 +817,7 @@
 
   <footer class="foot">
     <div class="wrap">
-      <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="brand" aria-hidden="true"><span class="vyakti-mark"><span class="vyakti-mark__glyph" lang="hi">व्य</span><span class="vyakti-mark__word">vyakti<small>.ai</small></span></span></span>
       <p>Vyakti आपकी अपनी सामग्री को एक निजी AI में बदलता है, हर उस व्यक्ति के साथ एक निजी, चलती रहने वाली रिश्तेदारी के साथ जो इससे बात करता है।</p>
       <span class="nav-spacer"></span>
       <a href="/privacy">गोपनीयता और शर्तें</a>
