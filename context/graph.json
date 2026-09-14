@@ -20517,6 +20517,24 @@
       "kind": "measurement",
       "title": "Owner source inventory and voice-probe integration verified",
       "at": "context/measurements.md#wave25-owner-material-and-probe-integration-20260914"
+    },
+    {
+      "id": "wave25-cascade-control-mutates-every-delivered-order-contract",
+      "kind": "decision",
+      "title": "Cascade regression controls remove every delivered layer-order authority and judge the real contrast floor",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-cascade-and-personal-rehearsal-release-repair-20260914",
+      "kind": "measurement",
+      "title": "Creator cascade passed 32 browser groups and personal rehearsal passed 62 checks after the shared voice-probe repair",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-html-only-cascade-mutation-and-exact-old-ratio-became-vacuous",
+      "kind": "rejection",
+      "title": "HTML-only layer mutation and the old palette-specific sub-2 ratio no longer proved the cascade failure",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -34917,6 +34935,16 @@
       "src": "wave25-retain-ci-gate-diagnostics",
       "rel": "measured_by",
       "dst": "wave25-linux-performance-and-dialogue-controls-20260914"
+    },
+    {
+      "src": "wave25-cascade-control-mutates-every-delivered-order-contract",
+      "rel": "measured_by",
+      "dst": "wave25-cascade-and-personal-rehearsal-release-repair-20260914"
+    },
+    {
+      "src": "wave25-html-only-cascade-mutation-and-exact-old-ratio-became-vacuous",
+      "rel": "caused_by",
+      "dst": "wave25-cascade-control-mutates-every-delivered-order-contract"
     }
   ]
 }

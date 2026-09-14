@@ -19198,3 +19198,7 @@ Read-only Azure metadata found the operator could attach four existing UMIs, but
 ## wave25-first-text-match-mutated-another-generator
 
 2026-09-14. The dialogue Unicode verifier correctly inspected generateOwnedDialogue, but its negative control replaced the first matching beginFoundrySpend in the whole file. After text-only budgeting was added, that first match belonged to another generator, so the negative control no longer damaged the verified body and falsely failed. Mutate the parsed target body; do not remove the negative control. Separately do not interpret Windows zero load-average output as evidence of a quiet machine; Linux release timing passed the original Hindi budget.
+
+## `wave25-html-only-cascade-mutation-and-exact-old-ratio-became-vacuous`
+
+2026-09-14. The creator cascade test removed only the fixture HTML's layer declaration and required a contrast ratio below 2. Vite's current CSS output also retains order-only layer statements, so the mutation left the repaired order intact. After removing every delivered order declaration, the premium forest palette recreated the same dark inherited button label at 2.13:1 or 2.15:1 rather than the former palette's 1.73:1. Accepting the now-vacuous mutation or hard-coding another palette-specific ratio would stop the test from proving the 4.5:1 contract. The control now mutates the whole delivered order surface and compares the actual browser result to the real floor.

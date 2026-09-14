@@ -25449,3 +25449,7 @@ Owner forbids Microsoft-account browser use on the employer laptop and explicitl
 ## wave25-retain-ci-gate-diagnostics
 
 2026-09-14. Upload the release runner's already-redacted scratchpad/release-logs as a per-Node, exact-commit CI artifact, retained3 days, even when a check fails. Reporting failure does not change the gate verdict. The15bc run lost successful performance medians and all but the final eval output excerpt when its runner disappeared; the next agent should not have to reproduce every failure merely to read its cause. Existing workflow lint passed across4 files, n=1; artifact delivery is not yet observed. Reverse this if CI persists equivalent complete sanitized diagnostics elsewhere without an extra upload step. No secrets, config payloads or live-database output are added to this stub-only workflow.
+
+## `wave25-cascade-control-mutates-every-delivered-order-contract`
+
+2026-09-14. The creator cascade negative control removes the canonical layer-order declaration from the fixture HTML and every emitted CSS file before exercising the actual tokens-last graph. Vite now preserves order-only layer statements in extracted CSS, so removing the HTML declaration alone no longer recreates the historical failure. The control judges the resulting computed contrast against the unchanged 4.5:1 floor instead of requiring the old palette's exact sub-2 ratio. Reverse this mutation only when the production build has exactly one order authority again and removing that authority still proves the same browser-visible failure.
