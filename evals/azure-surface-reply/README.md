@@ -1,16 +1,18 @@
-# Optional Azure shared reply adapter
+# Room reply through the Meet Azure registry
 
 Enable only after checking the deployment and its actual rate card:
 
 | Setting | Meaning |
 |---|---|
-| `VYAKTI_REPLY_PROVIDER=azure_foundry` | Explicit selection. Unset keeps OpenRouter. Unknown values refuse. |
-| `AZURE_FOUNDRY_REPLY_ENDPOINT` | Foundry resource HTTPS root, or `/models`; falls back to `AZURE_FOUNDRY_ENDPOINT`. |
-| `AZURE_FOUNDRY_REPLY_MODEL` | Exact deployed model name, never inferred from another lane. |
-| `AZURE_FOUNDRY_REPLY_API_KEY` | Server-only key; falls back to `AZURE_FOUNDRY_API_KEY`. |
-| `AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS` | Explicit input price for this deployment. |
-| `AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS` | Explicit output price for this deployment. |
-| `AZURE_FOUNDRY_REPLY_RATE_MODEL` | Required for `gpt-5.6-terra`, exactly that deployment name. Explicit acknowledgement that the two reply rates belong to this model. Mini and existing legacy configurations are unchanged. |
+| `AZURE_FOUNDRY_ENDPOINT` | Foundry resource HTTPS root or `/models`, shared with Meet. |
+| `AZURE_FOUNDRY_DIALOGUE_MODEL` | Exact deployed dialogue model shared with Meet. |
+| `AZURE_FOUNDRY_API_KEY` | Server-only key shared with Meet. |
+| `AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS` | Explicit input price for the ordinary dialogue deployment. |
+| `AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS` | Explicit output price for the ordinary dialogue deployment. |
+| `AZURE_FOUNDRY_DIALOGUE_RATE_MODEL` | Required for `gpt-5.6-terra`, exactly that deployment name. |
+| `AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL` | Required dated response-model binding for `gpt-5.6-terra`. |
+| `AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS` | Terra-specific input rate. |
+| `AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS` | Terra-specific output rate. |
 | `AZURE_REPLICA_APP_BUDGET_USD` | Existing durable application budget limit. |
 | `AZURE_REPLICA_BUDGET_ID` | Optional existing budget identifier. |
 
@@ -20,11 +22,13 @@ capability describes configuration readiness, not a live deployment or balance
 probe. Never place keys in client bundles or examples.
 
 The existing shared compiler, recalled memory, output guards and protected
-voice route remain the caller. This only changes the explicitly selected
-model transport. It has no fallback or retry loop. A dispatched request keeps
+voice route remain the caller. The Room constructs its reply provider through
+`api/_dialogue/registry.js`, the same production registry Meet uses. It has no
+fallback or retry loop. A dispatched request keeps
 its reservation until measured usage settles; missing usage, HTTP errors and
 timeouts remain reconciliation work. Unknown dispatch outcomes are not free.
-Each normal `think` invocation gets a new attempt receipt; this does not claim
+There is no OpenRouter selection or fallback on this path. Each normal `think`
+invocation gets a new attempt receipt; this does not claim
 end-to-end client retry idempotency. The lower-level adapter accepts a stable
 request key when a caller has a durable attempt identity.
 
@@ -61,5 +65,5 @@ own compatibility review and is outside this request-dialect delta.
 Run `node evals/azure-surface-reply/run.mjs`. The 24 deterministic checks use
 synthetic prices, mocked HTTP and the real budget functions against a fixture
 database. They prove control flow, not SQL validity or live cost. No cloud
-calls are made by the suite. Mirror reply 136 and surface gate 84 regression
+calls are made by the suite. Mirror reply 137 and surface gate 84 regression
 checks also passed after integration.

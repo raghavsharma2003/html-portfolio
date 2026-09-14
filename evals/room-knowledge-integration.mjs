@@ -156,10 +156,10 @@ pass("removal/edit/Room pause after provider blocks successful delivery and assi
 
 {
   const w = await setup(); let providerRequest;
-  const env = { VYAKTI_MODEL_SERVING: "azure_only", AZURE_FOUNDRY_REPLY_ENDPOINT: "https://fixture.services.ai.azure.com/",
-    AZURE_FOUNDRY_REPLY_MODEL: "fixture-model", AZURE_FOUNDRY_REPLY_API_KEY: "fixture-not-a-real-key",
-    AZURE_REPLICA_APP_BUDGET_USD: "1", AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: "1",
-    AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS: "1" };
+  const env = { VYAKTI_MODEL_SERVING: "azure_only", AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com/",
+    AZURE_FOUNDRY_DIALOGUE_MODEL: "fixture-model", AZURE_FOUNDRY_API_KEY: "fixture-not-a-real-key",
+    AZURE_REPLICA_APP_BUDGET_USD: "1", AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "1",
+    AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1" };
   let reservation;
   const ledger = async (sql, p) => {
     if (sql.includes("insert into vy_provider_budget")) return [];

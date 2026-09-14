@@ -25152,3 +25152,11 @@ maintaining two step-rail components in the same product long-term.
 **Why.** The platform branch is the one branch this session is allowed to push; ten new remote branches would need the owner's say and would scatter the handoff. A patch on the platform branch travels with the context that explains it, is reviewable in PR #6, and costs nothing to apply.
 
 **Reversal.** If a patch ever fails to apply cleanly on the base it names (the base moved, or binary files drifted), the next loop pushes the WIP branches instead with the owner's permission and this entry is superseded.
+
+## `wave25-room-replies-use-meets-azure-registry` (2026-09-14, wave 25)
+
+**Decision.** Room's shared `think()` seam constructs its production reply generator through `api/_dialogue/registry.js` and uses Meet's `AZURE_FOUNDRY_ENDPOINT`, `AZURE_FOUNDRY_API_KEY`, `AZURE_FOUNDRY_DIALOGUE_MODEL`, deployment-rate and durable budget contract. OpenRouter is no longer a Room fallback. The adapter still returns raw text into Room's established bubble, expert-answer, disclosure, never-rule and delivery gates; it retains the 72,000-character core cap, 24,000-character tail cap, 400-token output ceiling, 30-second transport bound and reserve/begin/settle/uncertain-spend ledger.
+
+**Why.** Meet already owns the one Azure Foundry dialogue registry and the explicitly verified Terra protocol. A second Room namespace for endpoint, model, key and rates allowed the two reply paths to select or price the same deployment differently. Registering Room's raw-text adapter at the same factory boundary removes that drift without changing the downstream parser that public Room replies depend on.
+
+**Reversal.** Replace the raw Room adapter only after a separately versioned structured-output parser has equivalence measurements for bubble order, expert citations, disclosure, never-rules and delivery across the existing Room fixtures. Until then, Room and Meet share provider identity and pricing while keeping their distinct output contracts.

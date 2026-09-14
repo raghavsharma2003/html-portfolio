@@ -18739,3 +18739,9 @@ Method: each workstream's own report (suite counts as printed), the main loop's 
 | WS-R177 the studio fast on 4G | 123aa34 | performance-measurements 41, performance-prerequisites, performance-hindi-interface, gate-load |
 
 Batch gate on the ten-merge tree: 25 of 25 on ed1470e. Live database after the wave: unchanged (no workstream needed a migration; 172, 173 and 174 stay unused and 172 is still the next free number).
+
+## `wave25-room-azure-provider-focused-controls-2026-09-14`
+
+Method: offline injected provider, database and fetch fixtures against the exact wave-25 base plus this worktree's Room registry changes; no model call, cloud mutation, deployment or real SQL. Date: 2026-09-14. `n=15` focused commands: Azure surface reply 24/24, Azure dialogue adapter 74/74, Azure-only serving 20/20, Azure self-check 20/20, Mirror Call reply 137/137, Room knowledge integration 11/11, provider budget 43/43, surface gates 84/84, Room 67/67, Room expert answer 19/19, Room taste 42/42, incidents 134/134, Room expert runtime 24/24, raw isolation 52/52, and TypeScript project build exit 0. Copy law also passed 7 scopes with 21 negative controls, and the prompt-budget check passed all 83 byte-identity fixtures. The broad legacy `evals/self-check/run.mjs` still has seven assertions for the retired OpenRouter/default-provider contract; the deployment-contract workstream owns updating that mirror with `scripts/write-config.mjs`.
+
+Conclusion: every focused current Room, Azure transport, parser, budget, incident-inventory and type boundary exercised here passed. The measurement proves control flow and contract preservation with injected responses; it does not prove Azure credentials, runtime binding, prices, model quality or live database behavior.

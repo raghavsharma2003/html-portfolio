@@ -18815,3 +18815,13 @@ never clicks there would have shipped the same defect silently.
 **What was done.** Each worktree's dirty state was committed locally as a WIP commit and exported as a patch against `23d320f` under `docs/handoff/2026-09-14/wave-24-wip/` on the platform branch, with `INDEX.txt` and a per-workstream "where it stopped" table in `docs/handoff/2026-09-14/CODEX-HANDOFF.md`, so the next loop (Codex, per the owner) resumes each from its patch rather than from the brief.
 
 **The rule.** Run at most five workstreams at once, and every brief carries: commit your work every hour whether or not it is gated (a WIP commit on your own branch costs nothing and survives a killed agent). `CLAUDE.md`'s model policy already warned that the main loop hit a usage limit mid-build once; this is the same failure one level down.
+
+## `wave25-room-cannot-adopt-meets-structured-output-parser-by-provider-alignment` (2026-09-14, wave 25)
+
+**Tried.** Traced whether Room could call `createProductionDialogueGenerator()` directly when moving its reply path onto Meet's Azure registry.
+
+**What specifically broke.** Meet's generator requires its private-dialogue JSON schema and returns that structured payload. Room's shared surface requires raw text for `parseBubbles`, the expert-answer parser, disclosure insertion, never-rules and the existing delivery protocol. Reusing the structured generator would silently replace those established contracts even though the provider and deployment were correct.
+
+**What replaced it.** Added a Room reply factory to the same production registry. It reuses Meet's endpoint, deployment, key, Terra revision and pricing contract, then calls the existing budgeted raw-text adapter so the Room parser remains authoritative.
+
+**Reversal condition.** This rejection can be retired when a versioned structured Room parser passes explicit equivalence fixtures for every affected parser and delivery behavior named above.

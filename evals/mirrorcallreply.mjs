@@ -98,15 +98,24 @@ const SLUG = "arjun-sir-physics";
 // is content-free, shares the executor's exact predicate, and refuses session
 // creation before any durable or paid work.
 {
+  const readyEnv = {
+    AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com/",
+    AZURE_FOUNDRY_DIALOGUE_MODEL: "fixture-model",
+    AZURE_FOUNDRY_API_KEY: "fixture-not-a-real-key",
+    AZURE_REPLICA_APP_BUDGET_USD: "1",
+    AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "1",
+    AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1",
+  };
   const unavailable = replyCapability.replyEngineCapability({});
-  const ready = replyCapability.replyEngineCapability({ OPENROUTER_API_KEY: "configured" });
+  const ready = replyCapability.replyEngineCapability(readyEnv);
   eq(unavailable.available, false, "an absent reply credential reports unavailable");
   eq(unavailable.reason, "reply_engine_unavailable", "the refusal uses a stable public reason");
   eq(ready.available, true, "a configured reply executor reports ready");
-  eq(replyCapability.replyEngineCapability({ OPENROUTER_KEY: "configured" }).available, true,
-    "the required deployment key name is sufficient without its optional alias");
-  eq(replyCapability.replyEngineCapability({ OPENROUTER_KEY: "" }).available, false,
-    "an explicitly empty deployment key does not pretend that the executor is ready");
+  eq(replyCapability.replyEngineCapability({ ...readyEnv, AZURE_FOUNDRY_API_KEY: "" }).available, false,
+    "an explicitly empty Foundry key does not pretend that the executor is ready");
+  eq(replyCapability.replyEngineCapability({ ...readyEnv, OPENROUTER_KEY: "configured",
+    AZURE_FOUNDRY_DIALOGUE_MODEL: "" }).available, false,
+    "a foreign fallback key cannot replace the Meet dialogue deployment");
   eq(
     Object.keys(unavailable).sort().join(","),
     "available,reason,state",

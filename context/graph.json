@@ -19506,6 +19506,24 @@
       "kind": "decision",
       "title": "A killed wave's in-progress work is preserved as one patch per workstream on the platform branch (2026-09-14)",
       "at": "context/decisions.md#wave-24-wip-preserved-as-patches-on-the-platform-branch"
+    },
+    {
+      "id": "wave25-room-replies-use-meets-azure-registry",
+      "kind": "decision",
+      "title": "Room replies use Meet's Azure Foundry registry while retaining Room's parser and delivery contracts (2026-09-14)",
+      "at": "context/decisions.md#wave25-room-replies-use-meets-azure-registry"
+    },
+    {
+      "id": "wave25-room-azure-provider-focused-controls-2026-09-14",
+      "kind": "measurement",
+      "title": "Focused offline Room Azure provider, parser, budget and type controls (2026-09-14)",
+      "at": "context/measurements.md#wave25-room-azure-provider-focused-controls-2026-09-14"
+    },
+    {
+      "id": "wave25-room-cannot-adopt-meets-structured-output-parser-by-provider-alignment",
+      "kind": "rejection",
+      "title": "Provider alignment cannot replace Room's raw parser with Meet's structured output contract (2026-09-14)",
+      "at": "context/rejected.md#wave25-room-cannot-adopt-meets-structured-output-parser-by-provider-alignment"
     }
   ],
   "edges": [
@@ -33316,6 +33334,16 @@
       "src": "ten-parallel-agents-exhausted-the-session-limit-before-any-finished",
       "dst": "wave-23-merged-as-a-batch-with-plan-only-explains-at-the-merge",
       "rel": "constrains"
+    },
+    {
+      "src": "wave25-room-replies-use-meets-azure-registry",
+      "dst": "wave25-room-azure-provider-focused-controls-2026-09-14",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave25-room-replies-use-meets-azure-registry",
+      "dst": "wave25-room-cannot-adopt-meets-structured-output-parser-by-provider-alignment",
+      "rel": "caused_by"
     }
   ]
 }
