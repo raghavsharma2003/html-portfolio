@@ -25,6 +25,7 @@ async function capture(state) {
    return {overflow:document.documentElement.scrollWidth-innerWidth, rail:rect('.ffm-rail'), title:rect('.vx-stage-title'), panel:rect('.vx-capture__center, .vx-upload__center'), minControlHeight: controls.length?Math.min(...controls.map(e=>e.getBoundingClientRect().height)):null, controls:controls.map(e=>({text:e.textContent,rect:e.getBoundingClientRect().toJSON()})), runtimeError:document.documentElement.dataset.qaRuntimeError||''};
   });
   assert.ok(data.overflow<=1,`${state}/${width} overflow`);
+  assert.equal(await page.locator('.ffm-step').nth(1).getAttribute('aria-current'),'step',`${state}/${width} stays on Feed while collecting`);
   assert.ok(data.minControlHeight===null||data.minControlHeight>=44,`${state}/${width} control ${data.minControlHeight}`);
   assert.ok(!data.rail||data.title.top>=data.rail.bottom+8,`${state}/${width} rail/title overlap`);
   assert.ok(data.panel.top>=data.title.bottom+8,`${state}/${width} title/panel overlap`);

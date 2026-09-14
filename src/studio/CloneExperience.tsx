@@ -1345,7 +1345,9 @@ export default function CloneExperience(props: CloneExperienceProps) {
   // `FirstFiveMinutes.tsx`'s own header for why).
   const firstFiveMinutesStepId = selected && !creatingNew && !readBlocked
     ? firstFiveMinutesStep({
-        hasFirstSource: wizardInput.sourceCount > 0 || (wizardInput.contextItemCount ?? 0) > 0,
+        hasFirstSource: sources.some((source) => ["uploaded", "quarantined", "processing", "ready"].includes(source.state))
+          || (wizardInput.contextItemCount ?? 0) > 0,
+        collecting: showRecorder || Boolean(upload),
         reachedMeet: showRooms || privateFirstMeet || room === "rehearsal"
           || (room === "voice" && meetView === "sample" && internalVoiceAvailability === "enabled"),
       })

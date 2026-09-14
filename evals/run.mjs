@@ -36,6 +36,7 @@ execSync(
 );
 
 const suites = {
+  "studio-media-policy": "studio-media-policy/run.mjs",
   "workspace-notice": "workspace-notice/run.mjs",
   "account-email-redirect": "account-email-redirect.mjs",
   "candidate-binding-recovery": "text-publication-ui/candidate-binding-recovery.mjs",

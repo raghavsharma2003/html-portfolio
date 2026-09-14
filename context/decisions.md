@@ -25486,3 +25486,8 @@ Use the owner's actual phone journey as the next release target. Rebuild capture
 ## wave26-silver-capture-keeps-controls-in-flow
 
 2026-09-14. The owner explicitly rejected the giant forest-green dial. Code 897ebe43 replaces its recorder presentation with a compact waveform driven by the existing microphone history, a timer, and one rectangular control. Idle, recording and preview share a 342px minimum surface. The rail explanation spans the whole rail, and capture/upload/recovery reserve the rail in normal flow. Error and upload actions remain in the scroll owner. Scoped silver tokens preserve the other product behavior and all capture callbacks. Reverse only if a replacement proves equally reachable controls, readable copy and stable state geometry at 360, 390, 768 and 1440 pixels with real mounted components. The owner-pinned silver direction supersedes the skill roll; no new assets, providers or cloud calls were needed.
+
+
+## wave26-studio-policy-must-allow-real-media-doors
+
+Allow only the existing Azure media account in Studio connect-src and local blob media in media-src, on both /studio and /studio.html. Preserve all other routes and policy clauses. The real browser must enforce both a failing old-policy control and successful corrected upload/media paths. Reverse the explicit account origin only when the actual storage account changes or uploads move behind the same-origin API. Feed remains current while recording/uploading and pending/rejected/deleting sources do not count as received material.

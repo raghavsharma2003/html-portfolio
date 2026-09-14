@@ -44,9 +44,10 @@ export type FirstFiveMinutesStep = "firstSource" | "meetWait";
 export function firstFiveMinutesStep(input: {
   hasFirstSource: boolean;
   reachedMeet: boolean;
+  collecting?: boolean;
 }): FirstFiveMinutesStep | null {
   if (input.reachedMeet) return null;
-  return input.hasFirstSource ? "meetWait" : "firstSource";
+  return input.hasFirstSource && !input.collecting ? "meetWait" : "firstSource";
 }
 
 export function FirstFiveMinutesRail({ step }: { step: FirstFiveMinutesStep }) {
