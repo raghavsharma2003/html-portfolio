@@ -12,7 +12,11 @@ Actual live database: citation discipline,3/3 dialogue EXPLAINs and5/5 Terra act
 
 Current Azure scheduled processing image already contains both historic bandwidth fixes, proven by retained recovered image bytes. It lacks later Azure-only/purpose/storage/erase controls; a worker-specific update is being prepared. Neither the recovered fixes nor Speech catalogue access proves voice likeness. Actual signed-in Feed -> Meet -> correct -> Deploy -> visitor journey, Hindi/Hinglish/English voice quality, final full gate, main merge and deployment remain unaccepted. GroupAI was archived and remains private. No product deployment has occurred in this wave.
 
-Next: finish first-user Meet/share/email-entry fixes and worker packaging; complete the frozen full gate; checkpoint/push; merge PR6 and cut over only after acceptance; walk the real creator/visitor journey; then resume wave24 in at most five workstreams. Never represent offline fixtures as owner voice or real journey proof.
+Later checkpoint through79e6c085: closed creator-material boundaries keep relationship-stage changes out of the cached CORE without swallowing trusted compiler instructions; focused Room leak372 and drift41 assertions across44turns pass. Face result parsing and capture-duration headroom are repaired, with9 and10 focused checks. The committed processing worker packet is byte-identical across61 source files to this checkpoint. One Azure ACR build cu3t was submitted on the sponsored subscription, with CPU2 and1200s timeout; last observed Queued. No Job update or worker execution. These operational limits are not a dollar cap.
+
+Read `docs/handoff/2026-09-14/PRODUCT-STATUS.md` for the plain-language product/model map and `VOICE-ENROLLMENT-REALITY.md` for the actual voice blocker. The fresh enrollment evidence producer is incomplete; no new voice likeness measurement exists. Email magic-link callbacks already exist in both Studio paths, but send_otp lacks an explicit return destination and Supabase redirect configuration remains unverified.
+
+Next: finish first-user Meet/share/email-entry fixes; verify the worker build; complete the frozen full gate; checkpoint/push; merge PR6 and cut over only after acceptance; walk the real creator/visitor journey; then resume wave24 in at most five workstreams. Never represent offline fixtures as owner voice or real journey proof.
 
 ## START HERE: WAVE TWENTY-FOUR OPENED AND PAUSED (main loop, 2026-09-14, read with the block below it)
 

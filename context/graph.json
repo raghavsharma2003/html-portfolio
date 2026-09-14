@@ -19935,6 +19935,24 @@
       "kind": "rejection",
       "title": "Zero-margin liveness timer rejected",
       "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-cloud-build-submitted-20260914-decision",
+      "kind": "decision",
+      "title": "One reviewed Azure worker build before activation",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-cloud-build-submitted-20260914-measurement",
+      "kind": "measurement",
+      "title": "Actual ACR build cu3t submitted",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-cloud-build-submitted-20260914-rejection",
+      "kind": "rejection",
+      "title": "Missing email destination is not absent callback support",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -33980,6 +33998,11 @@
       "src": "standalone25-capture-duration-zero-margin-rejected-20260914",
       "dst": "standalone25-capture-duration-headroom-20260914",
       "rel": "caused_by"
+    },
+    {
+      "src": "wave25-cloud-build-submitted-20260914-decision",
+      "dst": "wave25-cloud-build-submitted-20260914-measurement",
+      "rel": "measured_by"
     }
   ]
 }

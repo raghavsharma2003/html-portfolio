@@ -25281,3 +25281,8 @@ The sponsored Azure subscription and working Speech/Foundry access do not resolv
 ## standalone25-capture-duration-headroom-20260914
 
 2026-09-14. Set the browser auto-stop to 25 seconds, leaving five seconds of headroom under the strict 30-second decoder ceiling because wall timers can fire late and tabs can stall during upload handoff. The server remains authoritative and refuses decoded audio beyond 30 seconds. Reverse if the transport gains a measured hard deadline with equivalent protection.
+
+
+## wave25-cloud-build-submitted-20260914-decision
+
+Build the exact committed worker source on the existing sponsored subscription with CPU 2 and a 1200-second timeout. Activation remains separate and requires release acceptance. Reverse the source pin only after a reviewed source change and a new immutable package; do not equate runtime limits with a dollar cap.

@@ -18888,3 +18888,8 @@ Method: static contract tests on both liveness capture surfaces; n=2 UI sources 
 ## standalone25-capture-duration-headroom-measurement-20260914
 
 The mirrored UI constants are 25 seconds while identity_audio.py remains RATE * 30.
+
+
+## wave25-cloud-build-submitted-20260914-measurement
+
+2026-09-14, n=1 actual Azure build submission. Exact source95f4be92, archive SHA256 a74d30e2713d0e1e19e5edab262e92e24860f2d76a04801f2ed89449ddb6d8ae; all61 source files independently match79e6c085. ARM recorded run cu3t; two read-only polls observed Queued. No image acceptance, Job update, GPU wake or runtime execution. Ignored receipt STANDALONE25-PROCESSING-ACR-INTENT-V3.json preserves the sole submission.
