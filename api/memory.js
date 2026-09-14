@@ -3831,7 +3831,14 @@ async function purgeRelational(devices, scope, { logIds = [], rx = null, from = 
   // ── steps 2+4: delete episodes with the superseded_by chase, both
   // directions, in one recursive statement (SQL-HTTP = no transactions, so
   // each statement must leave a consistent-enough state on its own; the
-  // zero-orphan sweep is the prover). FK cascade takes assertions/moments.
+  // zero-orphan sweep is the prover). Surviving raw rows are returned to the
+  // valid unconsolidated state in this SAME statement. A content-free
+  // provisional episode per remaining agent/device/channel wakes the nightly
+  // finalizer, whose person cursor is provisional episodes rather than raw
+  // NULLs. It can segment again from the text left after the requested
+  // item/window deletion; leaving the old cursor would hide that text forever
+  // behind an episode this statement removes. FK cascade takes assertions/
+  // moments.
   let epIds = [];
   if (seeds.size) {
     const gone = await q(
@@ -3840,8 +3847,25 @@ async function purgeRelational(devices, scope, { logIds = [], rx = null, from = 
          union
          select e.id, e.superseded_by from vy_episode e
            join doomed d on e.person_id = $1 and (e.id = d.superseded_by or e.superseded_by = d.id)
+       ), unclaimed_logs as (
+         update meera_log l set episode_id = null
+          where l.episode_id in (select id from doomed)
+         returning l.id,l.agent_id,l.device_id,l.channel,l.at,l.group_id,l.room_memory_follower_id
+       ), wake_episodes as (
+         insert into vy_episode
+           (agent_id,person_id,device_id,channel,participation,started_at,ended_at,
+            boundary_reason,log_from,log_to,summary,provisional)
+         select l.agent_id,$1::uuid,l.device_id,
+                case when l.channel = 'call' then 'call' else 'chat' end,
+                'user',min(l.at),max(l.at),'backfill',min(l.id),max(l.id),'',true
+           from unclaimed_logs l
+          where l.group_id is null and l.room_memory_follower_id is null
+          group by l.agent_id,l.device_id,case when l.channel = 'call' then 'call' else 'chat' end
+         returning id
        )
        delete from vy_episode where person_id = $1 and id in (select id from doomed)
+         and (select count(*) from unclaimed_logs) >= 0
+         and (select count(*) from wake_episodes) >= 0
        returning id`,
       [person, [...seeds]],
       30_000,

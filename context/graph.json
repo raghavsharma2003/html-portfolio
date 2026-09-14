@@ -19677,6 +19677,24 @@
       "kind": "rejection",
       "title": "Terra correction cannot require Mini's non-null fingerprint contract (2026-09-14)",
       "at": "context/rejected.md#wave25-terra-correction-cannot-require-mini-style-fingerprint"
+    },
+    {
+      "id": "wave25-partial-forget-requeues-surviving-raw-lineage-atomically",
+      "kind": "decision",
+      "title": "Partial forget atomically requeues surviving raw lineage with content-free wake markers (2026-09-14)",
+      "at": "context/decisions.md#wave25-partial-forget-requeues-surviving-raw-lineage-atomically"
+    },
+    {
+      "id": "wave25-partial-forget-integrity-focused-controls-20260914",
+      "kind": "measurement",
+      "title": "Focused partial-forget integrity controls pass offline; live rollback remains unrun (2026-09-14)",
+      "at": "context/measurements.md#wave25-partial-forget-integrity-focused-controls-20260914"
+    },
+    {
+      "id": "wave25-clearing-dangling-cursors-alone-does-not-wake-finalizer",
+      "kind": "rejection",
+      "title": "Clearing dangling cursors alone does not wake the provisional-episode finalizer (2026-09-14)",
+      "at": "context/rejected.md#wave25-clearing-dangling-cursors-alone-does-not-wake-finalizer"
     }
   ],
   "edges": [
@@ -33576,6 +33594,16 @@
     {
       "src": "wave25-terra-correction-uses-explicit-nullable-revision-receipts",
       "dst": "wave25-terra-correction-cannot-require-mini-style-fingerprint",
+      "rel": "caused_by"
+    },
+    {
+      "src": "wave25-partial-forget-requeues-surviving-raw-lineage-atomically",
+      "dst": "wave25-partial-forget-integrity-focused-controls-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave25-partial-forget-requeues-surviving-raw-lineage-atomically",
+      "dst": "wave25-clearing-dangling-cursors-alone-does-not-wake-finalizer",
       "rel": "caused_by"
     }
   ]

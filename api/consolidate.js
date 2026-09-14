@@ -350,9 +350,17 @@ export function stripWatchRows(rows) {
 
 async function suppressionRegexes(person, agentId = MEERA_AGENT_ID) {
   const rows = await q(
-    `select term from meera_forget f where device_id = $1
+    `select f.term from meera_forget f
+      where f.device_id in (
+        select d.device_id from vy_person_device d where d.person_id = $1::uuid
+        union
+        select $1::uuid where not exists (
+          select 1 from vy_person_device d where d.person_id = $1::uuid
+        )
+      )
       ${agentScopePredicate("f", { agentId: "$2" })}
-      order by at desc limit 200`,
+      group by f.term
+      order by max(f.at) desc limit 200`,
     [person, agentId],
   ).catch(() => []);
   const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
