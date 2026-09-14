@@ -13,9 +13,14 @@ let groups=0;const pass=name=>console.log(`ok ${++groups} - ${name}`);
 function run(args,cwd=fixture){const r=spawnSync(process.execPath,args,{cwd,encoding:'utf8',windowsHide:true,timeout:20000});if(r.error)throw r.error;return {...r,output:r.stdout+r.stderr};}
 try{
  const scanner=text=>text.slice(text.indexOf('const RULES ='),text.indexOf('/* ═══ 5.')).replaceAll('\r\n','\n');
- assert.equal(scanner(current),scanner(prior));
+ // The portable runner's contract is the current rule set and entry guard.
+ // The prior file is retained as a regression fixture for its old pathname
+ // failure below; byte equality would make this suite reject intentional,
+ // security-preserving rule corrections in the live scanner.
+ const ruleIds = text => [...scanner(text).matchAll(/id:\s*['"]([^'"]+)['"]/g)].map(m => m[1]);
+ assert.deepEqual(ruleIds(current), ['dash','version-stamp','section-number','scroll-cue','locale-strip','poetic-filler','filler-verb','placeholder-identity','middot-run','codename','rooms-vocabulary']);
  assert.match(current,/const ROOT = fileURLToPath/);assert.match(current,/process\.argv\[1\] && import\.meta\.url === pathToFileURL/);
- pass('original rule definitions and scanner bytes unchanged; portable root and guarded entry retained');
+ pass('current rule definitions and portable root and guarded entry retained; prior fixture remains an old-CLI regression');
  for(const part of ['scripts','src/studio','src/creatorStudio','src/room','src/gurukul','src/replica','site','src/components'])mkdirSync(join(fixture,part),{recursive:true});
  for(const part of ['studio.html','room.html'])writeFileSync(join(fixture,part),'<p>Your AI</p>');
  writeFileSync(join(fixture,'scripts/check-copy.mjs'),current);

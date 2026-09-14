@@ -16,7 +16,10 @@ export function walk(root, prefix = '') {
 }
 const privatePath = p => /(?:^|\/)(?:\.env[^/]*|_config(?:\.js|\.env)|keyring\.json|google-keys\.env|scratchpad|first-clone-out)(?:\/|$)/i.test(p) || /\.(?:pem|key|wav|mp3|m4a|pt|safetensors)$/i.test(p);
 const viteConfigDependencies = ['scripts/build-creator-page-fixture.mjs','scripts/build-room-about-fixture.mjs','services/azure-web/build-outcome.mjs'];
-const viteConfigEntries = ['index.html','studio.html','room.html','studio-layout-fixture.html','creator-layout-fixture.html','room-layout-fixture.html','site/creators.html'];
+// The standalone25 shell has no root index.html. Vercel serves the explicit
+// room/studio entry points and the creators directory; keep this manifest in
+// lockstep with the checked-in Vite inputs rather than requiring a dead entry.
+const viteConfigEntries = ['studio.html','room.html','studio-layout-fixture.html','creator-layout-fixture.html','room-layout-fixture.html','site/creators.html'];
 export function prepareContext(root, destination) {
   root = resolve(root); destination = resolve(destination);
   if (existsSync(destination)) throw new Error('azure_web_context_must_be_new');

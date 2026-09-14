@@ -1032,7 +1032,7 @@ console.log("\n── §6: every WS-R57 route class still has a vercel.json head
     { source: "/r/:slug", required: ["Content-Security-Policy", "Permissions-Policy"] },
     { source: "/studio", required: ["Content-Security-Policy", "Permissions-Policy"] },
     { source: "/", required: ["Content-Security-Policy"] },
-    { source: "/vyakti", required: ["Content-Security-Policy"] },
+    { source: "/room.html", required: ["Content-Security-Policy"] },
     { source: "/suites", required: ["Content-Security-Policy"] },
     { source: "/creators", required: ["Content-Security-Policy"] },
     { source: "/api/(.*)", required: ["X-Content-Type-Options", "Cache-Control"] },

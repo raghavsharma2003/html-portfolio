@@ -964,7 +964,7 @@ ok('negative control: Room memory inventory refuses missing heartbeat classifica
 
 const PROVIDER_EXCLUDED = [
   "_azure.js", "_channel-secrets.js", "_db.js", "_embed.js", "_gcache.js", "_push.js", "_room-embed.js",
-  "account.js", "chat.js", "consolidate.js", "culture.js", "discord.js", "embed.js", "gif.js",
+  "account.js", "consolidate.js", "culture.js", "discord.js", "embed.js", "gif.js",
   "live-token.js", "memory.js", "search.js", "speech.js", "tg.js", "whatsapp.js",
   ...Object.keys(INJECTED_PROVIDER_EXCLUSIONS),
 ];
