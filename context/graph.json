@@ -20013,6 +20013,24 @@
       "kind": "rejection",
       "title": "Blind shared callback restoration can overwrite a newer account",
       "at": "context/rejected.md#standalone25-publication-oauth-callback-blind-restore-rejected-20260914"
+    },
+    {
+      "id": "standalone25-first-flow-evals-track-real-caller-contracts-20260914",
+      "kind": "decision",
+      "title": "First-flow fixtures track real callback and OTP destination contracts",
+      "at": "context/decisions.md#standalone25-first-flow-evals-track-real-caller-contracts-20260914"
+    },
+    {
+      "id": "standalone25-first-flow-evals-focused-20260914",
+      "kind": "measurement",
+      "title": "Two focused first-flow Node fixtures pass on frozen source",
+      "at": "context/measurements.md#standalone25-first-flow-evals-focused-20260914"
+    },
+    {
+      "id": "standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914",
+      "kind": "rejection",
+      "title": "Stale callback context and OTP call shape reject correct production code",
+      "at": "context/rejected.md#standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914"
     }
   ],
   "edges": [
@@ -34097,6 +34115,16 @@
     {
       "src": "standalone25-publication-oauth-callback-blind-restore-rejected-20260914",
       "dst": "standalone25-publication-oauth-callback-race-20260914",
+      "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-first-flow-evals-track-real-caller-contracts-20260914",
+      "dst": "standalone25-first-flow-evals-focused-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914",
+      "dst": "standalone25-first-flow-evals-track-real-caller-contracts-20260914",
       "rel": "caused_by"
     }
   ]

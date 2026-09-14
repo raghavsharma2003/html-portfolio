@@ -19032,3 +19032,13 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** PublicationApp consumes the same callback but applies its own existing `alive`, generation, and original-account checks before writing or setting state.
 
 **Reversal condition.** Reuse a shared primitive only after it accepts caller-owned lifecycle and stored-baseline predicates and the mounted stale-account negative still passes.
+
+## standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914
+
+**Tried.** The callback VM supplied only the callback's older closure variables, and the Room email assertion accepted only `sendEmailOtp(email.trim())`.
+
+**What specifically broke.** The real callback now reads `wizardInput.sheetPersisted`, so the fixture threw before checking either valid route. The real Room call now passes `window.location.pathname + window.location.search`, so an exact older regex rejected the correct return destination.
+
+**What replaced it.** The callback fixture supplies explicit persisted and unpersisted sheet states, observes Meet forwarding, and retains invalid-context refusal. The Room check requires the exact current path-and-query argument and uses the old one-argument call as its negative control.
+
+**Reversal condition.** Change these fixtures only with a deliberate production route or authentication return contract change, and keep a negative that proves lost destination state is rejected.

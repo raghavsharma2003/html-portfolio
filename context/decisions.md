@@ -25302,3 +25302,7 @@ Build the exact committed worker source on the existing sponsored subscription w
 ## standalone25-publication-oauth-callback-race-20260914
 
 2026-09-14. PublicationApp consumes the shared OAuth or magic-link callback before choosing a stored session, but keeps the pre-callback stored session only as the refresh race baseline. It never persists the pending callback. A callback refresh must return a non-empty user ID and both tokens; stored-session identity equality applies only to ordinary stored-session refreshes. An unmount or later account change wins and prevents the callback result from writing storage or state. Reverse only with a shared restore primitive that exposes equivalent lifecycle and baseline guards, plus a mounted negative proving it cannot overwrite a newer account.
+
+## standalone25-first-flow-evals-track-real-caller-contracts-20260914
+
+2026-09-14. Focused first-flow fixtures execute the actual callback with both sheet states and require Room email OTP to retain the current path and query. The no-sheet source stays in private rehearsal, a persisted-sheet source forwards to Meet conversation, and an ineligible context handle remains refused. Reverse only if the production journey deliberately changes these routes and its authority or return-path contract is updated with an equivalent focused regression.
