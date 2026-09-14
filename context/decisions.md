@@ -25310,3 +25310,11 @@ Build the exact committed worker source on the existing sponsored subscription w
 ## standalone25-first-flow-evals-track-real-caller-contracts-20260914
 
 2026-09-14. Focused first-flow fixtures execute the actual callback with both sheet states and require Room email OTP to retain the current path and query. The no-sheet source stays in private rehearsal, a persisted-sheet source forwards to Meet conversation, and an ineligible context handle remains refused. Reverse only if the production journey deliberately changes these routes and its authority or return-path contract is updated with an equivalent focused regression.
+
+## `wave25-studio-gates-use-explicit-active-runtime-fixture`
+
+**Decision.** Layout and accessibility targets that exercise the personal Meet workspace, Deploy, listening, Call or EmotionOS use a dedicated `active-runtime` scenario. The older `voice-ready` scenario remains inactive and continues to represent a built preview before activation. Voice-panel targets add the real `sample=1` URL state when they intend to inspect the sample instead of the default conversation.
+
+**Why.** `CloneExperience` now requires both `runtimeStatus.active` and reviewed voice material before it grants `voiceWorkspaceReady`. Reusing an inactive preview fixture for screens that claim an active workspace made the gates blind, while changing that preview fixture to active would erase the distinction between a generated sample and Room publication authority. The active scenario aligns the replica lifecycle, consent, approved genome, qualification count and runtime status instead of flipping one boolean in an otherwise contradictory response.
+
+**Reversal condition.** Merge the scenarios only if the production capability model deliberately makes a built preview equivalent to an active runtime and the Room publication predicate changes with its own inactive-runtime negative control. If a screen later needs text-only readiness, give it an explicit text-ready fixture rather than weakening this active scenario.

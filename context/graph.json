@@ -20049,6 +20049,24 @@
       "kind": "rejection",
       "title": "Stale callback context and OTP call shape reject correct production code",
       "at": "context/rejected.md#standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914"
+    },
+    {
+      "id": "wave25-studio-gates-use-explicit-active-runtime-fixture",
+      "kind": "decision",
+      "title": "Studio render gates use an explicit active-runtime fixture",
+      "at": "context/decisions.md#wave25-studio-gates-use-explicit-active-runtime-fixture"
+    },
+    {
+      "id": "wave25-studio-active-runtime-fixture-render-20260914",
+      "kind": "measurement",
+      "title": "Active-runtime Studio fixture restores layout and accessibility coverage",
+      "at": "context/measurements.md#wave25-studio-active-runtime-fixture-render-20260914"
+    },
+    {
+      "id": "wave25-voice-ready-fixture-is-not-active-runtime",
+      "kind": "rejection",
+      "title": "A voice-preview-ready fixture is not an active runtime",
+      "at": "context/rejected.md#wave25-voice-ready-fixture-is-not-active-runtime"
     }
   ],
   "edges": [
@@ -34154,6 +34172,21 @@
       "src": "standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914",
       "dst": "standalone25-first-flow-evals-track-real-caller-contracts-20260914",
       "rel": "caused_by"
+    },
+    {
+      "src": "wave25-studio-gates-use-explicit-active-runtime-fixture",
+      "dst": "wave25-studio-active-runtime-fixture-render-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave25-studio-gates-use-explicit-active-runtime-fixture",
+      "dst": "wave25-voice-ready-fixture-is-not-active-runtime",
+      "rel": "caused_by"
+    },
+    {
+      "src": "wave25-voice-ready-fixture-is-not-active-runtime",
+      "dst": "wave25-text-ready-is-not-room-publish-authority",
+      "rel": "constrains"
     }
   ]
 }

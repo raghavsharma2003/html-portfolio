@@ -87,7 +87,9 @@ const TARGETS = [
       ? "step=feed&scenario=public-capture"
       : screen === "waiting"
       ? "step=feed&scenario=text-source-waiting"
-      : `step=meet&scenario=voice-ready&view=${screen}`,
+      : screen === "voice"
+      ? "step=meet&scenario=active-runtime&view=voice&sample=1"
+      : `step=meet&scenario=active-runtime&view=${screen}`,
     screens: ["capture", "waiting", "voice", "enrich"],
     mounted: ".vx-shell",
   },
@@ -97,7 +99,7 @@ const TARGETS = [
   {
     name: "studio:humanos",
     fixture: "studio-layout-fixture.html",
-    query: () => "step=meet&scenario=voice-ready&view=enrich&enrichView=humanos",
+    query: () => "step=meet&scenario=active-runtime&view=enrich&enrichView=humanos",
     screens: ["humanos"],
     mounted: ".humanos-studio",
   },
@@ -112,14 +114,14 @@ const TARGETS = [
   {
     name: "studio:deploy",
     fixture: "studio-layout-fixture.html",
-    query: () => "step=meet&scenario=voice-ready&view=share",
+    query: () => "step=meet&scenario=active-runtime&view=share",
     screens: ["deploy"],
     mounted: ".vx-deploy",
   },
   {
     name: "studio-hi:deploy",
     fixture: "studio-layout-fixture.html",
-    query: () => "step=meet&scenario=voice-ready&view=share&lang=hi",
+    query: () => "step=meet&scenario=active-runtime&view=share&lang=hi",
     screens: ["deploy"],
     mounted: ".vx-deploy",
   },
@@ -130,7 +132,7 @@ const TARGETS = [
   {
     name: "studio:listening",
     fixture: "studio-layout-fixture.html",
-    query: () => "step=meet&scenario=voice-ready&view=voice&listening=1",
+    query: () => "step=meet&scenario=active-runtime&view=voice&listening=1",
     screens: ["default"],
     mounted: ".vx-shell",
   },
@@ -142,7 +144,7 @@ const TARGETS = [
   // MirrorCallStudio.tsx, ContextLockerPanel.tsx); `call` is new this
   // session -- the only way to reach MirrorCallStudio at all (no earlier
   // target mounted the Call room in either locale). It reuses the SAME
-  // `scenario=voice-ready` as `voice`/`enrich`, which leaves `/api/mirror-call`
+  // `scenario=active-runtime` as `voice`/`enrich`, which leaves `/api/mirror-call`
   // at its fixture default, so this reaches MirrorCallStudio's own
   // `backend_absent` state -- a real converted screen, not a synthetic one.
   // `CloneVerificationJourney.tsx`'s own Hindi is not reached by any target
@@ -156,7 +158,9 @@ const TARGETS = [
       ? "step=feed&scenario=public-capture&lang=hi"
       : screen === "waiting"
       ? "step=feed&scenario=text-source-waiting&lang=hi"
-      : `step=meet&scenario=voice-ready&view=${screen}&lang=hi`,
+      : screen === "voice"
+      ? "step=meet&scenario=active-runtime&view=voice&sample=1&lang=hi"
+      : `step=meet&scenario=active-runtime&view=${screen}&lang=hi`,
     screens: ["capture", "waiting", "voice", "enrich", "call"],
     mounted: ".vx-shell",
   },
@@ -236,7 +240,7 @@ const TARGETS = [
   {
     name: "studio:emotionos",
     fixture: "studio-layout-fixture.html",
-    query: (screen) => `step=meet&scenario=voice-ready&view=emotionos&lang=${screen}`,
+    query: (screen) => `step=meet&scenario=active-runtime&view=emotionos&lang=${screen}`,
     screens: ["en", "hi"],
     mounted: ".emotionos-studio",
   },

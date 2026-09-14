@@ -19046,3 +19046,13 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** The callback fixture supplies explicit persisted and unpersisted sheet states, observes Meet forwarding, and retains invalid-context refusal. The Room check requires the exact current path-and-query argument and uses the old one-argument call as its negative control.
 
 **Reversal condition.** Change these fixtures only with a deliberate production route or authentication return contract change, and keep a negative that proves lost destination state is rejected.
+
+## `wave25-voice-ready-fixture-is-not-active-runtime`
+
+**Tried.** The layout and accessibility registries reused `scenario=voice-ready` for Deploy, listening, Call and EmotionOS after production added `runtimeStatus.active` to `voiceWorkspaceReady`.
+
+**What specifically broke.** That fixture explicitly returned `lifecycle: "enrolling"` and `active: false`. Deploy and both EmotionOS locales did not mount, while listening reached the shell but rendered almost nothing. The frozen GitHub Node 22 log recorded 15 layout coverage findings across the three viewports and four critical accessibility coverage findings. Lowering mount, panel or contrast thresholds would have hidden the missing product screens.
+
+**What replaced it.** A separate internally consistent `active-runtime` scenario now drives active-workspace gates. The inactive `voice-ready` preview state remains unchanged, and voice layout targets request `sample=1` explicitly. Existing Room-publish and person-Room negative controls continue to prove that inactive or text-only capability cannot publish a Room.
+
+**Reversal condition.** Reuse one scenario only after its response can truthfully satisfy both states without conflating preview availability with runtime activation, and keep the inactive publication refusal executable.

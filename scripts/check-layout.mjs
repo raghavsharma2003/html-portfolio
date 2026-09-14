@@ -177,7 +177,8 @@ const TARGETS = [
     // not open yet, `context/decisions.md#ws-r164-first-five-minutes-rail`).
     query: (step) => step === "capture" ? "step=feed&scenario=public-capture"
       : step === "waiting" ? "step=feed&scenario=text-source-waiting"
-      : `step=meet&scenario=voice-ready&view=${step}`,
+      : step === "voice" ? "step=meet&scenario=active-runtime&view=voice&sample=1"
+      : `step=meet&scenario=active-runtime&view=${step}`,
     steps: ["capture", "waiting", "voice", "enrich"], mounted: ".vx-shell",
     panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu, .ffm-rail", minPanels: 1,
   },
@@ -190,16 +191,15 @@ const TARGETS = [
   // the menu itself.
   {
     name: "studio:humanos", fixture: "studio-layout-fixture.html",
-    query: () => "step=meet&scenario=voice-ready&view=enrich&enrichView=humanos",
+    query: () => "step=meet&scenario=active-runtime&view=enrich&enrichView=humanos",
     steps: ["humanos"], mounted: ".humanos-studio",
     panels: ".humanos-card", minPanels: 3,
   },
   // WS-R152. Deploy for a personal AI: `src/studio/DeployStudio.tsx` (the
   // personal studio's own Deploy screen, `ExpertSharePanel`'s own export
   // name, mounted at `?view=share`) plus the REAL `RoomStudio` it mounts
-  // underneath. `clone`'s own `scenario=voice-ready` restated: reaching ANY
-  // room content (`CloneExperience.tsx`'s `needsAgreement` gate) needs an
-  // active consent, which only that scenario's `/api/replica-consent` seeds.
+  // underneath. `scenario=active-runtime` supplies both the active consent
+  // and the active voice capability the production Room door requires.
   // Named `studio:deploy`/`studio-hi:deploy` (the brief's own names) rather
   // than folded into `clone`'s own `steps`, because `clone`'s fixture is the
   // PERSONAL studio (`studio-layout-fixture.html`) same as this target, but
@@ -208,7 +208,7 @@ const TARGETS = [
   {
     name: "studio:deploy",
     fixture: "studio-layout-fixture.html",
-    query: () => "step=meet&scenario=voice-ready&view=share",
+    query: () => "step=meet&scenario=active-runtime&view=share",
     steps: ["deploy"],
     mounted: ".vx-deploy",
     panels: ".vx-deploy-banner, #room-studio",
@@ -217,7 +217,7 @@ const TARGETS = [
   {
     name: "studio-hi:deploy",
     fixture: "studio-layout-fixture.html",
-    query: () => "step=meet&scenario=voice-ready&view=share&lang=hi",
+    query: () => "step=meet&scenario=active-runtime&view=share&lang=hi",
     steps: ["deploy"],
     mounted: ".vx-deploy",
     panels: ".vx-deploy-banner, #room-studio",
@@ -227,14 +227,13 @@ const TARGETS = [
   // via `?listening=1` (CloneExperience.tsx's own deep-link for this,
   // `room:checkins`/`room:handoff`'s own WS-R43 law restated: never a
   // fixture prop that pre-opens a panel, a REAL query param the component
-  // itself already reads). The "voice-ready" scenario's `runtime.active:
-  // false` is what the "clone" target above relies on too (it is why
-  // `view=voice` alone already renders the sample panel, not the
-  // conversation one); this target adds `listening=1` on top of the exact
-  // same scenario so the two never drift against each other.
+  // itself already reads). This uses the active-runtime scenario because
+  // the production Meet workspace now requires the active voice capability;
+  // `listening=1` then opens the listening panel before the conversation or
+  // sample branch is chosen.
   {
     name: "studio:listening", fixture: "studio-layout-fixture.html",
-    query: () => "step=meet&scenario=voice-ready&view=voice&listening=1",
+    query: () => "step=meet&scenario=active-runtime&view=voice&listening=1",
     steps: ["default"], mounted: ".vx-shell",
     panels: ".lt-panel", minPanels: 1,
   },
@@ -247,12 +246,12 @@ const TARGETS = [
   // not only the four WS-R159 panels underneath them; `call` is a NEW step
   // this session, the only way to reach `MirrorCallStudio.tsx`'s own Hindi
   // at all (no earlier target in this file ever mounted the Call room).
-  // `scenario=voice-ready` (the SAME scenario `voice`/`enrich` already use)
+  // `scenario=active-runtime` (the SAME scenario `voice`/`enrich` use)
   // leaves `/api/mirror-call` at its ROUTES default (`{ contract: null, call:
   // null }`), so this reaches MirrorCallStudio's own `backend_absent` state
   // (`.mirror-call` wraps every phase, including this one) -- a real
   // converted screen (`copy.backendAbsent`), not a synthetic one; no
-  // fixture scenario currently combines voice-ready with live mirror-call
+  // fixture scenario currently combines active-runtime with live mirror-call
   // ops, so the "idle, available to start" phase is not reached here.
   // `CloneVerificationJourney.tsx`'s own Hindi is NOT reached by any target
   // in this file: its `showVerification` state needs a `voiceSaga` seeded
@@ -266,7 +265,8 @@ const TARGETS = [
     // WS-R166's "call" step kept beside it (merged 2026-09-13).
     query: (step) => step === "capture" ? "step=feed&scenario=public-capture&lang=hi"
       : step === "waiting" ? "step=feed&scenario=text-source-waiting&lang=hi"
-      : `step=meet&scenario=voice-ready&view=${step}&lang=hi`,
+      : step === "voice" ? "step=meet&scenario=active-runtime&view=voice&sample=1&lang=hi"
+      : `step=meet&scenario=active-runtime&view=${step}&lang=hi`,
     steps: ["capture", "waiting", "voice", "enrich", "call"], mounted: ".vx-shell",
     panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu, .ffm-rail, .mirror-call", minPanels: 1,
   },
@@ -410,7 +410,7 @@ const TARGETS = [
   {
     name: "studio:emotionos",
     fixture: "studio-layout-fixture.html",
-    query: (step) => `step=meet&scenario=voice-ready&view=emotionos&lang=${step}`,
+    query: (step) => `step=meet&scenario=active-runtime&view=emotionos&lang=${step}`,
     steps: ["en", "hi"],
     mounted: ".emotionos-studio",
     panels: ".emotionos-studio__form, .emotionos-studio__history",
@@ -1557,7 +1557,7 @@ async function main() {
   if (ACTIVE_TARGETS.some((t) => t.name.startsWith("studio-hi:personal"))) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await ctx.newPage();
-    await page.goto(`http://127.0.0.1:${PORT}/studio-layout-fixture.html?step=meet&scenario=voice-ready&view=enrich&lang=hi`, {
+    await page.goto(`http://127.0.0.1:${PORT}/studio-layout-fixture.html?step=meet&scenario=active-runtime&view=enrich&lang=hi`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(800);
