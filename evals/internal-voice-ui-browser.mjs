@@ -10,7 +10,26 @@ const dist = join(root, "dist");
 const port = 8963;
 const replica = "fixture-replica-0001";
 const screenshotPath = join(root, "scratchpad", "internal-voice-ui", "internal-voice-owner-390.png");
-const wav = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(40)]);
+function syntheticWav() {
+  const sampleRate = 8000;
+  const sampleCount = 800;
+  const pcmBytes = sampleCount * 2;
+  const buffer = Buffer.alloc(44 + pcmBytes);
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + pcmBytes, 4);
+  buffer.write("WAVEfmt ", 8);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(pcmBytes, 40);
+  return buffer;
+}
+const wav = syntheticWav();
 const mime = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2" };
 
 const server = createServer(async (request, response) => {
@@ -51,6 +70,7 @@ try {
   let posts = 0;
   let referenceDownloads = 0;
   let sampleDownloads = 0;
+  let sampleRequests = 0;
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   await page.route("**/api/internal-voice**", async (route) => {
     const request = route.request();
@@ -60,7 +80,13 @@ try {
       assert.equal(url.searchParams.get("replica_id"), replica);
       assert.equal(url.searchParams.get("run_id"), runId);
       if (url.searchParams.get("action") === "reference") referenceDownloads += 1;
-      if (url.searchParams.get("action") === "audio") sampleDownloads += 1;
+      if (url.searchParams.get("action") === "audio") {
+        sampleRequests += 1;
+        if (sampleRequests === 1) {
+          return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "internal_voice_audio_unavailable" }) });
+        }
+        sampleDownloads += 1;
+      }
       return route.fulfill({ status: 200, contentType: "audio/wav", body: wav });
     }
     if (request.method() === "POST") {
@@ -105,13 +131,32 @@ try {
   assert.ok((await generate.boundingBox()).height >= 44);
   assert.match(await panel.innerText(), /Listen beside your recording\. Tell us what feels like you\./);
   await generate.click();
-  await page.getByRole("heading", { name: "Sample ready" }).waitFor({ timeout: 8000 });
-  console.log("internal voice browser: same request reached ready");
+  await page.getByRole("heading", { name: "Audio unavailable" }).waitFor({ timeout: 8000 });
+  console.log("internal voice browser: same request reached ready with an honest audio failure");
   assert.equal(posts, 1, "polling must not create another synthesis");
   assert.ok(polls >= 1, "same run UUID was not polled");
-  assert.equal(await panel.locator('audio[src^="blob:"]').count(), 2);
+  assert.equal(await panel.locator('audio[src^="blob:"]').count(), 1);
   assert.equal(referenceDownloads, 1, "status polling must not download the unchanged reference again");
-  assert.equal(sampleDownloads, 1, "the ready sample must download once");
+  const referenceSrc = await panel.locator('audio[src^="blob:"]').getAttribute("src");
+  await page.getByRole("button", { name: "Retry audio" }).click();
+  await page.getByRole("heading", { name: "Sample ready" }).waitFor();
+  await panel.locator('audio[src^="blob:"]').nth(1).waitFor();
+  assert.equal(posts, 1, "retrying audio must not POST");
+  assert.equal(referenceDownloads, 1, "retrying the sample must preserve the loaded reference");
+  assert.equal(await panel.locator('audio[src^="blob:"]').first().getAttribute("src"), referenceSrc);
+  assert.equal(sampleRequests, 2);
+  assert.equal(sampleDownloads, 1, "the sample must download once after explicit retry");
+  await panel.locator('audio[src^="blob:"]').nth(1).evaluate((audio) => new Promise((resolve, reject) => {
+    const media = audio;
+    const verify = () => Number.isFinite(media.duration) && media.duration > 0
+      ? resolve(media.duration)
+      : reject(new Error("synthetic WAV did not load finite metadata"));
+    if (media.readyState >= 1) verify();
+    else {
+      media.addEventListener("loadedmetadata", verify, { once: true });
+      media.addEventListener("error", () => reject(new Error("synthetic WAV failed to decode")), { once: true });
+    }
+  }));
   const sampleSrc = await panel.locator('audio[src^="blob:"]').nth(1).getAttribute("src");
   await mkdir(join(root, "scratchpad", "internal-voice-ui"), { recursive: true });
   await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -123,6 +168,7 @@ try {
     "a same-run ready response must preserve playback");
   assert.equal(referenceDownloads, 1);
   assert.equal(sampleDownloads, 1);
+  assert.equal(sampleRequests, 2);
   await page.setViewportSize({ width: 1440, height: 1000 });
   assert.equal(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth), true);
   assert.equal(await panel.locator("dl dd").filter({ hasText: "4 / 5" }).count(), 4);

@@ -45,6 +45,9 @@ const COPY = {
     cancel: "Cancel",
     revoke: "Remove sample",
     audioFallback: "Your browser cannot play this WAV file.",
+    audioUnavailable: "Audio unavailable",
+    audioUnavailableBody: "Try loading it again.",
+    retryAudio: "Retry audio",
     sample: "Generated Hindi sample",
     rateHeading: "How does it sound?",
     rateHelp: "Choose 1 to 5 for each.",
@@ -90,6 +93,9 @@ const COPY = {
     cancel: "रद्द करें",
     revoke: "नमूना हटाएँ",
     audioFallback: "आपका ब्राउज़र यह WAV फ़ाइल नहीं चला सकता।",
+    audioUnavailable: "आवाज़ उपलब्ध नहीं है",
+    audioUnavailableBody: "फिर से लोड करें।",
+    retryAudio: "आवाज़ फिर लोड करें",
     sample: "बनाया गया हिंदी नमूना",
     rateHeading: "आवाज़ कैसी लगी?",
     rateHelp: "हर बिंदु के लिए 1 से 5 चुनें।",
@@ -131,6 +137,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
   const [referenceUrl, setReferenceUrl] = useState<string | null>(null);
   const [sampleUrl, setSampleUrl] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioLoadEpoch, setAudioLoadEpoch] = useState(0);
   const [ratings, setRatings] = useState<Partial<InternalVoiceRatings>>({});
   const requestEpoch = useRef(0);
   const referenceUrlRef = useRef<string | null>(null);
@@ -240,7 +247,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
       setAudioError(cause instanceof InternalVoiceApiError ? cause.code : "internal_voice_audio_unavailable");
     });
     return () => controller.abort();
-  }, [audioRunId, audioRunState, onAuthError, replicaId, sampleAvailable, token]);
+  }, [audioLoadEpoch, audioRunId, audioRunState, onAuthError, replicaId, sampleAvailable, token]);
 
   useEffect(() => () => {
     replaceUrl(referenceUrlRef, null);
@@ -300,16 +307,18 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
   const run = status?.run || null;
   const terminalRetry = run?.state === "failed" || run?.state === "unknown";
   const pending = run?.state === "queued" || run?.state === "running";
-  const stageKind = errorCode || terminalRetry ? "failed" : run?.state === "ready" ? "ready" : pending ? "pending" : "idle";
+  const stageKind = errorCode || audioError || terminalRetry ? "failed" : run?.state === "ready" ? "ready" : pending ? "pending" : "idle";
   const stateTitle = errorCode ? copy.error
-    : run?.state === "queued" ? copy.queued
+    : audioError ? copy.audioUnavailable
+      : run?.state === "queued" ? copy.queued
       : run?.state === "running" ? copy.running
         : run?.state === "ready" ? copy.ready
           : run?.state === "failed" ? copy.failed
             : run?.state === "unknown" ? copy.unknown
               : run?.state === "revoked" ? copy.revoked : copy.idle;
   const stateBody = errorCode ? copy.error
-    : pending ? copy.workingBody
+    : audioError ? copy.audioUnavailableBody
+      : pending ? copy.workingBody
       : run?.state === "ready" ? copy.readyBody
         : run?.state === "failed" ? copy.failedBody
           : run?.state === "unknown" ? copy.unknownBody
@@ -342,6 +351,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
           <p className="hear-voice-message">{stateBody}</p>
           {run?.state === "ready" && sampleUrl ? <><strong>{copy.sample}</strong><audio controls preload="metadata" src={sampleUrl}>{copy.audioFallback}</audio></> : null}
           {run?.cleanup_pending ? <small>{copy.cleanup}</small> : null}
+          {audioError ? <button className="review-refresh" type="button" onClick={() => setAudioLoadEpoch((value) => value + 1)}>{copy.retryAudio}</button> : null}
           {errorCode ? <button className="review-refresh" type="button" disabled={busy} onClick={() => void loadStatus(run?.run_id)}>{copy.checkService}</button> : null}
           {terminalRetry ? <button className="review-refresh" type="button" disabled={busy} onClick={() => void loadStatus(run.run_id)}>{copy.checkAgain}</button> : null}
           {pending ? <button className="review-refresh" type="button" disabled={busy} onClick={() => void revoke()}>{copy.cancel}</button> : null}
