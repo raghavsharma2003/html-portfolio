@@ -19256,3 +19256,8 @@ Studio deployed connect-src self only while its real uploader sends XHR to Azure
 ## wave25-sources-first-draft-had-no-async-scope-fence
 
 2026-09-14. Root review found that the first Sources screen awaited list, impact, removal and enrollment-refresh promises without a mounted, request, or token-plus-replica scope guard. A late response could therefore paint an old workspace, fill a newer source's dialog with an older impact, or refresh after the owner switched replica. React state alone also left a same-turn double confirmation window before `setRemoving(true)` committed. The repair uses scope and request sequence refs around every settlement, clears all source-specific state in a layout effect on scope change, and acquires the removal lock synchronously before the first await. A mounted Chromium harness with deliberately reordered deferred responses now proves all five races rather than scanning source text.
+
+
+## wave26-unregistered-recorder-test-is-not-a-release-gate
+
+The new mobile recorder runner and upload-repair suite initially ran only when called directly. Leaving them unregistered would allow later full releases to omit exactly the states that failed on the owner phone. Both are now in evals/run.mjs; the capture wrapper closes its server and has a180second child timeout. Local success remains synthetic evidence, not a completed live expert journey.

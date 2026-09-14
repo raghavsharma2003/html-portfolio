@@ -20727,6 +20727,24 @@
       "kind": "rejection",
       "title": "Sources first draft had no asynchronous scope fence",
       "at": "context/rejected.md#wave25-sources-first-draft-had-no-async-scope-fence"
+    },
+    {
+      "id": "wave26-register-real-capture-in-release",
+      "kind": "decision",
+      "title": "Gate the actual capture states and shipping browser policy",
+      "at": "context/decisions.md#wave26-register-real-capture-in-release"
+    },
+    {
+      "id": "wave26-integrated-sources-sql-and-capture-20260914",
+      "kind": "measurement",
+      "title": "Integrated Sources races and live SQL parse pass",
+      "at": "context/measurements.md#wave26-integrated-sources-sql-and-capture-20260914"
+    },
+    {
+      "id": "wave26-unregistered-recorder-test-is-not-a-release-gate",
+      "kind": "rejection",
+      "title": "An unregistered local fixture cannot protect later releases",
+      "at": "context/rejected.md#wave26-unregistered-recorder-test-is-not-a-release-gate"
     }
   ],
   "edges": [
@@ -35242,6 +35260,16 @@
       "src": "wave25-sources-first-draft-had-no-async-scope-fence",
       "rel": "caused_by",
       "dst": "wave25-sources-ledger-uses-live-state-and-exact-erasure-impact"
+    },
+    {
+      "src": "wave26-register-real-capture-in-release",
+      "rel": "measured_by",
+      "dst": "wave26-integrated-sources-sql-and-capture-20260914"
+    },
+    {
+      "src": "wave26-unregistered-recorder-test-is-not-a-release-gate",
+      "rel": "caused_by",
+      "dst": "wave26-register-real-capture-in-release"
     }
   ]
 }

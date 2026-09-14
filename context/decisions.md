@@ -25499,3 +25499,8 @@ Allow only the existing Azure media account in Studio connect-src and local blob
 ## wave26-recording-upload-reconciles-ambiguous-put
 
 2026-09-14. A creator recording enters review only after its generated 24 kHz mono PCM WAV passes byte-shape validation and the browser reports finite playable metadata. Mobile file selection derives a canonical audio or video MIME from a known extension when the operating system supplies an empty or generic type. A failed browser-to-storage PUT is treated as ambiguous: Studio asks the existing authenticated, owner-scoped idempotent finalizer whether the exact source and upload intent committed. A successful observation continues without re-uploading; a missing object preserves the original File, source, intent and transport error for Retry. Only active upload phases lock workspace navigation; the failed screen retains explicit Retry and Record again actions. Reverse the reconciliation only if the storage transport returns a separately authenticated commit receipt that cannot be lost after object commit. Reverse browser metadata admission only if a stricter local decoder proves playability before review on the shipping browsers.
+
+
+## wave26-register-real-capture-in-release
+
+Register the mobile capture runner and upload recovery suite in the full release registry. The browser workload uses managed Vite startup, bounded shutdown and the shared Chromium resource classifier. Preserve negative controls for the old blocking CSP. Reverse this arrangement only if another registered runner covers the same real components, production headers and failure states.
