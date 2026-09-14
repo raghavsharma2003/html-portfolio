@@ -20679,6 +20679,30 @@
       "kind": "rejection",
       "title": "wave26 self only csp killed upload and local playback",
       "ref": "context/rejected.md#wave26-self-only-csp-killed-upload-and-local-playback"
+    },
+    {
+      "id": "wave25-sources-ledger-uses-live-state-and-exact-erasure-impact",
+      "kind": "decision",
+      "title": "Sources uses authoritative state and the exact erasure impact",
+      "at": "context/decisions.md#wave25-sources-ledger-uses-live-state-and-exact-erasure-impact"
+    },
+    {
+      "id": "wave25-sources-ledger-focused-verification-20260914",
+      "kind": "measurement",
+      "title": "Sources passes focused bilingual layout and accessibility verification",
+      "at": "context/measurements.md#wave25-sources-ledger-focused-verification-20260914"
+    },
+    {
+      "id": "wave25-stale-sources-patch-invented-a-quarantine-cause-and-underreported-removal",
+      "kind": "rejection",
+      "title": "Stale Sources patch invented a quarantine cause and underreported erasure",
+      "at": "context/rejected.md#wave25-stale-sources-patch-invented-a-quarantine-cause-and-underreported-removal"
+    },
+    {
+      "id": "wave25-configless-build-and-erasure-suites-stop-at-the-database-import",
+      "kind": "rejection",
+      "title": "Configless build and erasure suites stop at the database import",
+      "at": "context/rejected.md#wave25-configless-build-and-erasure-suites-stop-at-the-database-import"
     }
   ],
   "edges": [
@@ -35159,6 +35183,21 @@
       "src": "wave26-self-only-csp-killed-upload-and-local-playback",
       "rel": "caused_by",
       "dst": "wave26-studio-policy-must-allow-real-media-doors"
+    },
+    {
+      "src": "wave25-sources-ledger-uses-live-state-and-exact-erasure-impact",
+      "rel": "measured_by",
+      "dst": "wave25-sources-ledger-focused-verification-20260914"
+    },
+    {
+      "src": "wave25-stale-sources-patch-invented-a-quarantine-cause-and-underreported-removal",
+      "rel": "caused_by",
+      "dst": "wave25-sources-ledger-uses-live-state-and-exact-erasure-impact"
+    },
+    {
+      "src": "wave25-configless-build-and-erasure-suites-stop-at-the-database-import",
+      "rel": "part_of",
+      "dst": "wave25-sources-ledger-focused-verification-20260914"
     }
   ]
 }

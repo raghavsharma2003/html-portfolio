@@ -958,6 +958,8 @@ export interface CloneExperienceShellCopy {
       describeMeNote: string;
       whoYouAreTitle: string;
       whoYouAreNote: string;
+      sourcesTitle: string;
+      sourcesNote: string;
       filesTitle: string;
       filesNote: string;
       videoTitle: string;
@@ -970,6 +972,7 @@ export interface CloneExperienceShellCopy {
       recordInstead: string;
       reviewTextSharing: string;
       openingWhoYouAre: string;
+      openingSources: string;
     };
     evolve: { heading: string; body: string; openingHistory: string };
     emotionos: { openingVibe: string };
@@ -995,6 +998,50 @@ export interface FirstFiveMinutesCopy {
   stepDoneLabel: string;
 }
 
+export interface SourcesStudioCopy {
+  title: string;
+  intro: string;
+  countOne: string;
+  countManyTemplate: string;
+  loading: string;
+  emptyTitle: string;
+  emptyBody: string;
+  loadError: string;
+  retry: string;
+  addedOnTemplate: string;
+  kind: Record<"recording" | "file" | "link" | "call", string>;
+  unnamed: Record<"recording" | "file" | "link" | "call", string>;
+  states: Record<string, string>;
+  statusUnavailable: string;
+  detailCodeTemplate: string;
+  thirdPartyDeclaration: string;
+  acceptedDetails: string;
+  draftDetails: string;
+  voiceTime: string;
+  noYield: string;
+  secondsTemplate: string;
+  minutesTemplate: string;
+  remove: string;
+  dialogTitle: string;
+  dialogBody: string;
+  impactLoading: string;
+  impactError: string;
+  impactAcceptedTemplate: string;
+  impactDraftTemplate: string;
+  impactVoiceTemplate: string;
+  primaryVoiceWarning: string;
+  confirmInstructionTemplate: string;
+  confirmWord: string;
+  confirmLabel: string;
+  cancel: string;
+  removeForever: string;
+  removing: string;
+  removalError: string;
+  removedComplete: string;
+  removedPending: string;
+  rebuildRequired: string;
+}
+
 export interface StudioCopy {
   personalAuth: PersonalAuthCopy;
   expertSharePanel: ExpertSharePanelCopy;
@@ -1008,6 +1055,7 @@ export interface StudioCopy {
   mirrorCallStudio: MirrorCallStudioCopy;
   cloneExperienceShell: CloneExperienceShellCopy;
   firstFiveMinutes: FirstFiveMinutesCopy;
+  sourcesStudio: SourcesStudioCopy;
 }
 
 const EN_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
@@ -1999,6 +2047,8 @@ const EN_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
       describeMeNote: "Write naturally",
       whoYouAreTitle: "Who you are",
       whoYouAreNote: "Identity, values, and how you talk",
+      sourcesTitle: "Your sources",
+      sourcesNote: "See what you have added and remove it safely",
       filesTitle: "Files, images, links",
       filesNote: "Add private context",
       videoTitle: "YouTube or video",
@@ -2011,6 +2061,7 @@ const EN_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
       recordInstead: "Record my voice instead",
       reviewTextSharing: "Review text sharing",
       openingWhoYouAre: "Opening who you are",
+      openingSources: "Opening your sources",
     },
     evolve: { heading: "Choose what becomes you.", body: "Nothing changes the clone until you accept the cited proposal.", openingHistory: "Opening your evolution history" },
     emotionos: { openingVibe: "Opening your vibe" },
@@ -2028,6 +2079,54 @@ const EN_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
   stepDoneLabel: "Done",
 };
 
+const EN_SOURCES_STUDIO: SourcesStudioCopy = {
+  title: "Your sources",
+  intro: "Everything you have given your AI, with its current status and what it contributed.",
+  countOne: "1 source",
+  countManyTemplate: "{count} sources",
+  loading: "Loading your sources",
+  emptyTitle: "No sources yet",
+  emptyBody: "Record your voice, add a file, or share a link to see it here.",
+  loadError: "We could not load your sources. Nothing was changed.",
+  retry: "Try again",
+  addedOnTemplate: "Added {date}",
+  kind: { recording: "Recording", file: "File", link: "Link", call: "Call clip" },
+  unnamed: { recording: "Voice recording", file: "Private file", link: "Private link", call: "Call clip" },
+  states: {
+    pending_upload: "Waiting for upload", uploaded: "Uploaded", quarantined: "Checking",
+    processing: "Learning", ready: "Ready", rejected: "Could not use", received: "Received",
+    extracted: "Text extracted", mined: "Reviewed", refused: "Could not use", routed: "Sent for review",
+  },
+  statusUnavailable: "Status unavailable",
+  detailCodeTemplate: "The server returned code: {code}",
+  thirdPartyDeclaration: "You marked this as including other people.",
+  acceptedDetails: "Accepted details",
+  draftDetails: "Draft details",
+  voiceTime: "Voice time",
+  noYield: "No saved contribution yet",
+  secondsTemplate: "{count} sec",
+  minutesTemplate: "{minutes} min {seconds} sec",
+  remove: "Remove",
+  dialogTitle: "Remove this source?",
+  dialogBody: "We will remove this source and every active detail that cites it. This cannot be undone.",
+  impactLoading: "Checking what will be removed",
+  impactError: "We could not verify the impact. Removal stays locked.",
+  impactAcceptedTemplate: "{count} accepted details",
+  impactDraftTemplate: "{count} draft details",
+  impactVoiceTemplate: "{time} of voice",
+  primaryVoiceWarning: "This is your selected voice source. Voice playback may stop until you choose another recording.",
+  confirmInstructionTemplate: "Type {word} to confirm.",
+  confirmWord: "REMOVE",
+  confirmLabel: "Confirmation text",
+  cancel: "Keep source",
+  removeForever: "Remove forever",
+  removing: "Removing",
+  removalError: "Removal did not start. Your source is still listed.",
+  removedComplete: "Source removed.",
+  removedPending: "Removal started. Private storage cleanup is still running.",
+  rebuildRequired: "Your AI must rebuild without this source.",
+};
+
 const EN_STUDIO_COPY: StudioCopy = {
   personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
   expertSharePanel: EN_EXPERT_SHARE_PANEL,
@@ -2041,6 +2140,7 @@ const EN_STUDIO_COPY: StudioCopy = {
   mirrorCallStudio: EN_MIRROR_CALL_STUDIO,
   cloneExperienceShell: EN_CLONE_EXPERIENCE_SHELL,
   firstFiveMinutes: EN_FIRST_FIVE_MINUTES,
+  sourcesStudio: EN_SOURCES_STUDIO,
 };
 
 // The Hindi table is its own chunk (WS-R71's shape). `STUDIO_COPY_TABLE.hi`

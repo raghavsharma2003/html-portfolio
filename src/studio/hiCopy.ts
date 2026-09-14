@@ -6,7 +6,7 @@
 // already-reviewed wording wherever this file's English matches it, adapting
 // only where this screen's own English differs (the nearline nearline-busy
 // states this file's English adds, and one extra extraction blocker key).
-import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
+import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, SourcesStudioCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
 
 const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
   title: "अपने AI को एक ठिकाना दें।",
@@ -1005,6 +1005,8 @@ const HI_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
       describeMeNote: "सहज तरीके से लिखें",
       whoYouAreTitle: "आप कौन हैं",
       whoYouAreNote: "पहचान, मूल्य, और आप कैसे बोलते हैं",
+      sourcesTitle: "आपके सोर्स",
+      sourcesNote: "देखें कि आपने क्या जोड़ा है और उसे सुरक्षित रूप से हटाएं",
       filesTitle: "फ़ाइलें, तस्वीरें, लिंक",
       filesNote: "निजी कॉन्टेक्स्ट जोड़ें",
       videoTitle: "YouTube या वीडियो",
@@ -1017,6 +1019,7 @@ const HI_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
       recordInstead: "इसके बजाय मेरी आवाज़ रिकॉर्ड करें",
       reviewTextSharing: "टेक्स्ट शेयरिंग की समीक्षा करें",
       openingWhoYouAre: "आप कौन हैं खुल रहा है",
+      openingSources: "आपके सोर्स खुल रहे हैं",
     },
     evolve: { heading: "चुनें कि आप क्या बनते हैं।", body: "जब तक आप उद्धृत सुझाव स्वीकार न करें, AI नहीं बदलता।", openingHistory: "आपका विकास इतिहास खुल रहा है" },
     emotionos: { openingVibe: "आपका अंदाज़ खुल रहा है" },
@@ -1036,6 +1039,54 @@ const HI_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
   stepDoneLabel: "हो गया",
 };
 
+const HI_SOURCES_STUDIO: SourcesStudioCopy = {
+  title: "आपके सोर्स",
+  intro: "आपने अपने AI को जो कुछ दिया है, उसकी मौजूदा स्थिति और उससे मिला योगदान यहां देखें।",
+  countOne: "1 सोर्स",
+  countManyTemplate: "{count} सोर्स",
+  loading: "आपके सोर्स लोड हो रहे हैं",
+  emptyTitle: "अभी कोई सोर्स नहीं है",
+  emptyBody: "अपनी आवाज़ रिकॉर्ड करें, फ़ाइल जोड़ें, या लिंक शेयर करें। वह यहां दिखाई देगा।",
+  loadError: "हम आपके सोर्स लोड नहीं कर सके। कुछ भी बदला नहीं गया।",
+  retry: "फिर कोशिश करें",
+  addedOnTemplate: "{date} को जोड़ा गया",
+  kind: { recording: "रिकॉर्डिंग", file: "फ़ाइल", link: "लिंक", call: "कॉल का हिस्सा" },
+  unnamed: { recording: "आवाज़ की रिकॉर्डिंग", file: "निजी फ़ाइल", link: "निजी लिंक", call: "कॉल का हिस्सा" },
+  states: {
+    pending_upload: "अपलोड का इंतज़ार", uploaded: "अपलोड हो गया", quarantined: "जांच हो रही है",
+    processing: "सीख रहा है", ready: "तैयार", rejected: "इस्तेमाल नहीं हो सका", received: "मिल गया",
+    extracted: "टेक्स्ट निकाला गया", mined: "समीक्षा हो गई", refused: "इस्तेमाल नहीं हो सका", routed: "समीक्षा के लिए भेजा गया",
+  },
+  statusUnavailable: "स्थिति उपलब्ध नहीं है",
+  detailCodeTemplate: "सर्वर ने यह कोड दिया: {code}",
+  thirdPartyDeclaration: "आपने बताया था कि इसमें दूसरे लोग शामिल हैं।",
+  acceptedDetails: "स्वीकार किए गए विवरण",
+  draftDetails: "ड्राफ्ट विवरण",
+  voiceTime: "आवाज़ का समय",
+  noYield: "अभी कोई सेव किया गया योगदान नहीं",
+  secondsTemplate: "{count} सेकंड",
+  minutesTemplate: "{minutes} मिनट {seconds} सेकंड",
+  remove: "हटाएं",
+  dialogTitle: "यह सोर्स हटाएं?",
+  dialogBody: "हम यह सोर्स और इसका हवाला देने वाला हर सक्रिय विवरण हटा देंगे। इसे वापस नहीं लाया जा सकता।",
+  impactLoading: "जांच रहे हैं कि क्या हटेगा",
+  impactError: "हम असर की पुष्टि नहीं कर सके। हटाने का विकल्प बंद रहेगा।",
+  impactAcceptedTemplate: "{count} स्वीकार किए गए विवरण",
+  impactDraftTemplate: "{count} ड्राफ्ट विवरण",
+  impactVoiceTemplate: "{time} की आवाज़",
+  primaryVoiceWarning: "यह आपकी चुनी हुई आवाज़ का सोर्स है। दूसरी रिकॉर्डिंग चुनने तक आवाज़ का प्लेबैक रुक सकता है।",
+  confirmInstructionTemplate: "पुष्टि के लिए {word} लिखें।",
+  confirmWord: "हटाएं",
+  confirmLabel: "पुष्टि का टेक्स्ट",
+  cancel: "सोर्स रखें",
+  removeForever: "हमेशा के लिए हटाएं",
+  removing: "हटाया जा रहा है",
+  removalError: "हटाना शुरू नहीं हुआ। आपका सोर्स अभी भी सूची में है।",
+  removedComplete: "सोर्स हटा दिया गया।",
+  removedPending: "हटाना शुरू हो गया। निजी स्टोरेज की सफ़ाई अभी चल रही है।",
+  rebuildRequired: "इस सोर्स के बिना आपके AI को फिर से बनाना होगा।",
+};
+
 // `personalAuth` is deliberately absent here: `copy.ts#loadStudioCopy`
 // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
 // Hindi loader, so this file owns only the sections named above.
@@ -1051,4 +1102,5 @@ export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
   mirrorCallStudio: HI_MIRROR_CALL_STUDIO,
   cloneExperienceShell: HI_CLONE_EXPERIENCE_SHELL,
   firstFiveMinutes: HI_FIRST_FIVE_MINUTES,
+  sourcesStudio: HI_SOURCES_STUDIO,
 };

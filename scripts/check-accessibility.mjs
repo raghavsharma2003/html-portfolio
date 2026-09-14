@@ -103,6 +103,13 @@ const TARGETS = [
     screens: ["humanos"],
     mounted: ".humanos-studio",
   },
+  {
+    name: "studio:sources",
+    fixture: "studio-layout-fixture.html",
+    query: (screen) => `step=meet&scenario=active-runtime&view=enrich&enrichView=sources${screen === "hi" ? "&lang=hi" : ""}`,
+    screens: ["en", "hi"],
+    mounted: ".sources-studio",
+  },
   // WS-R152. Deploy for a personal AI -- `check-layout.mjs`'s own
   // `studio:deploy`/`studio-hi:deploy` targets, the same fixture and query
   // shapes reused verbatim (this file's own header rule). `RoomStudio` (the

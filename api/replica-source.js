@@ -8,12 +8,14 @@ import {
   getOwnedSourceByUploadIntent,
   getPendingSource,
   listOwnedSources,
+  listOwnedSourcesOverview,
   finalizeOwnedSource,
   markOwnedSourceDeleting,
   reserveOwnedSourceUploadAuthorization,
   setOwnedPrimaryVoiceSource,
   clientSource,
 } from "./_replica-source.js";
+import { ownedSourceRemovalImpact } from "./_replica-source-erasure.js";
 import {
   ReplicaStorageError,
   ensurePrivateReplicaBucket,
@@ -200,6 +202,14 @@ export function createReplicaSourceHandler(options={}) {
     }
     if (body.op === "list") {
       return res.status(200).json({ sources: await listOwnedSources(q, user.id, body.replica_id) });
+    }
+    if (body.op === "overview") {
+      return res.status(200).json({ sources: await listOwnedSourcesOverview(q, user.id, body.replica_id) });
+    }
+    if (body.op === "removal_preview") {
+      const impact = await ownedSourceRemovalImpact(q, user.id, body.replica_id, body.source_id);
+      if (!impact) return res.status(404).json({ error: "source_not_found" });
+      return res.status(200).json({ impact });
     }
     if (body.op === "set_primary_voice") {
       const source = await setOwnedPrimaryVoiceSource(q, user.id, body.replica_id, body.source_id);

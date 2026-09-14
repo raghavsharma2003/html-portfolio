@@ -262,6 +262,34 @@ const PHRASE_ITEM = {
   authorship: "mine", owner_speaker: "", consent_scope: "private_context", proposal: "present",
   created_at: "2026-09-07T00:00:00Z", updated_at: "2026-09-07T00:00:00Z",
 };
+const SOURCE_OVERVIEW_FIXTURE = [
+  {
+    source_id: "src-ready-0001", context_item_id: null, kind: "recording", display_name: "",
+    state: "ready", state_detail_code: "", contains_third_parties: false,
+    created_at: "2026-08-28T07:48:00.000Z",
+    yield: { claims_approved: 7, claims_proposed: 2, voice_seconds: 91 },
+  },
+  {
+    source_id: "src-context-0001", context_item_id: "22222222-2222-4222-8222-222222222222",
+    kind: "file", display_name: "My long lesson notes for understanding rotational motion and angular momentum.txt",
+    state: "mined", state_detail_code: "", contains_third_parties: false,
+    created_at: "2026-09-07T00:00:00.000Z",
+    yield: { claims_approved: 3, claims_proposed: 5, voice_seconds: 0 },
+  },
+  {
+    source_id: "src-link-0001", context_item_id: "44444444-4444-4444-8444-444444444444",
+    kind: "link", display_name: "https://example.com/a-very-long-private-reference-page-about-classroom-problem-solving",
+    state: "routed", state_detail_code: "video_link", contains_third_parties: true,
+    created_at: "2026-09-08T11:00:00.000Z",
+    yield: { claims_approved: 0, claims_proposed: 0, voice_seconds: 0 },
+  },
+  {
+    source_id: "src-call-0001", context_item_id: null, kind: "call", display_name: "",
+    state: "processing", state_detail_code: "", contains_third_parties: false,
+    created_at: "2026-09-13T14:05:00.000Z",
+    yield: { claims_approved: 0, claims_proposed: 1, voice_seconds: 38 },
+  },
+];
 const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
   // Nothing uploaded yet. The base table already is this scenario; listed
   // for symmetry so `?scenario=empty` and no param at all are the same page.
@@ -552,6 +580,11 @@ function installStubFetch() {
       }
       const op = String(payload.op || "");
       if (op === "list") return reply({ sources: fixtureSources });
+      if (op === "overview") return reply({ sources: SOURCE_OVERVIEW_FIXTURE });
+      if (op === "removal_preview") return reply({ impact: {
+        source_id: String(payload.source_id || ""), claims_approved: 3, claims_proposed: 2,
+        voice_seconds: 91, is_primary_voice: payload.source_id === "src-ready-0001",
+      } });
       if (op === "create_upload") {
         sourceSequence += 1;
         const now = new Date().toISOString();

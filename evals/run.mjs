@@ -3477,6 +3477,7 @@ const suites = {
   // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
   // real source on every run, the same as `person-sheet` above.
   "person-sheet-draft": "person-sheet-draft/run.mjs",
+  "sources-studio": "sources-studio/run.mjs",
 };
 
 const argv = process.argv.slice(2);

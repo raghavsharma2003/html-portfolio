@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { REPLICA_POLICY_VERSION } from "./_replica.js";
+import { REPLICA_POLICY_VERSION, replicaId } from "./_replica.js";
 import { sha256Hex } from "./_replica-processing/contracts.js";
 import { deleteReplicaSourceObjects, replicaStorageBucketDescriptor } from "./_replica-storage.js";
 import { primarySelectionQuery } from "./_replica-primary-selection.js";
@@ -9,6 +9,35 @@ const DEFAULT_PENDING_UPLOAD_STALE_MS = 24 * 60 * 60 * 1000;
 const MIN_PENDING_UPLOAD_STALE_MS = 60 * 60 * 1000;
 const MAX_PENDING_UPLOAD_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_PENDING_UPLOAD_CLEANUP_BATCH = 25;
+
+export const OWNED_SOURCE_REMOVAL_IMPACT_SQL = `select s.source_id,
+       coalesce((select count(*) from vy_replica_claim c
+                  where c.replica_id=s.replica_id and c.owner_user_id=s.owner_user_id
+                    and c.status='approved' and s.source_id=any(c.source_ids)),0)::integer claims_approved,
+       coalesce((select count(*) from vy_replica_claim c
+                  where c.replica_id=s.replica_id and c.owner_user_id=s.owner_user_id
+                    and c.status='proposed' and s.source_id=any(c.source_ids)),0)::integer claims_proposed,
+       greatest(0,round(coalesce(s.duration_ms,0)::numeric/1000))::integer voice_seconds,
+       exists(select 1 from vy_replica_voice_reference vr
+               where vr.replica_id=s.replica_id and vr.owner_user_id=s.owner_user_id
+                 and vr.source_id=s.source_id) is_primary_voice
+  from vy_replica_source s
+ where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.source_id=$3::uuid
+   and s.state<>'deleting'
+ limit 1`;
+
+export async function ownedSourceRemovalImpact(db, ownerUserId, id, source) {
+  const rows = await db(OWNED_SOURCE_REMOVAL_IMPACT_SQL, [replicaId(id), ownerUserId, replicaId(source)]);
+  const row = rows[0];
+  if (!row) return null;
+  return Object.freeze({
+    source_id: row.source_id,
+    claims_approved: Number(row.claims_approved || 0),
+    claims_proposed: Number(row.claims_proposed || 0),
+    voice_seconds: Number(row.voice_seconds || 0),
+    is_primary_voice: Boolean(row.is_primary_voice),
+  });
+}
 
 export function sourceErasureLeaseTokenHash(token) {
   if (typeof token !== "string" || token.length < 32) throw new Error("strong source erasure lease token required");

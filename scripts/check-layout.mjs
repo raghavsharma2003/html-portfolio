@@ -195,6 +195,12 @@ const TARGETS = [
     steps: ["humanos"], mounted: ".humanos-studio",
     panels: ".humanos-card", minPanels: 3,
   },
+  {
+    name: "studio:sources", fixture: "studio-layout-fixture.html",
+    query: (step) => `step=meet&scenario=active-runtime&view=enrich&enrichView=sources${step === "hi" ? "&lang=hi" : ""}`,
+    steps: ["en", "hi"], mounted: ".sources-studio",
+    panels: ".sources-ledger, .sources-row", minPanels: 2,
+  },
   // WS-R152. Deploy for a personal AI: `src/studio/DeployStudio.tsx` (the
   // personal studio's own Deploy screen, `ExpertSharePanel`'s own export
   // name, mounted at `?view=share`) plus the REAL `RoomStudio` it mounts

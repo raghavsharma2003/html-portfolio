@@ -378,6 +378,71 @@ export async function listOwnedSources(db, ownerUserId, id) {
   return rows.map(clientSource);
 }
 
+export const OWNED_SOURCES_OVERVIEW_SQL = `select s.source_id,s.kind,s.capture_mode,s.purpose,s.duration_ms,s.state,s.contains_third_parties,
+       s.rejection_code,s.created_at,s.provenance,
+       ci.item_id,ci.kind item_kind,ci.source_name,ci.source_url,ci.status item_state,
+       ci.refusal_reason,ci.routed_to,ci.mine_skip_reason,
+       coalesce(yielded.claims_approved,0)::integer claims_approved,
+       coalesce(yielded.claims_proposed,0)::integer claims_proposed
+  from vy_replica_source s
+  left join vy_context_item ci
+    on ci.source_id=s.source_id and ci.replica_id=s.replica_id and ci.owner_user_id=s.owner_user_id
+  left join lateral (
+    select count(*) filter (where c.status='approved') claims_approved,
+           count(*) filter (where c.status='proposed') claims_proposed
+      from vy_replica_claim c
+     where c.replica_id=s.replica_id and c.owner_user_id=s.owner_user_id
+       and s.source_id=any(c.source_ids)
+  ) yielded on true
+ where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.state<>'deleting'
+   and (
+     s.purpose in ('memory','context_item','interview','mirror_window')
+     or (s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
+   )
+ order by s.created_at desc,s.source_id desc limit 200`;
+
+function overviewKind(row) {
+  if (row.purpose === "context_item" && row.item_kind === "link") return "link";
+  if (row.purpose === "context_item") return "file";
+  if (row.capture_mode === "derived" || row.purpose === "interview" || row.purpose === "mirror_window" ||
+      row.provenance?.purpose === "mirror_window") return "call";
+  return row.kind === "audio" || row.kind === "video" ? "recording" : "file";
+}
+
+export function clientSourceOverview(row) {
+  const kind = overviewKind(row);
+  const contextItem = row.purpose === "context_item" && row.item_id;
+  const state = String(contextItem ? row.item_state : row.state || "");
+  const stateDetailCode = contextItem
+    ? row.refusal_reason || row.routed_to || row.mine_skip_reason || ""
+    : row.rejection_code || "";
+  const displayName = contextItem
+    ? String(row.source_name || row.source_url || "").slice(0, 200)
+    : "";
+  return Object.freeze({
+    source_id: row.source_id,
+    context_item_id: contextItem ? row.item_id : null,
+    kind,
+    display_name: displayName,
+    state,
+    state_detail_code: String(stateDetailCode).slice(0, 120),
+    contains_third_parties: Boolean(row.contains_third_parties),
+    created_at: row.created_at,
+    yield: Object.freeze({
+      claims_approved: Number(row.claims_approved || 0),
+      claims_proposed: Number(row.claims_proposed || 0),
+      voice_seconds: kind === "recording" || kind === "call"
+        ? Math.max(0, Math.round(Number(row.duration_ms || 0) / 1000))
+        : 0,
+    }),
+  });
+}
+
+export async function listOwnedSourcesOverview(db, ownerUserId, id) {
+  const rows = await db(OWNED_SOURCES_OVERVIEW_SQL, [replicaId(id), ownerUserId]);
+  return rows.map(clientSourceOverview);
+}
+
 export async function setOwnedPrimaryVoiceSource(db, ownerUserId, id, source) {
   const rid = replicaId(id);
   const sid = replicaId(source);

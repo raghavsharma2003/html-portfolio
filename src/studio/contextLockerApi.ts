@@ -157,8 +157,18 @@ export async function remineContextItem(
   });
 }
 
-export async function removeContextItem(token: string, replicaId: string, itemId: string): Promise<void> {
-  await replicaRequest<{ removed: boolean }>(token, "/api/context-items", {
+export interface ContextRemovalReceipt {
+  removed: boolean;
+  item_id?: string;
+  erasure?: "complete" | "pending";
+}
+
+export async function removeContextItem(
+  token: string,
+  replicaId: string,
+  itemId: string,
+): Promise<ContextRemovalReceipt> {
+  return replicaRequest<ContextRemovalReceipt>(token, "/api/context-items", {
     method: "DELETE",
     body: JSON.stringify({ replica_id: replicaId, item_id: itemId }),
   });
