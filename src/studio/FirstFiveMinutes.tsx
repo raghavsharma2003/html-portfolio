@@ -79,7 +79,7 @@ export function FirstFiveMinutesRail({ step }: { step: FirstFiveMinutesStep }) {
           <span className="ffm-step-copy">
             <strong>{copy.firstSourceTitle}</strong>
             {step === "firstSource" ? (
-              <small>{copy.firstSourceHint}</small>
+              <span className="visually-hidden">{copy.firstSourceHint}</span>
             ) : (
               <span className="visually-hidden">{copy.stepDoneLabel}</span>
             )}
@@ -89,10 +89,11 @@ export function FirstFiveMinutesRail({ step }: { step: FirstFiveMinutesStep }) {
           <span className="ffm-dot" aria-hidden="true" />
           <span className="ffm-step-copy">
             <strong>{copy.meetTitle}</strong>
-            {step === "meetWait" ? <small>{copy.meetHint}</small> : null}
+            {step === "meetWait" ? <span className="visually-hidden">{copy.meetHint}</span> : null}
           </span>
         </li>
       </ol>
+      <p className="ffm-hint" aria-hidden="true">{step === "firstSource" ? copy.firstSourceHint : copy.meetHint}</p>
     </nav>
   );
 }

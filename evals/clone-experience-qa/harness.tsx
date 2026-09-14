@@ -129,14 +129,7 @@ class CountingUploadRequest {
 }
 window.XMLHttpRequest = CountingUploadRequest as unknown as typeof XMLHttpRequest;
 
-class FixtureAudio {
-  duration = 20;
-  preload = "";
-  onloadedmetadata: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  set src(_value: string) { queueMicrotask(() => this.onloadedmetadata?.()); }
-}
-window.Audio = FixtureAudio as unknown as typeof Audio;
+// The visual harness uses the browser's real media metadata and decoding.
 
 function queuedIntent(sourceId: string): VoiceBuildIntent {
   return {
@@ -157,6 +150,8 @@ function Harness() {
     exposeCounter("createCalls", window.__cloneQa.createCalls + 1);
     exposeCounter("uploadIntent", input.uploadIntentId || "");
     exposeCounter("languageHint", input.languageHint || "");
+    if (new URLSearchParams(location.search).has("uploadHold")) await new Promise(() => {});
+    if (new URLSearchParams(location.search).has("uploadFail")) throw new Error("The upload could not connect. Your recording is still here.");
     const created = candidate("ready");
     setSources([created]);
     return { source: created, upload: null as SignedUpload | null, replayed: true, finalized: true };

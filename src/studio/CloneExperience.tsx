@@ -411,17 +411,21 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
   const sourceClear = Boolean(sample?.recordedHere || fileOwnershipConfirmed);
 
   return (
-    <section className="vx-capture" aria-labelledby="vx-capture-title">
-      {captureState === "idle" && !sample && onKnowledge && <button type="button" className="vx-button vx-button--quiet" onClick={onKnowledge}>{copy.addKnowledgeFirst}</button>}
-      <motion.div layout="position" className="vx-stage-title">
+    <section className={`vx-capture is-${captureState}`} aria-labelledby="vx-capture-title">
+      <div className="vx-stage-title">
         <h1 id="vx-capture-title">{captureState === "review" ? copy.readyHeading : copy.sayHeading}</h1>
         <p>{captureState === "review" ? copy.readyBody : copy.sayBody}</p>
-      </motion.div>
+      </div>
 
       <div className="vx-capture__center">
-        <VoiceField level={level} history={levelHistory} active={captureState === "recording"} calm={captureState === "review"} />
-        {captureState !== "review" ? <div className="vx-aperture-marks" aria-hidden="true"><span>{copy.minMinimum}</span><span>{copy.idealLength}</span><span>{copy.localFirst}</span></div> : null}
-        <AnimatePresence mode="wait" initial={false}>
+        {captureState !== "review" && <div className="vx-capture__signal" aria-hidden="true">
+          <div className="vx-capture__wave">
+            {levelHistory.filter((_, index) => index % 3 === 0).map((value, index) => <span key={index} style={{ transform: `scaleY(${captureState === "recording" && !reduceMotion ? Math.max(0.06, Math.min(1, Math.sqrt(Math.max(value, level * 0.1)))) : 0.06})` }} />)}
+          </div>
+          <span className="vx-capture__clock">{clockDuration(elapsedMs)}</span>
+          <span className="vx-capture__duration">{copy.minMinimum} / {copy.idealLength}</span>
+        </div>}
+        <AnimatePresence initial={false}>
           {captureState !== "review" ? (
             <motion.button
               key="record"
@@ -445,21 +449,20 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
                 if (captureState === "recording") void stop();
                 else if (captureState === "idle") void start();
               }}
-              initial={reduceMotion ? false : { scale: 0.96 }}
-              animate={{ scale: 1 }}
-              exit={reduceMotion ? undefined : { scale: 0.96 }}
-              whileTap={reduceMotion ? undefined : { scale: 0.965 }}
+              initial={false}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.16 }}
             >
               <span>{captureState === "requesting" ? copy.opening : captureState === "recording" ? copy.finish : copy.begin}</span>
-              {captureState === "recording" && <small>{clockDuration(elapsedMs)}</small>}
+
             </motion.button>
           ) : sample ? (
             <motion.div
               key="review"
               className="vx-sample"
-              initial={reduceMotion ? false : { opacity: 0, clipPath: "inset(42% 0 42% 0 round 24px)" }}
-              animate={{ opacity: 1, clipPath: "inset(0% 0 0% 0 round 24px)" }}
-              exit={reduceMotion ? undefined : { opacity: 0 }}
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.18 }}
             >
               <div className="vx-sample__measure">
                 <strong>{sample.durationMs == null ? copy.audioReady : clockDuration(sample.durationMs)}</strong>
@@ -494,11 +497,14 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
         {captureState === "recording" && <span>{elapsedMs < RECOMMENDED_RECORDING_MS ? copy.aboutThirtySeconds : copy.finishAtEnd}</span>}
       </div>
 
+      <div className="vx-capture__alternatives">
       {captureState === "idle" && (
         <button className="vx-file-alternative" type="button" onClick={() => fileInputRef.current?.click()}>
           {copy.useFileInstead}
         </button>
       )}
+      {captureState === "idle" && !sample && onKnowledge && <button type="button" className="vx-button vx-button--quiet" onClick={onKnowledge}>{copy.addKnowledgeFirst}</button>}
+      </div>
       <input ref={fileInputRef} className="vx-visually-hidden" type="file" aria-label={copy.chooseRecordingAria} tabIndex={-1} accept="audio/*,video/*,.wav,.mp3,.m4a,.aac,.flac,.ogg,.opus,.webm,.mp4,.mov,.mkv" onChange={(event) => void chooseFile(event.currentTarget.files?.[0] ?? null)} />
       {error && <p className="vx-error" role="alert">{error}</p>}
     </section>

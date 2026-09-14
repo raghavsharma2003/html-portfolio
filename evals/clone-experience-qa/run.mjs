@@ -52,14 +52,14 @@ ok("the premium voice field is driven by microphone history rather than a canned
   /history\?\.\[sourceIndex\]/.test(voiceField)
   && /setLevelHistory\(\(current\) => \[\.\.\.current\.slice\(-95\), nextLevel\]\)/.test(experience)
   && !/animation:/.test(voiceFieldCss));
-ok("the same voice field carries recording, upload, and build states",
-  /<VoiceField level=\{level\} history=\{levelHistory\}/.test(experience)
+ok("recording uses measured waveform history while upload and build retain their state surface",
+  /levelHistory.filter/.test(experience) && /vx-capture__wave/.test(experience)
   && /<VoiceField level=\{upload\.phase/.test(experience)
   && /cvj-build__signal"><VoiceField calm/.test(verification));
-ok("the app uses the verified Vyakti wordmark and official neutral brand palette",
+ok("the app preserves its verified wordmark and owner-requested silver Studio palette",
   /\\u0935\\u094d\\u092f/.test(mark)
   && /<span>vyakti<\/span>/.test(mark)
-  && /--vx-paper:\s*#f8f8f5/.test(experienceCss)
+  && /--vx-paper:\s*#f5f6f7/.test(experienceCss)
   && /--vx-brand-ember:\s*#b93627/.test(experienceCss));
 ok("invented upload phase percentages are absent outside byte transfer",
   /upload\.phase === "hash" \? copy\.upload\.checkingRecording/.test(experience)

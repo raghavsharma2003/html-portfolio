@@ -1,17 +1,6 @@
-/* first-five-minutes.css — WS-R164 (wave twenty-two).
- *
- * `.ffm-rail`'s own small strip, fixed under `.vx-header` (same 64px + safe
- * area math `.vx-toast` already uses in `clone-experience.css`, so it never
- * drifts out of sync with the header's own real height by hand). It floats
- * above content rather than reserving document flow, because it renders for
- * only two of the shell's states and the alternative (padding every scene in
- * `clone-experience.css` to make room for a banner that is not always there)
- * would touch dozens of unrelated screens for one small addition — the same
- * reasoning `.vx-toast` already uses one file up.
- *
- * Colours come from `auth-entry.css`'s own `--vx-*` root tokens (already on
- * the page by the time this mounts, since `clone-experience.css` imports
- * that file first) rather than a second palette.
+/* The step rail keeps its full-width explanation separate from step labels.
+ * Capture/upload/recovery reserve the rail in flow; other scenes retain their
+ * established positioning. The signed-in shell supplies the silver tokens.
  */
 @layer components {
   .ffm-rail {
@@ -118,5 +107,29 @@
       background: var(--vx-paper);
       backdrop-filter: none;
     }
+  }
+}
+/* A full-width explanation belongs to the current step, not its narrow column. */
+@layer responsive {
+  .vx-shell .ffm-rail {
+    width: min(560px, calc(100% - 32px));
+    padding: 12px 16px;
+    border-color: #d8dce1;
+    border-radius: 12px;
+    background: #f7f8fa;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .vx-shell .ffm-steps { gap: 12px; }
+  .vx-shell .ffm-step { gap: 6px; align-items: center; }
+  .vx-shell .ffm-step-copy strong { font-size: 12px; font-weight: 600; line-height: 1.4; }
+  .vx-shell .ffm-dot { width: 6px; height: 6px; margin: 0; background: #c1c7cf; }
+  .vx-shell .ffm-step-done .ffm-dot { background: #596473; }
+  .vx-shell .ffm-step.is-current .ffm-dot { background: #303842; box-shadow: 0 0 0 3px #dce1e8; }
+  .vx-shell .ffm-hint { margin: 10px 0 0; color: var(--vx-muted); font-size: 12px; line-height: 1.5; }
+  @media (max-width: 460px) {
+    .vx-shell .ffm-rail { padding: 10px 12px; }
+    .vx-shell .ffm-step { flex: 0 1 auto; }
+    .vx-shell .ffm-step-copy strong { font-size: 11px; }
   }
 }
