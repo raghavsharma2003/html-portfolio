@@ -49,6 +49,8 @@ try {
   let runId = null;
   let polls = 0;
   let posts = 0;
+  let referenceDownloads = 0;
+  let sampleDownloads = 0;
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   await page.route("**/api/internal-voice**", async (route) => {
     const request = route.request();
@@ -57,6 +59,8 @@ try {
     if (url.searchParams.get("action")) {
       assert.equal(url.searchParams.get("replica_id"), replica);
       assert.equal(url.searchParams.get("run_id"), runId);
+      if (url.searchParams.get("action") === "reference") referenceDownloads += 1;
+      if (url.searchParams.get("action") === "audio") sampleDownloads += 1;
       return route.fulfill({ status: 200, contentType: "audio/wav", body: wav });
     }
     if (request.method() === "POST") {
@@ -106,12 +110,19 @@ try {
   assert.equal(posts, 1, "polling must not create another synthesis");
   assert.ok(polls >= 1, "same run UUID was not polled");
   assert.equal(await panel.locator('audio[src^="blob:"]').count(), 2);
+  assert.equal(referenceDownloads, 1, "status polling must not download the unchanged reference again");
+  assert.equal(sampleDownloads, 1, "the ready sample must download once");
+  const sampleSrc = await panel.locator('audio[src^="blob:"]').nth(1).getAttribute("src");
   await mkdir(join(root, "scratchpad", "internal-voice-ui"), { recursive: true });
   await page.screenshot({ path: screenshotPath, fullPage: true });
   for (const fieldset of await panel.locator("fieldset").all()) await fieldset.getByRole("button", { name: /4 of 5$/ }).click();
   await page.getByRole("button", { name: "Save ratings" }).click();
   await page.getByRole("heading", { name: "Ratings saved" }).waitFor();
   assert.equal(await panel.locator("fieldset").count(), 0, "saved ratings must be read-only");
+  assert.equal(await panel.locator('audio[src^="blob:"]').nth(1).getAttribute("src"), sampleSrc,
+    "a same-run ready response must preserve playback");
+  assert.equal(referenceDownloads, 1);
+  assert.equal(sampleDownloads, 1);
   await page.setViewportSize({ width: 1440, height: 1000 });
   assert.equal(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth), true);
   assert.equal(await panel.locator("dl dd").filter({ hasText: "4 / 5" }).count(), 4);

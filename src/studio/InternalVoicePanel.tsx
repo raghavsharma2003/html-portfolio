@@ -135,6 +135,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
   const requestEpoch = useRef(0);
   const referenceUrlRef = useRef<string | null>(null);
   const sampleUrlRef = useRef<string | null>(null);
+  const audioScopeRef = useRef<{ token: string; replicaId: string; runId: string } | null>(null);
   const ratingsRun = useRef<string | null>(null);
 
   const applyFailure = useCallback((cause: unknown, hideUnavailable = false) => {
@@ -181,28 +182,50 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
     return () => window.clearTimeout(timer);
   }, [loadStatus, status?.run]);
 
+  const audioRunId = status?.run?.run_id || null;
+  const audioRunState = status?.run?.state || null;
+  const sampleAvailable = audioRunState === "ready" && Boolean(status?.run?.playback_url);
+
   useEffect(() => {
-    const run = status?.run;
-    if (!run || run.state === "revoked") {
+    if (!audioRunId || audioRunState === "revoked") {
+      audioScopeRef.current = null;
       replaceUrl(referenceUrlRef, null);
       replaceUrl(sampleUrlRef, null);
       setReferenceUrl(null);
       setSampleUrl(null);
       return;
     }
+    const scope = audioScopeRef.current;
+    const scopeChanged = !scope || scope.token !== token || scope.replicaId !== replicaId || scope.runId !== audioRunId;
+    if (scopeChanged) {
+      audioScopeRef.current = { token, replicaId, runId: audioRunId };
+      replaceUrl(referenceUrlRef, null);
+      replaceUrl(sampleUrlRef, null);
+      setReferenceUrl(null);
+      setSampleUrl(null);
+    } else if (!sampleAvailable && sampleUrlRef.current) {
+      replaceUrl(sampleUrlRef, null);
+      setSampleUrl(null);
+    }
+    const needsReference = !referenceUrlRef.current;
+    const needsSample = sampleAvailable && !sampleUrlRef.current;
+    setAudioError(null);
+    if (!needsReference && !needsSample) return;
+
     const controller = new AbortController();
     const load = async () => {
-      setAudioError(null);
-      const reference = await fetchInternalVoiceAudio(token, replicaId, run.run_id, "reference", controller.signal)
-        .then((blob) => URL.createObjectURL(blob));
-      if (controller.signal.aborted) {
-        URL.revokeObjectURL(reference);
-        return;
+      if (needsReference) {
+        const reference = await fetchInternalVoiceAudio(token, replicaId, audioRunId, "reference", controller.signal)
+          .then((blob) => URL.createObjectURL(blob));
+        if (controller.signal.aborted) {
+          URL.revokeObjectURL(reference);
+          return;
+        }
+        replaceUrl(referenceUrlRef, reference);
+        setReferenceUrl(reference);
       }
-      replaceUrl(referenceUrlRef, reference);
-      setReferenceUrl(reference);
-      if (run.state !== "ready" || !run.playback_url) return;
-      const sample = await fetchInternalVoiceAudio(token, replicaId, run.run_id, "audio", controller.signal)
+      if (!needsSample) return;
+      const sample = await fetchInternalVoiceAudio(token, replicaId, audioRunId, "audio", controller.signal)
         .then((blob) => URL.createObjectURL(blob));
       if (controller.signal.aborted) {
         URL.revokeObjectURL(sample);
@@ -217,7 +240,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
       setAudioError(cause instanceof InternalVoiceApiError ? cause.code : "internal_voice_audio_unavailable");
     });
     return () => controller.abort();
-  }, [onAuthError, replicaId, status?.run, token]);
+  }, [audioRunId, audioRunState, onAuthError, replicaId, sampleAvailable, token]);
 
   useEffect(() => () => {
     replaceUrl(referenceUrlRef, null);
