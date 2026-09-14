@@ -6,7 +6,7 @@ import {probeEnrollmentWav} from '../../api/_audio/wav.js';
 import {voiceAppArmToken} from '../../api/_voice/allocation-runtime.js';
 import {createBlobStore} from './blob-store.mjs';
 import {createInternalLifecycle} from './lifecycle.mjs';
-import {readConfiguration,authorizeOwner,SCOPE,TEXT,UUID,ratings,sha,fail,safeError} from './contract.mjs';
+import {readConfiguration,authorizeOwner,SCOPE,TEXT,UUID,ratings,sha,fail,safeError,internalVoiceProfile} from './contract.mjs';
 
 function wav(pcm){
   const h=Buffer.alloc(44);h.write('RIFF');h.writeUInt32LE(pcm.length+36,4);h.write('WAVEfmt ',8);h.writeUInt32LE(16,16);h.writeUInt16LE(1,20);h.writeUInt16LE(1,22);h.writeUInt32LE(24000,24);h.writeUInt32LE(48000,28);h.writeUInt16LE(2,32);h.writeUInt16LE(16,34);h.write('data',36);h.writeUInt32LE(pcm.length,40);return Buffer.concat([h,pcm]);
@@ -59,17 +59,18 @@ export function createInternalVoiceRuntime({env=process.env,store:providedStore,
     try{
       claimed=await mutateRun(id,r=>{assertRun(r);if(r.state!=='queued')return false;r.state='running';r.started_at=new Date(started).toISOString();return true;});
       if(!claimed)return;
-      const ref=await reference();assertRun(await store.run(id));
+      const ref=await reference();const row=assertRun(await store.run(id)),profile=row.benchmark_profile;
+      if(!profile||commitment(profile)!==commitment(internalVoiceProfile(config.grant.reference_sha256)))fail('internal_voice_benchmark_binding_invalid');
       const provider=providerFactory({env,fetchImpl,allocation:allocation(id)});
-      const synthesized=await provider.synthesizePreview({requestId:id,text:TEXT,languageId:'hi',seed:31001,
-        reference:{bytes:ref.bytes,sha256:config.grant.reference_sha256,durationMs:ref.durationMs,languageMode:'unknown',languageEvidenceScope:'unverified'},
-        style:{exaggeration:.5,cfgWeight:.5,temperature:.8},signal:AbortSignal.timeout(420000)});
+      const synthesized=await provider.synthesizePreview({requestId:id,text:TEXT,languageId:'hi',seed:profile.seed,
+        reference:{bytes:ref.bytes,sha256:config.grant.reference_sha256,durationMs:ref.durationMs,languageMode:profile.language_mode,languageEvidenceScope:profile.language_evidence_scope},
+        style:profile.style,signal:AbortSignal.timeout(420000)});
       const chunks=[];let size=0;for await(const value of synthesized.stream){size+=value.length;if(size>24*1024*1024)fail('internal_voice_audio_oversized');chunks.push(Buffer.from(value));}
       const pcm=Buffer.concat(chunks);
       if(!pcm.length||pcm.length%2||synthesized.receipt?.outputSha256!==sha(pcm)||synthesized.receipt.perthWatermarkVerified!==true||!synthesized.disclosureText)fail('internal_voice_output_binding_invalid');
       assertRun(await store.run(id));const bytes=wav(pcm);const output=await store.saveAudio(id,bytes);
       await mutateRun(id,r=>{assertRun(r);if(r.state!=='running')fail('internal_voice_attempt_changed');
-        r.state='ready';r.output_sha256=output;r.receipt={...synthesized.receipt,scope:SCOPE,identity_scope:'owner_asserted_internal',release_eligible:false,identity_claim_allowed:false};
+        r.state='ready';r.output_sha256=output;r.receipt={...synthesized.receipt,scope:SCOPE,identity_scope:'owner_asserted_internal',release_eligible:false,identity_claim_allowed:false,benchmark_profile:profile};
         r.completed_at=new Date(now()).toISOString();r.metrics={total_ms:now()-started,model_elapsed_ms:synthesized.receipt.elapsedMs,duration_ms:pcm.length/48,real_time_factor:synthesized.receipt.realTimeFactor,first_audible_ms:null};return true;});
     }catch(e){
       if(claimed){await mutateRun(id,r=>{if(!r||r.revoked_at)return false;r.state=r.window?'unknown':'failed';r.error_code=safeError(e);return true;}).catch(()=>{});
@@ -82,7 +83,7 @@ export function createInternalVoiceRuntime({env=process.env,store:providedStore,
     const state=r.revoked_at?'revoked':r.state==='running'&&Date.parse(r.started_at)+450000<now()?'unknown':r.state;
     return{run_id:r.run_id,state,text:TEXT,language_id:'hi',model_arm:r.model_arm,scope:SCOPE,identity_scope:'owner_asserted_internal',release_eligible:false,
       playback_url:state==='ready'?`/api/internal-voice?action=audio&${qs}`:null,reference_url:`/api/internal-voice?action=reference&${qs}`,
-      ratings:r.ratings||null,metrics:r.metrics||null,error_code:r.error_code||null,cleanup_pending:!!r.window&&r.window.state!=='terminal_observed'};
+      ratings:r.ratings||null,metrics:r.metrics||null,benchmark_profile:r.benchmark_profile||null,error_code:r.error_code||null,cleanup_pending:!!r.window&&r.window.state!=='terminal_observed'};
   }
   return {config,store,controller,active,
     async status(user,replica,id){owned(user,replica);const s=await store.read();const r=id?await store.run(id):Object.values(s.runs).sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];
@@ -90,7 +91,7 @@ export function createInternalVoiceRuntime({env=process.env,store:providedStore,
     async generate(user,replica,id){owned(user,replica);fresh();if(!UUID.test(id||''))fail('internal_voice_run_invalid',400);
       await mutateRun(id,(r,s)=>{if(r){assertRun(r);return false;}if(!s.reference||s.reference.sha256!==config.grant.reference_sha256)fail('internal_voice_reference_unavailable');if(Object.keys(s.runs).length>=config.maxAttempts)fail('internal_voice_attempt_limit');
         s.runs[id]={run_id:id,owner_user_id:config.owner,replica_id:config.replica,authorization_sha256:config.grantHash,reference_sha256:config.grant.reference_sha256,
-          state:'queued',model_arm:config.modelArm,scope:SCOPE,release_eligible:false,expires_at:config.grant.expires_at,created_at:new Date(now()).toISOString()};return true;});
+          state:'queued',model_arm:config.modelArm,benchmark_profile:internalVoiceProfile(config.grant.reference_sha256),scope:SCOPE,release_eligible:false,expires_at:config.grant.expires_at,created_at:new Date(now()).toISOString()};return true;});
       if(!active.has(id)){const task=new Promise(resolve=>setImmediate(resolve)).then(()=>execute(id));active.set(id,task);}
       return this.status(user,replica,id);
     },

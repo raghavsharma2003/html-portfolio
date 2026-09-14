@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {fixture} from '../azure-voice-app/controller.test.mjs';
 import {createInternalVoiceRuntime} from './runtime.mjs';
 import {createBlobStore} from './blob-store.mjs';
-import {authorizeOwner,sha,SCOPE,ratings} from './contract.mjs';
+import {authorizeOwner,sha,SCOPE,ratings,internalVoiceProfile,HISTORICAL_REFERENCE_SHA256,TEXT} from './contract.mjs';
+import {createOpenChatterboxPreviewProvider} from '../../api/_voice/providers/open-chatterbox-preview.js';
 import {commitment} from '../azure-voice-app/controller.mjs';
 import {wav,signedResponse,signedRuntimeStatus} from './fixtures.mjs';
 const owner='11111111-1111-4111-8111-111111111111',replica='22222222-2222-4222-8222-222222222222',id='33333333-3333-4333-8333-333333333333';
@@ -67,6 +68,21 @@ test('Hindi v3 uses its real provider arm, one Hindi utterance and disclosure',a
   const{runtime,store,brokerCalls}=await setup({modelArm:'hindi_v3'});await runtime.generate({id:owner},replica,id);await Promise.all(runtime.active.values());
   const row=await store.run(id);assert.equal(row.state,'ready',JSON.stringify(row));assert.equal(row.model_arm,'hindi_v3');
   const request=JSON.parse(brokerCalls[1].body);assert.equal(request.model_arm,'hindi_v3');assert.equal(request.language_id,'hi');assert.equal(request.disclosure_language_id,'hi');assert.ok(request.disclosure_text);assert.equal(request.text_segment_count,1);
+});
+test('exact historical reference restores identity-anchor and real provider effective CFG .78; other references do not inherit transcript evidence',async()=>{
+  const profile=internalVoiceProfile(HISTORICAL_REFERENCE_SHA256);
+  assert.equal(TEXT,'आज हम इस सवाल को धीरे धीरे समझेंगे, फिर सही उत्तर निकालेंगे।');assert.deepEqual(profile.style,{exaggeration:.2,cfgWeight:.78,temperature:.6});assert.equal(profile.seed,41001);
+  assert.equal(profile.language_mode,'mixed');assert.equal(profile.language_evidence_scope,'source_transcript');assert.equal(profile.provenance.exact_reference_language_verified,false);
+  const other=internalVoiceProfile('a'.repeat(64));assert.equal(other.language_mode,'unknown');assert.equal(other.language_evidence_scope,'unverified');assert.equal(other.provenance,null);
+  // Synthetic transport/audio tests conditioning mechanics; fixture bytes are not owner evidence.
+  const bytes=wav();let request;
+  const provider=createOpenChatterboxPreviewProvider({env:{AZURE_OPEN_VOICE_ORIGIN:'https://broker.test.azurecontainerapps.io',VYAKTI_MODEL_SERVING:'azure_only',OPEN_VOICE_HMAC_SECRET:'ab'.repeat(32),OPEN_VOICE_MODEL_ARM:'hindi_v3'},
+    allocation:{assertReady:async()=>{},runTransaction:async(operations,work)=>{assert.equal(operations.length,31);return work({headers:()=>({})});}},
+    fetchImpl:async(url,init)=>{if(new URL(url).pathname==='/v1/runtime-status')return signedRuntimeStatus(url,init).response;request=JSON.parse(init.body);return signedResponse(url,init).response;}});
+  const result=await provider.synthesizePreview({requestId:id,text:TEXT,languageId:'hi',seed:profile.seed,style:profile.style,
+    reference:{bytes,sha256:sha(bytes),durationMs:5000,languageMode:profile.language_mode,languageEvidenceScope:profile.language_evidence_scope}});
+  assert.equal(request.seed,41001);assert.equal(request.exaggeration,.2);assert.equal(request.temperature,.6);assert.equal(request.requested_cfg_weight,.78);assert.equal(request.cfg_weight,.78);
+  assert.equal(result.receipt.effectiveCfgWeight,.78);assert.equal(result.receipt.referenceLanguageEvidenceScope,'source_transcript');assert.ok(result.receipt.qualityWarnings.includes('reference_script_observed_at_source_scope'));
 });
 test('expired grant and stale supervisor prevent a model dispatch',async()=>{
   const{runtime,f,brokerCalls}=await setup();f.time(3600001);await assert.rejects(runtime.generate({id:owner},replica,id),/expired/);assert.equal(brokerCalls.length,0);

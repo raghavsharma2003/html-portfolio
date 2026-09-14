@@ -2,6 +2,8 @@
 
 The signed-in Studio calls `/api/internal-voice`. This private lane uses the owner's explicitly bound reference and one fixed Hindi utterance through the existing Chatterbox adapter. It does not create identity, consent, generation or genome database rows. Its purpose receipt says `internal_owner_voice`, `identity_scope=owner_asserted_internal`, `release_eligible=false`, `identity_claim_allowed=false`, and `training_allowed=false`. No public enrollment readiness changes.
 
+For the retained reference SHA52a4a5fa05b293de8f99e6529f3d69d94fd9f0cafdcf7ca39985b76eda70b30c, the internal attempt reproduces the historical hi-lesson identity-anchor style (exaggeration0.2, CFG0.78, temperature0.6) and seed41001 recorded by the retained Aug29 runner. The historical same-reference receipt supports `mixed` only at `source_transcript` scope. The queued run and output receipt retain that limited attribution, evidence file SHA256 values, seed provenance and baseline WAV hash. They explicitly deny exact-reference language verification. Different reference hashes receive no inherited transcript claim. These settings are internal only; public preview defaults are unchanged.
+
 ## Run contract
 
 GET `?replica_id=<uuid>` returns `enabled`, `scope`, `reference` (label, measured duration, available), `can_generate`, and latest `run`. GET can also select `run_id`. It never probes GPU readiness. POST `{action:'generate',replica_id,run_id:<client UUID>}` creates one durable attempt and returns 202 immediately. The CPU process executes it asynchronously. Repeating the UUID reads the same attempt; an uncertain/crashed attempt never restarts automatically. Default maximum is one attempt per operator-bound authorization namespace.

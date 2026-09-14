@@ -2,6 +2,20 @@ import {createHash} from 'node:crypto';
 
 export const SCOPE='internal_owner_voice';
 export const TEXT='आज हम इस सवाल को धीरे धीरे समझेंगे, फिर सही उत्तर निकालेंगे।';
+export const HISTORICAL_REFERENCE_SHA256='52a4a5fa05b293de8f99e6529f3d69d94fd9f0cafdcf7ca39985b76eda70b30c';
+// This is a retained source-transcript observation, never exact-window language verification.
+export function internalVoiceProfile(referenceSha256){
+  const matched=referenceSha256===HISTORICAL_REFERENCE_SHA256;
+  return {style:{exaggeration:.2,cfgWeight:.78,temperature:.6},seed:matched?41001:31001,
+    language_mode:matched?'mixed':'unknown',language_evidence_scope:matched?'source_transcript':'unverified',
+    provenance:matched?{kind:'retained_owner_baseline',recorded_at:'2026-08-29',reference_sha256:referenceSha256,
+      language_observation_scope:'source_transcript',exact_reference_language_verified:false,
+      attribution_basis:'historical_same_reference_provider_receipt',source_transcript_sha256:null,transcript_rechecked:false,
+      receipt_file:'hinglish-coalesced-receipts.json',receipt_sha256:'69fa728aed95d6c09c28ff40701827cc5d4c2f1f86ef8b612bb8233d44a5ec0a',
+      runner_file:'voice-quality-current-20260829/run.mjs',runner_sha256:'4811f5483f282a6825234ec3e3b9bbed5db557bae8a9edd11c09e6707b8f7ec3',
+      seed_scope:'recorded_runner_schedule',prompt_id:'hi-lesson',
+      hindi_baseline_wav_sha256:'65fee0a1c526d5d1ef5a29df75b3320f7f955009e0e4e9950e15b1c08d9ed385'}:null};
+}
 export const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 export const HASH=/^[a-f0-9]{64}$/;
 export const AXES=['owner_likeness','naturalness','indian_accent','pronunciation'];
