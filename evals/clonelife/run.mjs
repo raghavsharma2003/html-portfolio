@@ -42,7 +42,7 @@
 //       seen firing on silence alone.
 import {
   compile,
-  DEFAULT_AGENT,
+  TEST_AGENT,
   TAIL_MANIFEST,
   TAIL_ORDER,
   assertManifestArithmetic,
@@ -180,6 +180,7 @@ console.log("\n§2 continuity — the present does not re-roll, and the day move
   // stops a clone remembering on the phone and forgetting in text.
   const clone = sheetToModule(DEMO_TEACHER);
   const base = {
+    agent: TEST_AGENT,
     user: { name: "Ishan", vibe: [], facts: {} },
     messageCount: 40,
     isDirective: false,
@@ -408,6 +409,7 @@ console.log("\n§5 the seam is provably free for every incumbent (gate Q1)");
 // ═════════════════════════════════════════════════════════════════════════
 {
   const base = {
+    agent: TEST_AGENT,
     user: { name: "Sam", vibe: ["company"], facts: {} },
     messageCount: 200,
     medium: "text",
@@ -427,11 +429,15 @@ console.log("\n§5 the seam is provably free for every incumbent (gate Q1)");
   const withNulls = compile({ ...base, cloneNow: null, initiative: null });
   ok("absent vs explicitly-null clone fields compile byte-identically",
     without.system === withNulls.system);
-  ok("T18 renders zero bytes for the default agent", (without.sections?.T18 ?? -1) === 0);
-  ok("T19 renders zero bytes for the default agent", (without.sections?.T19 ?? -1) === 0);
-  ok("the default agent's tail carries no clone-life header",
+  ok("T18 renders zero bytes for the explicit fixture agent", (without.sections?.T18 ?? -1) === 0);
+  ok("T19 renders zero bytes for the explicit fixture agent", (without.sections?.T19 ?? -1) === 0);
+  ok("the fixture agent's tail carries no clone-life header",
     !without.tail.includes(CLONE_NOW_HEADER));
-  ok("DEFAULT_AGENT is unchanged by this seam", DEFAULT_AGENT.slug === "meera");
+  const { agent: _missing, ...missingAgent } = base;
+  let missingAgentError = null;
+  try { compile(missingAgent); } catch (error) { missingAgentError = error; }
+  ok("compile refuses an omitted agent instead of selecting a bundled personality",
+    missingAgentError?.code === "agent_module_required");
 
   // Manifest hygiene: the rows exist, the arithmetic still closes, and neither
   // new row joined the undroppable set (which would move the undroppable

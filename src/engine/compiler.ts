@@ -24,9 +24,9 @@
 // persona.ts is READ-ONLY here — buildSystemPromptParts / buildSpeechStyle
 // stay exactly where they are; this file only calls them.
 
-// SPEC-AGENT-LAYER.md §3 (Law E2): the static persona import is replaced by
-// an INJECTED AgentModule, defaulting to Meera's — see CompileInput.agent
-// below. persona.ts's own types (UserProfile/VoiceEngine) still flow
+// SPEC-AGENT-LAYER.md §3 (Law E2): every compile carries an injected
+// AgentModule. There is no product-persona fallback. persona.ts's own
+// types (UserProfile/VoiceEngine) still flow
 // through this file, forwarded from the agents module's own re-export
 // (agents/types.ts) rather than imported here directly, so persona.ts has
 // exactly one remaining reader in this seam: agents/meera.ts. Shape is
@@ -36,7 +36,6 @@ import {
   type UserProfile,
   type VoiceEngine,
 } from "./agents/types";
-import { DEFAULT_AGENT } from "./agents/registry";
 // WS-INTEGRATE seam 1 (docs/SPEC.md §13 collision contract: cross-workstream
 // needs go through declared interfaces, never edits to another workstream's
 // files — these are READS of WS-RELSTATE's own documented interface tickets,
@@ -325,14 +324,10 @@ export interface CompileInput {
   // mirroring `phase-c-complete`'s 83/83 property. Every use below is gated
   // behind `if (input.roomBundle)`.
   roomBundle?: RoomBundleInput | null;
-  // ── SPEC-AGENT-LAYER.md §3 (Law E2) — the injected persona module. Absent
-  // (undefined) is the ONLY state the 83 byte-identity fixtures exercise,
-  // and defaults to DEFAULT_AGENT (Meera's module, agents/meera.ts) — a
-  // zero-content re-export of persona.ts's own functions/constants, so
-  // every existing call site keeps working with zero edits and the
-  // compiled bytes cannot move: compile() with no `agent` set calls the
-  // exact same function references oldOracle.ts calls directly.
-  agent?: AgentModule;
+  // The caller must resolve a published sheet into an AgentModule before
+  // compilation. A missing module is an invalid authority state, not a cue to
+  // substitute a bundled personality.
+  agent: AgentModule;
   // ── WS-Q T18 `clone.now` — where a PUBLISHED CLONE is in its own day.
   //
   // The CALLER resolves it (`cloneNowAt(sheet.life, Date.now())`) and hands the
@@ -977,13 +972,8 @@ export function compile(input: CompileInput): CompiledPrompt {
         warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture,
       }, compileClock(input.nowMs))
     : undefined;
-  // SPEC-AGENT-LAYER.md §3: the injected agent, defaulting to Meera's
-  // module. Every call below that used to reach persona.ts directly now
-  // goes through `agent` instead — same functions, same references, when
-  // `input.agent` is absent (agents/meera.ts re-exports persona.ts's
-  // exports unchanged), so this is byte-identical to the prior static
-  // import for every one of the 83 fixtures.
-  const agent = input.agent ?? DEFAULT_AGENT;
+  const agent = input.agent;
+  if (!agent) throw Object.assign(new Error("agent_module_required"), { code: "agent_module_required" });
   const parts = agent.buildSystemPromptParts(input.user, input.messageCount, input.medium, dimsStage);
   let core = parts.core + (input.mode === "call" ? agent.buildSpeechStyle(input.voiceEngine) : "");
 
@@ -2074,9 +2064,3 @@ export function hashManifest(sections: Record<string, number>): string {
     .map((id) => `${id}=${sections[id] > 0 ? 1 : 0}`);
   return hashCore([...layout, ...usage].join("|"));
 }
-
-// Re-exported for call sites that import CRISIS_LINES from this file
-// (src/engine/__fixtures__/.budget-entry.ts) — DEFAULT_AGENT's value, which
-// is persona.ts's own CRISIS_LINES unchanged (agents/meera.ts re-exports it
-// verbatim), so this is byte-identical to the prior direct re-export.
-export const CRISIS_LINES = DEFAULT_AGENT.CRISIS_LINES;

@@ -9,7 +9,7 @@ import type { InnerPatch } from "./inner";
 import { diagTimer } from "./diag";
 import { traceServer, traceTurnId, tracePatch, type TraceChannel } from "./trace";
 
-const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform() ? "https://vyakti-replica-lab.vercel.app" : "";
 
 // ── THE MEMORY CONSENT GATE (task #148, DPDP) ──────────────────────────────
 //

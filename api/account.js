@@ -133,7 +133,7 @@ async function handler(req, res) {
       return passthrough(res, await authFetch("verify", { type: "sms", phone, token: String(b.token || "") }));
     }
     if (op === "google_url") {
-      const redirect = typeof b.redirect === "string" ? b.redirect : "https://meera-silk.vercel.app/chat";
+      const redirect = typeof b.redirect === "string" ? b.redirect : "https://vyakti-replica-lab.vercel.app/studio";
       return res.status(200).json({
         url: `${SB_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirect)}`,
       });

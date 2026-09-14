@@ -4,7 +4,7 @@
 import { Capacitor } from "@capacitor/core";
 import type { AppState } from "../state/store";
 
-const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform() ? "https://vyakti-replica-lab.vercel.app" : "";
 
 export interface AuthSession {
   userId: string;

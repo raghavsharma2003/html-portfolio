@@ -4,7 +4,7 @@
 //   2. Claude (optional alternative, if that key is set instead)
 //   3. Hosted proxy (our Vercel function holds an OpenRouter key server-side,
 //      so a fresh install has a real brain with zero setup)
-//   4. Offline heart engine (always available fallback)
+//   4. Honest outage response, with the resolved agent's crisis resources
 
 // TYPE ONLY. The SDK is 151.6 kB of the bundle and is reachable on exactly one
 // path — the owner pasting their own Claude key into Settings — so it is
@@ -16,7 +16,6 @@ import type AnthropicSDK from "@anthropic-ai/sdk";
 import { Capacitor } from "@capacitor/core";
 import { type UserProfile, type VoiceEngine } from "./persona";
 import { tagFromSeed } from "./photoCatalog";
-import { heartReply, type HeartReply } from "./localHeart";
 import { cultureNote } from "./culture";
 import {
   recallMemories,
@@ -29,6 +28,8 @@ import {
   formatActivityLedger,
   withoutServerActivityBlock,
   type ActivityRecord,
+  type ForgetTarget,
+  type ForgetReceipt,
 } from "./memory";
 import { innerContext, overlaps, type Inner } from "./inner";
 import { diag } from "./diag";
@@ -101,6 +102,59 @@ import {
 // file did not already reach — ./memory, ./honesty and ../state/store types.
 import { formatJustHappened, shareLedger } from "../voice/callHistory";
 
+export interface HeartReply {
+  bubbles: string[];
+  photo?: { seed: string; caption: string };
+  voice?: { text: string };
+  gif?: { query: string };
+  followup?: { minutes: number; why: string };
+  search?: string;
+  forget?: string;
+  forgot?: {
+    target: ForgetTarget;
+    receipt: ForgetReceipt;
+    deleted: { log: number; nodes: number; edges: number };
+  };
+  tone?: string;
+  learned?: Record<string, string>;
+  critical?: boolean;
+}
+
+const CRISIS_SIGNAL = /\b(kill myself|suicide|suicidal|end it all|end my life|self harm|hurt myself|cut myself|want to die|wanna die|don't want to live|no reason to live|marna chahta|marna chahti|mar jaana chahta|jeena nahi chahta|khatam kar|zinda nahi rehna)\b|better off without me|what'?s the point of (living|anything|it all)|can'?t (go on|do this anymore)|mere bina sab (behtar|khush)/i;
+const DANGLING_FACT = /\b(a|an|the|my|your|his|her|their|our|this|that|it|is|was|are|were|be|been|to|of|in|on|at|for|with|and|but|so|very|really|just)$/i;
+const SUBJECT_FACT = /\b(i|me|my|you|your|u|ur|he|she|him|they|them|we|us|tum|tumhe|tumhara|mera|mujhe)\b/i;
+
+function cleanLearnedValue(value?: string, noArticle = false): string {
+  if (!value) return "";
+  const clean = value.trim().replace(/\s+/g, " ");
+  const words = clean.split(" ");
+  if (!clean || words.length > 6) return "";
+  if (/^(how|what|when|where|why|that|which|who|whether)\b/i.test(clean)) return "";
+  if (noArticle && /^(a|an|the)\b/i.test(clean)) return "";
+  if (DANGLING_FACT.test(words[words.length - 1]) || SUBJECT_FACT.test(clean)) return "";
+  return clean;
+}
+
+function localLearnedFacts(text: string): Record<string, string> {
+  const learned: Record<string, string> = {};
+  const grab = (re: RegExp) => text.match(re)?.[1]?.trim().replace(/[.!?,].*$/, "").slice(0, 40);
+  const city = cleanLearnedValue(
+    grab(/i (?:live|stay) in ([a-z ]+)/i) || grab(/main ([a-z ]+) (?:mein|me) reh/i),
+    true,
+  );
+  if (city) learned["lives in"] = city;
+  const work = cleanLearnedValue(grab(/i work (?:at|as|in|for) ([a-z0-9 .&-]+)/i));
+  if (work) learned.work = work;
+  const study = cleanLearnedValue(grab(/i(?:'m| am)? study(?:ing)? ([a-z0-9 .&-]+)/i));
+  if (study) learned.studies = study;
+  const like = cleanLearnedValue(
+    grab(/i (?:love|really like|enjoy) ([a-z0-9 .&-]+)/i) ||
+      grab(/mujhe ([a-z0-9 .&-]+) (?:pasand|acha lagta|achi lagti)/i),
+  );
+  if (like.length > 2) learned.loves = like;
+  return learned;
+}
+
 const CLAUDE_MODEL = "claude-opus-5";
 // Default brain: Gemini 3.6 Flash — the best modern-Hinglish register we
 // auditioned (vs deepseek, kimi, minimax, llama). Overridable via model slug.
@@ -162,7 +216,7 @@ export { CHAT_LANE_MODELS, CHAT_LANE_CONFIG };
 // Serverless proxy that holds an OpenRouter key server-side — the zero-config
 // brain. On the website it's same-origin; the Android app crosses origins.
 const PROXY_URL = Capacitor.isNativePlatform()
-  ? "https://meera-silk.vercel.app/api/chat"
+  ? "https://vyakti-replica-lab.vercel.app/api/chat"
   : "/api/chat";
 
 // SPEC §3.3/§7.3 compile.manifest throttle: "core_hash changes rarely — emit
@@ -324,7 +378,7 @@ export interface BrainKeys {
   // the sheet, exactly as the caller owns `relBundle` and `activities`. A
   // think() that reached for a sheet would need a loader, and a loader here is
   // a database call on the reply path.
-  agent?: AgentModule;
+  agent: AgentModule;
   /** the clone's present, from `cloneNowAt(sheet.life, now)` — T18 */
   cloneNow?: CloneNowEntry | null;
   /** the ONE citable reason this turn is the clone's, from
@@ -1065,7 +1119,7 @@ async function openrouterThink(
       headers: {
         Authorization: `Bearer ${keys.openrouterKey}`,
         "Content-Type": "application/json",
-        "X-Title": "Meera",
+        "X-Title": "Vyakti",
       },
       body: JSON.stringify({
         model: keys.openrouterModel?.trim() || defaultModel,
@@ -1141,7 +1195,7 @@ export const OOPS_CHAT: string[][] = [
 // one possible repeat, and the cost of THROWING here is that she says nothing
 // at all on the one path that exists because everything else already failed.
 const lastOops: Record<string, number> = {};
-const OOPS_KEY = "meera.oops.last";
+const OOPS_KEY = "vyakti.oops.last";
 
 function readLastOops(mode: string): number {
   if (mode in lastOops) return lastOops[mode];
@@ -1355,10 +1409,20 @@ export async function think(
   // when this turn started — the web lookup below spends what is LEFT of a
   // whole-turn budget rather than adding its own leg on top of pass 1
   const t0 = Date.now();
-  // learn facts locally regardless of which engine answers
+  // Learn safe, short facts locally regardless of which engine answers. The
+  // outage branch is deliberately character-neutral; safety resources come
+  // from the explicitly resolved sheet.
   const local: HeartReply = isDirective
     ? { bubbles: [] }
-    : heartReply(user, latest, history.length);
+    : CRISIS_SIGNAL.test(latest)
+      ? {
+          critical: true,
+          learned: localLearnedFacts(latest),
+          bubbles: [
+            `I cannot respond properly right now. Please contact someone you trust and use these crisis resources: ${keys.agent.CRISIS_LINES}`,
+          ],
+        }
+      : { bubbles: [], learned: localLearnedFacts(latest) };
   if (mode === "call" && !isDirective) {
     local.bubbles = [humanizeForSpeech(local.bubbles.join(" "))];
     local.photo = undefined;

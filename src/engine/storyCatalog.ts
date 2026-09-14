@@ -83,7 +83,7 @@ export interface Story {
   desc: string; // what's in it, for her own awareness
 }
 
-const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform() ? "https://vyakti-replica-lab.vercel.app" : "";
 
 export const STORIES: Story[] = [
   {
