@@ -87,7 +87,7 @@ export function compilePrivateExpertRehearsal(input: PrivateRehearsalInput): Com
   if ((input.history !== undefined && !Array.isArray(input.history)) || rawHistory.length > PRIVATE_REHEARSAL_LIMITS.historyExchanges * 2 || rawHistory.length % 2 !== 0)
     fail("private_rehearsal_history_invalid");
   let historyChars = 0;
-  const history = rawHistory.map((row, index) => {
+  const history = rawHistory.map((row, index): { role: "user" | "assistant"; content: string } => {
     const expected = index % 2 === 0 ? "user" : "assistant";
     if (!object(row) || row.role !== expected) fail("private_rehearsal_history_invalid");
     const content = text(row.content, expected === "user" ? 2000 : 4000, "private_rehearsal_history_invalid");

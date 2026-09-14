@@ -25434,3 +25434,8 @@ Owner forbids Microsoft-account browser use on the employer laptop and explicitl
 ## `wave25-premium-palette-is-shared-and-mobile-auth-opens-on-the-action`
 
 2026-09-14. Room's shared foundation now uses the same seven pearl, white, ink and restrained forest values as the premium Studio instead of preserving a second cream palette behind an exact-equality contrast gate. The signed-out mobile Studio places its real sign-in card before the image-led introduction, removes backdrop blur that Chromium cannot verify as visible, reserves the Hindi heading, body and artwork geometry, and loads the artwork after the critical form. Desktop keeps the split image and sign-in composition. The contrast floors and performance budgets stay unchanged. The release runner extracts named findings from failed JSON gates before falling back to a log tail. Reverse the mobile order if measured people miss the product introduction, or a representative device shows the same first-action visibility and layout stability with the artwork first.
+
+
+## wave25-composite-typescript-build-required
+
+2026-09-14. Integration validation must run npx tsc -b --force, matching the project references that CI builds. Root tsc --noEmit at the solution root is not evidence that referenced projects type-check. Explicitly type the private follow-up history mapping result so user/assistant roles retain their union. Reverse the command choice only if the root TypeScript project ceases to use project references and the replacement is proven to catch this negative case.

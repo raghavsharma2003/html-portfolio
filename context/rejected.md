@@ -19188,3 +19188,8 @@ Read-only Azure metadata found the operator could attach four existing UMIs, but
 ## `wave25-separate-premium-tokens-and-blurred-mobile-auth-broke-release-evidence`
 
 2026-09-14. The premium Studio replaced seven palette values while the Room foundation retained cream and dark forest, so the exact shared-token gate correctly reported seven drifts. Updating the checker to accept two palettes would have weakened its contract and left the supposedly cohesive journey visibly split. On mobile auth, responsive artwork and Hindi font settlement moved the sign-in card enough to produce deterministic CLS0.109821, while the card's inherited `backdrop-filter: blur(18px)` made its intersecting heading, label and input fail Chromium visibility tracking. Raising CLS or Hindi visibility budgets, disabling visibility tracking, or hiding the image would have concealed a real first-action problem. The shared foundation now matches Studio; reserved artwork geometry, an opaque card and action-first mobile order reduce measured CLS to0.002132 while retaining the image below the form.
+
+
+## wave25-noemit-solution-root-false-confidence
+
+2026-09-14. Agents and root reported TypeScript success from an insufficient noEmit check; Android CI exposed a widened role string in the new history compiler. Vite also built successfully, so neither result proved the missing type check. Use the actual composite build, explicitly type history records, and never relabel the prior success as a full TypeScript pass.

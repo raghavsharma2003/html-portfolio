@@ -20469,6 +20469,24 @@
       "kind": "rejection",
       "title": "Separate premium tokens and blurred mobile auth broke release evidence",
       "at": "context/rejected.md#wave25-separate-premium-tokens-and-blurred-mobile-auth-broke-release-evidence"
+    },
+    {
+      "id": "wave25-composite-typescript-build-required",
+      "kind": "decision",
+      "title": "Use the composite TypeScript build for integration",
+      "at": "context/decisions.md#wave25-composite-typescript-build-required"
+    },
+    {
+      "id": "wave25-followup-type-widening-ci-20260914",
+      "kind": "measurement",
+      "title": "CI rejected widened history roles; forced local build passed after fix",
+      "at": "context/measurements.md#wave25-followup-type-widening-ci-20260914"
+    },
+    {
+      "id": "wave25-noemit-solution-root-false-confidence",
+      "kind": "rejection",
+      "title": "A solution-root noEmit success did not validate referenced source",
+      "at": "context/rejected.md#wave25-noemit-solution-root-false-confidence"
     }
   ],
   "edges": [
@@ -34844,6 +34862,16 @@
       "src": "wave25-separate-premium-tokens-and-blurred-mobile-auth-broke-release-evidence",
       "rel": "caused_by",
       "dst": "wave25-premium-palette-is-shared-and-mobile-auth-opens-on-the-action"
+    },
+    {
+      "src": "wave25-composite-typescript-build-required",
+      "rel": "measured_by",
+      "dst": "wave25-followup-type-widening-ci-20260914"
+    },
+    {
+      "src": "wave25-composite-typescript-build-required",
+      "rel": "caused_by",
+      "dst": "wave25-noemit-solution-root-false-confidence"
     }
   ]
 }

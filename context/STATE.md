@@ -31,8 +31,10 @@ Its concrete repairs are integrated: 9aaa7aff fixture fixes; 6be321ff eager
 auth CSS and shared palette; 429e9c51 first-reply budget; 0ad5958e voice
 controller; e681ce1c post-turn memory; 63013d99 private follow-up history;
 db68a6e1/175ce999/352dcd07 reachable voice UI, navigation and stable playback.
-A final explicit audio-download retry fixture is being finished before the
-combined candidate is frozen. No newer full gate is accepted and no newer
+Explicit audio-download retry and valid PCM playback fixtures also pass.
+Candidate15bcb3ad was rejected by Android CI for TS2322 in follow-up history.
+The one-line type fix passes npx tsc -b --force; root tsc --noEmit is insufficient
+for this project-reference solution. No newer full gate is accepted and no newer
 preview is deployed. Local Hindi visibility timing remains unaccepted until
 the release run resolves it. Never loosen its existing800ms budget. No public
 cutover or main merge is authorized for this private testing phase.
