@@ -1429,6 +1429,7 @@ const suites = {
   // real synthesis language ids, honest warm-up timing, correction, mobile
   // layout and self-test ceremony removal. Protected receipts stay required.
   voicepreviewui: "voice-preview-ui.mjs",
+  internalvoiceui: "internal-voice-ui.mjs",
 
   // WS-X. The Mirror Call — the calibration call where a clone learns from its
   // own human.

@@ -463,6 +463,7 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
 
 function installStubFetch() {
   const params = new URLSearchParams(window.location.search);
+  const nativeFetch = window.fetch.bind(window);
   const scenarioName = params.get("scenario") || "empty";
   const scenario = SCENARIOS[scenarioName] ?? {};
   const routes: Record<string, unknown> = { ...ROUTES, ...scenario };
@@ -481,6 +482,12 @@ function installStubFetch() {
     const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const requestUrl = new URL(raw, window.location.origin);
     const path = requestUrl.pathname;
+    // The internal owner-voice browser fixture exercises the actual bearer
+    // caller against Playwright's loopback route. Every ordinary layout run
+    // keeps using this file's deterministic response table.
+    if (path === "/api/internal-voice" && params.get("internalVoice") === "browser") {
+      return nativeFetch(input, init);
+    }
     if (scenarioName === "knowledge-phrases" && path === "/api/context-items") {
       const method = init?.method || "GET";
       if (method === "DELETE") { phraseRemoved = true; return reply({ removed: true }); }

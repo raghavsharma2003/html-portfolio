@@ -19123,6 +19123,16 @@ The initial assumption that the deployed CPU broker already implemented the curr
 
 Initial internal runner used .5/.5/.8 and unknown/unverified language. Existing Hindi conditioning correctly mapped that unknown mode to effectiveCFG0, so it did not reproduce the owner's previously measured .2/.78/.6 identity-anchor clips. Reject treating that unmatched setup as a quality baseline. Recovered same-reference historical receipt supports source-transcript mixed mode, not exact-reference language verification; restrict reuse to that hash and preserve the evidence limitation. Initial new test used nonexistent outbound field effective_cfg_weight; actual provider wire field is cfg_weight and returned receipt field effectiveCfgWeight. Corrected the test against real implementation; actual wire/receipt both .78.
 
+## `wave25-internal-owner-voice-rating-overlap`
+
+**Tried.** Placed the four rating controls in the left side of the existing two-column voice comparison while the generated sample and state stayed in the right stage.
+
+**What specifically broke.** The real 390-pixel Chromium fixture reached a ready sample, but the right stage covered the lower left controls and intercepted a rating tap. A forced browser click would have hidden an unusable phone interaction.
+
+**What replaced it.** The rating form now follows the two-column comparison in normal document flow. The same fixture completes all four touch ratings at 390 pixels, confirms their saved read-only form at 1440 pixels, and reports no horizontal overflow at either width.
+
+**The rule.** Long interactive content does not belong in one side of this fixed-height comparison. Keep controls after the comparison unless both narrow and wide real-browser fixtures prove every control remains visible and clickable.
+
 ## `wave25-green-everywhere-and-a-scanning-you-orb-are-not-premium`
 
 2026-09-14. The previous landing and Studio entry repeated cream ground, green surface tint and small procedural copy across almost every section. The first empty workspace used a spinning circular scan treatment labelled YOU. In the 390 and 1440 pixel captures, the landing read as a long policy document with large dead gaps, while the synthetic scan object introduced a technical metaphor that did not explain the next action. Increasing saturation, adding more glow or animating the orb further would amplify the same problem. The replacement uses quiet pearl and silver materials, real responsive brand images, short Feed/Meet/Deploy language and one visible next action. Reconsider only if observed users miss the three-step structure or cannot find the first action in the revised captures.

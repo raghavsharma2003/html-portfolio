@@ -20409,6 +20409,24 @@
       "kind": "rejection",
       "title": "Client history and old one-question consent cannot authorize follow-ups",
       "at": "context/rejected.md#wave25-private-followup-cannot-trust-client-history-or-old-one-question-consent"
+    },
+    {
+      "id": "wave25-internal-owner-voice-studio-caller",
+      "kind": "decision",
+      "title": "Meet Voice calls the private owner voice runtime",
+      "at": "context/decisions.md#wave25-internal-owner-voice-studio-caller"
+    },
+    {
+      "id": "wave25-internal-owner-voice-ui-20260914",
+      "kind": "measurement",
+      "title": "Private voice caller completes local phone and desktop flows",
+      "at": "context/measurements.md#wave25-internal-owner-voice-ui-20260914"
+    },
+    {
+      "id": "wave25-internal-owner-voice-rating-overlap",
+      "kind": "rejection",
+      "title": "Two-column voice stage covered phone rating controls",
+      "at": "context/rejected.md#wave25-internal-owner-voice-rating-overlap"
     }
   ],
   "edges": [
@@ -34744,6 +34762,26 @@
       "src": "wave25-private-followup-cannot-trust-client-history-or-old-one-question-consent",
       "rel": "caused_by",
       "dst": "wave25-private-rehearsal-followups-bind-a-settled-parent"
+    },
+    {
+      "src": "wave25-internal-owner-voice-studio-caller",
+      "rel": "measured_by",
+      "dst": "wave25-internal-owner-voice-ui-20260914"
+    },
+    {
+      "src": "wave25-internal-owner-voice-studio-caller",
+      "rel": "caused_by",
+      "dst": "wave25-internal-owner-voice-rating-overlap"
+    },
+    {
+      "src": "wave25-owner-prioritizes-private-internal-product",
+      "rel": "constrains",
+      "dst": "wave25-internal-owner-voice-studio-caller"
+    },
+    {
+      "src": "wave25-internal-owner-voice-studio-caller",
+      "rel": "part_of",
+      "dst": "wave25-internal-owner-voice-runtime"
     }
   ]
 }

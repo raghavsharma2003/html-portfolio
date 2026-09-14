@@ -55,6 +55,7 @@ const PrivateTextRehearsal = lazy(() => import("./PrivateTextRehearsal"));
 // itself, which must stay light.
 const HumanOsStudio = lazy(() => import("./HumanOsStudio"));
 const ListeningTest = lazy(() => import("./ListeningTest"));
+const InternalVoicePanel = lazy(() => import("./InternalVoicePanel"));
 
 type ListeningLoadState = "idle" | "loading" | "ready" | "unavailable" | "error";
 
@@ -794,6 +795,8 @@ export default function CloneExperience(props: CloneExperienceProps) {
   // "conversation", never the sample tab a not-yet-existing voice cannot
   // answer for.
   const [meetView, setMeetView] = useState<"conversation" | "sample">(() => initialMeetView(window.location.search, Boolean(runtimeStatus?.active || runtimeStatus?.text_ready)));
+  const [internalVoiceAvailability, setInternalVoiceAvailability] = useState<"unknown" | "enabled" | "disabled">("unknown");
+  useEffect(() => setInternalVoiceAvailability("unknown"), [accessToken, selected?.replica_id]);
   // WS-R151: `?enrichView=humanos` deep-links straight past the menu, for
   // `scripts/check-layout.mjs`/`scripts/check-accessibility.mjs`'s own
   // `studio:humanos` target — no earlier enrich subview (describe/files/
@@ -1402,9 +1405,19 @@ export default function CloneExperience(props: CloneExperienceProps) {
 
 
       <main className="vx-main" ref={mainRef}>
+        {selected && room === "voice" && meetView === "sample" && internalVoiceAvailability === "unknown" ? <Suspense fallback={null}>
+          <InternalVoicePanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} probeOnly
+            onAvailability={(available) => setInternalVoiceAvailability(available ? "enabled" : "disabled")} />
+        </Suspense> : null}
         <AnimatePresence mode="wait" initial={false}>
           {workspaceReadState !== "ready" ? (
             <section className="vx-scene vx-read-state" key="workspace-read" aria-live="polite"><div className="vx-stage-title"><h1>{workspaceReadState === "error" ? copy.readStates.workspaceError : copy.readStates.workspaceLoading}</h1></div>{workspaceReadState === "error" ? <button className="vx-button vx-button--primary" type="button" onClick={onRetryWorkspace}>{copy.readStates.tryAgain}</button> : <p role="status">{copy.readStates.checkingSavedClones}</p>}</section>
+          ) : internalVoiceAvailability === "enabled" && selected && room === "voice" && meetView === "sample" ? (
+            <motion.div className="vx-scene vx-room" key={`internal-voice:${selected.replica_id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <section className="vx-room__panel vx-room__voice vx-room__scroll"><Suspense fallback={null}>
+                <InternalVoicePanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} />
+              </Suspense></section>
+            </motion.div>
           ) : selected && room === "rehearsal" ? (
             <motion.div className="vx-scene" key={`rehearsal:${selected.replica_id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><Suspense fallback={<p role="status">{copy.readStates.openingPrivateDraftTest}</p>}><PrivateTextRehearsal initialDraft={rehearsalReturn.current?.draft} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} onBack={() => { rehearsalReturn.current = null; chooseRoom("enrich"); }} onEditContext={draft => {
                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== selected.replica_id) return;

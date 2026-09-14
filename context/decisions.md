@@ -25368,6 +25368,14 @@ Build the exact committed worker source on the existing sponsored subscription w
 
 The owner explicitly prioritized real internal own-voice experiments over public enrollment review on 2026-09-14. Implemented a same-origin Studio API backed by a small Azure CPU runtime with exact server-configured owner/replica, expiring purpose-bound reference authorization, one attempt by default, private WAV playback/ratings and revoke. Reuses the existing real Chatterbox adapter, HMAC admission protocol and supervised existing-revision Azure controller. Blob ETag compare-and-swap holds attempt, one-use children, reservation and cleanup observations across CPU processes. No identity/consent/genome rows are minted. Default private scope never grants public enrollment qualification. Reverse this design if the owner changes internal scope or a measured deployment requirement makes the existing CPU/Blob/controller composition unsuitable; preserve real owner binding and honest evidence during any change.
 
+## `wave25-internal-owner-voice-studio-caller` (2026-09-14)
+
+**Decision.** The configured owner sees a small private Voice Studio panel in Meet even when the ordinary voice runtime is inactive. A 404 hides the panel. The panel starts Hindi generation only from the explicit button, polls the same UUID, fetches reference and sample WAVs through the authenticated same-origin API, records four 1-to-5 ratings, and can cancel or remove the attempt. Failed and unknown attempts may only be checked or removed; a check never starts a replacement synthesis.
+
+**Why.** The internal voice runtime was complete at both service ends but had no Studio caller, while the owner's current workspace cannot pass the public voice activation ceremony. Mounting the private owner lane before those ordinary runtime gates makes the authorized experiment usable without converting it into public voice authority. Short English and Hindi copy keeps service details collapsed while retaining honest failure, unknown and cleanup states.
+
+**Reversal.** Replace this mount when the private experiment becomes a normal reviewed voice capability or the API contract changes. Keep explicit generation, exact-run polling, authenticated Blob playback, truthful terminal states and revocation in any replacement.
+
 
 ## wave25-reuse-recorded-owner-voice-anchor (2026-09-14)
 
