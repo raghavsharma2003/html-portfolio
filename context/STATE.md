@@ -32,11 +32,17 @@ auth CSS and shared palette; 429e9c51 first-reply budget; 0ad5958e voice
 controller; e681ce1c post-turn memory; 63013d99 private follow-up history;
 db68a6e1/175ce999/352dcd07 reachable voice UI, navigation and stable playback.
 Explicit audio-download retry and valid PCM playback fixtures also pass.
-Candidate15bcb3ad was rejected by Android CI for TS2322 in follow-up history.
-The one-line type fix passes npx tsc -b --force; root tsc --noEmit is insufficient
-for this project-reference solution. No newer full gate is accepted and no newer
-preview is deployed. Local Hindi visibility timing remains unaccepted until
-the release run resolves it. Never loosen its existing800ms budget. No public
+Candidate15bcb3ad failed22/25 on both Node22/24 plus Android: widened follow-up
+role types, internal voice tab tracks, and ten eval suites. Both Linux performance
+gates passed the unchanged800ms Hindi limits; exact successful medians were not
+retained. The next workflow uploads sanitized check logs. The type fix passes
+npx tsc -b --force; root tsc --noEmit is insufficient for this project-reference
+solution. The central probe fix now keeps malformed/disabled internal voice
+responses from hiding the ordinary creator journey; scoped two-column voice
+tabs pass clone layout22 and internal voice browser16 checks. Fixture endpoint
+coverage and cascade mutation controls are the final local repairs before a
+new candidate. No newer full gate is accepted and no newer preview is deployed.
+Never loosen the existing Hindi budget. No public
 cutover or main merge is authorized for this private testing phase.
 
 **Working configuration:** Vercel access and Azure sponsored subscription
@@ -83,6 +89,11 @@ broker digestf691c507dc36d75b1729291183f72f3655c208339acc348fa848d692453f8c18.
 Neither is deployed. No new voice sample or likeness result exists.
 The private first-question flow now has bounded server-owned follow-up context;
 its two changed SQL statements passed live read-only EXPLAIN with rollback.
+Owner-scoped inventory found three replicas, zero Studio context items/teacher
+sheets/person profiles/claims. Existing media is preserved: the retained voice
+replica has two audio sources, one ready28.075s and one quarantined, three audio
+artifacts and eight completed processing stages including transcription. Do not
+say all inputs were lost or require re-upload without checking eligible reuse.
 The distinct persistent owner text floor still requires the owner's existing
 inference/profile steps; do not fabricate an approved identity or claim a live
 model conversation from synthetic browser/handler tests.
