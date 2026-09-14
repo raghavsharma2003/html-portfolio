@@ -20013,6 +20013,24 @@
       "kind": "rejection",
       "title": "Blind shared callback restoration can overwrite a newer account",
       "at": "context/rejected.md#standalone25-publication-oauth-callback-blind-restore-rejected-20260914"
+    },
+    {
+      "id": "wave25-person-forget-scanner-exact-exception",
+      "kind": "decision",
+      "title": "Preserve person-wide forget under an exact reviewed scanner exception",
+      "at": "context/decisions.md#wave25-person-forget-scanner-exact-exception"
+    },
+    {
+      "id": "wave25-worker-digest-native-decoder-and-ci-20260914",
+      "kind": "measurement",
+      "title": "Worker digest and native decoder verified; candidate CI still fails",
+      "at": "context/measurements.md#wave25-worker-digest-native-decoder-and-ci-20260914"
+    },
+    {
+      "id": "wave25-raw-scan-misclassified-person-forget-repair",
+      "kind": "rejection",
+      "title": "Raw scanner mistook person-wide erasure for an unscoped runtime read",
+      "at": "context/rejected.md#wave25-raw-scan-misclassified-person-forget-repair"
     }
   ],
   "edges": [
@@ -34098,6 +34116,16 @@
       "src": "standalone25-publication-oauth-callback-blind-restore-rejected-20260914",
       "dst": "standalone25-publication-oauth-callback-race-20260914",
       "rel": "caused_by"
+    },
+    {
+      "src": "wave25-person-forget-scanner-exact-exception",
+      "rel": "measured_by",
+      "dst": "wave25-worker-digest-native-decoder-and-ci-20260914"
+    },
+    {
+      "src": "wave25-raw-scan-misclassified-person-forget-repair",
+      "rel": "constrains",
+      "dst": "wave25-person-forget-scanner-exact-exception"
     }
   ]
 }

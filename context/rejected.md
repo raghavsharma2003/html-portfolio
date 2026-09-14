@@ -19032,3 +19032,7 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** PublicationApp consumes the same callback but applies its own existing `alive`, generation, and original-account checks before writing or setting state.
 
 **Reversal condition.** Reuse a shared primitive only after it accepts caller-owned lifecycle and stored-baseline predicates and the mounted stale-account negative still passes.
+
+## `wave25-raw-scan-misclassified-person-forget-repair`
+
+2026-09-14. GitHub Android aa481598 failed no unscoped raw runtime statement after the new survivor-cursor UPDATE made the previously derived-only person forget CTE visible to the raw-table scanner. That scanner only recognized agent predicates and one older whole-person delete exception. Adding agent_id filtering to the production statement would contradict purgeRelational account-wide item/window erasure and leave other-agent derived references intact. The correction is an exact whole-query, exact-file exception with mutation controls. No production SQL changed, no broad raw-reader exception was added, and the full release gate must still pass. The initial focused run in a clean worktree stopped on missing ignored api/_config.js; generating the official empty --stub config resolved that environment wall without credentials.
