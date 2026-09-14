@@ -19791,6 +19791,42 @@
       "kind": "rejection",
       "title": "One repaired incident does not fix historical deployed code",
       "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-windows-ci-portability-20260914",
+      "kind": "decision",
+      "title": "Windows CI portability follows scanner contracts",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-windows-ci-portability-measurement-20260914",
+      "kind": "measurement",
+      "title": "Windows focused CI suites pass",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-windows-ci-portability-rejected-20260914",
+      "kind": "rejection",
+      "title": "Windows CI path and temp cleanup failures rejected",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-voice-readiness-requires-real-composite-evidence",
+      "kind": "decision",
+      "title": "Keep readiness tied to an implemented evidence producer",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-voice-enrollment-source-audit-20260914",
+      "kind": "measurement",
+      "title": "Voice enrollment source and official contract audit",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-voice-blocker-was-not-only-a-credential",
+      "kind": "rejection",
+      "title": "Working Azure access cannot replace missing enrollment evidence",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -33746,6 +33782,26 @@
       "src": "wave25-repair-does-not-update-deployed-meera-writer",
       "rel": "constrains",
       "dst": "wave25-preserve-logs-repair-only-proven-orphan-incident"
+    },
+    {
+      "src": "standalone25-windows-ci-portability-20260914",
+      "dst": "standalone25-windows-ci-portability-measurement-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-windows-ci-portability-rejected-20260914",
+      "dst": "standalone25-windows-ci-portability-20260914",
+      "rel": "caused_by"
+    },
+    {
+      "src": "wave25-voice-readiness-requires-real-composite-evidence",
+      "rel": "measured_by",
+      "dst": "wave25-voice-enrollment-source-audit-20260914"
+    },
+    {
+      "src": "wave25-voice-readiness-requires-real-composite-evidence",
+      "rel": "caused_by",
+      "dst": "wave25-voice-blocker-was-not-only-a-credential"
     }
   ]
 }

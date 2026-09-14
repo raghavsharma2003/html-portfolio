@@ -75,7 +75,7 @@ export function scanRepoForDirectLaunches(repoRoot) {
   for (const file of evalsFiles(evalsRoot)) {
     if (file === launcherFile) continue;
     const hits = findDirectLaunches(readFileSync(file, "utf8"));
-    for (const hit of hits) findings.push({ file: relative(repoRoot, file), receiver: hit.receiver });
+    for (const hit of hits) findings.push({ file: relative(repoRoot, file).split("\\").join("/"), receiver: hit.receiver });
   }
   return findings;
 }

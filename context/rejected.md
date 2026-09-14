@@ -18934,3 +18934,12 @@ A narrow CI agent reported work in an isolated worktree but committed14ad34ab an
 ## wave25-repair-does-not-update-deployed-meera-writer
 
 The current Vyakti source fixes partial-forget survivor links and mapped suppression, but deployed Meera remains atbee906 unchanged under owner separation directive. Repairing the measured20messages does not deploy that source fix to Meera; future Meera partial-forget calls can reproduce the old defect. Keep this residual limitation visible and detect recurrence with relcheck. Do not claim the entire live historical writer is fixed from a green observed incident.
+
+## standalone25-windows-ci-portability-rejected-20260914
+
+Windows path separators caused both scanner negative controls to miss their planted findings, and a synthetic Azure build temp tree raised EPERM during cleanup. Native separator output and unbounded cleanup retries were rejected because they made valid controls fail for host behavior; the fix keeps detection and limits cleanup tolerance to EPERM/EBUSY outside the repository.
+
+
+## wave25-voice-blocker-was-not-only-a-credential (2026-09-14)
+
+Earlier handover suggested the voice program was blocked only by credentials. Access now works, but Azure quicklink records a separate visual ceremony and does not attest to the later Studio recording audio. ASR challenge recognition and two speaker embeddings do not create that missing visual/audio association or a synthetic-risk verdict. Correct the actual parser/recording defects and finish the producer design; do not invent scores or call a fake-provider rehearsal production enrollment.

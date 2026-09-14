@@ -77,7 +77,7 @@ export function scanRepoForGitShow(repoRoot) {
   const findings = [];
   for (const file of evalsFiles(evalsRoot)) {
     const hits = findGitShowCalls(readFileSync(file, "utf8"));
-    for (const hit of hits) findings.push({ file: relative(repoRoot, file), index: hit.index });
+    for (const hit of hits) findings.push({ file: relative(repoRoot, file).split("\\").join("/"), index: hit.index });
   }
   return findings;
 }

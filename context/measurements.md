@@ -18837,3 +18837,16 @@ Method: four focused offline suites on standalone25 commit 6f0ab212 after contra
 ## wave25-orphan-repair-committed-20260914
 
 2026-09-14, n=1 fixed-incident transaction after independent review and rollback proof. COMMIT acknowledged;20 target messages preserved with valid/unclaimed lineage,2 empty provisional wake episodes created,6 forget records preserved,0 term matches,0 content or term values returned. Independent connection verified20 preserved and0orphans. Receipt standalone25-meera-orphan-commit-1789378384691.json plus cursor-only intent. Subsequent actual live relcheck exit0: zero-orphan sweep green40checks including multiparty,10339ms. Receipt standalone25-relcheck-1789378422682.log. No model call or product deployment.
+
+## standalone25-windows-ci-portability-20260914
+
+Method: three focused offline suites in codex/standalone25-ci-portable from 19d68429; n=3, date 2026-09-14. azure-build-config 19 checks, launch-scan 8 checks, history-scan 7 checks; all passed.
+
+## standalone25-windows-ci-portability-measurement-20260914
+
+The three focused suites passed with the counts recorded above.
+
+
+## wave25-voice-enrollment-source-audit-20260914 (2026-09-14)
+
+2026-09-14,n=1 independent bounded source/official-doc audit atcd580a4f. Found missing composite producer and independent document-review producer; source registry deliberately refuses. Found two concrete defects: Face verification results read one object level too high versus officialv1.2schema; UI60-second capture limit versus decoder30seconds. Root independently checked Face schema. No provider call, browser capture, deployed verifier acceptance or likeness measurement. Exact reuse/repair map: docs/handoff/2026-09-14/VOICE-ENROLLMENT-REALITY.md.

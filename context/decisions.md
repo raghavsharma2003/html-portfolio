@@ -25234,3 +25234,12 @@ Mixed repeat, theme and surface suites retain shared loop, theme selection and o
 ## wave25-preserve-logs-repair-only-proven-orphan-incident
 
 2026-09-14. Repair only the measured20/4 legacy incident after conservative forget-term exclusion and a separately verified rollback. Use row locks, a short shared forget-ledger lock, exact owner/channel/range/count guards, and empty provisional wake records. Preserve every surviving message and all forget requests; write a cursor-only intent receipt before the single COMMIT and require independent readback. Reverse or refuse if the incident shape, ownership, suppression matches or transaction proof changes. Never retry an ambiguous commit automatically.
+
+## standalone25-windows-ci-portability-20260914
+
+2026-09-14. Normalize scanner findings to forward-slash repo paths and tolerate only Windows EPERM/EBUSY cleanup of synthetic temp trees. Reverse if a non-Windows cleanup error occurs or a real repository path is ever involved.
+
+
+## wave25-voice-readiness-requires-real-composite-evidence (2026-09-14)
+
+The sponsored Azure subscription and working Speech/Foundry access do not resolve fresh-user voice enrollment. Preserve unavailable readiness while no actual producer binds later visible identity to its audible speech and supplies the existing policy decisions. Reuse completed audio ancestry, consent and processing pieces. Reverse when an implemented, version-bound producer and actual end-to-end evidence satisfy the accepted policy, or an explicitly reviewed policy change is implemented; never reverse solely by setting an env flag.

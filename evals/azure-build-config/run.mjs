@@ -179,7 +179,15 @@ try {
 } finally {
   assert.equal(dirname(workspace), resolve(tmpdir()));
   assert.ok(workspace.includes("vyakti-azure-build-"));
-  rmSync(workspace, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  try {
+    rmSync(workspace, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  } catch (error) {
+    // Windows can retain a short-lived handle after a child exits. The tree is
+    // synthetic and outside the repository; cleanup failure must not mask the
+    // build contract that the checks above already established.
+    if (error?.code !== "EPERM" && error?.code !== "EBUSY") throw error;
+    console.warn(`Synthetic build fixture cleanup deferred: ${error.code}`);
+  }
 }
 
 console.log(JSON.stringify({
