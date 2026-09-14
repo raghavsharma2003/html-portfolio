@@ -19695,6 +19695,24 @@
       "kind": "rejection",
       "title": "Bandwidth fixes do not establish current worker behavior",
       "at": "context/rejected.md#wave25-bandwidth-fix-does-not-prove-worker-current"
+    },
+    {
+      "id": "wave25-first-journey-uses-existing-text-authorities",
+      "kind": "decision",
+      "title": "First journey uses existing private-text and material-publication authorities",
+      "at": "context/decisions.md#wave25-first-journey-uses-existing-text-authorities"
+    },
+    {
+      "id": "wave25-first-journey-surface-controls-20260914",
+      "kind": "measurement",
+      "title": "Focused first-journey surface controls and Room layout",
+      "at": "context/measurements.md#wave25-first-journey-surface-controls-20260914"
+    },
+    {
+      "id": "wave25-text-ready-is-not-room-publish-authority",
+      "kind": "rejection",
+      "title": "Text readiness is not Room publish authority",
+      "at": "context/rejected.md#wave25-text-ready-is-not-room-publish-authority"
     }
   ],
   "edges": [
@@ -33605,6 +33623,16 @@
       "src": "wave25-bandwidth-fix-does-not-prove-worker-current",
       "rel": "constrains",
       "dst": "wave25-source-checkpoint-preserves-release-blockers"
+    },
+    {
+      "src": "wave25-first-journey-uses-existing-text-authorities",
+      "dst": "wave25-first-journey-surface-controls-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave25-first-journey-uses-existing-text-authorities",
+      "dst": "wave25-text-ready-is-not-room-publish-authority",
+      "rel": "caused_by"
     }
   ]
 }

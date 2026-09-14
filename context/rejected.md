@@ -18903,3 +18903,13 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 ## `wave25-bandwidth-fix-does-not-prove-worker-current`
 
 2026-09-14. Reading only the corrected-bandwidth result would wrongly clear the processing worker for the new product. The same retained image-byte recovery receipt identifies missing newer Azure-only enforcement, purpose authority, tracked storage leases and erase/abort fences. Keep the narrow bandwidth proof; prepare a worker-specific update for the actual missing behavior. Do not rebuild merely from a historical statement that the bandwidth fix was never deployed, and do not call the current image equal to the new source.
+
+## `wave25-text-ready-is-not-room-publish-authority` (2026-09-14, wave 25)
+
+**Tried.** The personal Deploy surface treated `text_ready` as enough to mount RoomStudio, and the person-Room rehearsal encoded that route as expected behavior.
+
+**What specifically broke.** `text_ready` records `vy_replica_text_capability`, while `api/_room-publish.js` checks an active `vy_replica_runtime_capability` and readiness before publishing. A no-voice owner therefore reached a control the real backend had to refuse. The same journey audit found the public Room offering phone OTP first even though the live auth configuration had email enabled and phone disabled.
+
+**What replaced it.** No-voice Deploy uses the existing material publication ceremony, voice-ready Deploy keeps RoomStudio, and the Room join sheet calls the existing email OTP functions. The earlier text-only person-Room browser premise must be retained as a voice-active Room journey or rewritten around material publication; restoring the false client gate is not an acceptable test fix.
+
+**The rule.** A client readiness flag may open only the backend capability that actually consumes it. A broader-looking label such as `text_ready` cannot stand in for a distinct runtime capability, and a sign-in screen must lead with a provider verified enabled in the deployed auth project.

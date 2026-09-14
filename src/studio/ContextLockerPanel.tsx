@@ -130,6 +130,7 @@ type ContextLockerPanelProps = {
   onAuthError?: (error: ReplicaApiError) => void;
   onProposals?: (count: number) => void;
   onItemCount?: (count: number) => void;
+  onPrivateTextItemCount?: (count: number) => void;
   onTeachSource?: (source: { replicaId: string; itemId: string }) => void;
   teachSourceLabel?: string;
   onTestSource?: (source: { replicaId: string; itemId: string }) => void;
@@ -153,6 +154,7 @@ function ContextLockerScope({
   onAuthError,
   onProposals,
   onItemCount,
+  onPrivateTextItemCount,
   onTeachSource,
   teachSourceLabel,
   onTestSource,
@@ -172,6 +174,10 @@ function ContextLockerScope({
    *  panel is the only thing that asks the server. Reporting it up is cheaper
    *  and more honest than a second fetch that could disagree with this one. */
   onItemCount?: (count: number) => void;
+  /** Reports only owner-authored, extracted text that the private rehearsal
+   *  can offer. The rehearsal server still validates its source receipt and
+   *  canonical evidence before enabling a question. */
+  onPrivateTextItemCount?: (count: number) => void;
   onTeachSource?: (source: { replicaId: string; itemId: string }) => void;
   teachSourceLabel?: string;
   onTestSource?: (source: { replicaId: string; itemId: string }) => void;
@@ -244,6 +250,7 @@ function ContextLockerScope({
       }
       setView(next);
       onItemCount?.(next.items.length);
+      onPrivateTextItemCount?.(next.items.filter(isTeachableContextSource).length);
       setError("");
       return true;
     } catch (e) {
@@ -251,7 +258,7 @@ function ContextLockerScope({
     } finally {
       if (mounted.current && generation === loadGeneration.current) setLoading(false);
     }
-  }, [token, replicaId, fail, onItemCount]);
+  }, [token, replicaId, fail, onItemCount, onPrivateTextItemCount]);
 
   useEffect(() => {
     void load();

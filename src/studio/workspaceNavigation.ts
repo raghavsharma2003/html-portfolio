@@ -19,3 +19,18 @@ export function voiceSampleUrl(replicaId: string, search = ""): string {
 export function initialMeetView(search: string, runtimeActive: boolean): "conversation" | "sample" {
   return new URLSearchParams(search).get("sample") === "1" || !runtimeActive ? "sample" : "conversation";
 }
+
+export function firstMeetSurface(input: {
+  voiceWorkspaceReady: boolean;
+  textReady: boolean;
+  hasSavedSheet: boolean;
+  hasTextMaterial: boolean;
+}): "feed" | "private-rehearsal" | "conversation" {
+  if (input.voiceWorkspaceReady || input.textReady) return "conversation";
+  if (input.hasSavedSheet && input.hasTextMaterial) return "private-rehearsal";
+  return "feed";
+}
+
+export function deploySurface(voiceWorkspaceReady: boolean): "room" | "material" {
+  return voiceWorkspaceReady ? "room" : "material";
+}
