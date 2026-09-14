@@ -235,11 +235,14 @@ export async function getLivenessResult(payload, config, options = {}) {
   }
   const digest = String(latest?.result?.digest || "").toLowerCase();
   const verifyHash = String(latest?.result?.verifyImageHash || "").toLowerCase();
-  const identityScore = finiteScore(latest?.verifyResult?.matchConfidence, "face_liveness_identity_score_invalid");
+  // Face liveness v1.2 places verification under the attempt's `result`.
+  // A flat sibling is an untrusted shape and must fail closed below.
+  const verifyResult = latest?.result?.verifyResult;
+  const identityScore = finiteScore(verifyResult?.matchConfidence, "face_liveness_identity_score_invalid");
   if (!SHA256.test(digest) || verifyHash !== binding.value.referenceSha256)
     fail("face_liveness_evidence_binding_invalid");
   const livenessPassed = String(latest?.result?.livenessDecision || "").toLowerCase() === "realface";
-  const identityMatch = latest?.verifyResult?.isIdentical === true && identityScore >= config.liveness.verifyThreshold;
+  const identityMatch = verifyResult?.isIdentical === true && identityScore >= config.liveness.verifyThreshold;
   return Object.freeze({
     request_id: binding.requestId,
     reference_sha256: binding.value.referenceSha256,

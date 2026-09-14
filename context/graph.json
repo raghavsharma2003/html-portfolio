@@ -19791,6 +19791,24 @@
       "kind": "rejection",
       "title": "One repaired incident does not fix historical deployed code",
       "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-face-v12-nested-result-20260914",
+      "kind": "decision",
+      "title": "Face v1.2 parser trusts nested verification result",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-face-v12-nested-result-measurement-20260914",
+      "kind": "measurement",
+      "title": "Face v1.2 nested result scoped tests pass",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-face-v12-flat-result-rejected-20260914",
+      "kind": "rejection",
+      "title": "Flat Face verification result rejected",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -33746,6 +33764,16 @@
       "src": "wave25-repair-does-not-update-deployed-meera-writer",
       "rel": "constrains",
       "dst": "wave25-preserve-logs-repair-only-proven-orphan-incident"
+    },
+    {
+      "src": "standalone25-face-v12-nested-result-20260914",
+      "dst": "standalone25-face-v12-nested-result-measurement-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-face-v12-flat-result-rejected-20260914",
+      "dst": "standalone25-face-v12-nested-result-20260914",
+      "rel": "caused_by"
     }
   ]
 }

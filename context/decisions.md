@@ -25234,3 +25234,7 @@ Mixed repeat, theme and surface suites retain shared loop, theme selection and o
 ## wave25-preserve-logs-repair-only-proven-orphan-incident
 
 2026-09-14. Repair only the measured20/4 legacy incident after conservative forget-term exclusion and a separately verified rollback. Use row locks, a short shared forget-ledger lock, exact owner/channel/range/count guards, and empty provisional wake records. Preserve every surviving message and all forget requests; write a cursor-only intent receipt before the single COMMIT and require independent readback. Reverse or refuse if the incident shape, ownership, suppression matches or transaction proof changes. Never retry an ambiguous commit automatically.
+
+## standalone25-face-v12-nested-result-20260914
+
+2026-09-14. Trust Azure Face liveness v1.2 verification only at attempt.result.verifyResult, matching the official Get Liveness with Verify Session Result contract. Flat sibling data is rejected; reverse if the pinned official schema changes and the parser/tests are updated together.

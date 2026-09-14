@@ -186,8 +186,7 @@ test("terminal result chooses the highest attempt id and binds Azure's verify ha
           {
             attemptId: 2,
             attemptStatus: "Succeeded",
-            result: { livenessDecision: "realface", digest: digest.toUpperCase(), verifyImageHash: SHA.toUpperCase() },
-            verifyResult: { isIdentical: true, matchConfidence: 0.94 },
+            result: { livenessDecision: "realface", digest: digest.toUpperCase(), verifyImageHash: SHA.toUpperCase(), verifyResult: { isIdentical: true, matchConfidence: 0.94 } },
           },
           { attemptId: 1, attemptStatus: "Failed", error: { code: "FaceWithMaskDetected", message: "private detail" } },
         ],
@@ -242,8 +241,7 @@ test("verify-image hash mismatch and a tampered sealed handle fail closed", asyn
       attempts: [{
         attemptId: 1,
         attemptStatus: "Succeeded",
-        result: { livenessDecision: "realface", digest: "c".repeat(64), verifyImageHash: "d".repeat(64) },
-        verifyResult: { isIdentical: true, matchConfidence: 0.99 },
+        result: { livenessDecision: "realface", digest: "c".repeat(64), verifyImageHash: "d".repeat(64), verifyResult: { isIdentical: true, matchConfidence: 0.99 } },
       }],
     },
   });
@@ -256,6 +254,37 @@ test("verify-image hash mismatch and a tampered sealed handle fail closed", asyn
     getLivenessResult(boundPayload(tampered), config(), { fetchImpl: badResult, now: NOW }),
     (error) => error.code === "liveness_session_handle_invalid",
   );
+});
+
+test("only the nested v1.2 verify result is trusted, with identity and confidence gates", async () => {
+  const { result: session } = await createSession();
+  const response = (verifyResult) => Response.json({
+    sessionId: SESSION_ID, status: "Succeeded", modelVersion: "2025-05-20",
+    results: { verifyReferences: [{ qualityForRecognition: "high" }], attempts: [{ attemptId: 1, attemptStatus: "Succeeded", result: {
+      livenessDecision: "realface", digest: "b".repeat(64), verifyImageHash: SHA, ...verifyResult,
+    } }] },
+  });
+  await assert.rejects(
+    getLivenessResult(boundPayload(session.session_handle), config(), {
+      fetchImpl: async () => Response.json({
+        sessionId: SESSION_ID, status: "Succeeded", modelVersion: "2025-05-20",
+        results: { verifyReferences: [{ qualityForRecognition: "high" }], attempts: [{ attemptId: 1, attemptStatus: "Succeeded", result: {
+          livenessDecision: "realface", digest: "b".repeat(64), verifyImageHash: SHA,
+        }, verifyResult: { isIdentical: true, matchConfidence: 0.99 } }] },
+      }), now: NOW,
+    }),
+    (error) => error.code === "face_liveness_identity_score_invalid",
+  );
+  const mismatch = await getLivenessResult(boundPayload(session.session_handle), config(), {
+    fetchImpl: async () => response({ verifyResult: { isIdentical: false, matchConfidence: 0.99 } }), now: NOW,
+  });
+  assert.equal(mismatch.identity_match, false);
+  assert.equal(mismatch.passed, false);
+  const low = await getLivenessResult(boundPayload(session.session_handle), config(), {
+    fetchImpl: async () => response({ verifyResult: { isIdentical: true, matchConfidence: 0.89 } }), now: NOW,
+  });
+  assert.equal(low.identity_match, false);
+  assert.equal(low.passed, false);
 });
 
 test("quick-link exchange failure and model drift trigger immediate Azure-session deletion", async () => {

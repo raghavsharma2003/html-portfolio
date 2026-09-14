@@ -18934,3 +18934,7 @@ A narrow CI agent reported work in an isolated worktree but committed14ad34ab an
 ## wave25-repair-does-not-update-deployed-meera-writer
 
 The current Vyakti source fixes partial-forget survivor links and mapped suppression, but deployed Meera remains atbee906 unchanged under owner separation directive. Repairing the measured20messages does not deploy that source fix to Meera; future Meera partial-forget calls can reproduce the old defect. Keep this residual limitation visible and detect recurrence with relcheck. Do not claim the entire live historical writer is fixed from a green observed incident.
+
+## standalone25-face-v12-flat-result-rejected-20260914
+
+The prior flat latest.verifyResult read was rejected because the official Face v1.2 response nests verification under attempt.result.verifyResult. A flat-only fixture, false identity, and low confidence now fail closed; no liveness enablement or readiness change was made.
