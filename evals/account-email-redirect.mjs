@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { emailRedirect } from "../api/_auth-redirect.js";
 
@@ -13,6 +14,9 @@ const redirects = [
 for (const value of redirects) assert.equal(emailRedirect(value), null, `rejects ${value}`);
 assert.equal(emailRedirect("https://preview.example.invalid/studio"), "https://preview.example.invalid/studio");
 assert.equal(emailRedirect("http://localhost:5173/r/example?lang=hi"), "http://localhost:5173/r/example?lang=hi");
+for (const source of ["../src/room/RoomApp.tsx", "../src/studio/publication/PublicationSignIn.tsx"]) {
+  assert.match(readFileSync(new URL(source, HERE), "utf8"), /sendEmailOtp\(email\.trim\(\), window\.location\.pathname \+ window\.location\.search\)/, `${source} preserves its current return path`);
+}
 
 const hook = registerHooks({
   resolve(specifier, context, next) {

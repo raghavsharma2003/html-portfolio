@@ -38,7 +38,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { StudioSession } from "../creatorStudio/types";
 import { readStoredSession, restoreSession, writeStoredSession } from "../creatorStudio/session";
-import { googleSignIn, sendPhoneOtp, verifyPhoneOtp } from "../creatorStudio/studioAuth";
+import { googleSignIn, sendEmailOtp, verifyEmailOtp } from "../creatorStudio/studioAuth";
 import {
   ROOM_COPY_TABLE,
   loadRoomCopy,
@@ -2028,7 +2028,7 @@ function JoinSheet({
   onAuth: (session: StudioSession) => void;
   onJoined: (joined: RoomOpen & { session: string }) => void;
 }) {
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [age18, setAge18] = useState(false);
@@ -2093,14 +2093,14 @@ function JoinSheet({
           <>
             <h3>{copy.join.signIn}</h3>
             <label className="room-field">
-              <span>{copy.join.phoneLabel}</span>
+              <span>{copy.join.emailLabel}</span>
               <input
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder={copy.join.phonePlaceholder}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder={copy.join.emailPlaceholder}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </label>
             {codeSent && (
@@ -2118,16 +2118,16 @@ function JoinSheet({
               <button
                 type="button"
                 className="room-btn primary"
-                disabled={busy || phone.trim().length < 8}
+                disabled={busy || !email.trim().includes("@")}
                 onClick={async () => {
                   setBusy(true);
                   setError("");
                   try {
                     if (!codeSent) {
-                      await sendPhoneOtp(phone);
+                      await sendEmailOtp(email.trim(), window.location.pathname + window.location.search);
                       setCodeSent(true);
                     } else {
-                      onAuth(await verifyPhoneOtp(phone, code));
+                      onAuth(await verifyEmailOtp(email.trim(), code));
                     }
                   } catch {
                     setError(copy.errors.generic);
