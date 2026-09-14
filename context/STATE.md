@@ -40,8 +40,12 @@ npx tsc -b --force; root tsc --noEmit is insufficient for this project-reference
 solution. The central probe fix now keeps malformed/disabled internal voice
 responses from hiding the ordinary creator journey; scoped two-column voice
 tabs pass clone layout22 and internal voice browser16 checks. Fixture endpoint
-coverage and cascade mutation controls are the final local repairs before a
-new candidate. No newer full gate is accepted and no newer preview is deployed.
+coverage and cascade mutation controls are repaired. Targeted suites pass:
+six first-use/refinement suites108, creator cascade32, personal rehearsal62.
+The refinement next-question handler also no longer forwards a React click
+event as parent_request_id; explicit follow-ups still send the actual UUID.
+The next pushed candidate requires fresh full CI acceptance. No newer full gate
+is accepted and no newer preview is deployed.
 Never loosen the existing Hindi budget. No public
 cutover or main merge is authorized for this private testing phase.
 
