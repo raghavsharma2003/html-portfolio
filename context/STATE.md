@@ -8,6 +8,13 @@ real voice likeness, memory/personality, the full user journey, and a premium,
 clean, image-led mobile/desktop design. No human-review workflow is selected.
 Do not claim public verification for explicit internal test access.
 
+**Device boundary:** never open or use personal Microsoft accounts in any
+browser on this employer laptop. The Microsoft tab is closed. Authorized Azure
+API access remains allowed. Any interactive permission grant belongs on the
+owner's separate personal system. Dedicated identity vyakti-internal-voice25-id
+is created; its exact Hindi GPU role still needs that external grant. Do not
+apply the old five-write infra plan with the current API credentials.
+
 **Work here:** `Vyakti-platform-standalone25`, branch
 `claude/vyakti-cloning-platform-aq05n4`, repo `raghavsharma2003/html-portfolio`.
 Never reset or edit the old dirty `Vyakti-platform` checkout. Its ignored

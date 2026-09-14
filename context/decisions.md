@@ -25408,3 +25408,8 @@ Root read-only Azure metadata on2026-09-14 showed app and revision template docu
 ## wave25-private-memory-delivery-and-premium-release-repair
 
 2026-09-14. Use an authenticated post-reply request to deliver owner memory in private previews, which have no Vercel cron execution. The same consolidator, lease, owner/agent/person scope and shared Azure budget remain authoritative. Five missing configuration names are bound only in Preview and Development. Integrate premium UI fixes against the real release checks and keep their original budgets. Reverse this delivery choice if an actual persistent scheduler proves equally prompt/reliable with less client coordination. Keep the protected dc52 baseline live until a new exact head passes all25 checks; do not deploy a failed candidate.
+
+
+## wave25-employer-laptop-microsoft-boundary
+
+2026-09-14. The owner explicitly forbids opening or using personal Microsoft accounts in any browser on this employer laptop. Existing authorized Azure API access is allowed. If new permissions require an interactive sign-in, give exact commands for the owner to run on a separate personal system. The Microsoft tab was closed. Reversal requires an explicit new owner instruction for a different device; never infer it from general deployment authorization.

@@ -20373,6 +20373,24 @@
       "kind": "rejection",
       "title": "A polished render and one Azure template hash were insufficient",
       "at": "context/rejected.md#wave25-premium-gate-and-voice-template-shape"
+    },
+    {
+      "id": "wave25-employer-laptop-microsoft-boundary",
+      "kind": "decision",
+      "title": "Personal Microsoft browser access is forbidden",
+      "at": "context/decisions.md#wave25-employer-laptop-microsoft-boundary"
+    },
+    {
+      "id": "wave25-dedicated-voice-identity-created",
+      "kind": "measurement",
+      "title": "Dedicated identity created; role grant remains external",
+      "at": "context/measurements.md#wave25-dedicated-voice-identity-created"
+    },
+    {
+      "id": "wave25-browser-login-and-assumed-identity-rights",
+      "kind": "rejection",
+      "title": "Do not solve missing Azure permissions through this laptop browser",
+      "at": "context/rejected.md#wave25-browser-login-and-assumed-identity-rights"
     }
   ],
   "edges": [
@@ -34688,6 +34706,16 @@
       "src": "wave25-private-memory-delivery-and-premium-release-repair",
       "rel": "caused_by",
       "dst": "wave25-premium-gate-and-voice-template-shape"
+    },
+    {
+      "src": "wave25-employer-laptop-microsoft-boundary",
+      "rel": "measured_by",
+      "dst": "wave25-dedicated-voice-identity-created"
+    },
+    {
+      "src": "wave25-employer-laptop-microsoft-boundary",
+      "rel": "caused_by",
+      "dst": "wave25-browser-login-and-assumed-identity-rights"
     }
   ]
 }
