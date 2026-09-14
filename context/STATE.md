@@ -15,14 +15,15 @@ Never reset or edit the old dirty `Vyakti-platform` checkout. Its ignored
 stay outside Git and tool output. At most five independent workstreams; use
 Sol for bounded work and Astra for voice architecture/integration.
 
-**Release:** dc52ce10 passed25/25 on both Node22/24 and Android debug APK.
-It is deployed as protected preview dpl_7oQHS6ApjTvaUJLuiS7SkV9TGb9p:
+**Release:** protected dc52ce10 baseline remains live and accepted25/25 on
+Node22/24 plus Android. URL:
 https://vyakti-replica-pn2fz2x07-raghav-carbonsettles-projects.vercel.app
-Exact source marker and head verified; actual landing and Studio sign-in render.
-No real email/session/model journey passed yet. Premium design69e0bd04 plus
-CSS focus-check repairf7147359, memory511784a0 and internal voice7b096951 are
-integrated after that baseline and need a new full gate/deployment. Do not use
-the old main-merge/production-cutover helpers under the current private scope.
+Actual landing and Studio sign-in render; owner login is requested/pending.
+New premium candidate fe7dbc6 failed22/25 on both Node versions: token palette,
+performance and eval suites. Three eval repairs9aaa7aff, first-reply budget429e9c51,
+voice controller0ad5958e and post-turn owner memorye681ce1c are now integrated
+through9abf6604. Shared palette/performance and reachable voice UI fixes remain
+underway; no newer preview is accepted or deployed. Do not run public cutover.
 
 **Working configuration:** Vercel access and Azure sponsored subscription
 work. Terra conversation/correction, mini extraction, Azure storage and open
@@ -47,16 +48,24 @@ is verified and now active; all61 packaged source files match accepted dc52ce10.
 A separate live readback confirmed owned and unowned Job fields after HTTP202.
 Use reviewed `standalone25-processing-job-v3.py` only after accepted gates;
 no rebuild, explicit Job start or permanent GPU warming is currently needed.
-Memory consolidation still needs its five missing env names and a real scheduled
-caller for the private preview. Do not confuse the upload worker with memory.
+Memory's five missing settings are now value/scope verified in Preview and
+Development. Integratede681ce1c adds the real authenticated post-turn drain
+using the existing lease/meter; it awaits the next accepted deployment. The
+upload worker remains a separate service.
 
-**Voice and design underway:** isolated `internal-owner-voice25` builds an
-explicit private owner-authorized lane reusing Azure Chatterbox and retained
-owner reference, without Face/document review or fabricated public identity.
-`premium-journey25` improves actual landing/auth/Studio with two generated
-pearl/silver images and real existing handlers. No new owner-likeness result
-exists. Older YuNet/Light-ASD assets are recovered for later public research;
-do not restage them or block internal experiments on their calibration.
+**Voice and design underway:** premium landing/auth/Studio is integrated but
+awaits release repair. Internal owner voice UI must render outside ordinary
+voice activation gates; this is being browser-tested at390/1440. Replacement
+internal CPU imagecu3w (source0ad5958e) is verified at digest8f416918a6cdadc2d0e9ad0cb52591db5498ac9f4a8b9b48aebedf30b614be1f;
+brokerf691c507dc36d75b1729291183f72f3655c208339acc348fa848d692453f8c18 is verified.
+Neither is deployed. Ignored infra runplan18b2d14ed6323a1dd5ee05bcec6cef1d840c95aa459d212cb5154c95f9df60c5
+targets only newCPU vyakti-internal-voice25 and Hindi brokervyakti-open-voice-hi-gate;
+HindiGPU remains dormant. General broker/GPU stay untouched. Exact app/revision
+template hashes are intentionally separate. See ignored INFRA-HANDOFF.
+No new voice sample or owner likeness result exists. Real owner text-floor read
+is blocked on inference consent/profile approval; the already implemented
+PrivateTextRehearsal is the distinct preverification first-question path. A
+bounded follow-up feature is now being built there without fabricated identity.
 
 **Product map:** `docs/handoff/2026-09-14/PRODUCT-STATUS.md`;
 `VOICE-PRODUCER-NEXT.md` is the eventual public-verifier audit, explicitly

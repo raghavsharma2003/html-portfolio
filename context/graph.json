@@ -20355,6 +20355,24 @@
       "kind": "rejection",
       "title": "Preview cron-only memory has no caller",
       "at": "context/rejected.md#wave25-preview-cron-only-memory-has-no-caller"
+    },
+    {
+      "id": "wave25-private-memory-delivery-and-premium-release-repair",
+      "kind": "decision",
+      "title": "Connect private memory delivery and fix measured release regressions",
+      "at": "context/decisions.md#wave25-private-memory-delivery-and-premium-release-repair"
+    },
+    {
+      "id": "wave25-memory-config-cpu-image-and-candidate-failure-20260914",
+      "kind": "measurement",
+      "title": "Memory config and replacement CPU image verified; candidate failed",
+      "at": "context/measurements.md#wave25-memory-config-cpu-image-and-candidate-failure-20260914"
+    },
+    {
+      "id": "wave25-premium-gate-and-voice-template-shape",
+      "kind": "rejection",
+      "title": "A polished render and one Azure template hash were insufficient",
+      "at": "context/rejected.md#wave25-premium-gate-and-voice-template-shape"
     }
   ],
   "edges": [
@@ -34660,6 +34678,16 @@
       "src": "wave25-owner-memory-drains-after-a-successful-meet-turn",
       "rel": "part_of",
       "dst": "wave25-owner-text-memory-shares-room-meter"
+    },
+    {
+      "src": "wave25-private-memory-delivery-and-premium-release-repair",
+      "rel": "measured_by",
+      "dst": "wave25-memory-config-cpu-image-and-candidate-failure-20260914"
+    },
+    {
+      "src": "wave25-private-memory-delivery-and-premium-release-repair",
+      "rel": "caused_by",
+      "dst": "wave25-premium-gate-and-voice-template-shape"
     }
   ]
 }
