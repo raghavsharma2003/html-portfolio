@@ -19220,3 +19220,8 @@ Exact591c passes full CI and its deployed entry renders, but those facts cannot 
 ## wave25-stale-captures-and-late-visual-review
 
 An older landing screenshot showed a5154px page with a giant gap and application form; exact591c was2962px, with dormant application elements display:none and zero geometry. Its old mobile rail overlap was also absent. But current Feed showed browser-default actions and a generic field rule around a multiline textarea. That real styling defect was found after the first candidate freeze and required a second full release run. Use current settled captures of the actual entry branches before the next freeze; neither old screenshots nor a full-gate pass alone proves every control is polished.
+
+
+## wave25-successful-role-grant-is-not-service-creation
+
+The owner saw Verified with no container created or warmed and needed the next step. That output is expected: the personal script grants narrowly scoped identity permissions only. It does not prove the CPU service, broker update, reference priming, supervisor or voice sample exists. Verify the grant by API, then execute the already-reviewed separate infra plan; do not ask the owner to rerun the successful grant or open personal Microsoft sign-in here.

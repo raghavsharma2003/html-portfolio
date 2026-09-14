@@ -12,7 +12,8 @@ Do not claim public verification for explicit internal test access.
 browser on this employer laptop. The Microsoft tab is closed. Authorized Azure
 API access remains allowed. Any interactive permission grant belongs on the
 owner's separate personal system. Dedicated identity vyakti-internal-voice25-id
-is created; its exact Hindi GPU role still needs that external grant. Do not
+is created; its exact Hindi GPU role is now API-verified after the owner ran
+the script on their personal system. Do not
 apply the old five-write infra plan with the current API credentials.
 
 **Work here:** `Vyakti-platform-standalone25`, branch
@@ -43,8 +44,9 @@ remains a historical preview, not the newest link.
 Real owner sign-in, uploaded expert knowledge, live model/memory journey and
 fresh voice likeness are still unverified. Latest read-only Azure preflight
 at14:35UTC refused owner_identity_grant_not_ready; zero GPU/model calls.
-No personal Microsoft browser session was opened. Owner-only next actions:
-personal-device Cloud Shell grant script, and real Vyakti account sign-in.
+No personal Microsoft browser session was opened. The later owner message
+confirmed the grant and the API verified it; that earlier refusal is resolved.
+The remaining owner action is real Vyakti account sign-in; Studio is open.
 
 **Working configuration:** Vercel access and Azure sponsored subscription
 work. Terra conversation/correction, mini extraction, Azure storage and open
@@ -71,14 +73,17 @@ Use reviewed `standalone25-processing-job-v3.py` only after accepted gates;
 no rebuild, explicit Job start or permanent GPU warming is currently needed.
 Memory's five missing settings are now value/scope verified in Preview and
 Development. Integratede681ce1c adds the real authenticated post-turn drain
-using the existing lease/meter; it awaits the next accepted deployment. The
+using the existing lease/meter; it is included in accepted3bc5. The
 upload worker remains a separate service.
 
 **Voice deployment prerequisite:** the dedicated UMI is created; the existing
 operator API credential cannot grant RBAC. The owner was given the committed
 `docs/handoff/2026-09-14/grant-internal-voice-identity-personal-cloud-shell.sh`
-for Azure Cloud Shell Bash on a PERSONAL device only. No confirmation yet.
-After that, verify through API and use ignored `standalone25-internal-voice-infra-umi.py`
+for Azure Cloud Shell Bash on a PERSONAL device only. Owner reports success;
+root preflight1789400243765267800 verified the exact grant. All three writes
+completed; readback1789400357666329300 verified CPU/broker/dormant GPU.
+Reference prime succeeded480044bytes, CPU health200 with gpu_probed:false.
+Never rerun apply or prime blindly. Use ignored `standalone25-internal-voice-infra-umi.py`
 with `STANDALONE25-INTERNAL-VOICE-INFRA-UMI-RUNPLAN.json`, commitment
 7f3f6ce8c227e9bd8c228bd4a79b6edbb95d3e694e7d1e8ed100250267fa3e20.
 Three service writes only after accepted gates: CPU create with UMI, Hindi
@@ -87,7 +92,8 @@ execution. Read UMI-HANDOFF. General broker/GPU remain untouched.
 Internal CPU cu3w source0ad5958e is already verified at digest
 8f416918a6cdadc2d0e9ad0cb52591db5498ac9f4a8b9b48aebedf30b614be1f;
 broker digestf691c507dc36d75b1729291183f72f3655c208339acc348fa848d692453f8c18.
-Neither is deployed. No new voice sample or likeness result exists.
+Both CPU images are deployed and read back. No new voice sample or likeness
+result exists. Preview-only internal voice bindings are being connected.
 The private first-question flow now has bounded server-owned follow-up context;
 its two changed SQL statements passed live read-only EXPLAIN with rollback.
 Owner-scoped inventory found three replicas, zero Studio context items/teacher

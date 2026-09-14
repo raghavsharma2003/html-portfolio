@@ -20607,6 +20607,24 @@
       "kind": "rejection",
       "title": "Old screenshots and a broad gate miss different things",
       "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-owner-grant-unblocks-reviewed-voice-service",
+      "kind": "decision",
+      "title": "Activate the reviewed private voice service after the exact grant",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-owner-grant-verified-20260914",
+      "kind": "measurement",
+      "title": "Personal-device grant verified through API",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-successful-role-grant-is-not-service-creation",
+      "kind": "rejection",
+      "title": "Grant success does not deploy the voice service",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -35052,6 +35070,11 @@
       "src": "wave25-close-with-exact-preview-and-owner-inputs",
       "rel": "measured_by",
       "dst": "wave25-final-feed-preview-20260914"
+    },
+    {
+      "src": "wave25-owner-grant-unblocks-reviewed-voice-service",
+      "rel": "measured_by",
+      "dst": "wave25-owner-grant-verified-20260914"
     }
   ]
 }

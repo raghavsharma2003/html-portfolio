@@ -25471,3 +25471,8 @@ Deploy exact591c8a25 as a protected preview after both Node versions pass25/25 a
 ## wave25-close-with-exact-preview-and-owner-inputs
 
 Use accepted3bc5 as the newest private preview and keep the two owner inputs explicit: personal-device Azure role grant and genuine Vyakti sign-in/material. Reuse exact-policy Blob CORS rules by adding the new exact origin, preserving every old origin and rule property rather than consuming one of five rule slots per deployment. Reverse origin reuse if policies differ; never merge different policies. Context-only closure follows deployment and does not change tested product bytes.
+
+
+## wave25-owner-grant-unblocks-reviewed-voice-service
+
+The owner reports the personal-device Cloud Shell grant completed. Root verified exact dedicated identity, role actions and Hindi GPU scope through authorized Azure API; execute the preserved three-write plan against accepted3bc5 without another permission request. This authorizes CPU creation, broker configuration and isolation tag only; actual synthesis remains a separate supervised bounded run. Reverse if any live identity/resource binding differs from the plan.
