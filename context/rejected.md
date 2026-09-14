@@ -18889,3 +18889,13 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 **What replaced it.** The gate now reads the shared foundation that the real Vyakti Room imports and the matching Studio/status token sources. It holds ten text, action, state, and focus pairs to 4.5:1 or 3:1 floors and carries two source mutations. Its first run found a real defect: waiting ink `#b4551f` on waiting ground `#fbead9` measured 4.20:1. Both mirrored token files now use `#a94a18`, measured at 4.86:1, rather than lowering the floor.
 
 **The rule.** When a product surface is retired, replace its static gate with an equally concrete check of the surviving surface. Missing input is never a passing result, and a newly relevant floor stays at its stated accessibility threshold even when the current token fails it.
+
+## `wave25-terra-correction-cannot-require-mini-style-fingerprint` (2026-09-14, wave 25)
+
+**Tried.** Extend the existing Mini-only provider revision whitelist to Terra while retaining the v1 rule that every accepted response must carry a non-null `fp_*` system fingerprint.
+
+**What specifically broke.** The retained actual Terra response reports the exact dated model, valid stopped output and measured usage but an explicit null fingerprint. The unchanged v1 check therefore refuses every observed Terra correction or comparison after the provider has already answered. Reusing the older Mini ARM commitment also fails because correction and materialization bind that commitment to the configured deployment, now Terra. Keeping correction on Mini would compare and qualify a prompt-policy candidate under a different model from the Terra runtime that would serve it, with no evidence that the activation result transfers across models.
+
+**What replaced it.** Terra has a distinct v2 receipt that preserves the explicit absence, exact dated model, fresh deployment baseline commitment and pair equality. Mini remains v1 and still requires its fingerprint. Arbitrary deployment names remain refused. This is weaker backend identity for Terra and is stated as such; no fingerprint or immutable-weight claim is inferred.
+
+**Reversal condition.** Retire this rejection only if the exact Terra API contract supplies a stable fingerprint or a different provider identity signal that can be verified on every paired response and bound through materialization, qualification and activation.

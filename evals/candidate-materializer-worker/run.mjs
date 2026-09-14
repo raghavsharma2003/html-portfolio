@@ -152,7 +152,8 @@ async function fixture(options={}){
  const manifest={artifact_sha256:art.artifact_sha256,base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT,source_set_hash:built.source_set_hash};
  candidate={candidate_id:CANDIDATE,dataset_id:DATASET,replica_id:RID,owner_user_id:OWNER,kind:'prompt_policy',status:'draft',artifact_sha256:art.artifact_sha256,build_manifest_hash:hash(manifest),base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT,dataset_source_set_hash:built.source_set_hash};
  correction={job_id:CORRECTION,candidate_id:CANDIDATE,artifact:art.artifact,build_manifest:manifest,state:'draft'};
- const adapter={family:'dialogue',name:'azure-foundry-structured-output',version:'fixture-v1',model:'gpt-4.1-mini',revision_binding:revisionBinding,billing:{meter:'azure_foundry_tokens',max_output_tokens:700},async generate({prompt}){
+ const adapter={family:'dialogue',name:'azure-foundry-structured-output',version:'fixture-v1',model:'gpt-4.1-mini',revision_binding:revisionBinding,billing:{meter:'azure_foundry_tokens',max_output_tokens:700,
+  ...(options.terraRates?{budget_env:{AZURE_REPLICA_BUDGET_ID:ENV.AZURE_REPLICA_BUDGET_ID,AZURE_REPLICA_APP_BUDGET_USD:'1',AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'2',AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'12'}}:{})},async generate({prompt}){
   assert.ok(prompt.messages[0].content.includes("Turn language precedence:") && prompt.messages[0].content.includes("Learner diagnosis shape:"));
   calls++;const text=JSON.stringify(prompt);assert.ok(!text.includes('Original response'));for(const v of plaintext.values())assert.ok(!text.includes(v));
   const message=prompt.messages.at(-1).content;assert.ok(held.some(e=>message===`Held SN1 question ${e.feedback_id}?`));
@@ -209,6 +210,10 @@ await test('actual worker completes paired held-out generation, encrypted blind 
   assert.equal(outputs.b,`${a.presentation_order==='ab'?'Candidate':'Baseline'} answer ${outputs.context}`);
  }
  await f.advance();assert.equal(f.calls,started.total);f.unchanged();
+});
+await test('materializer reservation and settlement use adapter-scoped Terra rates',async()=>{
+ const f=await fixture({terraRates:true});await f.start();await f.advance();
+ assert.equal(f.spends[0].actual_microusd,500);assert.equal(f.budget.spent_microusd,500);f.unchanged();
 });
 await test('concurrent advances claim one item; held replay never repeats provider dispatch',async()=>{
  let release;const pause=new Promise(r=>release=r);const f=await fixture({pause});await f.start();const pending=f.advance();

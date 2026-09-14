@@ -2,9 +2,9 @@ import {canonicalJson,sha256Hex} from './_provenance/contracts.js';
 import {basis,authorityParams,CORRECTION_CURRENT_AUTHORITY_SQL} from './_replica-correction-candidate.js';
 import {loadCandidateOwnerObservations} from './_replica-candidate-eval.js';
 import {evaluateCandidateQualification,recordOwnedCandidateQualification,CANDIDATE_QUALIFICATION_PROTOCOL} from './_replica-candidate-qualification.js';
-import {assertSameReportedRevision,prepareProviderRevisionBinding} from './_dialogue/provider-revision.js';
+import {assertSameReportedRevision,prepareProviderRevisionBinding,providerRevisionDeployment} from './_dialogue/provider-revision.js';
 import {compileReplicaRuntimeCore} from './_replica-runtime.js';
-import {AZURE_DIALOGUE_API_VERSION} from './_dialogue/providers/azure-foundry.js';
+import {AZURE_DIALOGUE_API_VERSION,azureDialogueProtocol} from './_dialogue/providers/azure-foundry.js';
 import {DIALOGUE_PROMPT} from './_dialogue/contracts.js';
 import {renderPrivateCorrectionCandidate,CORRECTION_ARTIFACT_SCHEMA} from './_replica-correction-artifact.js';
 import {MATERIALIZATION_PROTOCOL} from './_replica-candidate-materializer.js';
@@ -58,16 +58,19 @@ async function context(db,owner,input){
  if(heldout.length<30||Number(row.total)!==heldout.length*2||!Array.isArray(items)||hash(sortItems(items))!==hash(sortItems(expectedItems)))
   fail('qualification_heldout_coverage_changed');
  if(!Array.isArray(identities)||identities.length!==Number(row.total)||!identities[0]
-  ||identities.some(i=>hash(i)!==hash(identities[0]))||!identities[0].response_model||!identities[0].system_fingerprint
+  ||identities.some(i=>hash(i)!==hash(identities[0]))||!identities[0].response_model
   ||hash(artifact)!==row.artifact_sha256||hash(manifest)!==row.build_manifest_hash
   ||row.materialized_artifact!==row.artifact_sha256||row.materialized_manifest!==row.build_manifest_hash
   ||manifest.source_set_hash!==row.dataset_source_set_hash||manifest.base_model_commitment!==row.base_model_commitment)
   fail('qualification_receipt_changed');
  for(const identity of identities)assertSameReportedRevision(identities[0],identity);
+ const deployment=providerRevisionDeployment(identities[0].response_model,identities[0].schema);
  const revision=prepareProviderRevisionBinding({expectedResponseModel:identities[0].response_model,
-  endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment:'gpt-4.1-mini',baselineSnapshotHash:row.base_model_commitment});
+  endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment,baselineSnapshotHash:row.base_model_commitment});
+ const protocol=azureDialogueProtocol(deployment);
  const expectedModel=hash({protocol:MATERIALIZATION_PROTOCOL,name:'azure-foundry-structured-output',
-  version:`${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}`,model:'gpt-4.1-mini',base_model_commitment:row.base_model_commitment,revision_binding:revision});
+  version:`${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}${protocol?':'+protocol.version:''}`,model:deployment,
+  base_model_commitment:row.base_model_commitment,revision_binding:revision});
  if(artifact.schema!==CORRECTION_ARTIFACT_SCHEMA||row.materialization_protocol!==MATERIALIZATION_PROTOCOL
   ||identities[0].binding_hash!==revision.binding_hash||row.model_commitment!==expectedModel
   ||row.base_capability_id!==b.runtime.capability.capability_id||row.profile_version!==b.runtime.personProfile.version

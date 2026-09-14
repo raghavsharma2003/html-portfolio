@@ -4,7 +4,7 @@ import {loadOwnedRuntimeContext,loadOwnedRuntimeRevision,compileReplicaRuntimeCo
 import {renderPrivateCorrectionCandidate} from './_replica-correction-artifact.js';
 import {candidateActivationProofSql} from './_replica-candidate-activation-authority.js';
 import {candidateRuntimeCore} from './_replica-candidate-runtime.js';
-import {prepareProviderRevisionBinding,assertSameReportedRevision} from './_dialogue/provider-revision.js';
+import {prepareProviderRevisionBinding,assertSameReportedRevision,providerRevisionDeployment} from './_dialogue/provider-revision.js';
 import {REPLICA_POLICY_VERSION,replicaId} from './_replica.js';
 const hash=v=>sha256Hex(canonicalJson(v)),parse=v=>typeof v==='string'?JSON.parse(v):v;
 const fail=code=>{throw Object.assign(Error(code),{code,status:409});};
@@ -97,8 +97,9 @@ async function activationProposal(db,owner,input,current,action='activate'){
  const rendered=renderPrivateCorrectionCandidate(runtime,artifact);
  if(rendered.core.length>6000||hash(rendered.core)!==row.candidate_core_hash||binding.candidate_core_hash!==row.candidate_core_hash)fail('candidate_compared_core_changed');
  assertSameReportedRevision(binding.provider_identity,binding.provider_identity);
+ const deployment=providerRevisionDeployment(binding.provider_identity.response_model,binding.provider_identity.schema);
  const revision=prepareProviderRevisionBinding({expectedResponseModel:binding.provider_identity.response_model,
-  endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com',deployment:'gpt-4.1-mini',baselineSnapshotHash:binding.base_model_commitment});
+  endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com',deployment,baselineSnapshotHash:binding.base_model_commitment});
  if(revision.binding_hash!==binding.provider_identity.binding_hash)fail('candidate_provider_binding_changed');
  return{...initialHistory(runtime,owner,current,action),selection_kind:action==='experiment'?'experimental':'qualified',candidate_id:row.candidate_id,dataset_id:row.dataset_id,
   qualification_id:row.qualification_id,qualification_binding:binding,artifact_snapshot:artifact,core_hash:row.candidate_core_hash,

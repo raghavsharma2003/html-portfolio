@@ -115,13 +115,14 @@ export async function runOwnedCorrectionCandidate(db,owner,input,{adapter,env=pr
      const pair=await loadOwnedFeedbackLearningExample(db,owner,example.feedback_id,env);
      if(!pair)fail('correction_candidate_evidence_changed');pairs.push(pair);
    }
-   const rates=foundryBudgetConfig(env);
+   const spendEnv=adapter.billing.budget_env||env;
+   const rates=foundryBudgetConfig(spendEnv);
    const plan=prepareCorrectionStrategyRequest(b.snapshot,pairs,{model:adapter.model,...rates});
    // Include schema framing in reserved input units without adding it to the
    // actual conversational messages or changing the provider request.
    const budgetMessages=[...plan.request.messages,{role:'system',content:JSON.stringify(plan.request.response_format)}];
    reservation=await reserveFoundrySpend(db,{operation:'claim_extraction',requestKey:`correction:${job.job_id}:${plan.request_hash}`,
-     adapter,messages:budgetMessages,env});
+     adapter,messages:budgetMessages,env:spendEnv});
    if(!reservation)fail('correction_candidate_budget_required',503);
    const fresh=await basis(db,owner,input);
    if(hash(fresh.runtime.personProfile.definition)!==hash(b.runtime.personProfile.definition)

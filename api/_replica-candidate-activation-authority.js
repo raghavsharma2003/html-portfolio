@@ -89,15 +89,24 @@ export function candidateActivationProofSql(historyAlias='h',capAlias='c',repAli
     where ax.assignment_id=aa.assignment_id and ax.eval_run_id=aa.eval_run_id and ax.candidate_id=aa.candidate_id
     and ax.replica_id=aa.replica_id and ax.owner_user_id=aa.owner_user_id
     and ax.role in ('context','a','b'))<>3))
-  and ${h}.provider_identity->>'schema'='vyakti.azure-reported-revision.v1'
   and ${h}.provider_identity->>'binding_hash'=${h}.provider_revision_binding->>'binding_hash'
   and ${h}.provider_identity->>'response_model'=${h}.provider_revision_binding->>'expected_response_model'
-  and ${h}.provider_identity->>'system_fingerprint' ~ '^fp_[A-Za-z0-9]{1,80}$'
-  and ${h}.provider_revision_binding->>'schema'='vyakti.azure-reported-revision.v1'
   and ${h}.provider_revision_binding->>'baseline_snapshot_hash'=${h}.base_model_commitment
   and ${h}.provider_revision_binding->>'endpoint'='https://raghavsharma1729-compan-resource.services.ai.azure.com'
-  and ${h}.provider_revision_binding->>'deployment'='gpt-4.1-mini'
-  and ${h}.provider_revision_binding->>'expected_response_model'='gpt-4.1-mini-2025-04-14'
+  and (( ${h}.provider_revision_binding->>'schema'='vyakti.azure-reported-revision.v1'
+    and ${h}.provider_identity->>'schema'='vyakti.azure-reported-revision.v1'
+    and ${h}.provider_revision_binding->>'deployment'='gpt-4.1-mini'
+    and ${h}.provider_revision_binding->>'expected_response_model'='gpt-4.1-mini-2025-04-14'
+    and ${h}.provider_identity->>'system_fingerprint' ~ '^fp_[A-Za-z0-9]{1,80}$')
+   or ( ${h}.provider_revision_binding->>'schema'='vyakti.azure-reported-revision.v2'
+    and ${h}.provider_identity->>'schema'='vyakti.azure-reported-revision.v2'
+    and ${h}.provider_revision_binding->>'deployment'='gpt-5.6-terra'
+    and ${h}.provider_revision_binding->>'expected_response_model'='gpt-5.6-terra-2026-07-09'
+    and (( ${h}.provider_identity->>'fingerprint_status'='provided'
+      and ${h}.provider_identity->>'system_fingerprint' ~ '^fp_[A-Za-z0-9]{1,80}$')
+     or ( ${h}.provider_identity->>'fingerprint_status'='not_provided'
+      and ${h}.provider_identity ? 'system_fingerprint'
+      and jsonb_typeof(${h}.provider_identity->'system_fingerprint')='null'))))
   and (select count(*) from vy_replica_candidate_materialization_item ai where ai.job_id=am.job_id
    and ai.replica_id=am.replica_id and ai.owner_user_id=am.owner_user_id)=am.total
   and not exists(select 1 from vy_replica_candidate_materialization_item ai where ai.job_id=am.job_id

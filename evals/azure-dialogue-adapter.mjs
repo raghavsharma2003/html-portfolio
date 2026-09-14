@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { createAzureFoundryDialogueGenerator as create } from "../api/_dialogue/providers/azure-foundry.js";
-import { createProductionDialogueGenerator } from "../api/_dialogue/registry.js";
+import { createProductionDialogueGenerator, createProductionComparisonGenerator } from "../api/_dialogue/registry.js";
 import { DIALOGUE_OUTPUT_SCHEMA, compileDialoguePrompt } from "../api/_dialogue/contracts.js";
 import { REPLICA_POLICY_VERSION } from "../api/_replica.js";
 import { canonicalJson, sha256Hex } from "../api/_provenance/contracts.js";
@@ -234,15 +234,23 @@ assert.equal(terraBody.max_completion_tokens,700);assert.equal(terraBody.reasoni
 assert.equal(terraReply.provider_identity.fingerprint_status,'not_provided');assert.equal(terraReply.usage.output_tokens,23);
 ok('ordinary Terra actual adapter preserves structured Meet prompt and700 total ceiling with optional fingerprint');
 const mutableEnv={...terraEnv};const snap=create({...terraOptions,env:mutableEnv});mutableEnv.AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS='99';assert.equal(snap.billing.budget_env.AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS,'12');assert.equal(snap.version,priced.version);
-const registryEnv={...terraEnv,AZURE_FOUNDRY_ENDPOINT:settings.endpoint,AZURE_FOUNDRY_API_KEY:settings.apiKey,AZURE_FOUNDRY_DIALOGUE_MODEL:'gpt-5.6-terra'};
+const registryEnv={...terraEnv,AZURE_FOUNDRY_ENDPOINT:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',AZURE_FOUNDRY_API_KEY:settings.apiKey,AZURE_FOUNDRY_DIALOGUE_MODEL:'gpt-5.6-terra',
+ AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL:'gpt-5.6-terra-2026-07-09',AZURE_CORRECTION_BASE_MODEL_COMMITMENT:'b'.repeat(64)};
 const savedRegistryEnv=Object.fromEntries(Object.keys(registryEnv).map(k=>[k,process.env[k]]));
-try{Object.assign(process.env,registryEnv);const registered=createProductionDialogueGenerator();assert.equal(registered.version,priced.version);assert.deepEqual(registered.billing.budget_env,priced.billing.budget_env);}
+try{Object.assign(process.env,registryEnv);const registered=createProductionDialogueGenerator();assert.equal(registered.version,priced.version);assert.deepEqual(registered.billing.budget_env,priced.billing.budget_env);
+ const comparison=createProductionComparisonGenerator();assert.equal(comparison.revision_binding.schema,'vyakti.azure-reported-revision.v2');assert.equal(comparison.model,'gpt-5.6-terra');}
 finally{for(const [key,value]of Object.entries(savedRegistryEnv))if(value===undefined)delete process.env[key];else process.env[key]=value;}
 ok('actual production registry constructs the frozen model-specific rate binding without a provider call');
 
 assert.throws(()=>materializationModel(priced,{AZURE_CORRECTION_BASE_MODEL_COMMITMENT:'b'.repeat(64)}),/materialization_provider_revision_required/);
-assert.throws(()=>create({...terraOptions,revisionBinding:{expected_response_model:terraEnv.AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL,baseline_snapshot_hash:'b'.repeat(64)}}),/provider_revision_expected_version_required/);
-ok('ordinary Terra cannot borrow mini-only comparison or materialization authority');
+const terraCompared=create({...terraOptions,endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',revisionBinding:{expected_response_model:terraEnv.AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL,
+ baseline_snapshot_hash:'b'.repeat(64)},fetchImpl:async()=>new Response(JSON.stringify(terraPayload))});
+const terraComparedReply=await terraCompared.generate({prompt});
+assert.equal(terraCompared.revision_binding.schema,'vyakti.azure-reported-revision.v2');
+assert.equal(terraComparedReply.provider_identity.fingerprint_status,'not_provided');
+assert.equal(materializationModel(terraCompared,{AZURE_CORRECTION_BASE_MODEL_COMMITMENT:'b'.repeat(64)}).pin,'b'.repeat(64));
+assert.throws(()=>create({...terraOptions,revisionBinding:{expected_response_model:'gpt-4.1-mini-2025-04-14',baseline_snapshot_hash:'b'.repeat(64)}}),/provider_revision_expected_version_required/);
+ok('Terra comparison requires its exact v2 dated-model binding and records explicit missing fingerprint');
 const budgetEnv = { AZURE_REPLICA_BUDGET_ID: "synthetic-dialogue-budget", AZURE_REPLICA_APP_BUDGET_USD: "1", AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "1", AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1" };
 const previousEnv = Object.fromEntries(Object.keys(budgetEnv).map(key => [key, process.env[key]]));
 try {

@@ -19659,6 +19659,24 @@
       "kind": "rejection",
       "title": "A removed companion board cannot remain Vyakti's contrast gate; current tokens need real floors (2026-09-14)",
       "at": "context/rejected.md#wave-25-a-removed-board-cannot-remain-the-contrast-gate"
+    },
+    {
+      "id": "wave25-terra-correction-uses-explicit-nullable-revision-receipts",
+      "kind": "decision",
+      "title": "Terra correction uses an explicit nullable v2 provider revision receipt (2026-09-14)",
+      "at": "context/decisions.md#wave25-terra-correction-uses-explicit-nullable-revision-receipts"
+    },
+    {
+      "id": "wave25-terra-correction-focused-controls-2026-09-14",
+      "kind": "measurement",
+      "title": "Focused offline Terra correction, comparison, qualification and activation controls (2026-09-14)",
+      "at": "context/measurements.md#wave25-terra-correction-focused-controls-2026-09-14"
+    },
+    {
+      "id": "wave25-terra-correction-cannot-require-mini-style-fingerprint",
+      "kind": "rejection",
+      "title": "Terra correction cannot require Mini's non-null fingerprint contract (2026-09-14)",
+      "at": "context/rejected.md#wave25-terra-correction-cannot-require-mini-style-fingerprint"
     }
   ],
   "edges": [
@@ -33549,6 +33567,16 @@
       "src": "wave-25-vyakti-deployment-contract-is-single-product",
       "rel": "caused_by",
       "dst": "wave-25-a-removed-board-cannot-remain-the-contrast-gate"
+    },
+    {
+      "src": "wave25-terra-correction-uses-explicit-nullable-revision-receipts",
+      "dst": "wave25-terra-correction-focused-controls-2026-09-14",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave25-terra-correction-uses-explicit-nullable-revision-receipts",
+      "dst": "wave25-terra-correction-cannot-require-mini-style-fingerprint",
+      "rel": "caused_by"
     }
   ]
 }

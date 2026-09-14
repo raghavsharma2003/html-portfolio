@@ -53,7 +53,7 @@ function runtimeRow(){return{replica_id:RID,owner_user_id:OWNER,subject_person_i
 import {qualifyOwnedCandidate,loadOwnedCandidateQualificationReceipt,QUALIFICATION_RECEIPT_SQL,QUALIFICATION_CURRENT_AUTHORITY_SQL,QUALIFICATION_COMPARISON_AUTHORITY_SQL} from '../../api/_replica-candidate-qualification-service.js';
 import {blindAssignmentHash,candidateRequiredLayers,CANDIDATE_QUALIFICATION_PROTOCOL} from '../../api/_replica-candidate-qualification.js';
 import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../api/_dialogue/provider-revision.js';
-import {AZURE_DIALOGUE_API_VERSION} from '../../api/_dialogue/providers/azure-foundry.js';
+import {AZURE_DIALOGUE_API_VERSION,azureDialogueProtocol} from '../../api/_dialogue/providers/azure-foundry.js';
 import {DIALOGUE_PROMPT} from '../../api/_dialogue/contracts.js';
 import {createCandidateEvaluationHandler} from '../../api/replica-candidate-eval.js';
 import {AuthError} from '../../api/_auth-core.js';
@@ -66,16 +66,22 @@ const qualifiedInput={replica_id:RID,candidate_id:CID};
 const testRows=built.definition.examples.filter(e=>e.split==='test');
 const expectedBinding=prepareProviderRevisionBinding({expectedResponseModel:'gpt-4.1-mini-2025-04-14',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment:'gpt-4.1-mini',baselineSnapshotHash:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT});
 const identity=verifyProviderRevision({model:expectedBinding.expected_response_model,system_fingerprint:'fp_qualificationfixture'},expectedBinding);
+const TERRA_ENV={AZURE_REPLICA_BUDGET_ID:'fixture-terra-budget',AZURE_REPLICA_APP_BUDGET_USD:'1',
+ AZURE_FOUNDRY_DIALOGUE_RATE_MODEL:'gpt-5.6-terra',AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL:'gpt-5.6-terra-2026-07-09',
+ AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS:'2',AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS:'12'};
 function fixture(options={}){
  const runtime=runtimeRow(),initial=JSON.stringify(runtime),records=[],errors=[];let inserts=0,reads=0,reconciles=0;
  const rt={replica:{replica_id:RID},capability:{capability_id:CAP},personProfile:{definition:runtime.profile_definition},calibration:{definition:runtime.calibration_definition}};
  const {artifact}=buildPrivateCorrectionArtifact(rt,{status:'proposed',owner_approved:false,runtime_eligible:false,source_set_hash:built.source_set_hash,selections:[{scenario_id:'delivery.turn_shape',strategy_id:'compact_observation'}]});
  const manifest={artifact_sha256:hash(artifact),source_set_hash:built.source_set_hash,base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT};
+ const revision=options.terra?prepareProviderRevisionBinding({expectedResponseModel:'gpt-5.6-terra-2026-07-09',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment:'gpt-5.6-terra',baselineSnapshotHash:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT}):expectedBinding;
+ const providerIdentity=options.terra?verifyProviderRevision({model:revision.expected_response_model,system_fingerprint:null},revision):identity;
+ const deployment=options.terra?'gpt-5.6-terra':'gpt-4.1-mini',protocol=options.terra?azureDialogueProtocol(deployment,TERRA_ENV):null;
  const candidate={candidate_id:CID,dataset_id:DATASET,replica_id:RID,owner_user_id:OWNER,status:'draft',run_state:options.collecting?'collecting':'complete',kind:'prompt_policy',target_layers:['delivery'],
   profile_version:7,calibration_version:3,base_capability_id:CAP,eval_run_id:RUN,run_commitment:runHash,dataset_source_set_hash:built.source_set_hash,
-  materialization_job_id:JOB,materialization_protocol:'vyakti.private-text-materialization.v2',model_commitment:hash({protocol:'vyakti.private-text-materialization.v2',name:'azure-foundry-structured-output',version:`${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}`,model:'gpt-4.1-mini',base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT,revision_binding:expectedBinding}),candidate_core_hash:hash(renderPrivateCorrectionCandidate(rt,artifact).core),baseline_hash:hash(compileReplicaRuntimeCore(runtime.profile_definition,runtime.calibration_definition)),total:testRows.length*2,
+  materialization_job_id:JOB,materialization_protocol:'vyakti.private-text-materialization.v2',model_commitment:hash({protocol:'vyakti.private-text-materialization.v2',name:'azure-foundry-structured-output',version:`${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}${protocol?':'+protocol.version:''}`,model:deployment,base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT,revision_binding:revision}),candidate_core_hash:hash(renderPrivateCorrectionCandidate(rt,artifact).core),baseline_hash:hash(compileReplicaRuntimeCore(runtime.profile_definition,runtime.calibration_definition)),total:testRows.length*2,
   artifact_sha256:hash(artifact),materialized_artifact:hash(artifact),build_manifest_hash:hash(manifest),materialized_manifest:hash(manifest),base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT,
-  artifact,build_manifest:manifest,item_examples:testRows.flatMap(e=>['baseline','candidate'].map(role=>({feedback_id:e.feedback_id,role,session_commitment:e.session_commitment}))),identities:Array.from({length:testRows.length*2},()=>structuredClone(identity))};
+  artifact,build_manifest:manifest,item_examples:testRows.flatMap(e=>['baseline','candidate'].map(role=>({feedback_id:e.feedback_id,role,session_commitment:e.session_commitment}))),identities:Array.from({length:testRows.length*2},()=>structuredClone(providerIdentity))};
  const assignments=testRows.map(e=>({example_id:e.feedback_id,state:'submitted'}));
  const observations=testRows.flatMap((e,n)=>candidateRequiredLayers('prompt_policy').map(d=>({run_commitment:runHash,example_id:e.feedback_id,session_commitment:e.session_commitment,presentation_order:n%2?'ba':'ab',assignment_hash:blindAssignmentHash(runHash,e.feedback_id,n%2?'ba':'ab'),dimension:d,position_winner:options.baselineWins?(n%2?'b':'a'):(n%2?'a':'b')})));
  const dataset={dataset_id:DATASET,replica_id:RID,owner_user_id:OWNER,status:'draft',source_set_hash:built.source_set_hash,definition:built.definition,readiness:built.readiness};
@@ -120,6 +126,14 @@ await test('complete blinded owner preferences cannot qualify without independen
  const f=fixture();const r=await f.run();assert.equal(r.verdict,'inconclusive');assert.equal(r.active_changed,false);assert.ok(r.checks.inconclusive.includes('fraud_policy_safety_sample_insufficient'));assert.ok(r.checks.inconclusive.includes('false_memory_safety_sample_insufficient'));
  const binding=f.records[0].metrics.binding;assert.equal(binding.candidate_id,CID);assert.equal(binding.eval_run_id,RUN);assert.equal(binding.run_commitment,runHash);assert.equal(binding.dataset_source_set_hash,built.source_set_hash);assert.deepEqual(binding.provider_identity,identity);assert.equal(binding.materialization_job_id,JOB);assert.equal(f.records[0].observation_count,testRows.length*6);
  assert.equal(f.records[0].metrics.dimensions.delivery.candidate_wins,testRows.length);f.check();
+});
+await test('Terra v2 qualification reconstructs the exact rate-bound model commitment with explicit absent fingerprint',async()=>{
+ const saved=Object.fromEntries(Object.keys(TERRA_ENV).map(key=>[key,process.env[key]]));
+ try{
+  Object.assign(process.env,TERRA_ENV);const f=fixture({terra:true});const r=await f.run();
+  assert.equal(r.verdict,'inconclusive');const provider=f.records[0].metrics.binding.provider_identity;
+  assert.equal(provider.schema,'vyakti.azure-reported-revision.v2');assert.equal(provider.fingerprint_status,'not_provided');assert.equal(provider.system_fingerprint,null);f.check();
+ }finally{for(const [key,value]of Object.entries(saved))if(value===undefined)delete process.env[key];else process.env[key]=value;}
 });
 await test('replay returns the same persisted qualification; concurrent equivalent calls dedupe',async()=>{
  const f=fixture();const [a,b]=await Promise.all([f.run(),f.run()]);assert.equal(a.qualification_id,b.qualification_id);assert.equal(f.records.length,1);const before=f.inserts;const c=await f.run();assert.equal(c.qualification_id,a.qualification_id);assert.equal(f.inserts,before);f.check();

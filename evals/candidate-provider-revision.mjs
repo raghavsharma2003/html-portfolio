@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {prepareProviderRevisionBinding,verifyProviderRevision,assertSameReportedRevision} from '../api/_dialogue/provider-revision.js';
+import {prepareProviderRevisionBinding,verifyProviderRevision,assertSameReportedRevision,PROVIDER_REVISION_CONTRACT_V2} from '../api/_dialogue/provider-revision.js';
 import {createAzureFoundryDialogueGenerator} from '../api/_dialogue/providers/azure-foundry.js';
 import {compileDialoguePrompt} from '../api/_dialogue/contracts.js';
 const config={expectedResponseModel:'gpt-4.1-mini-2025-04-14',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',
@@ -23,6 +23,25 @@ await check('exact observed endpoint deployment and configured snapshot are requ
  for(const patch of [{expectedResponseModel:'gpt-4.1-mini'},{endpoint:'https://foreign.services.ai.azure.com/'},{deployment:'other'},{baselineSnapshotHash:'alias'}])
   assert.throws(()=>prepareProviderRevisionBinding({...config,...patch}));
  assert.throws(()=>verifyProviderRevision(payload,{...binding,deployment:'changed'},usage),/provider_revision_binding_changed/);
+});
+const terraConfig={expectedResponseModel:'gpt-5.6-terra-2026-07-09',endpoint:config.endpoint,
+ deployment:'gpt-5.6-terra',baselineSnapshotHash:'b'.repeat(64)};
+const terraBinding=prepareProviderRevisionBinding(terraConfig);
+await check('Terra uses a distinct receipt contract and records explicit missing fingerprint',()=>{
+ assert.equal(terraBinding.schema,PROVIDER_REVISION_CONTRACT_V2);
+ const absent=verifyProviderRevision({model:terraConfig.expectedResponseModel,system_fingerprint:null},terraBinding,usage);
+ assert.equal(absent.fingerprint_status,'not_provided');assert.equal(absent.system_fingerprint,null);
+ assert.equal(assertSameReportedRevision(absent,verifyProviderRevision({model:terraConfig.expectedResponseModel,system_fingerprint:null},terraBinding,usage)),absent.reported_revision_hash);
+ for(const missing of [{model:terraConfig.expectedResponseModel},{model:terraConfig.expectedResponseModel,system_fingerprint:'invalid'}])
+  assert.throws(()=>verifyProviderRevision(missing,terraBinding,usage),error=>error.code==='provider_revision_fingerprint_unavailable'&&error.measured_usage===usage);
+});
+await check('Terra preserves exact provided fingerprint and refuses cross-status or cross-model pairs',()=>{
+ const absent=verifyProviderRevision({model:terraConfig.expectedResponseModel,system_fingerprint:null},terraBinding,usage);
+ const provided=verifyProviderRevision({model:terraConfig.expectedResponseModel,system_fingerprint:'fp_terrafixture'},terraBinding,usage);
+ assert.equal(provided.fingerprint_status,'provided');
+ assert.throws(()=>assertSameReportedRevision(absent,provided),/provider_pair_revision_mismatch/);
+ assert.throws(()=>prepareProviderRevisionBinding({...terraConfig,expectedResponseModel:config.expectedResponseModel}),/provider_revision_expected_version_required/);
+ assert.throws(()=>prepareProviderRevisionBinding({...terraConfig,deployment:'arbitrary'}),/provider_revision_deployment_required/);
 });
 const prompt=compileDialoguePrompt({core:'Synthetic fixture',message:'Namaste'});
 function response(patch={}){return{...payload,usage:{prompt_tokens:100,completion_tokens:20},choices:[{finish_reason:'stop',message:{content:'{"reply":"Namaste"}'}}],...patch};}
