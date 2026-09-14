@@ -18815,3 +18815,8 @@ never clicks there would have shipped the same defect silently.
 **What was done.** Each worktree's dirty state was committed locally as a WIP commit and exported as a patch against `23d320f` under `docs/handoff/2026-09-14/wave-24-wip/` on the platform branch, with `INDEX.txt` and a per-workstream "where it stopped" table in `docs/handoff/2026-09-14/CODEX-HANDOFF.md`, so the next loop (Codex, per the owner) resumes each from its patch rather than from the brief.
 
 **The rule.** Run at most five workstreams at once, and every brief carries: commit your work every hour whether or not it is gated (a WIP commit on your own branch costs nothing and survives a killed agent). `CLAUDE.md`'s model policy already warned that the main loop hit a usage limit mid-build once; this is the same failure one level down.
+
+
+## `wave25-handover-project-and-room-route-assumptions` (2026-09-14)
+
+Tried validating the named html-portfolio Vercel project as Meera production and api/chat.js as the Room provider route. Actual deployment metadata points to separate project meera; caller trace points to _room-surface.js then _surface.js. Acting on the handover names alone would relink the wrong project and leave the Room provider unchanged. Use observed bindings and callers instead.

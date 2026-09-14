@@ -18739,3 +18739,8 @@ Method: each workstream's own report (suite counts as printed), the main loop's 
 | WS-R177 the studio fast on 4G | 123aa34 | performance-measurements 41, performance-prerequisites, performance-hindi-interface, gate-load |
 
 Batch gate on the ten-merge tree: 25 of 25 on ed1470e. Live database after the wave: unchanged (no workstream needed a migration; 172, 173 and 174 stay unused and 172 is still the next free number).
+
+
+## `wave25-production-history-readback-20260914` (2026-09-14)
+
+2026-09-14, n=1 production alias lookup, n=1 Git ancestry check, n=1 archive push/readback. Vercel identifies project meera and deployed bee9061; existing Meera main72041b27 does not contain it (ancestry exit1). Remote archive/production-20260914 now equals bee9061f52e95231589d9969551cd687fb6c140c. Source baseline graph passed3233nodes/2761edges. See docs/handoff/2026-09-14/WAVE-25-LIVE-READBACK.md; no deployment or voice-quality claim.

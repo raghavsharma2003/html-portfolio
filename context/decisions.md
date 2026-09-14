@@ -25152,3 +25152,8 @@ maintaining two step-rail components in the same product long-term.
 **Why.** The platform branch is the one branch this session is allowed to push; ten new remote branches would need the owner's say and would scatter the handoff. A patch on the platform branch travels with the context that explains it, is reviewable in PR #6, and costs nothing to apply.
 
 **Reversal.** If a patch ever fails to apply cleanly on the base it names (the base moved, or binary files drifted), the next loop pushes the WIP branches instead with the owner's permission and this entry is superseded.
+
+
+## `wave25-live-bindings-before-repository-move` (2026-09-14)
+
+Use the owner-requested branch tip, preserve the exact deployed Meera history in its existing repository, and leave its production connection untouched until the actual target is verified. Live Vercel metadata contradicts the handover project name. Reverse this choice only if authoritative deployment metadata identifies a different production source or the owner requests replacement of the existing Meera history.
