@@ -118,6 +118,17 @@ did exactly that, and step 2 above is what caught it.
 The worker emits only content-free outcome codes. It never logs tenant IDs,
 paths, transcripts, vectors, audio, or provider request IDs.
 
+The production image starts through `standalone25-entry.mjs`. Before any
+processing module loads, that entry requires
+`REPLICA_EXPECTED_DATABASE=neondb`, requires
+`VYAKTI_MODEL_SERVING=azure_only`, refuses `REPLICA_SELF_TEST_MODE=true`, and
+executes a database identity check through `createNeonDb`. Only after that
+check passes does it generate the ignored `api/_config.js` from the process
+environment and import `run-once.js`. The Dockerfile copies the root ESM
+package boundary, the config writer and the one service module in the
+worker's transitive import closure; it does not depend on an untracked build
+overlay.
+
 ## Explicit isolated-development invocation
 
 `dev-once.js` is a separate opt-in local entry. It requires the exact

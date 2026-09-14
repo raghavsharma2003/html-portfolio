@@ -25212,3 +25212,13 @@ Restore private rehearsal, feedback and evaluation key IDs and exact versioned K
 ## `wave25-source-checkpoint-preserves-release-blockers`
 
 2026-09-14. Preserve the integrated standalone source on the owner-selected branch while the complete gate runs. Automatic Vercel Git deployment is explicitly disabled in the candidate; main deployment remains behind its full gate. Source checkpoint is not production acceptance. Reverse this sequencing if Git deployment disabling is not honored; stop before any unverified production cutover. Current source base for the running gate is a672136b.
+
+## `wave25-processing-worker-package-is-source-controlled` (2026-09-14)
+
+**Decision.** The processing worker's database and Azure-only preflight, runtime config bootstrap, complete Docker copy set, immutable base-image digest and selected entrypoint live in committed source. The entry requires `REPLICA_EXPECTED_DATABASE=neondb`, requires `VYAKTI_MODEL_SERVING=azure_only`, refuses `REPLICA_SELF_TEST_MODE=true`, verifies the database before generating `api/_config.js`, and only then loads `run-once.js`. The worker template supplies the two positive bindings. A focused control walks every relative import from the production entry, requires the purpose and storage modules in that closure, and proves omission of the external GPU controller is detected.
+
+**Why.** The corrected local packet proved the necessary runtime shape, but its bootstrap and Docker transformations existed only in ignored scratch files. Submitting that archive would make the cloud image differ from every reviewable Git tree and make a rebuild depend on an operator's untracked overlay. Committing the shape makes a later source archive a reproducible projection of one reviewed commit while retaining the worker's existing purpose, storage, lease, erasure and provider controls.
+
+**Reversal.** Replace this layout only when a separately reviewed build manifest can reproduce the same source closure, preflight order, immutable base and fail-closed negative controls from a committed revision. A generated deployment-only overlay is not equivalent evidence.
+
+**Completion review.** The closure check now reads the actual Docker COPY instructions and rejects missing or relocated imports. It also requires every bare runtime import to be a Node builtin because this image installs no npm packages. The ignored runtime config is excluded from traversal even if it exists locally; the shared config writer remains a tracked input and is syntax-checked without execution in this phase.

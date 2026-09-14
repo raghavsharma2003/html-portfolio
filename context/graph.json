@@ -19695,6 +19695,24 @@
       "kind": "rejection",
       "title": "Bandwidth fixes do not establish current worker behavior",
       "at": "context/rejected.md#wave25-bandwidth-fix-does-not-prove-worker-current"
+    },
+    {
+      "id": "wave25-processing-worker-package-is-source-controlled",
+      "kind": "decision",
+      "title": "The processing worker package and preflight are source controlled (2026-09-14)",
+      "at": "context/decisions.md#wave25-processing-worker-package-is-source-controlled"
+    },
+    {
+      "id": "wave25-processing-worker-package-focused-controls-20260914",
+      "kind": "measurement",
+      "title": "Tracked processing worker package and bootstrap focused controls (2026-09-14)",
+      "at": "context/measurements.md#wave25-processing-worker-package-focused-controls-20260914"
+    },
+    {
+      "id": "wave25-processing-worker-untracked-overlay-is-not-build-source",
+      "kind": "rejection",
+      "title": "An untracked worker overlay is not reproducible build source (2026-09-14)",
+      "at": "context/rejected.md#wave25-processing-worker-untracked-overlay-is-not-build-source"
     }
   ],
   "edges": [
@@ -33605,6 +33623,21 @@
       "src": "wave25-bandwidth-fix-does-not-prove-worker-current",
       "rel": "constrains",
       "dst": "wave25-source-checkpoint-preserves-release-blockers"
+    },
+    {
+      "src": "wave25-processing-worker-package-is-source-controlled",
+      "rel": "measured_by",
+      "dst": "wave25-processing-worker-package-focused-controls-20260914"
+    },
+    {
+      "src": "wave25-processing-worker-package-is-source-controlled",
+      "rel": "caused_by",
+      "dst": "wave25-processing-worker-untracked-overlay-is-not-build-source"
+    },
+    {
+      "src": "wave25-bandwidth-fix-does-not-prove-worker-current",
+      "rel": "constrains",
+      "dst": "wave25-processing-worker-package-is-source-controlled"
     }
   ]
 }

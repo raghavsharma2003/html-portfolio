@@ -18903,3 +18903,15 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 ## `wave25-bandwidth-fix-does-not-prove-worker-current`
 
 2026-09-14. Reading only the corrected-bandwidth result would wrongly clear the processing worker for the new product. The same retained image-byte recovery receipt identifies missing newer Azure-only enforcement, purpose authority, tracked storage leases and erase/abort fences. Keep the narrow bandwidth proof; prepare a worker-specific update for the actual missing behavior. Do not rebuild merely from a historical statement that the bandwidth fix was never deployed, and do not call the current image equal to the new source.
+
+## `wave25-processing-worker-untracked-overlay-is-not-build-source` (2026-09-14)
+
+**Tried.** Prepared a bounded source archive whose database-first entrypoint and Docker copy corrections were generated only by an ignored scratch script.
+
+**What specifically broke.** The archive could pass offline closure checks, but neither its selected entrypoint nor its Docker transformations existed at the frozen source commit. A later ACR submission could therefore build bytes that no Git revision reproduced, and a second operator could not recreate the image from the reviewed tree alone.
+
+**What replaced it.** The preflight, immutable base pin, complete copy set, package scripts, job bindings and closure negative are tracked together. A later packet may pin this new commit without inventing deployment-only source. No packet was submitted and no worker was started.
+
+**Reversal condition.** Reconsider only if the build service consumes a committed, content-addressed transformation manifest whose output identity and full import closure are independently verified before submission.
+
+**Completion review finding.** The first closure assertion used a handwritten list of paths said to be copied rather than reading Docker COPY statements. Removing the actual API copy would not change that list, so the claim that every reachable module was packaged was stronger than the test. It now parses the actual instructions, and independent removal/relocation controls fail for the real API and external controller paths. The extra source-storage-writer regression also exposed the expected isolated-checkout wall: absent ignored `api/_config.js` prevents import. That import failure is not a passed storage test and was not worked around with a copied credential file.

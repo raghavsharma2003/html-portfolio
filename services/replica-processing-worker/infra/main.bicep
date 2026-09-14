@@ -170,6 +170,8 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
           image: checkedImage
           env: concat([
             { name: 'NEON_URL', secretRef: 'neon-url' }
+            { name: 'REPLICA_EXPECTED_DATABASE', value: 'neondb' }
+            { name: 'VYAKTI_MODEL_SERVING', value: 'azure_only' }
             { name: 'SUPABASE_URL', value: checkedSupabaseUrl }
             { name: 'SUPABASE_SERVICE_ROLE_KEY', secretRef: 'supabase-role' }
             { name: 'REPLICA_STORAGE_WRITE_BUCKET', value: checkedWriteBucket }
