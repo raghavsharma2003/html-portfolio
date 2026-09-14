@@ -26,11 +26,16 @@ Sol for bounded work and Astra for voice architecture/integration.
 Node22/24 plus Android. URL:
 https://vyakti-replica-pn2fz2x07-raghav-carbonsettles-projects.vercel.app
 Actual landing and Studio sign-in render; owner login is requested/pending.
-New premium candidate fe7dbc6 failed22/25 on both Node versions: token palette,
-performance and eval suites. Three eval repairs9aaa7aff, first-reply budget429e9c51,
-voice controller0ad5958e and post-turn owner memorye681ce1c are now integrated
-through9abf6604. Shared palette/performance and reachable voice UI fixes remain
-underway; no newer preview is accepted or deployed. Do not run public cutover.
+The premium fe7dbc6 candidate failed22/25 (palette, performance, evals).
+Its concrete repairs are integrated: 9aaa7aff fixture fixes; 6be321ff eager
+auth CSS and shared palette; 429e9c51 first-reply budget; 0ad5958e voice
+controller; e681ce1c post-turn memory; 63013d99 private follow-up history;
+db68a6e1/175ce999/352dcd07 reachable voice UI, navigation and stable playback.
+A final explicit audio-download retry fixture is being finished before the
+combined candidate is frozen. No newer full gate is accepted and no newer
+preview is deployed. Local Hindi visibility timing remains unaccepted until
+the release run resolves it. Never loosen its existing800ms budget. No public
+cutover or main merge is authorized for this private testing phase.
 
 **Working configuration:** Vercel access and Azure sponsored subscription
 work. Terra conversation/correction, mini extraction, Azure storage and open
@@ -60,19 +65,25 @@ Development. Integratede681ce1c adds the real authenticated post-turn drain
 using the existing lease/meter; it awaits the next accepted deployment. The
 upload worker remains a separate service.
 
-**Voice and design underway:** premium landing/auth/Studio is integrated but
-awaits release repair. Internal owner voice UI must render outside ordinary
-voice activation gates; this is being browser-tested at390/1440. Replacement
-internal CPU imagecu3w (source0ad5958e) is verified at digest8f416918a6cdadc2d0e9ad0cb52591db5498ac9f4a8b9b48aebedf30b614be1f;
-brokerf691c507dc36d75b1729291183f72f3655c208339acc348fa848d692453f8c18 is verified.
-Neither is deployed. Ignored infra runplan18b2d14ed6323a1dd5ee05bcec6cef1d840c95aa459d212cb5154c95f9df60c5
-targets only newCPU vyakti-internal-voice25 and Hindi brokervyakti-open-voice-hi-gate;
-HindiGPU remains dormant. General broker/GPU stay untouched. Exact app/revision
-template hashes are intentionally separate. See ignored INFRA-HANDOFF.
-No new voice sample or owner likeness result exists. Real owner text-floor read
-is blocked on inference consent/profile approval; the already implemented
-PrivateTextRehearsal is the distinct preverification first-question path. A
-bounded follow-up feature is now being built there without fabricated identity.
+**Voice deployment prerequisite:** the dedicated UMI is created; the existing
+operator API credential cannot grant RBAC. The owner was given the committed
+`docs/handoff/2026-09-14/grant-internal-voice-identity-personal-cloud-shell.sh`
+for Azure Cloud Shell Bash on a PERSONAL device only. No confirmation yet.
+After that, verify through API and use ignored `standalone25-internal-voice-infra-umi.py`
+with `STANDALONE25-INTERNAL-VOICE-INFRA-UMI-RUNPLAN.json`, commitment
+7f3f6ce8c227e9bd8c228bd4a79b6edbb95d3e694e7d1e8ed100250267fa3e20.
+Three service writes only after accepted gates: CPU create with UMI, Hindi
+broker patch, Hindi GPU tag. The prior five-write plan is preserved, not for
+execution. Read UMI-HANDOFF. General broker/GPU remain untouched.
+Internal CPU cu3w source0ad5958e is already verified at digest
+8f416918a6cdadc2d0e9ad0cb52591db5498ac9f4a8b9b48aebedf30b614be1f;
+broker digestf691c507dc36d75b1729291183f72f3655c208339acc348fa848d692453f8c18.
+Neither is deployed. No new voice sample or likeness result exists.
+The private first-question flow now has bounded server-owned follow-up context;
+its two changed SQL statements passed live read-only EXPLAIN with rollback.
+The distinct persistent owner text floor still requires the owner's existing
+inference/profile steps; do not fabricate an approved identity or claim a live
+model conversation from synthetic browser/handler tests.
 
 **Product map:** `docs/handoff/2026-09-14/PRODUCT-STATUS.md`;
 `VOICE-PRODUCER-NEXT.md` is the eventual public-verifier audit, explicitly
@@ -80,8 +91,8 @@ superseded as an internal prerequisite. Ignored `STANDALONE25-INTERNAL-VOICE-ADD
 and `STANDALONE25-LIVE-TEXT-JOURNEY.md` hold current implementation/run plans.
 Meera's bee906 source/history is preserved in `raghavsharma2003/Meera`, default
 `archive/production-20260914`; production unchanged, Vercel repo link pending.
-GroupAI is archived/private. Ten wave24 patches remain unintegrated; automatic
-text memory is the next high-value preserved feature. Older START HERE blocks
+GroupAI is archived/private. R182 automatic text memory is integrated. The other nine preserved wave24
+patches are not integrated; inspect their actual gaps before selecting more work. Older START HERE blocks
 below are historical and can contradict this one.
 
 ## START HERE: WAVE TWENTY-FOUR OPENED AND PAUSED (main loop, 2026-09-14, read with the block below it)
