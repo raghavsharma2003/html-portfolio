@@ -148,6 +148,11 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
   const applyFailure = useCallback((cause: unknown, hideUnavailable = false) => {
     if (cause instanceof DOMException && cause.name === "AbortError") return;
     if (cause instanceof InternalVoiceApiError && cause.status === 401) onAuthError(cause);
+    if (hideUnavailable && probeOnly) {
+      setAvailability("hidden");
+      onAvailability?.(false);
+      return;
+    }
     if (hideUnavailable && cause instanceof InternalVoiceApiError && cause.status === 404) {
       setAvailability("hidden");
       onAvailability?.(false);
@@ -156,7 +161,7 @@ export default function InternalVoicePanel({ token, replicaId, onAuthError, onAv
     setAvailability("visible");
     onAvailability?.(true);
     setErrorCode(cause instanceof InternalVoiceApiError ? cause.code : "internal_voice_operation_failed");
-  }, [onAuthError, onAvailability]);
+  }, [onAuthError, onAvailability, probeOnly]);
 
   const loadStatus = useCallback(async (runId?: string, hideUnavailable = false, signal?: AbortSignal) => {
     const epoch = ++requestEpoch.current;

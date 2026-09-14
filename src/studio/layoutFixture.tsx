@@ -488,6 +488,9 @@ function installStubFetch() {
     if (path === "/api/internal-voice" && params.get("internalVoice") === "browser") {
       return nativeFetch(input, init);
     }
+    if (path === "/api/internal-voice") {
+      return reply({ enabled: false, error: "internal_voice_disabled" }, 404);
+    }
     if (scenarioName === "knowledge-phrases" && path === "/api/context-items") {
       const method = init?.method || "GET";
       if (method === "DELETE") { phraseRemoved = true; return reply({ removed: true }); }
