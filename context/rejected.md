@@ -18805,3 +18805,13 @@ never clicks there would have shipped the same defect silently.
 **What replaced it.** `awaitPending(n)`: a Node-side poll of `pending.length` bounded by `boundedWaitMs(5000)` from `evals/lib/bounded-wait.mjs` (WS-R181's shared core, so the bound scales with load), then the same `assert.equal`. The bounded poll is a wait for the fact the assertion needs, never a sleep; when the request genuinely never arrives the assertion still fails by name after the bound.
 
 **The rule.** A browser-side `waitForFunction` proves only what the page rendered; any assertion on a Node-side counter that a request fills (a fake server's `pending`, `posts`, `reads`) needs its own bounded wait for that counter. This is the third suite this wave with the shape (`candidate-activation-ui` in WS-R181's gate run, `feedback-dataset-ui` in WS-R173's registry run), so a sweep of `evals/**/mounted.mjs` for `waitForFunction(...); assert.equal(<node array>.length` is wave twenty-four's to do at the cause rather than one suite at a time.
+
+## `ten-parallel-agents-exhausted-the-session-limit-before-any-finished` (2026-09-14, main loop, wave twenty-four)
+
+**Tried.** Launching wave twenty-four's ten workstreams (WS-R182 to WS-R191) as ten parallel Sonnet agents at 01:35Z, the same shape waves twenty-one to twenty-three used the day before.
+
+**What specifically broke.** All ten agents were terminated at about 02:00Z by the session's rate limit (HTTP 429, "session limit, resets 2:30am UTC") with their work uncommitted in their worktrees: every one was past its build and into suites or context logging, none had committed, none had reported. Waves twenty-one to twenty-three ran ten at once without hitting the limit because they started early in the session's window; wave twenty-four started after three full waves of the same session had already been spent.
+
+**What was done.** Each worktree's dirty state was committed locally as a WIP commit and exported as a patch against `23d320f` under `docs/handoff/2026-09-14/wave-24-wip/` on the platform branch, with `INDEX.txt` and a per-workstream "where it stopped" table in `docs/handoff/2026-09-14/CODEX-HANDOFF.md`, so the next loop (Codex, per the owner) resumes each from its patch rather than from the brief.
+
+**The rule.** Run at most five workstreams at once, and every brief carries: commit your work every hour whether or not it is gated (a WIP commit on your own branch costs nothing and survives a killed agent). `CLAUDE.md`'s model policy already warned that the main loop hit a usage limit mid-build once; this is the same failure one level down.

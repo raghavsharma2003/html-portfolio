@@ -1,0 +1,894 @@
+diff --git a/evals/rehearsal/hi-checks.mjs b/evals/rehearsal/hi-checks.mjs
+new file mode 100644
+index 0000000..39b67f0
+--- /dev/null
++++ b/evals/rehearsal/hi-checks.mjs
+@@ -0,0 +1,379 @@
++// evals/rehearsal/hi-checks.mjs — WS-R191 (wave twenty-four): the studio
++// walked on a phone in Hindi under 4G.
++//
++// Shared screen-check helpers `evals/rehearsal/personal.mjs`'s own Hindi
++// pass calls after every real screen the walk reaches, and one throttle
++// helper the same pass applies to its browser context. Every check here
++// runs against whatever is ACTUALLY rendered on the live page at that
++// moment — never a fixed fixture string list — because `personal.mjs`
++// mounts the real, signed-in personal studio app over a real HTTP fixture
++// server, not `studio-layout-fixture.html`'s own static harness. That
++// harness sets `window.__STUDIO_HI_STRINGS__` for `scripts/
++// check-layout.mjs#glyphAudit` to read; this walk has no such global (it
++// never imports `layoutFixture.tsx`), so `checkGlyphs` below extracts real
++// Devanagari strings straight off the live DOM and runs the identical
++// measurement method instead — the two probes measure the same thing by
++// the same method, restated for a live page rather than a fixed pair list,
++// with no import possible across the scripts/ <-> evals/ boundary (neither
++// file exports its internals for the other to reuse, and `scripts/
++// check-layout.mjs` is not in this workstream's named touch set).
++//
++// LAW 3 OF THIS WORKSTREAM'S BRIEF, ONE HELPER EACH:
++//   1. checkGlyphs           — no Latin fallback glyph inside a Devanagari
++//                               string (the layout gate's own probe method).
++//   2. checkTargetSizes      — every tappable target >=44x44 CSS px.
++//   3. checkNoHorizontalScroll — no horizontal scroll at 390px.
++//   4. checkNoStaleEnglish   — no English string on screen where the Hindi
++//                               table has a DIFFERENT one for the same
++//                               value (a real localization miss, never a
++//                               Tier-2 component `src/studio/copy.ts`'s own
++//                               header already names as not yet moved into
++//                               either table — those strings are absent
++//                               from both tables, so they cannot match this
++//                               check's own value-set difference and are
++//                               correctly never flagged).
++// checkKeyboardClearance (law 3's fifth clause, kept separate since it
++// needs an input/action pair rather than a screenshot) simulates the one
++// thing headless Chromium has no OS surface for: a software keyboard.
++// There is no `Emulation`-domain call that opens one, so the standard
++// test-double this file uses is the same one mobile-web test suites
++// generally reach for — shrink the viewport by a plausible keyboard height
++// while an input is focused, and assert the primary action's own bounding
++// box still fits inside what is left. `applyFast3GThrottle` restates
++// `scripts/check-performance.mjs#THROTTLE` (Fast 3G / CPU 4x, the same
++// Lighthouse-published preset that file's own header cites at length) as a
++// literal copy rather than an import — `scripts/` is outside this
++// workstream's named touch set, and `evals/` is not one of `scripts/
++// check-mirrors.mjs`'s own SCAN_DIRS, so a same-line `// mirror of` marker
++// here would document the duplication without being a gate-enforced one;
++// the citation is the discipline instead.
++import { readFileSync } from "node:fs";
++import { join } from "node:path";
++import ts from "typescript";
++
++// Restated from scripts/check-performance.mjs#THROTTLE (Fast 3G / CPU 4x,
++// this repo's long-standing "bad Indian 4G day" preset) and
++// #GLYPH_PROBE_PX / #MIN_GLYPH_DIFF_PCT / #GLYPH_UNIFORM_PX in
++// scripts/check-layout.mjs — see this file's own header for why these are
++// literal copies, not imports.
++export const THROTTLE = {
++  latencyMs: 150,
++  downloadBps: (1.6 * 1024 * 1024) / 8, // 1.6 Mbps
++  uploadBps: (750 * 1024) / 8, // 750 Kbps
++  cpuRate: 4,
++};
++const GLYPH_PROBE_PX = 16;
++const MIN_GLYPH_DIFF_PCT = 10;
++const GLYPH_UNIFORM_PX = 0.25;
++const GLYPH_FONT_STACK = '"Noto Sans Devanagari"';
++// A real Android software keyboard commonly occupies roughly a third of a
++// 390x844 viewport's height; 300px is a deliberately generous (harder to
++// pass) stand-in rather than a measured figure from a real device, named
++// here rather than presented as more precise than it is.
++const KEYBOARD_HEIGHT_PX = 300;
++const MIN_TARGET_PX = 44;
++
++export async function applyFast3GThrottle(page) {
++  const cdp = await page.context().newCDPSession(page);
++  await cdp.send("Network.enable");
++  await cdp.send("Network.emulateNetworkConditions", {
++    offline: false,
++    latency: THROTTLE.latencyMs,
++    downloadThroughput: THROTTLE.downloadBps,
++    uploadThroughput: THROTTLE.uploadBps,
++  });
++  await cdp.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE.cpuRate });
++  return cdp;
++}
++
++// ── checkGlyphs ─────────────────────────────────────────────────────────
++// In-page: gather every leaf element's own trimmed text that contains at
++// least three Devanagari codepoints (ऀ-ॿ, U+0900-U+097F — the same
++// MIN_DEVANAGARI_CHARS floor `scripts/check-layout.mjs#glyphAudit`'s own
++// comment explains: enough that a real tofu run still clears the width-diff
++// bar with margin, low enough to exclude numeral/placeholder strings), then
++// run the SAME two-signal test that file uses: a canvas width-diff against
++// a same-length run of tofu boxes (□, U+25A1), AND a uniformity test over
++// only BASE Devanagari letters (matras/signs excluded — they can measure
++// as zero or as their base's width and would make a real word look
++// uniform). A string is flagged only when `document.fonts.check` says the
++// font is missing OR both signals agree it looks like tofu — the identical
++// "positively confirmed uniform, never merely not-disproven" rule
++// `context/rejected.md#ws-r77-glyph-uniform-null-treated-as-not-disproven-
++// instead-of-not-confirmed` fixed for the very case (a two-base-letter,
++// one-matra word) this repo's own font already produces.
++export async function checkGlyphs(page, { ok, screenName, totals }) {
++  // `scripts/check-layout.mjs`'s own precedent (`await page.evaluate(() =>
++  // document.fonts.ready);` immediately before its own `glyphAudit` call):
++  // without this wait, `document.fonts.check()` reports false for a font
++  // that has not finished loading yet, even while the SAME font is already
++  // painting real, non-uniform glyphs on screen — the first real run of
++  // this walk's own probe flagged every single rendered Hindi string as
++  // "tofu" for exactly this reason, a bug in the probe's own timing, not a
++  // font or product regression (`context/rejected.md#ws-r191-glyph-probe-
++  // ran-before-document-fonts-ready-flagged-every-real-string`).
++  await page.evaluate(() => document.fonts.ready);
++  const result = await page.evaluate(({ px, minDiffPct, uniformPx, fontStack }) => {
++    const canvas = document.createElement("canvas");
++    const ctx = canvas.getContext("2d");
++    const MIN_DEVANAGARI_CHARS = 3;
++    const devanagariCount = (s) => (s.match(/[ऀ-ॿ]/g) || []).length;
++    const BASE_LETTER = /[ऄ-हक़-ॡॲ-ॿ]/;
++    const uniformWidths = (s, fontSpec) => {
++      ctx.font = fontSpec;
++      const widths = [...s].filter((ch) => BASE_LETTER.test(ch)).map((ch) => ctx.measureText(ch).width);
++      if (widths.length < MIN_DEVANAGARI_CHARS) return null;
++      return Math.max(...widths) - Math.min(...widths) < uniformPx;
++    };
++    const fontSpec = `${px}px ${fontStack}`;
++    ctx.font = fontSpec;
++    const ctlWidths = ["﷐", "﷑", "﷒"].map((ch) => ctx.measureText(ch).width);
++    const controlUniform = Math.max(...ctlWidths) - Math.min(...ctlWidths) < uniformPx;
++
++    const seen = new Set();
++    const flagged = [];
++    let testableN = 0;
++    for (const el of document.querySelectorAll("body *")) {
++      if (el.children.length > 0) continue;
++      const style = getComputedStyle(el);
++      if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) continue;
++      const text = (el.textContent || "").trim();
++      if (!text || seen.has(text) || devanagariCount(text) < MIN_DEVANAGARI_CHARS) continue;
++      seen.add(text);
++      testableN++;
++      const fontsCheck = document.fonts.check(fontSpec, text);
++      ctx.font = fontSpec;
++      const real = ctx.measureText(text).width;
++      const boxes = "□".repeat(text.length);
++      ctx.font = fontSpec;
++      const tofu = ctx.measureText(boxes).width;
++      const diffPct = tofu > 0 ? (Math.abs(real - tofu) / tofu) * 100 : 0;
++      const uniform = uniformWidths(text, fontSpec);
++      const isTofu = !fontsCheck || (diffPct <= minDiffPct && uniform === true);
++      if (isTofu) flagged.push({ text: text.slice(0, 60), diffPct: Math.round(diffPct * 10) / 10, uniform, fontsCheck });
++    }
++    return { controlUniform, testableN, flagged };
++  }, { px: GLYPH_PROBE_PX, minDiffPct: MIN_GLYPH_DIFF_PCT, uniformPx: GLYPH_UNIFORM_PX, fontStack: GLYPH_FONT_STACK });
++
++  ok(`hi ${screenName}: glyph probe's own control (three Unicode noncharacters measure uniform)`, result.controlUniform);
++  ok(`hi ${screenName}: no rendered Devanagari string measures as Latin-fallback tofu`, result.flagged.length === 0, JSON.stringify(result.flagged));
++  if (totals) { totals.glyphN = (totals.glyphN || 0) + result.testableN; totals.glyphFlagged = (totals.glyphFlagged || 0) + result.flagged.length; }
++  return result;
++}
++
++// ── checkTargetSizes ────────────────────────────────────────────────────
++// Every visible button/link/form control/`role=button`/focusable element on
++// the page, regardless of scroll position (a bounding-rect width/height
++// does not depend on where the element currently sits relative to the
++// viewport, only on whether it is laid out and displayed at all) — so a
++// target below the fold on this 390px walk is still checked. 43.5px
++// tolerance absorbs sub-pixel layout rounding without hiding a target that
++// is genuinely a a pixel or more short of 44.
++export async function checkTargetSizes(page, { ok, screenName }) {
++  const undersized = await page.evaluate((minPx) => {
++    // Checkbox/radio/file inputs are excluded from the raw scan and their
++    // own wrapping `<label>` (the real, standard "click anywhere in the
++    // label" tap target for a form control, `:has()` already used
++    // elsewhere in this repo's own real CSS, e.g. `auth-entry.css`'s own
++    // `.auth-brand:has(.auth-language-select)`) is checked in their place —
++    // a real run of this check without this distinction flagged a real
++    // repo's own 16x16 native checkbox and a visually-hidden 1x1 file input
++    // as "undersized targets," neither of which a person ever taps
++    // directly (context/rejected.md#ws-r191-target-size-check-measured-
++    // native-checkbox-and-file-inputs-instead-of-their-own-labels).
++    const SELECTOR = [
++      "button", "a[href]",
++      'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])',
++      "select", "textarea", '[role="button"]', '[tabindex]:not([tabindex="-1"])',
++      'label:has(input[type="checkbox"])', 'label:has(input[type="radio"])', 'label:has(input[type="file"])',
++    ].join(", ");
++    const out = [];
++    for (const el of document.querySelectorAll(SELECTOR)) {
++      const style = getComputedStyle(el);
++      if (style.visibility === "hidden" || style.display === "none" || el.disabled) continue;
++      const rect = el.getBoundingClientRect();
++      if (rect.width === 0 && rect.height === 0) continue; // not laid out at all, not "a small target"
++      if (rect.width < minPx - 0.5 || rect.height < minPx - 0.5) {
++        out.push({
++          tag: el.tagName.toLowerCase(), cls: (el.className || "").toString().slice(0, 60),
++          text: (el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 40),
++          w: Math.round(rect.width), h: Math.round(rect.height),
++        });
++      }
++      if (out.length >= 20) break;
++    }
++    return out;
++  }, MIN_TARGET_PX);
++  ok(`hi ${screenName}: every tappable target is at least ${MIN_TARGET_PX}x${MIN_TARGET_PX} CSS px`, undersized.length === 0, JSON.stringify(undersized));
++  return undersized;
++}
++
++// ── checkNoHorizontalScroll ─────────────────────────────────────────────
++export async function checkNoHorizontalScroll(page, { ok, screenName }) {
++  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
++    scrollWidth: document.documentElement.scrollWidth,
++    clientWidth: document.documentElement.clientWidth,
++  }));
++  ok(`hi ${screenName}: no horizontal scroll at 390px (scrollWidth<=clientWidth)`, scrollWidth <= clientWidth + 1, `scrollWidth=${scrollWidth} clientWidth=${clientWidth}`);
++  return { scrollWidth, clientWidth };
++}
++
++// ── buildHindiCopyIndex + checkNoStaleEnglish ──────────────────────────
++// Parses `src/studio/copy.ts` and `src/studio/hiCopy.ts` ONCE via
++// TypeScript's own AST (the technique `evals/lib/panel-copy.mjs` already
++// uses for `src/creatorStudio`'s tables, restated here for the personal
++// studio's own registry since WS-R159 — never imported, since that file's
++// own `sections` parameter is a closed list this check would have to keep
++// in sync with every screen it visits; a flat value-set comparison needs no
++// such list). Every string literal inside a `const EN_*` declaration in
++// copy.ts becomes one member of `enValues`; every string literal inside a
++// `const HI_*` declaration in hiCopy.ts becomes one member of `hiValues`.
++// `enOnly` (the set difference) is what actually gets checked against the
++// live page: a value present in the English table but ABSENT from the
++// Hindi table's own values can only be on screen, in Hindi mode, because
++// the Hindi translation for it was not shown — a real localization miss.
++// A value present in BOTH (a shared brand name, a number, a string that
++// happens to translate to itself) is correctly never flagged. A Tier-2
++// string neither table carries at all (`copy.ts`'s own header names the
++// components still Tier 2) is correctly never flagged either — it cannot
++// be in `enOnly` if it was never in `enValues` to begin with, which is
++// exactly the distinction law 3 draws ("no English string where the Hindi
++// table HAS one").
++function collectLiterals(filePath, prefix) {
++  const text = readFileSync(filePath, "utf8");
++  const source = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
++  const values = new Set();
++  function visit(node) {
++    if (
++      ts.isVariableDeclaration(node) &&
++      ts.isIdentifier(node.name) &&
++      node.name.text.startsWith(prefix) &&
++      node.initializer
++    ) {
++      (function collect(n) {
++        if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
++          const v = n.text.trim();
++          // >=4, not >=3: a real run flagged "You" (3 chars, `youLabel`/
++          // `caption.you` in copy.ts) on a screen ExpertConversation/
++          // MirrorCallStudio never mount, where it was a coincidental
++          // Tier-2 hardcoded literal wholly unrelated to either translated
++          // key — a false positive from value-set matching having no
++          // per-component scope, not a real stale-English regression
++          // (context/rejected.md#ws-r191-stale-english-check-flagged-a-
++          // coincidental-short-word-match). Four is enough headroom that
++          // "You" is excluded while every real translated phrase this
++          // table actually carries (overwhelmingly multi-word) still is.
++          if (v.length >= 4) values.add(v);
++        }
++        ts.forEachChild(n, collect);
++      })(node.initializer);
++    }
++    ts.forEachChild(node, visit);
++  }
++  visit(source);
++  return values;
++}
++
++export function buildHindiCopyIndex(root) {
++  const enValues = collectLiterals(join(root, "src/studio/copy.ts"), "EN_");
++  const hiValues = collectLiterals(join(root, "src/studio/hiCopy.ts"), "HI_");
++  const enOnly = [...enValues].filter((v) => !hiValues.has(v));
++  return { enValues, hiValues, enOnly };
++}
++
++// A language switch (`src/studio/LanguageSwitch.tsx`'s own real
++// `auth-language-select` <select>, `PersonalAuthGate.tsx`'s own duplicate of
++// the identical control at its own sign-in step, and the landing page's own
++// `[data-set-lang]` toggle buttons) is REQUIRED to show "English" as a
++// literal English word no matter which locale is active — that word names
++// the language you would switch TO, not a translation of anything. Found
++// necessary, not assumed: the first real run of this check flagged
++// "English" on every screen carrying that control, a false positive in the
++// check's own scope, never a real product bug
++// (`context/rejected.md#ws-r191-stale-english-check-flagged-its-own-
++// language-switch-control`).
++const LOCALE_INVARIANT_SELECTOR = "select, option, [data-set-lang]";
++
++export async function checkNoStaleEnglish(page, { ok, screenName, index }) {
++  const bodyText = await page.evaluate((excludeSelector) => {
++    const excluded = new Set(document.querySelectorAll(excludeSelector));
++    function isExcluded(el) {
++      for (let n = el; n; n = n.parentElement) if (excluded.has(n)) return true;
++      return false;
++    }
++    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
++    let out = "";
++    let node = walker.nextNode();
++    while (node) {
++      const parent = node.parentElement;
++      if (parent && !isExcluded(parent)) {
++        const style = getComputedStyle(parent);
++        if (style.visibility !== "hidden" && style.display !== "none") out += `${node.textContent}\n`;
++      }
++      node = walker.nextNode();
++    }
++    return out;
++  }, LOCALE_INVARIANT_SELECTOR).catch(() => "");
++  const found = index.enOnly.filter((v) => bodyText.includes(v));
++  ok(`hi ${screenName}: no English string renders where the Hindi table has a different one for it`, found.length === 0, JSON.stringify(found.slice(0, 8)));
++  return found;
++}
++
++// ── checkScreen: the checks above, run together ─────────────────────────
++// `skip` (a Set of check names) exists for exactly one real, disclosed
++// reason: `site/vyakti.html`'s landing screen carries its OWN complete,
++// separate `#loc-en`/`#loc-hi` blocks (never `src/studio/copy.ts`), so a
++// value-set diff against that table cannot say anything true about the
++// landing screen, and `site/vyakti.html` sits outside this workstream's own
++// named touch set (`docs/gurukul/waves/wave-24/ws-r191...md`'s own Build
++// list), so a real target-size finding there has no file this workstream
++// may fix it in — see `context/rejected.md#ws-r191-landing-page-target-
++// size-and-stale-copy-checks-out-of-this-workstreams-touch-scope` for the
++// measured finding this deliberately does not silence, only relocate to
++// where a future workstream that DOES own `site/` can act on it.
++export async function checkScreen(page, { ok, screenName, index, totals, skip }) {
++  const skipSet = skip || new Set();
++  await checkGlyphs(page, { ok, screenName, totals });
++  if (!skipSet.has("targetSizes")) await checkTargetSizes(page, { ok, screenName });
++  await checkNoHorizontalScroll(page, { ok, screenName });
++  if (!skipSet.has("staleEnglish")) await checkNoStaleEnglish(page, { ok, screenName, index });
++}
++
++// ── checkKeyboardClearance ──────────────────────────────────────────────
++// See this file's own header for why a viewport shrink is the test-double
++// for a software keyboard. Restores the original viewport before returning
++// either way, so the walk's own subsequent steps see the real 390x844
++// viewport untouched.
++export async function checkKeyboardClearance(page, { ok, screenName, inputSelector, primaryActionSelector }) {
++  const before = page.viewportSize();
++  if (!before) return;
++  const input = page.locator(inputSelector).first();
++  if (!(await input.count())) return;
++  try {
++    await input.focus();
++    const reducedHeight = Math.max(200, before.height - KEYBOARD_HEIGHT_PX);
++    await page.setViewportSize({ width: before.width, height: reducedHeight });
++    await page.waitForTimeout(50);
++    const action = page.locator(primaryActionSelector).first();
++    // A real phone's own software keyboard does not FORBID scrolling — a
++    // page can still scroll a covered control into the visible area above
++    // it, and real browsers already auto-scroll a focused control into view
++    // for exactly this reason. "The keyboard never covers the primary
++    // action" therefore means "reachable by scrolling," not "already in
++    // view before any scroll" — the first real run of this check asserted
++    // the stricter, wrong claim and flagged both real sign-in screens, where
++    // the primary action was always reachable by the SAME scroll a real
++    // phone performs automatically (`context/rejected.md#ws-r191-keyboard-
++    // clearance-check-asserted-no-scroll-needed-instead-of-reachable`).
++    await action.scrollIntoViewIfNeeded().catch(() => {});
++    const visible = await action.isVisible().catch(() => false);
++    let withinView = false;
++    if (visible) {
++      const box = await action.boundingBox();
++      withinView = Boolean(box) && box.y >= 0 && box.y + box.height <= reducedHeight;
++    }
++    ok(`hi ${screenName}: the keyboard never covers the primary action after focus (reachable by scroll)`, visible && withinView, `visible=${visible} withinView=${withinView}`);
++  } finally {
++    await page.setViewportSize(before);
++  }
++}
+diff --git a/evals/rehearsal/personal.mjs b/evals/rehearsal/personal.mjs
+index 2ca1def..52236f3 100644
+--- a/evals/rehearsal/personal.mjs
++++ b/evals/rehearsal/personal.mjs
+@@ -94,10 +94,29 @@ import { fileURLToPath, pathToFileURL } from "node:url";
+ import { randomUUID } from "node:crypto";
+ import { register } from "node:module";
+ import { tmpdir } from "node:os";
++// WS-R191 (wave twenty-four): the studio walked on a phone in Hindi under
++// 4G. `applyFast3GThrottle`/`checkScreen`/`checkKeyboardClearance`/
++// `buildHindiCopyIndex` are this workstream's own new shared helper (see
++// that file's own header for why it exists as a sibling rather than
++// inline here — `evals/rehearsal/person-room.mjs`'s own Hindi pass is the
++// precedent this walk follows for the `--full`/`REHEARSAL_FULL` shape
++// below).
++import {
++  applyFast3GThrottle, checkScreen, checkKeyboardClearance, buildHindiCopyIndex,
++} from "./hi-checks.mjs";
+ 
+ const HERE = dirname(fileURLToPath(import.meta.url));
+ const ROOT = join(HERE, "..", "..");
+ const DIST = join(ROOT, "dist");
++// person-room.mjs's own flag (restated verbatim, this file's own header
++// citation above): the Hindi pass is opt-in so `evals/run.mjs`'s registry
++// entry stays the fast, English-only walk it already is; nothing here
++// widens what the default gate runs.
++const FULL = process.env.REHEARSAL_FULL === "1" || process.argv.includes("--full");
++// n=3 for the Hindi pass only (brief law 2) — the English pass stays the
++// single, unchanged run it already was (a control, brief law 2's own
++// words), never re-run three times itself.
++const HI_RUNS = 3;
+ 
+ let pass = 0;
+ let fail = 0;
+@@ -164,8 +183,19 @@ const { publicRoomAboutBySlug, buildRoomAboutHtml } = await import(pathToFileURL
+ const EMAIL = "personal-rehearsal@example.test";
+ const OTP = "424242";
+ 
++// WS-R191: memoized. `evals/first-five-minutes/run.mjs` imports and calls
++// `startServer()` directly, relying on it to build for itself (this file's
++// own header, "only a DIRECT import skips main()"), and this file's own
++// `--full` Hindi pass now calls `startServer()` up to four times in one
++// process (one English run plus `HI_RUNS` Hindi runs). Both callers keep
++// the exact same contract — "startServer() always leaves a fresh dist/
++// behind it" — for the cost of one real `vite build` per process instead
++// of one per call.
++let builtOnce = false;
+ function ensureBuilt() {
++  if (builtOnce) return;
+   execSync("npx vite build", { cwd: ROOT, stdio: "inherit" });
++  builtOnce = true;
+ }
+ 
+ // The fake microphone: a 15-second synthetic WAV, fed to Chromium through
+@@ -763,6 +793,11 @@ const FALLBACK_JSON_ROUTES = {
+ };
+ 
+ async function startServer() {
++  // WS-R191: `ensureBuilt()` is now memoized (see its own header) rather
++  // than removed from here — `evals/first-five-minutes/run.mjs` imports
++  // and calls `startServer()` directly and still relies on this call, and
++  // this file's own `--full` Hindi pass now calls `startServer()` up to
++  // four times (one English run plus `HI_RUNS` Hindi runs) in one process.
+   ensureBuilt();
+   const state = freshRehearsalCreatorState();
+   const db = personalDb(state);
+@@ -907,7 +942,20 @@ async function reviewStatus(baseUrl, token, replicaId) {
+   return { status: response.status, body: await response.json().catch(() => ({})) };
+ }
+ 
+-async function main() {
++// WS-R191: `locale` ("en", unchanged, or "hi") is the ONLY new parameter.
++// English callers get the exact function this always was — `checkScreen`/
++// `checkKeyboardClearance` below are gated behind `locale === "hi"` at
++// every call site, never behind an internal no-op, so the English pass's
++// own checks list is provably unchanged (brief law 2: "byte-identical
++// checks list; a control") rather than merely "the same calls with a false
++// condition somewhere inside them."
++async function main(locale = "en") {
++  const isHi = locale === "hi";
++  const hindiIndex = isHi ? buildHindiCopyIndex(ROOT) : null;
++  const glyphTotals = { glyphN: 0, glyphFlagged: 0 };
++  const langQS = isHi ? "?lang=hi" : "";
++  const heroLocaleSel = isHi ? "#loc-hi" : "#loc-en";
++  const expectedHeroHref = isHi ? "/studio?lang=hi" : "/studio";
+   const timings = {};
+   const t0 = Date.now();
+   const { url, state, stop } = await startServer();
+@@ -923,6 +971,10 @@ async function main() {
+   try {
+     const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: 390, height: 844 } });
+     const page = await context.newPage();
++    // WS-R191 (brief law 2): the performance gate's own CDP throttle,
++    // applied to the Hindi pass's context only — the English pass stays
++    // exactly as fast (and as unthrottled) as it always was.
++    if (isHi) await applyFast3GThrottle(page);
+     page.on("pageerror", (error) => console.log(`  page error: ${error.message}`));
+     if (process.env.RH_DEBUG === "1") {
+       page.on("console", (msg) => console.log(`  console.${msg.type()}: ${msg.text()}`));
+@@ -936,11 +988,18 @@ async function main() {
+     //    goes-straight-to-sign-in`), never a direct `page.goto` of
+     //    `/studio.html` the way every earlier version of this walk did. ────
+     let tStep = Date.now();
+-    await page.goto(`${url}/vyakti-landing.html`, { waitUntil: "domcontentloaded" });
+-    const heroCta = page.locator("#loc-en .hero .btn");
++    await page.goto(`${url}/vyakti-landing.html${langQS}`, { waitUntil: "domcontentloaded" });
++    const heroCta = page.locator(`${heroLocaleSel} .hero .btn`);
+     await heroCta.waitFor({ state: "visible", timeout: 20_000 });
+     const heroCtaHref = await heroCta.getAttribute("href");
+-    ok("landing: the hero's own primary action points straight at sign-in, never the apply form", heroCtaHref === "/studio", `href=${heroCtaHref}`);
++    ok("landing: the hero's own primary action points straight at sign-in, never the apply form", heroCtaHref === expectedHeroHref, `href=${heroCtaHref}`);
++    // `site/vyakti.html` carries its own separate #loc-en/#loc-hi blocks
++    // (never `src/studio/copy.ts`) and sits outside this workstream's own
++    // named touch set — `hi-checks.mjs`'s own `checkScreen` header explains
++    // why `targetSizes`/`staleEnglish` are skipped here specifically, and
++    // `context/rejected.md` carries the real, measured finding this does
++    // not silence, only relocate to a workstream that owns `site/`.
++    if (isHi) await checkScreen(page, { ok, screenName: "landing", index: hindiIndex, totals: glyphTotals, skip: new Set(["targetSizes", "staleEnglish"]) });
+     await heroCta.click();
+     await page.locator("#studio-email").waitFor({ state: "visible", timeout: 20_000 });
+     ok("landing: the real click reached the real AuthGate, carrying no ?mode= (personal studio by default)", new URL(page.url()).search.includes("mode=teacher") === false);
+@@ -949,10 +1008,18 @@ async function main() {
+     // ── SIGN-IN ──────────────────────────────────────────────────────────
+     tStep = Date.now();
+     ok("sign-in: the real AuthGate renders (no localStorage seed)", true);
++    if (isHi) {
++      await checkScreen(page, { ok, screenName: "sign-in-email", index: hindiIndex, totals: glyphTotals });
++      await checkKeyboardClearance(page, { ok, screenName: "sign-in-email", inputSelector: "#studio-email", primaryActionSelector: ".auth-card button.primary-button" });
++    }
+     await page.locator("#studio-email").fill(EMAIL);
+     await page.locator(".auth-card button.primary-button").first().click();
+     await page.locator("#studio-code").waitFor({ state: "visible", timeout: 20_000 });
+     ok("sign-in: send_otp through the real api/account.js door moved the UI to the code step", true);
++    if (isHi) {
++      await checkScreen(page, { ok, screenName: "sign-in-code", index: hindiIndex, totals: glyphTotals });
++      await checkKeyboardClearance(page, { ok, screenName: "sign-in-code", inputSelector: "#studio-code", primaryActionSelector: ".auth-card button.primary-button" });
++    }
+ 
+     // NEGATIVE CONTROL — a wrong OTP is refused with a sentence, never a
+     // stack (WS-R164's own law 3, and `context/rejected.md
+@@ -965,7 +1032,14 @@ async function main() {
+     const wrongCodeText = (await wrongCodeError.textContent()) || "";
+     const looksLikeAStack = /error:|\bat\s+\S+:\d+:\d+|stack trace/i.test(wrongCodeText);
+     ok("NEGATIVE CONTROL — a wrong code is refused with a real sentence, never a stack", wrongCodeText.trim().length > 0 && !looksLikeAStack, `text=${JSON.stringify(wrongCodeText)}`);
+-    ok("NEGATIVE CONTROL — a wrong code names the real thing wrong, not a generic outage", /did not match|invalid|incorrect/i.test(wrongCodeText), `text=${JSON.stringify(wrongCodeText)}`);
++    // WS-R191: locale-aware. The Hindi pass renders `hiPersonalAuthCopy.ts`'s
++    // own real `codeMismatchError` ("...मेल नहीं खाया...", "did not match"),
++    // never the English sentence this check used to assume unconditionally
++    // (`context/rejected.md#ws-r191-wrong-code-negative-control-assumed-
++    // english-text` — the first time this negative control ever ran in
++    // Hindi, since the Hindi pass did not exist before this workstream).
++    const wrongCodeNamesTheRealThing = isHi ? /मेल नहीं खाया|अमान्य|ग़लत/.test(wrongCodeText) : /did not match|invalid|incorrect/i.test(wrongCodeText);
++    ok("NEGATIVE CONTROL — a wrong code names the real thing wrong, not a generic outage", wrongCodeNamesTheRealThing, `text=${JSON.stringify(wrongCodeText)}`);
+     ok("NEGATIVE CONTROL — a wrong code clears the field rather than leaving a stale guess to resubmit", await page.locator("#studio-code").inputValue() === "");
+ 
+     await page.locator("#studio-code").fill(OTP);
+@@ -979,12 +1053,22 @@ async function main() {
+     const checkAll = page.locator("button.vx-check-all");
+     if (await checkAll.count()) {
+       await checkAll.click();
+-      await page.getByRole("button", { name: /continue/i }).first().click();
++      // WS-R191: `.vx-agreement__continue` (CloneExperience.tsx's own real
++      // class) replaces the old `getByRole("button", { name: /continue/i })`
++      // English-text match — a real cause this workstream's own Hindi pass
++      // found: the agreement screen's Hindi copy never says "Continue" at
++      // all, so the old locator timed out outright the first time this walk
++      // ever ran with `?lang=hi` (`context/rejected.md#ws-r191-agreement-
++      // continue-button-locator-was-english-text-only`). A stable class
++      // selector is locale-independent and clicks the identical real
++      // element the English pass always clicked.
++      await page.locator("button.vx-agreement__continue").first().click();
+     }
+     await page.locator("#context-locker-title, .vx-record-button").first().waitFor({ state: "visible", timeout: 20_000 });
+     ok("agreement: accepting created a real replica and granted enrollment consent", state.replicas.length === 1, `replicas=${state.replicas.length}`);
+     const rid = state.replicas[0]?.replica_id || "";
+     ok("agreement: enrollment consent (capture/transcription/storage) is a real, granted row", (state.consents || []).filter((c) => c.replica_id === rid && !c.revoked_at).length === 3);
++    if (isHi) await checkScreen(page, { ok, screenName: "agreement-or-context-locker", index: hindiIndex, totals: glyphTotals });
+     timings.agreementMs = Date.now() - tStep;
+ 
+     // ── DESCRIBE ME — driven here, BEFORE recording, on purpose: once a
+@@ -995,15 +1079,35 @@ async function main() {
+     //    Describe me included, until it resolves; see this file's own
+     //    "record" section for why this walk's own build never resolves).
+     tStep = Date.now();
+-    const backToChoices = page.locator("button.vx-back", { hasText: "Back to choices" });
++    // WS-R191: locale-independent selectors, real causes this walk's own
++    // Hindi pass found (`context/rejected.md#ws-r191-describe-me-and-back-
++    // to-choices-locators-were-english-text-only`). `.vx-back` alone
++    // (no `hasText` filter) is already unambiguous: `CloneExperience.tsx`'s
++    // own ternary renders at most one `.vx-back` button at a time (either
++    // the "back to voice" one on the menu view, or the "back to choices"
++    // one on every other view — never both together), so dropping the
++    // English-only `hasText` filter changes nothing about which real
++    // element gets clicked. `[data-enrich-view="describe"]` is this
++    // workstream's own new attribute (`CloneExperience.tsx`, one line) —
++    // the enrich menu's own siblings share every className and icon name,
++    // so no locale-independent selector existed for this ONE button before.
++    const backToChoices = page.locator("button.vx-back");
+     if (await backToChoices.count()) await backToChoices.click();
+-    const describeButton = page.locator("button", { hasText: "Describe me" });
++    const describeButton = page.locator('button[data-enrich-view="describe"]');
+     if (await describeButton.count()) {
+       await describeButton.click();
+       const describeText = page.locator(".vx-describe textarea");
+       await describeText.waitFor({ state: "visible", timeout: 10_000 });
++      if (isHi) {
++        await checkScreen(page, { ok, screenName: "describe-me", index: hindiIndex, totals: glyphTotals });
++        await checkKeyboardClearance(page, { ok, screenName: "describe-me", inputSelector: ".vx-describe textarea", primaryActionSelector: ".vx-describe button.vx-button--primary" });
++      }
+       await describeText.fill("I am warm with close friends, direct at work, and I switch to Hindi when I get excited.");
+-      await page.locator("button.vx-button--primary", { hasText: "Add to my context" }).click();
++      // WS-R191: `.vx-describe`-scoped, locale-independent (the old
++      // `hasText: "Add to my context"` never matched the Hindi button —
++      // `context/rejected.md#ws-r191-describe-me-and-back-to-choices-
++      // locators-were-english-text-only`).
++      await page.locator(".vx-describe button.vx-button--primary").click();
+       await page.locator(".vx-describe [role=status]").waitFor({ state: "visible", timeout: 15_000 });
+       if (process.env.RH_DEBUG === "1") console.log("DEBUG describe status message:", await page.locator(".vx-describe [role=status]").innerText(), "contextItems:", JSON.stringify(state.contextItems), "rid:", rid);
+       ok("Describe me: a real context item was saved through the real door", state.contextItems.some((i) => i.replica_id === rid));
+@@ -1020,10 +1124,17 @@ async function main() {
+ 
+     // ── RECORD (>= 12s, a real fake microphone) + Finish and build ────────
+     tStep = Date.now();
+-    const backToVoice = page.locator("button.vx-text-button", { hasText: "Record my voice instead" });
++    // WS-R191: locale-independent — `CloneExperience.tsx`'s own ternary
++    // renders exactly one `.vx-text-button` while `enrichView === "describe"`
++    // (the "reviewTextSharing"/rehearsal-back siblings are gated behind
++    // `enrichView === "files"`, not rendered here), so dropping the old
++    // English-only `hasText: "Record my voice instead"` filter still clicks
++    // the identical real element.
++    const backToVoice = page.locator("button.vx-text-button");
+     if (await backToVoice.count()) await backToVoice.click();
+     const recordButton = page.locator("button.vx-record-button");
+     await recordButton.waitFor({ state: "visible", timeout: 20_000 });
++    if (isHi) await checkScreen(page, { ok, screenName: "record", index: hindiIndex, totals: glyphTotals });
+ 
+     // NEGATIVE CONTROL 1: a too-short recording is refused (client-side,
+     // real — `MINIMUM_RECORDING_MS` in `CloneExperience.tsx`).
+@@ -1035,12 +1146,20 @@ async function main() {
+ 
+     await page.waitForTimeout(12_500);
+     await recordButton.click();
+-    await page.locator("button.vx-button--primary", { hasText: "Continue" }).waitFor({ state: "visible", timeout: 20_000 });
++    // WS-R191: `.vx-sample__actions`-scoped, locale-independent — that
++    // container renders exactly two buttons (`vx-button--quiet` "try
++    // again", `vx-button--primary` "continue", `CloneExperience.tsx`'s own
++    // markup), so the class pair alone is unambiguous without the old
++    // English-only `hasText: "Continue"` filter
++    // (`context/rejected.md#ws-r191-record-review-continue-locator-was-
++    // english-text-only`).
++    await page.locator(".vx-sample__actions button.vx-button--primary").waitFor({ state: "visible", timeout: 20_000 });
+     const qualityText = await page.locator(".vx-sample p").first().textContent();
+     ok("record: a real >=12s fake-microphone sample reached the review screen", true, `quality=${JSON.stringify(qualityText)}`);
+-    const continueButton = page.locator("button.vx-button--primary", { hasText: "Continue" });
++    const continueButton = page.locator(".vx-sample__actions button.vx-button--primary");
+     const continueEnabled = await continueButton.isEnabled();
+     ok("record: the sample passed the real client-side quality gate (Continue enabled)", continueEnabled);
++    if (isHi) await checkScreen(page, { ok, screenName: "record-review", index: hindiIndex, totals: glyphTotals });
+     if (continueEnabled) {
+       const uploadPut = page.waitForResponse((r) => r.url().includes("/__fixture-upload/") && r.request().method() === "PUT", { timeout: 30_000 });
+       const finalizeCall = page.waitForResponse((r) => r.url().includes("/api/replica-source") && r.request().method() === "POST", { timeout: 30_000 });
+@@ -1102,6 +1221,7 @@ async function main() {
+     if (!reachedMeet) {
+       console.log("  FINDING: Meet does not open automatically on this tree without the full build-promotion pipeline (queueOwnedVoiceGenome's evidence gate + promoteCandidate) — a real product fact, not a rehearsal gap; see this file's own header and context/rejected.md#ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline.");
+     }
++    if (isHi) await checkScreen(page, { ok, screenName: "reload-after-build", index: hindiIndex, totals: glyphTotals });
+     timings.reloadAfterBuildMs = Date.now() - tStep;
+ 
+     // ── MEET: one conversation turn — the real door, the honest refusal ──
+@@ -1127,7 +1247,14 @@ async function main() {
+     // the tab renders and never crashes, matching MirrorCallStudio's own
+     // "a missing/erroring door has a face on it" design for the same class
+     // of gap).
+-    const sampleTab = page.locator('button[aria-pressed]', { hasText: "Voice sample" });
++    // WS-R191: locale-independent. `.vx-conversation-switch`'s own real
++    // markup (`CloneExperience.tsx`) gives `aria-pressed` to exactly two
++    // buttons in a fixed order — conversation first, voice sample second —
++    // so `.last()` over that two-element set is the sample tab regardless
++    // of locale, replacing the old English-only `hasText: "Voice sample"`
++    // (`context/rejected.md#ws-r191-voice-sample-tab-locator-was-english-
++    // text-only`).
++    const sampleTab = page.locator(".vx-conversation-switch button[aria-pressed]").last();
+     if (await sampleTab.count()) {
+       await sampleTab.click();
+       await page.waitForTimeout(500);
+@@ -1242,12 +1369,20 @@ async function main() {
+       reply: "Namaste! I'm still learning who you are, but I can already talk.",
+       delivery: { mode: "warm", pace: "natural", intensity: 0.5, language_hint: "hi-en", nonverbals: [] },
+     }));
++    const tFirstReply = Date.now();
+     const textTurnResponse = await fetch(`${url}/api/replica-dialogue`, {
+       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+       body: JSON.stringify({ replica_id: rid, message: "Who are you, and what can you do?" }),
+     });
+     const textTurnBody = await textTurnResponse.json().catch(() => ({}));
++    timings.meetFirstReplyMs = Date.now() - tFirstReply;
+     ok("Meet (text-ready): one real conversation turn COMPLETES through the real door with the fake reply seam", textTurnResponse.status === 200 && typeof textTurnBody.turn?.reply === "string", JSON.stringify(textTurnBody));
++    // WS-R191 brief law 4: "the first reply in Meet under 8 s with the fake
++    // seam" — measured on both passes (`timings.meetFirstReplyMs`, above),
++    // asserted only on the Hindi pass so the English checks list stays
++    // byte-identical (brief law 2); the number itself still lands in
++    // `context/measurements.md` for both locales via the reported table.
++    if (isHi) ok("hi meet-text-ready: the first reply completes under 8s with the fake seam", timings.meetFirstReplyMs < 8000, `${timings.meetFirstReplyMs}ms`);
+     ok("Meet (text-ready): the reply carries the exact apprentice disclosure prefix", Boolean(textTurnBody.turn?.reply?.startsWith(TEXT_APPRENTICE_DISCLOSURE)));
+     ok("Meet (text-ready): a text-ready turn never claims a voice", textTurnBody.turn?.can_voice === false);
+     setFakeDialogueReply(null);
+@@ -1266,7 +1401,7 @@ async function main() {
+     // browser, matching this workstream's own brief ("waits on a GPU for
+     // something text never needed") rather than a stuck voice attempt.
+     await page.evaluate((rid) => localStorage.removeItem(`vyakti:experience:voice-saga:v1:${rid}`), rid);
+-    await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
++    await page.goto(`${url}/studio.html${langQS}`, { waitUntil: "domcontentloaded" });
+     try {
+       await page.locator(".vx-conversation-switch, .vx-record-button, .vx-verification").first().waitFor({ state: "visible", timeout: 20_000 });
+     } catch (cause) {
+@@ -1284,8 +1419,10 @@ async function main() {
+     }
+     const meetOpenWithoutVoice = await page.locator(".vx-conversation-switch").count() > 0;
+     ok("Meet: opens (the conversation switch renders) as soon as text_ready is true, with no voice recorded and no voice pipeline reached", meetOpenWithoutVoice);
++    if (isHi) await checkScreen(page, { ok, screenName: "meet-text-ready", index: hindiIndex, totals: glyphTotals });
+     if (meetOpenWithoutVoice) {
+-      const sampleTabAfterApproval = page.locator('button[aria-pressed]', { hasText: "Voice sample" });
++      // WS-R191: same fix as the sample tab above, locale-independent.
++      const sampleTabAfterApproval = page.locator(".vx-conversation-switch button[aria-pressed]").last();
+       if (await sampleTabAfterApproval.count()) {
+         // `{ force: true }`: WS-R161's own `initialMeetView` change (text-ready
+         // opens on "conversation", never "sample") means `ExpertConversation`
+@@ -1309,9 +1446,10 @@ async function main() {
+     // ── TALK: MirrorCallStudio's own real, designed-in "not available"
+     //    state — not a full call turn (a named gap, see this file's header).
+     tStep = Date.now();
+-    await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
++    await page.goto(`${url}/studio.html${langQS}`, { waitUntil: "domcontentloaded" });
+     await page.locator("#knowledge-menu-title, .vx-record-button, .vx-conversation-switch, .vx-verification").first().waitFor({ state: "visible", timeout: 20_000 });
+     ok("Talk: the studio reloads signed-in without crashing (real session persisted; MirrorCallStudio is unreachable in this tree for the same real reason Meet is, named in this file's own header)", true);
++    if (isHi) await checkScreen(page, { ok, screenName: "talk", index: hindiIndex, totals: glyphTotals });
+     timings.talkMs = Date.now() - tStep;
+ 
+     // ── DEPLOY: RuntimeGate's own honest blockers, the real transform ────
+@@ -1563,10 +1701,24 @@ async function main() {
+     };
+     console.log(`\nfirst five minutes (ms): ${JSON.stringify(firstFiveMinutes)}`);
+     console.log(`\nwall clocks (ms): ${JSON.stringify(timings)}`);
++    // WS-R191: the glyph probe's own aggregate control — `checkGlyphs`
++    // never fails a screen for testing zero Devanagari strings (a Tier-2,
++    // not-yet-localized screen legitimately shows none, `hi-checks.mjs`'s
++    // own header explains why that must not be a per-screen failure), so
++    // this asserts the probe was not silently vacuous across the WHOLE
++    // walk — the same discipline `scripts/check-layout.mjs`'s own
++    // `glyphTestableN` running total is reported for, restated here as a
++    // real assertion since this walk, unlike that gate, has no separate
++    // aggregate report line a human reads afterward.
++    if (isHi) {
++      ok("hi walk: the glyph probe tested at least one real Devanagari string somewhere in the whole journey", glyphTotals.glyphN > 0, `glyphN=${glyphTotals.glyphN}`);
++      console.log(`\nhi glyph probe totals: ${JSON.stringify(glyphTotals)}`);
++    }
+   } finally {
+     await browser.close();
+     await stop();
+   }
++  return timings;
+ }
+ 
+ // WS-R164 (wave twenty-two): `startServer`, `serveLandingPage`, `EMAIL` and
+@@ -1588,8 +1740,55 @@ const isMain = (() => {
+   try { return pathToFileURL(process.argv[1] || "").href === import.meta.url; } catch { return false; }
+ })();
+ 
++function median(values) {
++  const sorted = [...values].sort((a, b) => a - b);
++  const mid = Math.floor(sorted.length / 2);
++  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
++}
++
+ if (isMain) {
+-  await main();
++  // WS-R191 (wave twenty-four). The English pass runs exactly once, exactly
++  // as before this workstream (brief law 2: "the English pass is unchanged
++  // ... a control") — its own `timings` become the per-step budget every
++  // Hindi run below is measured against.
++  const enTimings = await main("en");
++
++  if (FULL) {
++    // `person-room.mjs`'s own `--full`/`REHEARSAL_FULL` shape (this file's
++    // own header, top of file): the Hindi pass is opt-in, never part of
++    // what `evals/run.mjs`'s registry entry runs by default. n=3
++    // (brief law 2), the whole journey walked three independent times so a
++    // single slow run under sibling load cannot pass or fail this suite by
++    // itself.
++    const hiRuns = [];
++    for (let i = 0; i < HI_RUNS; i++) {
++      console.log(`\n── Hindi pass run ${i + 1}/${HI_RUNS} ──`);
++      hiRuns.push(await main("hi"));
++    }
++    const stepNames = Object.keys(enTimings);
++    const table = stepNames.map((step) => {
++      const enMs = enTimings[step];
++      const hiValues = hiRuns.map((t) => t[step]).filter((v) => typeof v === "number");
++      const hiMedianMs = hiValues.length ? median(hiValues) : null;
++      // Brief law 4: "each step's wall clock under the English pass's plus
++      // 30 percent."
++      const budgetMs = typeof enMs === "number" ? Math.round(enMs * 1.3) : null;
++      const withinBudget = budgetMs === null || hiMedianMs === null ? null : hiMedianMs <= budgetMs;
++      return { step, enMs, hiRunsMs: hiValues, hiMedianMs, budgetMs, withinBudget };
++    });
++    console.log("\nHindi vs English step budgets (n=3 median vs English pass x1.3), for context/measurements.md:");
++    console.log("step, en_ms, hi_run1_ms, hi_run2_ms, hi_run3_ms, hi_median_ms, budget_ms, within_budget");
++    for (const row of table) {
++      console.log([row.step, row.enMs, ...row.hiRunsMs, row.hiMedianMs, row.budgetMs, row.withinBudget].map((v) => v ?? "").join(", "));
++    }
++    for (const row of table) {
++      if (row.enMs == null || row.hiMedianMs == null) continue;
++      ok(`hi budget: "${row.step}" (n=3 median) stays under the English pass's own wall clock plus 30 percent`,
++        row.withinBudget !== false, `en=${row.enMs}ms hiMedian=${row.hiMedianMs}ms budget=${row.budgetMs}ms hiRuns=${JSON.stringify(row.hiRunsMs)}`);
++    }
++  } else {
++    console.log("\n(Hindi walk skipped — set REHEARSAL_FULL=1 or pass --full to run it too. The English walk alone is what evals/run.mjs registers.)");
++  }
+ 
+   console.log(`\n${pass} passed, ${fail} failed`);
+   if (fail > 0) {
+diff --git a/src/studio/CloneExperience.tsx b/src/studio/CloneExperience.tsx
+index fda0817..2f86abd 100644
+--- a/src/studio/CloneExperience.tsx
++++ b/src/studio/CloneExperience.tsx
+@@ -1435,7 +1435,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
+                 )
+               ) : meetView === "conversation" ? <Suspense fallback={<p role="status">{copy.rooms.voice.openingConversation}</p>}><ExpertConversation key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} runtimeStatus={runtimeStatus} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} /></Suspense> : <VoicePreviewPanel token={accessToken} replicaId={selected.replica_id} wizardInput={wizardInput} onAuthError={onAuthError} testEnvironment onManageSources={() => chooseRoom("enrich")} />}</section>}
+               {room === "share" && <section className="vx-room__panel vx-room__scroll">{!voiceWorkspaceReady && !textReady && <button type="button" className="vx-back" onClick={() => chooseRoom("enrich")}>{copy.rooms.share.backToKnowledge}</button>}<Suspense fallback={<p role="status">{copy.rooms.share.openingSharing}</p>}><ExpertSharePanel key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} voiceWorkspaceReady={voiceWorkspaceReady} textReady={textReady} /></Suspense></section>}
+-              {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.backToVoice}</button>}<div className="vx-stage-title"><h1 id="knowledge-menu-title">{copy.rooms.enrich.heading}</h1><p>{copy.rooms.enrich.body}</p></div><div className="vx-enrich-menu">{!voiceWorkspaceReady && <button type="button" onClick={() => chooseRoom("share")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.shareKnowledgeTitle}</strong><small>{copy.rooms.enrich.shareKnowledgeNote}</small></span><Icon name="chevron" /></button>}<button type="button" onClick={() => chooseRoom("rehearsal")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.testDraftTitle}</strong><small>{copy.rooms.enrich.testDraftNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("describe")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.describeMeTitle}</strong><small>{copy.rooms.enrich.describeMeNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("humanos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.whoYouAreTitle}</strong><small>{copy.rooms.enrich.whoYouAreNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("files")}><Icon name="add" /><span><strong>{copy.rooms.enrich.filesTitle}</strong><small>{copy.rooms.enrich.filesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("video")}><Icon name="voice" /><span><strong>{copy.rooms.enrich.videoTitle}</strong><small>{copy.rooms.enrich.videoNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}><Icon name="voice" /><span><strong>{copy.rooms.enrich.improveVoiceTitle}</strong><small>{copy.rooms.enrich.improveVoiceNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => chooseRoom("emotionos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.vibeTitle}</strong><small>{copy.rooms.enrich.vibeNote}</small></span><Icon name="chevron" /></button></div></> : <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>{copy.rooms.enrich.backToChoices}</button>{!voiceWorkspaceReady && <button className="vx-text-button" type="button" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.recordInstead}</button>}{enrichView === "files" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-text-button" onClick={() => chooseRoom("share")}>{copy.rooms.enrich.reviewTextSharing}</button>}{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
++              {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.backToVoice}</button>}<div className="vx-stage-title"><h1 id="knowledge-menu-title">{copy.rooms.enrich.heading}</h1><p>{copy.rooms.enrich.body}</p></div><div className="vx-enrich-menu">{!voiceWorkspaceReady && <button type="button" onClick={() => chooseRoom("share")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.shareKnowledgeTitle}</strong><small>{copy.rooms.enrich.shareKnowledgeNote}</small></span><Icon name="chevron" /></button>}<button type="button" onClick={() => chooseRoom("rehearsal")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.testDraftTitle}</strong><small>{copy.rooms.enrich.testDraftNote}</small></span><Icon name="chevron" /></button><button type="button" data-enrich-view="describe" onClick={() => setEnrichView("describe")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.describeMeTitle}</strong><small>{copy.rooms.enrich.describeMeNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("humanos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.whoYouAreTitle}</strong><small>{copy.rooms.enrich.whoYouAreNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("files")}><Icon name="add" /><span><strong>{copy.rooms.enrich.filesTitle}</strong><small>{copy.rooms.enrich.filesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("video")}><Icon name="voice" /><span><strong>{copy.rooms.enrich.videoTitle}</strong><small>{copy.rooms.enrich.videoNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}><Icon name="voice" /><span><strong>{copy.rooms.enrich.improveVoiceTitle}</strong><small>{copy.rooms.enrich.improveVoiceNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => chooseRoom("emotionos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.vibeTitle}</strong><small>{copy.rooms.enrich.vibeNote}</small></span><Icon name="chevron" /></button></div></> : <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>{copy.rooms.enrich.backToChoices}</button>{!voiceWorkspaceReady && <button className="vx-text-button" type="button" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.recordInstead}</button>}{enrichView === "files" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-text-button" onClick={() => chooseRoom("share")}>{copy.rooms.enrich.reviewTextSharing}</button>}{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
+                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || source.replicaId !== selected.replica_id || !isPrivateTextId(source.itemId) || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== source.replicaId) return;
+                   chooseRoom("evolve");
+                 }} testSourceLabel={feedCopy.test} onTestSource={savedRehearsal ? undefined : source => {
+diff --git a/src/studio/auth-entry.css b/src/studio/auth-entry.css
+index 5d24f0a..620c6a5 100644
+--- a/src/studio/auth-entry.css
++++ b/src/studio/auth-entry.css
+@@ -136,6 +136,17 @@
+   }
+ 
+   .auth-brand > a {
++    display: inline-flex;
++    align-items: center;
++    /* WS-R191: real cause, real fix. The Hindi pass's own target-size check
++       measured this link's own box at 100x30 CSS px on the sign-in screens
++       (both locales render the identical mark and link; only the Hindi
++       pass ever checked). min-height alone (the row is already 68px tall,
++       `.auth-brand`'s own rule above) grows the tappable box to 44px
++       without resizing the VyaktiMark glyph itself, which keeps its own
++       intrinsic size — see context/rejected.md#ws-r191-brand-link-and-
++       different-email-button-under-44px-tap-target. */
++    min-height: 44px;
+     color: inherit;
+     text-decoration: none;
+   }
+@@ -303,6 +314,21 @@
+     box-shadow: none;
+   }
+ 
++  /* WS-R191: real cause, real fix. `.text-button` (the shared base rule in
++     studio-entry.css/studio.css, used across many small, deliberately
++     compact instances elsewhere in the studio) has no min-height of its
++     own; on the "use a different email" button here it measured 33px tall
++     on the Hindi pass's own target-size check — the first time any walk
++     checked target sizes on this screen. Scoped to `.auth-card` (imported
++     after studio-entry.css, and more specific) rather than widening the
++     shared base rule, which many smaller, non-primary `.text-button`
++     instances elsewhere rely on staying compact
++     (context/rejected.md#ws-r191-brand-link-and-different-email-button-
++     under-44px-tap-target). */
++  .auth-card .text-button {
++    min-height: 44px;
++  }
++
+   .auth-card .or {
+     margin: 10px 0;
+     color: var(--vx-muted);
+diff --git a/src/studio/clone-experience.css b/src/studio/clone-experience.css
+index 00a01ff..9bbd5dd 100644
+--- a/src/studio/clone-experience.css
++++ b/src/studio/clone-experience.css
+@@ -878,6 +878,26 @@
+     background: rgba(255, 255, 255, 0.8);
+   }
+ 
++  /* WS-R191: real cause, real fix. `.vx-text-button` (CloneExperience.tsx's
++     own "Record my voice instead" / "Review text sharing" / rehearsal-back
++     buttons) had no CSS rule of its own anywhere in this file before this
++     workstream — a plain unstyled <button>, sized by its own text line
++     height alone (27px CSS px on the Hindi pass's own target-size check,
++     the first time any walk checked target sizes on this screen). Text-only
++     styling kept, `min-height` alone added — the same minimal fix
++     `.vx-back` already uses two rules up
++     (context/rejected.md#ws-r191-brand-link-and-different-email-button-
++     under-44px-tap-target). */
++  .vx-text-button {
++    display: inline-flex;
++    align-items: center;
++    min-height: 44px;
++    border: 0;
++    padding: 0;
++    color: var(--vx-green);
++    background: transparent;
++  }
++
+   .vx-describe {
+     display: grid;
+     width: min(760px, 100%);

@@ -25144,3 +25144,11 @@ maintaining two step-rail components in the same product long-term.
 **Why.** Six of the ten workstreams reported new SQL they could not run against Postgres (no `NEON_URL` in a worktree), and `rejected.md#offline-mocks-cannot-type-check-sql` is exactly the failure a plan-only EXPLAIN catches for free: WS-R172's agent mint (four write nodes, cost 236), WS-R175's erasure chain (116 delete nodes including the six newly ordered ones, cost 1310), WS-R173's card read, WS-R179's two reads and WS-R180's sheet read all planned first time. The marker rule exists because a follow-up commit that rewrites its own earlier paragraph is a legitimate thing for a workstream to do and the union tool refuses it correctly; the failure was the main loop chaining `git add` behind the refusal.
 
 **Reversal.** If a plan-only EXPLAIN ever passes a statement that then fails live (a runtime-only error such as a constraint the plan cannot see), the live apply of a seeded fixture becomes the merge-time check for write statements; if a context-union refusal is ever resolved wrongly by hand twice in one wave, the union tool gains a `--replace-paragraph` mode instead.
+
+## `wave-24-wip-preserved-as-patches-on-the-platform-branch` (2026-09-14, main loop)
+
+**Decision.** In-progress work from a killed wave is preserved as one patch per workstream against the wave's base commit, committed under `docs/handoff/<date>/wave-NN-wip/` on the platform branch, never as pushed workstream branches. The next loop resumes a workstream by creating its worktree at the base and applying the patch with `git apply --3way`.
+
+**Why.** The platform branch is the one branch this session is allowed to push; ten new remote branches would need the owner's say and would scatter the handoff. A patch on the platform branch travels with the context that explains it, is reviewable in PR #6, and costs nothing to apply.
+
+**Reversal.** If a patch ever fails to apply cleanly on the base it names (the base moved, or binary files drifted), the next loop pushes the WIP branches instead with the owner's permission and this entry is superseded.
