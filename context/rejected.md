@@ -19046,3 +19046,13 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** The callback fixture supplies explicit persisted and unpersisted sheet states, observes Meet forwarding, and retains invalid-context refusal. The Room check requires the exact current path-and-query argument and uses the old one-argument call as its negative control.
 
 **Reversal condition.** Change these fixtures only with a deliberate production route or authentication return contract change, and keep a negative that proves lost destination state is rejected.
+
+## standalone25-first-five-minutes-rail-missed-direct-rehearsal-20260914
+
+**Tried.** The rail's `reachedMeet` input covered `showRooms` and the newer `privateFirstMeet` route only.
+
+**What specifically broke.** A source's direct "Test" action opens `room === "rehearsal"`, which is a separate rendering branch. The fixed rail stayed mounted there and covered the private rehearsal heading in the 1440-pixel browser capture.
+
+**What replaced it.** The rail dismissal condition includes the direct rehearsal room. The existing browser fixture requires the real question heading and textarea to be visible with no `.ffm-rail` at both supported widths.
+
+**Reversal condition.** Remove the explicit room check only when the direct route no longer exists or the rail is proven non-obscuring in normal flow at both widths.

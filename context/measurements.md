@@ -18915,3 +18915,7 @@ Root integrated verification after53c4cf96: 32/32 mounted text-publication-ui gr
 ## standalone25-first-flow-evals-focused-20260914
 
 2026-09-14. Method: two direct Node fixtures against frozen source `aa4815983e64899ffefc71dde7cfb069c06b2df6`, using the existing standalone25 dependency runtime through a temporary local junction. `evals/feed-meet-return/callbacks.mjs` passed 13 callback/scope groups, including both `sheetPersisted` states and invalid context handles. `evals/expert-workspace-navigation.mjs` exited 0 while requiring the exact Room path-plus-query OTP destination and rejecting the old one-argument call. No install, browser, database, network, cloud call or full release gate ran.
+
+## standalone25-private-rehearsal-rail-clearance-20260914
+
+2026-09-14. Method: the existing `evals/private-text-rehearsal/run.mjs` browser fixture on isolated source based at `1af2fdbf`, using the existing standalone25 dependency runtime through a temporary local junction. It passed 20/20 mounted groups. At both 390 by 900 and 1440 by 900, the actual private-question heading and textarea were visible and `.ffm-rail` had zero matches. Artifact: `scratchpad/private-text-ui/1789382138457`. No install, database, provider, cloud call or full release gate ran.

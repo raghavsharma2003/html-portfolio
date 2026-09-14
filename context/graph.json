@@ -20049,6 +20049,24 @@
       "kind": "rejection",
       "title": "Stale callback context and OTP call shape reject correct production code",
       "at": "context/rejected.md#standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914"
+    },
+    {
+      "id": "standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914",
+      "kind": "decision",
+      "title": "First Five Minutes rail dismisses on direct private rehearsal",
+      "at": "context/decisions.md#standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914"
+    },
+    {
+      "id": "standalone25-private-rehearsal-rail-clearance-20260914",
+      "kind": "measurement",
+      "title": "Private rehearsal rail clearance passes at phone and desktop widths",
+      "at": "context/measurements.md#standalone25-private-rehearsal-rail-clearance-20260914"
+    },
+    {
+      "id": "standalone25-first-five-minutes-rail-missed-direct-rehearsal-20260914",
+      "kind": "rejection",
+      "title": "Rail dismissal missed the direct private rehearsal route",
+      "at": "context/rejected.md#standalone25-first-five-minutes-rail-missed-direct-rehearsal-20260914"
     }
   ],
   "edges": [
@@ -34153,6 +34171,16 @@
     {
       "src": "standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914",
       "dst": "standalone25-first-flow-evals-track-real-caller-contracts-20260914",
+      "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914",
+      "dst": "standalone25-private-rehearsal-rail-clearance-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-first-five-minutes-rail-missed-direct-rehearsal-20260914",
+      "dst": "standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914",
       "rel": "caused_by"
     }
   ]

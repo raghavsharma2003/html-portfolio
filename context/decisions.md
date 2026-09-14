@@ -25310,3 +25310,7 @@ Build the exact committed worker source on the existing sponsored subscription w
 ## standalone25-first-flow-evals-track-real-caller-contracts-20260914
 
 2026-09-14. Focused first-flow fixtures execute the actual callback with both sheet states and require Room email OTP to retain the current path and query. The no-sheet source stays in private rehearsal, a persisted-sheet source forwards to Meet conversation, and an ineligible context handle remains refused. Reverse only if the production journey deliberately changes these routes and its authority or return-path contract is updated with an equivalent focused regression.
+
+## standalone25-first-five-minutes-rail-dismisses-for-direct-rehearsal-20260914
+
+2026-09-14. Treat the direct private rehearsal room as a reached-Meet surface for the First Five Minutes rail. The rail is fixed and informational, so it must be absent while the private-question heading and input are visible. Reverse if the direct rehearsal route is removed, or if the rail becomes part of normal document flow and a two-width browser check proves it cannot obscure the active question surface.
