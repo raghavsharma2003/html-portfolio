@@ -53,6 +53,7 @@ const ok = (name, cond, detail = "") => {
 // ── arm 1: structural ──────────────────────────────────────────────────────
 
 const src = await readFile(path.join(ROOT, "api", "memory.js"), "utf8");
+const consolidateSrc = await readFile(path.join(ROOT, "api", "consolidate.js"), "utf8");
 
 // The functions the forget path owns. Every one of them keys on device_id and
 // every one of them is called ONLY from opForget (which is what makes widening
@@ -73,16 +74,20 @@ const FORGET_FNS = [
 
 /** The body of a top-level `function name(` / `async function name(` block,
  *  by brace balance. Crude on purpose: it has no dependency to go stale. */
-function bodyOf(name) {
-  const m = new RegExp(`^(?:export )?(?:async )?function ${name}\\(`, "m").exec(src);
+function bodyOfIn(source, name) {
+  const m = new RegExp(`^(?:export )?(?:async )?function ${name}\\(`, "m").exec(source);
   if (!m) return null;
-  let i = src.indexOf("{", m.index);
+  let i = source.indexOf("{", m.index);
   let depth = 0;
-  for (let j = i; j < src.length; j++) {
-    if (src[j] === "{") depth++;
-    else if (src[j] === "}" && --depth === 0) return src.slice(i, j + 1);
+  for (let j = i; j < source.length; j++) {
+    if (source[j] === "{") depth++;
+    else if (source[j] === "}" && --depth === 0) return source.slice(i, j + 1);
   }
   return null;
+}
+
+function bodyOf(name) {
+  return bodyOfIn(src, name);
 }
 
 for (const fn of FORGET_FNS) {
@@ -139,6 +144,91 @@ ok(
 ok(
   "wipeWhereSql() is surface-scoped unless a caller opts in",
   /deviceSet = false/.test(bodyOf("wipeWhereSql") || ""),
+);
+
+// A partial item/window forget deletes only part of the raw span but removes
+// the derived episode that covered it. Any surviving raw rows must become
+// unclaimed in the same SQL statement as that episode deletion, or their old
+// cursor points at nothing and every future consolidator skips them. Null raw
+// cursors alone are not a queue: the worker discovers people through a
+// provisional episode, so the same statement must leave a content-free wake
+// marker without inventing a replacement summary.
+function partialEpisodeCursorIsAtomic(source) {
+  const unclaimedCte = source.indexOf("), unclaimed_logs as (");
+  const begin = source.lastIndexOf("`with recursive doomed as (", unclaimedCte);
+  const episodeDelete = source.indexOf("delete from vy_episode", unclaimedCte);
+  const end = source.indexOf("returning id`", episodeDelete);
+  if (begin < 0 || episodeDelete < 0 || end < 0) return false;
+  const statement = source.slice(begin, end);
+  const unclaim = statement.indexOf("update meera_log l set episode_id = null");
+  const remove = statement.indexOf("delete from vy_episode");
+  return (
+    unclaim >= 0 &&
+    remove > unclaim &&
+    /l\.episode_id in \(select id from doomed\)/.test(statement) &&
+    /insert into vy_episode/.test(statement) &&
+    /from unclaimed_logs l/.test(statement) &&
+    /l\.group_id is null and l\.room_memory_follower_id is null/.test(statement) &&
+    /'backfill',min\(l\.id\),max\(l\.id\),'',true/.test(statement) &&
+    /select count\(\*\) from unclaimed_logs/.test(statement) &&
+    /select count\(\*\) from wake_episodes/.test(statement)
+  );
+}
+
+ok(
+  "partial episode deletion atomically unclaims survivors and leaves a content-free wake marker",
+  partialEpisodeCursorIsAtomic(src),
+);
+const cursorMutant = src.replace(
+  "update meera_log l set episode_id = null",
+  "update meera_log l set episode_id = episode_id",
+);
+ok(
+  "NEGATIVE CONTROL: leaving surviving cursors unchanged is detected",
+  cursorMutant !== src && !partialEpisodeCursorIsAtomic(cursorMutant),
+);
+const summaryMutant = src.replace(
+  "'backfill',min(l.id),max(l.id),'',true",
+  "'backfill',min(l.id),max(l.id),'repair summary',true",
+);
+ok(
+  "NEGATIVE CONTROL: inventing a replacement episode summary is detected",
+  summaryMutant !== src && !partialEpisodeCursorIsAtomic(summaryMutant),
+);
+
+// Consolidation is person-keyed while the suppression ledger is device-keyed.
+// A mapped person therefore has to resolve the same device set before reading
+// the ledger. The fallback keeps the historical person_id := device_id lane.
+function consolidationSuppressionFollowsPerson(source) {
+  const suppression = bodyOfIn(source, "suppressionRegexes") || "";
+  return (
+    /select d\.device_id from vy_person_device d where d\.person_id = \$1::uuid/.test(suppression) &&
+    /select \$1::uuid where not exists/.test(suppression) &&
+    /group by f\.term/.test(suppression) &&
+    !/\.catch\(\(\) => \[\]\)/.test(suppression)
+  );
+}
+
+ok(
+  "consolidation reads suppression terms across a mapped person's devices",
+  consolidationSuppressionFollowsPerson(consolidateSrc),
+);
+const suppressionMutant = consolidateSrc.replace(
+  "select d.device_id from vy_person_device d where d.person_id = $1::uuid",
+  "select $1::uuid",
+);
+ok(
+  "NEGATIVE CONTROL: narrowing suppression back to person_id alone is detected",
+  suppressionMutant !== consolidateSrc && !consolidationSuppressionFollowsPerson(suppressionMutant),
+);
+const failOpenSuppressionMutant = consolidateSrc.replace(
+  "    [person, agentId],\n  );\n  const esc",
+  "    [person, agentId],\n  ).catch(() => []);\n  const esc",
+);
+ok(
+  "NEGATIVE CONTROL: treating a suppression query failure as an empty ledger is detected",
+  failOpenSuppressionMutant !== consolidateSrc &&
+    !consolidationSuppressionFollowsPerson(failOpenSuppressionMutant),
 );
 
 // ── arm 2: live ────────────────────────────────────────────────────────────

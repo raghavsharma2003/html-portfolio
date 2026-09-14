@@ -18890,6 +18890,18 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 
 **The rule.** When a product surface is retired, replace its static gate with an equally concrete check of the surviving surface. Missing input is never a passing result, and a newly relevant floor stays at its stated accessibility threshold even when the current token fails it.
 
+## `wave25-clearing-dangling-cursors-alone-does-not-wake-finalizer` (2026-09-14)
+
+**Tried.** The first narrow repair design set the 20 surviving legacy `meera_log.episode_id` values to NULL when their four deleted episodes were identified, preserving the raw Meera history and making the referential gate green.
+
+**What specifically broke.** `api/consolidate.js::findEligiblePersons` does not discover null raw cursors. It discovers a person only through a quiet provisional `vy_episode`. The partial-forget cascade chases and deletes both directions of the episode lineage, so a clear-only repair can leave no provisional row to wake the worker. The database would have zero dangling references while the same 20 rows remained unprocessed indefinitely. A global `ON DELETE SET NULL` foreign key has the same defect and also erases the explicit per-lane choice. `ON DELETE CASCADE` is worse: deleting derived state would silently destroy surviving ground-truth conversation rows beyond the requested term/window.
+
+**What replaced it.** The same atomic statement that unclaims surviving rows inserts an empty-summary provisional wake per ordinary agent/device/channel. It does not invent content. Room-authority rows stay under their own null-cursor discovery. Focused mutants require the cursor reset, empty summary and wake dependency together.
+
+**The rule.** Referential integrity is not enough for a queue cursor. A repair must preserve both pointer validity and the caller that will consume the repaired state.
+
+The same review rejected treating a suppression-ledger query failure as an empty result. That catch can silently rederive forgotten content during a transient database or query failure. The replacement lets the error propagate from `suppressionRegexes`; existing consolidation callers already turn that rejection into a failed run before finalization writes. The focused suite mutates the catch back in and requires its detection.
+
 ## `wave25-terra-correction-cannot-require-mini-style-fingerprint` (2026-09-14, wave 25)
 
 **Tried.** Extend the existing Mini-only provider revision whitelist to Terra while retaining the v1 rule that every accepted response must carry a non-null `fp_*` system fingerprint.
