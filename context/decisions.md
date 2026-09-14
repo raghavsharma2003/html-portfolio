@@ -25212,3 +25212,8 @@ Restore private rehearsal, feedback and evaluation key IDs and exact versioned K
 ## `wave25-source-checkpoint-preserves-release-blockers`
 
 2026-09-14. Preserve the integrated standalone source on the owner-selected branch while the complete gate runs. Automatic Vercel Git deployment is explicitly disabled in the candidate; main deployment remains behind its full gate. Source checkpoint is not production acceptance. Reverse this sequencing if Git deployment disabling is not honored; stop before any unverified production cutover. Current source base for the running gate is a672136b.
+
+
+## wave25-mixed-fixtures-keep-shared-behavior (2026-09-14)
+
+Mixed repeat, theme and surface suites retain shared loop, theme selection and output-grounding behavior. Only assertions for removed Meera UI callers are retired. The game-memory close adapter is preserved as a historical test fixture from 16fae19; it is not a shipping UI caller. Game compiler tests supply the explicit demo teacher AgentModule. The rehearsal registry exports an explicit offline Room generator. Reverse if any surviving Vyakti caller is shown to depend on a retired assertion, or if this fixture diverges from a restored product caller.

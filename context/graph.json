@@ -19695,6 +19695,42 @@
       "kind": "rejection",
       "title": "Bandwidth fixes do not establish current worker behavior",
       "at": "context/rejected.md#wave25-bandwidth-fix-does-not-prove-worker-current"
+    },
+    {
+      "id": "wave25-mixed-fixtures-keep-shared-behavior",
+      "kind": "decision",
+      "title": "Keep shared behavior in mixed legacy fixtures",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-mixed-fixture-checks-20260914",
+      "kind": "measurement",
+      "title": "Scoped shared fixture verification",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-implicit-persona-fixtures-hide-separation-breaks",
+      "kind": "rejection",
+      "title": "Implicit persona and retired UI fixture failures",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-actual-sql-rollback-and-journey-audit-20260914",
+      "kind": "measurement",
+      "title": "Actual activation SQL, rollback repair and first-journey audit",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-full-release-failure-20260914",
+      "kind": "measurement",
+      "title": "Full local and cloud release failures",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-agent-isolation-must-be-verified",
+      "kind": "rejection",
+      "title": "Reported isolation did not preserve running gate source",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -33605,6 +33641,21 @@
       "src": "wave25-bandwidth-fix-does-not-prove-worker-current",
       "rel": "constrains",
       "dst": "wave25-source-checkpoint-preserves-release-blockers"
+    },
+    {
+      "src": "wave25-mixed-fixtures-keep-shared-behavior",
+      "rel": "measured_by",
+      "dst": "wave25-mixed-fixture-checks-20260914"
+    },
+    {
+      "src": "wave25-mixed-fixtures-keep-shared-behavior",
+      "rel": "caused_by",
+      "dst": "wave25-implicit-persona-fixtures-hide-separation-breaks"
+    },
+    {
+      "src": "wave25-agent-isolation-must-be-verified",
+      "rel": "measured_by",
+      "dst": "wave25-full-release-failure-20260914"
     }
   ]
 }

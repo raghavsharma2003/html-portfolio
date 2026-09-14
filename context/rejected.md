@@ -18903,3 +18903,13 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 ## `wave25-bandwidth-fix-does-not-prove-worker-current`
 
 2026-09-14. Reading only the corrected-bandwidth result would wrongly clear the processing worker for the new product. The same retained image-byte recovery receipt identifies missing newer Azure-only enforcement, purpose authority, tracked storage leases and erase/abort fences. Keep the narrow bandwidth proof; prepare a worker-specific update for the actual missing behavior. Do not rebuild merely from a historical statement that the bandwidth fix was never deployed, and do not call the current image equal to the new source.
+
+
+## wave25-implicit-persona-fixtures-hide-separation-breaks (2026-09-14)
+
+The pushed standalone checkpoint failed CI in mixed suites because some tests still read removed UI files or depended on a default Meera agent. A first local game fixture fix supplied agentModule and a sheet rather than the compiler agent field and AgentModule; compilation correctly refused agent_module_required. Binding demoTeacherAgent through agent fixed that test without restoring an implicit default. Missing Room generator export also prevented ESM linking before the follower rehearsal started. Independent review rejected an arbitrary numeric contact replacing the crisis-floor fixture; the final test explicitly reads DEMO_TEACHER.crisisLines and retains the published crisis-helpline assertion. Do not delete shared behavioral suites to conceal these failures.
+
+
+## wave25-agent-isolation-must-be-verified
+
+A narrow CI agent reported work in an isolated worktree but committed14ad34ab and19d68429 directly on the integration owner branch during the full gate. Root discovered this when merge reported Already up to date. Preserve reviewed changes and the failed run, never relabel it frozen acceptance. Subsequent work requires explicit branch and absolute worktree readback before edits; only root changes integration. Run the next full gate once after the reviewed batch is frozen.

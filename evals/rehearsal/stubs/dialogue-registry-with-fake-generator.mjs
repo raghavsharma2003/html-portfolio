@@ -53,3 +53,16 @@ export function createProductionDialogueGenerator() {
 export function createProductionComparisonGenerator() {
   throw Object.assign(new Error("comparison_provider_revision_required"), { code: "comparison_provider_revision_required", status: 503 });
 }
+
+// Room's explicit rehearsal seam has always provided a deterministic reply.
+// The production registry now also exposes this constructor for capability
+// checks. Preserve that export without restoring a vendor or network call.
+export function createProductionRoomReplyGenerator() {
+  return Object.freeze({
+    family: "rehearsal", name: "fake-room-reply", version: "v1",
+    async generate({ compiled, turns }) {
+      const { think } = await import("./surface-with-fake-model.mjs");
+      return think(null, compiled, turns);
+    },
+  });
+}

@@ -329,6 +329,7 @@ const ARC = [
   },
 ];
 const compileBase = {
+  agent: E.demoTeacherAgent,
   user: USER, messageCount: 60, medium: "text", mode: "chat", voiceEngine: "gemini",
   isDirective: false, watching: false, innerThread: "", innerWants: "", memories: "",
   herLife: "", cultureNoteText: "", ageGates: null,
@@ -676,12 +677,9 @@ console.log("\n§8 reader and writer agree about the record's size and its route
   }
   ok("brain.ts drops the server copy when it has its own", /withoutServerActivityBlock\(recalled\)/.test(brain));
 
-  // AND THE PUBLISHER — `dead-writers`: a ledger nothing publishes is a ledger
-  // the call lane never sees.
-  const app = readFileSync(join(ROOT, "src/App.tsx"), "utf8");
-  ok("App.tsx publishes the ledger for the lanes that cannot reach state", /publishActivityLedger\(state\.activities\)/.test(app));
-  ok("…and the reconciler writes the record it just emitted", /withActivityRecord\(s\.activities, rec\)/.test(app));
-  ok("…and the emission carries the durable half", /record: a\.record/.test(app));
+  // The retired Meera App publisher is no longer a shipping caller.
+  // Shared record, vocabulary, recall, and idempotence controls above remain.
+
 }
 
 console.log(`\n${failed ? "FAILED" : "PASS"}  ${passed} passed, ${failed} failed`);
