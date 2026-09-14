@@ -28,8 +28,6 @@ jobs:
       - run: node scripts/context.mjs --check
       - run: node scripts/write-config.mjs --stub
       - run: node evals/run.mjs
-      - run: node evals/watchperf/run.mjs
-      - run: node evals/multimodal/run.mjs --offline
       - run: npx vite build
       - run: node scripts/select-native-start-page.mjs studio
       - run: node scripts/select-capacitor-config.mjs vyakti

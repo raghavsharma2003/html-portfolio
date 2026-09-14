@@ -22,7 +22,9 @@ The aa481598 candidate was pushed. Android CI rejected three stale fixture assum
 
 Meera repo now opens its preserved production archive branch by default; its unrelated original main remains intact. No Meera deployment or Vercel repo reconnection yet. Ten recoverable Development-only bindings are now written and value/scope verified. Neon differed only by the stricter local channel_binding parameter; local legacy Supabase service_role and processing opaque key are separately authorized for the same exact project. Both failed zero-write attempts remain recorded. Five unknown Development names remain untouched; Production/Preview values were not changed.
 
-Next: push this repaired frozen source for the full release gate; activate the already verified worker only after acceptance; merge PR6 and cut over only after acceptance; walk the real creator/visitor journey; then resume wave24 in at most five workstreams. Never represent offline fixtures as owner voice or real journey proof.
+Candidate c4a26771 is pushed. Android passed the main eval registry, then failed obsolete native-watch harnesses whose production classes were deliberately removed. Repair31b087f8 removes exactly those two stale APK workflow invocations; current Vyakti native52/52 and workflow4/4 checks pass. Historical harnesses remain unchanged and no current multimodal pass is claimed. Node22/24 on c4a26771 are still pending. The live pilot ledger is not initialized yet (0rows read, not a remaining-balance claim). Post-gate merge/cutover helpers and the bounded live text runbook are prepared in ignored oldroot scratchpad/expert-tools; nothing deployed.
+
+Next: finish observing c4a26771, then push the repaired frozen source for the full release gate; activate the already verified worker only after acceptance; merge PR6 and cut over only after acceptance; walk the real creator/visitor journey; then resume wave24 in at most five workstreams. Never represent offline fixtures as owner voice or real journey proof.
 
 ## START HERE: WAVE TWENTY-FOUR OPENED AND PAUSED (main loop, 2026-09-14, read with the block below it)
 
