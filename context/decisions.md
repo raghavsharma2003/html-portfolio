@@ -25169,3 +25169,14 @@ Use the owner-requested branch tip, preserve the exact deployed Meera history in
 ## `wave25-existing-sponsored-foundry-bound-to-vercel` (2026-09-14)
 
 Use the existing sponsored Azure subscription and its succeeded Terra dialogue and mini extraction deployments. Bind them to the fixed Vyakti Vercel project; retain the shared $1 pilot text cap. Production and Preview use a sensitive API-key row; Development uses a separate encrypted row of the same existing key. No new infrastructure or continuously warm GPU was created. Reverse if verified deployment identity, actual rates, grant eligibility or measured product quality invalidates this configuration. The Terra 2/12 and mini 0.4/1.6 per-million-token rates are retained configuration, not a fresh invoice verification.
+
+
+## `standalone25-azure-access` (2026-09-14)
+
+Initial read-only audit, before the separately logged Vercel bindings:
+
+Use the existing OS-protected service-principal session for read-only Azure ARM discovery. The existing Foundry account and required chat deployments are already present, so wave twenty-five should not create a project or deployment merely because the handoff assumed one was absent. Reverse if a fresh ARM inventory no longer finds the account/deployments or if an owner-approved runtime binding requires a distinct resource.
+
+## `standalone25-processing-job-audit` (2026-09-14)
+
+Treat `vyakti-replica-processing` as the actual scheduled consumer: its ARM metadata is a Microsoft.App/jobs resource with a two-minute schedule, while `/api/replica-processing-sweep` is the authenticated Vercel fallback. Do not rely on `VYAKTI_PREVIEW_PROCESSING_ENABLED` for this job because the deployed job and checked worker/sweep sources do not read it. Reverse if a deployed worker revision introduces an explicit source-controlled gate or the ARM schedule is removed.

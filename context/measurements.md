@@ -18754,3 +18754,16 @@ Conclusion: every focused current Room, Azure transport, parser, budget, inciden
 ## `wave25-foundry-binding-readback-20260914` (2026-09-14)
 
 2026-09-14, n=16 successful environment upserts in the final invocation, with an independent final metadata GET confirming every name, type and target scope. Fourteen common settings cover Production, Preview and Development; the API key uses two rows. An earlier invocation successfully created the first setting and then stopped on response-envelope handling. The final invocation updated that existing row and completed the rest. Existing Azure deployment names, versions and Succeeded states were read before retrieving their existing key in memory. No model inference, GPU wake, resource creation, deployment or quality measurement occurred. Local protected helper: scratchpad/expert-tools/standalone25-bind-foundry.py; completed tool session 85532 exit0. Working Vercel access supersedes earlier access-blocked handover paragraphs.
+
+
+## `standalone25-azure-arm-inventory-20260914` (2026-09-14)
+
+Initial read-only audit, before the separately logged Vercel bindings:
+
+2026-09-14 n=1 read-only Azure ARM inventory via existing protected helper, authenticated successfully; 39 resources listed, two Cognitive Services accounts, and existing Foundry account `raghavsharma1729-compan-resource` endpoint metadata returned. Its deployment list included 16 succeeded deployments, including `gpt-4.1-mini`, `Mistral-Large-3`, `grok-4-1-fast-reasoning`, `grok-4-20-non-reasoning` and `gpt-5.6-terra`. No model call, key output, write or cost. Receipt: `scratchpad/expert-tools/standalone25-azure-access.json`.
+
+Follow-up n=1 ARM metadata read through `inspect-speech-resources.py`: both AIServices S0 accounts returned HTTP 200 and `provisioningState=Succeeded` in eastus2. The source contract accepts only `*.services.ai.azure.com` for Foundry inference and uses `/models/chat/completions`; no key request was made. The protected helper path can retrieve a key in memory for a later authorized binding, but no key was requested or exported.
+
+## `standalone25-processing-job-metadata-20260914` (2026-09-14)
+
+2026-09-14 n=1 read-only ARM GET of `Microsoft.App/jobs/vyakti-replica-processing` returned HTTP 200: image digest present, `triggerType=Schedule`, cron `*/2 * * * *`, parallelism 1, completion count 1, timeout 3600 seconds, retry limit 1. Metadata contained 18 environment names, 6 container secret references and 7 job-level secret names; only names were recorded. Source audit found no read of `VYAKTI_PREVIEW_PROCESSING_ENABLED`; receipt: `scratchpad/expert-tools/standalone25-processing-metadata.json`.

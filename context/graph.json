@@ -19557,6 +19557,42 @@
       "kind": "rejection",
       "title": "A successful Vercel environment write returned a different acknowledgement shape",
       "at": "context/rejected.md#wave25-vercel-create-ack-is-not-always-an-env-row"
+    },
+    {
+      "id": "standalone25-azure-access",
+      "kind": "decision",
+      "title": "Existing Azure Foundry account and deployments make creation unnecessary",
+      "at": "context/decisions.md#standalone25-azure-access"
+    },
+    {
+      "id": "standalone25-processing-job-audit",
+      "kind": "decision",
+      "title": "Actual processing consumer is the scheduled Azure job",
+      "at": "context/decisions.md#standalone25-processing-job-audit"
+    },
+    {
+      "id": "standalone25-processing-job-metadata-20260914",
+      "kind": "measurement",
+      "title": "Azure processing job metadata and schedule read successfully",
+      "at": "context/measurements.md#standalone25-processing-job-metadata-20260914"
+    },
+    {
+      "id": "standalone25-processing-preview-flag",
+      "kind": "rejection",
+      "title": "Preview processing flag is not an actual job scheduler gate",
+      "at": "context/rejected.md#standalone25-processing-preview-flag"
+    },
+    {
+      "id": "standalone25-azure-arm-inventory-20260914",
+      "kind": "measurement",
+      "title": "Protected Azure ARM inventory authenticated and found 39 resources",
+      "at": "context/measurements.md#standalone25-azure-arm-inventory-20260914"
+    },
+    {
+      "id": "standalone25-azure-creation-assumption",
+      "kind": "rejection",
+      "title": "Foundry creation assumption rejected after existing deployment inventory",
+      "at": "context/rejected.md#standalone25-azure-creation-assumption"
     }
   ],
   "edges": [
@@ -33387,6 +33423,26 @@
       "src": "wave25-existing-sponsored-foundry-bound-to-vercel",
       "dst": "wave25-vercel-create-ack-is-not-always-an-env-row",
       "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-azure-access",
+      "rel": "measured_by",
+      "dst": "standalone25-azure-arm-inventory-20260914"
+    },
+    {
+      "src": "standalone25-processing-job-audit",
+      "rel": "measured_by",
+      "dst": "standalone25-processing-job-metadata-20260914"
+    },
+    {
+      "src": "standalone25-processing-preview-flag",
+      "rel": "caused_by",
+      "dst": "standalone25-processing-job-metadata-20260914"
+    },
+    {
+      "src": "standalone25-azure-creation-assumption",
+      "rel": "caused_by",
+      "dst": "standalone25-azure-arm-inventory-20260914"
     }
   ]
 }

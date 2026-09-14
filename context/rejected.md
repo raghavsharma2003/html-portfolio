@@ -18834,3 +18834,14 @@ Tried validating the named html-portfolio Vercel project as Meera production and
 ## `wave25-vercel-create-ack-is-not-always-an-env-row` (2026-09-14)
 
 The first configuration invocation assumed the create response contained a top-level environment row or created array. It returned env_write_ack_mismatch_VYAKTI_MODEL_SERVING even though independent GET proved the setting existed with all three target scopes. Treating that as a failed write and blindly creating again risks duplicates or conflicts. The helper now resolves ambiguous acknowledgements through an independent GET and matches name, type and scopes before continuing. The corrected invocation completed; secrets were never printed or stored in the checkout.
+
+
+## `standalone25-azure-creation-assumption` (2026-09-14)
+
+Initial read-only audit, before the separately logged Vercel bindings:
+
+Rejected the handoff's implied need to create a Foundry project and chat deployment before checking current Azure state. The existing protected ARM session listed the Foundry account and succeeded deployments; creating duplicates would add resource and cost risk. App-side environment binding, budget values, Speech attention state and Personal Voice approval remain unverified.
+
+## `standalone25-processing-preview-flag` (2026-09-14)
+
+Rejected treating `VYAKTI_PREVIEW_PROCESSING_ENABLED` as the actual processing scheduler gate. ARM metadata shows `vyakti-replica-processing` is a scheduled Microsoft.App/jobs resource, and `run-once.js` plus the Vercel sweep contain no source read of that flag. Revisit if a current worker revision or deployment manifest adds the read.
