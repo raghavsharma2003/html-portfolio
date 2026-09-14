@@ -27,7 +27,8 @@ function validatePlan(plan, policy) {
     || !/^[A-Za-z0-9_-]{8,100}$/.test(plan.isolation_tag || '')
     || !/^\/subscriptions\/[a-f0-9-]{36}\/resourceGroups\/[A-Za-z0-9_.()-]+\/providers\/Microsoft.App\/managedEnvironments\/[A-Za-z0-9_-]+$/i.test(plan.environment_id || '')
     || !/^[a-z0-9]+\.azurecr\.io\/[a-z0-9/_.-]+@sha256:[a-f0-9]{64}$/.test(plan.image || '')
-    || !['configuration_sha256', 'template_sha256', 'contract_sha256'].every(key => HASH.test(plan[key] || '')))
+    || !['configuration_sha256', 'template_sha256', 'contract_sha256'].every(key => HASH.test(plan[key] || ''))
+    || (plan.revision_template_sha256 !== undefined && !HASH.test(plan.revision_template_sha256)))
     fail('voice_app_plan_invalid');
   // This is a supervised estimate, never an Azure invoice or hard replica bound.
   if (policy?.envelope_seconds !== 900 || policy.dispatch_seconds !== 420
@@ -137,7 +138,7 @@ export function createSupervisedVoiceAppController({plan: inputPlan, policy: inp
         fail('voice_app_revision_inventory_invalid');
       seen.add(row.id);
       if (typeof row.properties?.active !== 'boolean') fail('voice_app_revision_state_unknown');
-      if (row.name === plan.revision_name && commitment(row.properties.template) !== plan.template_sha256) {
+      if (row.name === plan.revision_name && commitment(row.properties.template) !== (plan.revision_template_sha256 || plan.template_sha256)) {
         if (!cleanup) fail('voice_app_revision_template_drift');
         actionable.push('voice_app_revision_template_drift');
       }
@@ -164,6 +165,7 @@ export function createSupervisedVoiceAppController({plan: inputPlan, policy: inp
     if (!UUID.test(window?.window_id || '') || window.resource_sha256 !== commitment(plan.app_id)
       || window.revision_sha256 !== revisionHash || window.app_id !== plan.app_id || window.revision_name !== plan.revision_name
       || !['configuration_sha256', 'template_sha256', 'contract_sha256'].every(key => window[key] === plan[key])
+      || window.revision_template_sha256 !== plan.revision_template_sha256
       || !['open', 'closing', 'close_claimed', 'observation_unknown', 'terminal_observed'].includes(window.state)
       || !Number.isFinite(instant(window.begun_at))
       || instant(window.dispatch_deadline_at) !== instant(window.begun_at) + policy.dispatch_seconds * 1000)

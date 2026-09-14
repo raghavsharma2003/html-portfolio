@@ -18981,3 +18981,8 @@ The private stub build transformed 751 modules and completed. `node scripts/chec
 ## wave25-text-floor-budget-control-20260914
 
 2026-09-14. node evals/text-ready/run.mjs:65 pass,0 fail, including9 new budget scenarios against the real generateOwnedTextDialogue and ledger helpers with fake database/provider responses. Success, exhausted budget, unknown begin, unknown provider transport, measured refusal, invalid output, missing usage, unknown settlement and cancellation after reservation passed. No model call, no database mutation and no SQL change; this is control-flow evidence, not a live journey.
+
+
+## wave25-exact-revision-template-controls-20260914 (2026-09-14)
+
+2026-09-14, n40 Node tests; node --test services/internal-voice/runtime.test.mjs services/internal-voice/http.test.mjs allpass. Two new controls prove distinct app-default and revision documents require separate hashes, app/revision drift still fails, invalid hash fails, and durable window cannot omit the configured revision hash. Root metadata receipt standalone25-hindi-template-diff-1789387046276967700.json reports revisionGET/list hash388256a983bf59e4192f460ee74c116faac52911a17ea1ca6e65f2ca6d4b4260 and app hash5f0b47de21bac3b86d6593bd6f5a86ab2087da9a96aced91cebca683b447e2c1. No GPU/model/cloud calls by this implementation.

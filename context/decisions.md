@@ -25386,3 +25386,8 @@ Root selected a matched historical hi-lesson baseline before spending on the CPU
 ## wave25-text-floor-uses-shared-spending-ledger
 
 2026-09-14. The text-ready Meet fallback now reserves and begins the existing Foundry ledger before generation and settles real usage before validating delivery. It uses the same configured shared pilot budget and per-model rates, without a new budget or migration. Ambiguous begin/provider/settlement responses preserve reservations for reconciliation; cancellation before begin releases them. Reverse only if a replacement caller demonstrably enforces the same shared budget and failure semantics. Session persistence remains a separate known gap.
+
+
+## wave25-pin-app-and-revision-templates-separately (2026-09-14)
+
+Root read-only Azure metadata on2026-09-14 showed app and revision template documents differ in four explicit fields. Add optional revision_template_sha256 to the existing controller plan and stored-window binding. Check app template against template_sha256 and target revision against revision_template_sha256. Absence preserves the existing strict same-hash contract. No field normalization, defaults removal, image change or GPU start. Reverse if Azure returns identical documents again or another exact versioned representation supersedes this explicit binding.

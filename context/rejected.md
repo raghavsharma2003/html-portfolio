@@ -19136,3 +19136,8 @@ Initial internal runner used .5/.5/.8 and unknown/unverified language. Existing 
 ## wave25-first-reply-bypassed-shared-budget
 
 2026-09-14. Inspection found generateOwnedTextDialogue called generator.generate directly and returned billing_state:not_metered. The active-voice and private rehearsal callers used the shared ledger, so their tests could not establish coverage of the first text-ready Meet reply. Corrected the actual fallback caller and tested failure paths before any real text-floor inference. The first-reply session_id is still null; do not claim durable full conversation history from this fix.
+
+
+## wave25-app-template-is-not-revision-template (2026-09-14)
+
+The previous controller assumed the app template and target revision template shared identical serialized fields; actual Azure metadata contradicts that assumption. App ephemeralStorage is empty-string vs revision missing; revisionSuffix empty-string vs null; cooldownPeriod and pollingInterval populated vs null. Runtime would refuse voice_app_revision_template_drift before synthesis despite correct inactive target. Do not erase these mutable differences through broad normalization. Bind both exact hashes explicitly; rebuilt CPU source is required before dispatch.

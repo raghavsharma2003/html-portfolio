@@ -65,6 +65,30 @@ test('planning grant needs no network or persisted window and never claims invoi
   assert.equal(grant.hard_invoice_cap, false);
   assert.equal(f.calls.length, 0);
 });
+
+test('separately pinned revision template admits Azure app defaults without normalizing either document', async () => {
+  const f=fixture(), revisionTemplate=structuredClone(f.app.properties.template);
+  const appTemplate={...structuredClone(revisionTemplate),revisionSuffix:'',scale:{...revisionTemplate.scale,cooldownPeriod:300,pollingInterval:30}};
+  appTemplate.containers[0].resources={ephemeralStorage:''};
+  f.app.properties.template=appTemplate;
+  f.plan.template_sha256=commitment(appTemplate);
+  await assert.rejects(f.controller().assertExclusiveTarget(),/revision_template_drift/);
+  f.plan.revision_template_sha256=commitment(revisionTemplate);
+  assert.equal((await f.controller().assertExclusiveTarget()).all_replicas_zero,true);
+  f.app.properties.template.scale.cooldownPeriod=301;
+  await assert.rejects(f.controller().assertExclusiveTarget(),/target_drift/);
+  f.app.properties.template.scale.cooldownPeriod=300;
+  f.plan.revision_template_sha256='f'.repeat(64);
+  await assert.rejects(f.controller().assertExclusiveTarget(),/revision_template_drift/);
+  f.plan.revision_template_sha256='invalid';assert.throws(f.controller,/plan_invalid/);
+});
+
+test('stored lifecycle window cannot omit its separately pinned revision template', async () => {
+  const f=fixture();f.plan.revision_template_sha256=f.plan.template_sha256;
+  await assert.rejects(f.controller().read(f.window.window_id),/window_binding_invalid/);
+  f.window.revision_template_sha256=f.plan.revision_template_sha256;
+  assert.equal((await f.controller().read(f.window.window_id)).all_replicas_zero,true);
+});
 test('isolated preflight lists every revision replica without runtime endpoint calls', async () => {
   const f = fixture(); assert.equal((await f.controller().assertExclusiveTarget()).all_replicas_zero, true);
   assert.equal(f.calls.length, 3);

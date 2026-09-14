@@ -20301,6 +20301,24 @@
       "kind": "rejection",
       "title": "Configured budget did not cover the first Meet reply",
       "at": "context/rejected.md#wave25-first-reply-bypassed-shared-budget"
+    },
+    {
+      "id": "wave25-pin-app-and-revision-templates-separately",
+      "kind": "decision",
+      "title": "Bind actual app and revision templates independently",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-exact-revision-template-controls-20260914",
+      "kind": "measurement",
+      "title": "40 focused tests pass with separate template commitments",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-app-template-is-not-revision-template",
+      "kind": "rejection",
+      "title": "Single template hash rejected real dormant Azure revision",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -34571,6 +34589,16 @@
       "src": "wave25-text-floor-uses-shared-spending-ledger",
       "rel": "caused_by",
       "dst": "wave25-first-reply-bypassed-shared-budget"
+    },
+    {
+      "src": "wave25-pin-app-and-revision-templates-separately",
+      "rel": "measured_by",
+      "dst": "wave25-exact-revision-template-controls-20260914"
+    },
+    {
+      "src": "wave25-app-template-is-not-revision-template",
+      "rel": "constrains",
+      "dst": "wave25-pin-app-and-revision-templates-separately"
     }
   ]
 }
