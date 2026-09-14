@@ -20445,6 +20445,12 @@
       "kind": "rejection",
       "title": "Existing attachable identities did not possess Hindi GPU roles",
       "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-private-followup-live-sql-plan-20260914",
+      "kind": "measurement",
+      "title": "Private follow-up SQL planned live and focused integration checks passed",
+      "at": "context/measurements.md#wave25-private-followup-live-sql-plan-20260914"
     }
   ],
   "edges": [

@@ -19019,3 +19019,8 @@ No new SQL statement or migration was added: the caller uses the existing runtim
 ## wave25-personal-voice-grant-script-controls-20260914 (2026-09-14)
 
 2026-09-14, n1 Bash syntax check via Git bash -n, n4 embedded Python blocks compile. Static checks confirm exactly2 PUTcommands (role and assignment), no az login, fixedtenant/subscription/UMI principal/client, exactHindiGPUassignmentscope, deterministicrole b9ee16fd-4ff7-5d8d-825e-fe5c7593c1c6 and assignment8cb12aaa-d543-5276-90cb-199f8a535b5c. Existing mismatched grant is refused and both objects have GETreadback. No script execution, account login or Azure writes were performed by this check.
+
+
+## wave25-private-followup-live-sql-plan-20260914
+
+2026-09-14 12:52 UTC. Two changed private follow-up SQL statements from source63013d99 passed EXPLAIN FORMAT JSON without ANALYZE against the live neondb in a READ ONLY transaction, n=2. ADMIT has19 parameters, COMPLETE16; only synthetic parser values were used. Rollback and connection close confirmed. Receipt standalone25-private-followup-explain-1789390356007.json. No SQL writes or provider calls. Integrated voice UI contract7/7, private store20/20 and handler22/22 passed with injected dependencies; these are not live conversation or voice-quality results. Voice UI db68a6e1 and navigation/layout followup175ce999 are integrated; actual mobile fixture screenshot reviewed at390px, not a generated voice sample.
