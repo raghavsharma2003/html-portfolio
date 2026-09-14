@@ -173,9 +173,21 @@ jobs:
       # database-only checks skip visibly because this job has no `NEON_URL`. This is
       # the ONE command whose exit code this job's own status is allowed to
       # depend on for its central claim ("CI ran the whole gate"): every
-      # step before this one is setup, and every step after it (none) would
+      # step before this one is setup, and every step after it must
       # be reporting, never gating.
       - run: node scripts/verify-release.mjs
+
+      # The runner redacts output before writing these files. Keep successful
+      # performance measurements and full failure details after the VM exits.
+      - name: Preserve release check diagnostics
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-checks-node-${{ matrix.node-version }}-${{ github.sha }}
+          path: scratchpad/release-logs/
+          retention-days: 3
+          if-no-files-found: warn
 
   # WS-R122. THE HINDI WALKS, on a schedule nobody has to remember. Both
   # rehearsals (`evals/rehearsal/creator.mjs`, `follower.mjs`) are already

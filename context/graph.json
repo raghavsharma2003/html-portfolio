@@ -20505,6 +20505,12 @@
       "kind": "rejection",
       "title": "A first-file-match mutation stopped testing its intended function",
       "at": "context/rejected.md#wave25-first-text-match-mutated-another-generator"
+    },
+    {
+      "id": "wave25-retain-ci-gate-diagnostics",
+      "kind": "decision",
+      "title": "Retain complete sanitized CI gate diagnostics",
+      "at": "context/decisions.md#wave25-retain-ci-gate-diagnostics"
     }
   ],
   "edges": [
@@ -34900,6 +34906,11 @@
       "src": "wave25-scope-dialogue-negative-controls",
       "rel": "caused_by",
       "dst": "wave25-first-text-match-mutated-another-generator"
+    },
+    {
+      "src": "wave25-retain-ci-gate-diagnostics",
+      "rel": "measured_by",
+      "dst": "wave25-linux-performance-and-dialogue-controls-20260914"
     }
   ]
 }

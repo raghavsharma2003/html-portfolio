@@ -25444,3 +25444,8 @@ Owner forbids Microsoft-account browser use on the employer laptop and explicitl
 ## wave25-scope-dialogue-negative-controls
 
 2026-09-14. Scope Unicode suite spend/authority mutations to the parsed generateOwnedDialogue body. The new text-only generator legitimately contains the same spend calls earlier in the file. Keep every existing negative assertion and runtime Unicode boundary case. Reverse this source mutation approach if an equivalent behavioral counterfactual proves all these authority/order failures without source matching.
+
+
+## wave25-retain-ci-gate-diagnostics
+
+2026-09-14. Upload the release runner's already-redacted scratchpad/release-logs as a per-Node, exact-commit CI artifact, retained3 days, even when a check fails. Reporting failure does not change the gate verdict. The15bc run lost successful performance medians and all but the final eval output excerpt when its runner disappeared; the next agent should not have to reproduce every failure merely to read its cause. Existing workflow lint passed across4 files, n=1; artifact delivery is not yet observed. Reverse this if CI persists equivalent complete sanitized diagnostics elsewhere without an extra upload step. No secrets, config payloads or live-database output are added to this stub-only workflow.
