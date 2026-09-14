@@ -60,6 +60,7 @@ try{
     let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{},rid=body.replica_id||url.searchParams.get('replica_id')||RID,op=body.op||url.searchParams.get('op');requests.push({path:url.pathname,method:req.method,op,body,rid,auth:req.headers.authorization});
     if(url.pathname==='/api/account'&&op==='refresh'){pending.push({kind:'refresh',send:()=>send(200,{user:{id:OWNER,email:'firstuse@fixture.test'},access_token:TOKEN+'-fresh',refresh_token:TOKEN,expires_in:3600})});return;}
     assert([`Bearer ${TOKEN}`,`Bearer ${TOKEN}-fresh`].includes(req.headers.authorization));
+    if(req.method==='GET'&&url.pathname==='/api/internal-voice')return send(404,{enabled:false,error:'internal_voice_disabled'});
     if(url.pathname==='/api/replica'){
      if(op==='create'){assert(scenario.startsWith('create-'));assert.equal(countCreate(),1);pending.push({kind:'operation',send:()=>{if(scenario.endsWith('-error'))return send(401,{error:'old_token_rejected'});owned=[replica(NEW),...owned];send(201,{replica:{...replica(NEW),display_name:'Old-token replica'},creation_intent_id:body.creation_intent_id,replayed:false});}});return;}
      if(url.searchParams.has('replica_id')){if(scenario.startsWith('select-')&&rid===OTHER&&req.headers.authorization===`Bearer ${TOKEN}`){pending.push({kind:'operation',send:()=>send(scenario.endsWith('-error')?401:200,scenario.endsWith('-error')?{error:'old_token_rejected'}:{replica:{...replica(rid),display_name:'Old-token replica'}})});return;}return send(200,{replica:replica(rid)});}

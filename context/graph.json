@@ -20535,6 +20535,24 @@
       "kind": "rejection",
       "title": "HTML-only layer mutation and the old palette-specific sub-2 ratio no longer proved the cascade failure",
       "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-flow-fixtures-model-voice-probes-and-discard-click-events",
+      "kind": "decision",
+      "title": "Flow fixtures model voice probes and fresh-question buttons discard click events",
+      "at": "context/decisions.md#wave25-flow-fixtures-model-voice-probes-and-discard-click-events"
+    },
+    {
+      "id": "wave25-first-flow-fixture-repair-20260914",
+      "kind": "measurement",
+      "title": "Six repaired flow suites pass 108 focused browser checks",
+      "at": "context/measurements.md#wave25-first-flow-fixture-repair-20260914"
+    },
+    {
+      "id": "wave25-generic-api-fixtures-and-direct-optional-id-click-handler",
+      "kind": "rejection",
+      "title": "Generic API fixtures and a direct optional-ID click handler corrupted flow evidence",
+      "at": "context/rejected.md#wave25-generic-api-fixtures-and-direct-optional-id-click-handler"
     }
   ],
   "edges": [
@@ -34945,6 +34963,16 @@
       "src": "wave25-html-only-cascade-mutation-and-exact-old-ratio-became-vacuous",
       "rel": "caused_by",
       "dst": "wave25-cascade-control-mutates-every-delivered-order-contract"
+    },
+    {
+      "src": "wave25-flow-fixtures-model-voice-probes-and-discard-click-events",
+      "rel": "measured_by",
+      "dst": "wave25-first-flow-fixture-repair-20260914"
+    },
+    {
+      "src": "wave25-generic-api-fixtures-and-direct-optional-id-click-handler",
+      "rel": "caused_by",
+      "dst": "wave25-flow-fixtures-model-voice-probes-and-discard-click-events"
     }
   ]
 }

@@ -63,6 +63,7 @@ try{
    if(url.pathname.startsWith('/api/')){
     let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{},op=body.op||url.searchParams.get('op');
     requests.push({path:url.pathname,method:req.method,op});assert.equal(req.headers.authorization,`Bearer ${TOKEN}`);
+    if(req.method==='GET'&&url.pathname==='/api/internal-voice')return send(404,{enabled:false,error:'internal_voice_disabled'});
     if(url.pathname==='/api/replica')return send(200,url.searchParams.has('replica_id')?{replica:replica()}:{replicas:[replica()]});
     if(url.pathname==='/api/replica-consent'&&op==='list')return send(200,{consents:grants()});
     if(url.pathname==='/api/replica-source'&&op==='list')return send(200,{sources:[]});

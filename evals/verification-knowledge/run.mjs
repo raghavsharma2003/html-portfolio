@@ -65,6 +65,7 @@ try{
  server=createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');const send=(status,data)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(data));};
   if(url.pathname.startsWith('/api/')){let body='';for await(const c of req)body+=c;requests.push({path:url.pathname,method:req.method,body});
    if(req.method!=='GET')return send(500,{error:'fixture_no_mutation'});
+   if(url.pathname==='/api/internal-voice')return send(404,{enabled:false,error:'internal_voice_disabled'});
    if(url.pathname==='/api/replica-activity')return send(200,{replica_id:rid,generated_at:'2026-09-01',jobs:[],lanes:[],in_flight:false,next_poll_ms:null});
    if(url.pathname==='/api/replica-text-rehearsal')return send(200,{readiness:{replica_id:rid,state:'unavailable',can_ask:false,blockers:[{code:'private_text_encryption_unavailable',responsibility:'platform'}],drafts:[],context_items:[],selected:null,statement_set:'private-text-rehearsal/v1',grant_scope:'private_text_rehearsal',statements}});
    if(url.pathname==='/api/replica-text-publication')return send(200,{readiness:{replica_id:rid,state:'unavailable',can_publish:false,blockers:[{code:'text_publication_platform_unavailable',responsibility:'platform'}],drafts:[],context_items:[],selected:null,statement_set:'account-material-publication/v1',statements:[],publications:[]}});

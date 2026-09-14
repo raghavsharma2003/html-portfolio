@@ -47,6 +47,7 @@ try{
     let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{},rid=body.replica_id||url.searchParams.get('replica_id')||RID,op=body.op||url.searchParams.get('op');requests.push({path:url.pathname,method:req.method,op,body,rid});
     if(url.pathname==='/api/account'&&op==='refresh')return send(200,{user:{id:OWNER,email:'firstuse@fixture.test'},access_token:TOKEN+'-fresh',refresh_token:TOKEN,expires_in:3600});
     assert([`Bearer ${TOKEN}`,`Bearer ${TOKEN}-fresh`].includes(req.headers.authorization));
+    if(req.method==='GET'&&url.pathname==='/api/internal-voice')return send(404,{enabled:false,error:'internal_voice_disabled'});
     if(url.pathname==='/api/replica'){
      if(op==='create'){assert.deepEqual(Object.keys(body).sort(),['creation_intent_id','display_name','op']);assert.match(body.creation_intent_id,/^[a-f0-9-]{36}$/);assert.equal(owned.length,0);owned=[replica(RID)];return send(201,{replica:owned[0],creation_intent_id:body.creation_intent_id,replayed:false});}
      if(url.searchParams.has('replica_id'))return send(200,{replica:replica(rid)});

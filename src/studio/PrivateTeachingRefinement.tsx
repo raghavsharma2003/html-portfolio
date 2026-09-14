@@ -106,7 +106,7 @@ function RefinementSession({token, replicaId, requestId, sheetId, disabled, reco
     </form> : basis ? <>
       {!notice ? <p>This draft changed after the test. Start a new test before changing it again.</p> : null}
       <details><summary>Current explanation order</summary><p className="ptr-guidance-text">{basis.value || "No explanation order is saved."}</p></details>
-      {!needsReadback ? <div className="ptr-actions"><button ref={element => focusAtMount("next", element)} type="button" disabled={Boolean(busy) || disabled} onClick={onNextQuestion}>Prepare another question</button></div> : null}
+      {!needsReadback ? <div className="ptr-actions"><button ref={element => focusAtMount("next", element)} type="button" disabled={Boolean(busy) || disabled} onClick={() => onNextQuestion()}>Prepare another question</button></div> : null}
     </> : null}
     <div className="ptr-actions">{needsReadback || !basis ? <button type="button" disabled={Boolean(busy) || disabled} onClick={() => void read()}>Check saved guidance</button> : null}{!needsReadback ? <button type="button" disabled={Boolean(busy)} onClick={close}>Close guidance</button> : null}</div>
   </section>;
