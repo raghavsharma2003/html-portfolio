@@ -18861,3 +18861,13 @@ Rejected treating `VYAKTI_PREVIEW_PROCESSING_ENABLED` as the actual processing s
 ## `wave25-terra-cannot-use-mini-comparison-identity` (2026-09-14)
 
 Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALOGUE_MODEL while the existing revision contract allows only mini. Copying the old mini baseline would describe the wrong deployment and still refuse. An actual retained Terra response has the dated Terra model and system_fingerprint:null, so allowing Terra while retaining a mandatory non-null fingerprint is insufficient. A bounded follow-up is implementing explicit Terra evidence with exact pair checks and honest missing-fingerprint status; no invented fingerprint or immutable-weight claim. The common expected-model setting remains mini until that source change is reviewed. The separate live integrity failure must be investigated by ownership/lineage, not hidden by deleting logs or clearing references without evidence.
+
+## `wave-25-native-suite-rewrite-first-dropped-assetlinks-behaviour` (2026-09-14)
+
+**Tried.** Replacing the dual-product `evals/vyakti-app/run.mjs` with a shorter suite that checked only the sole Capacitor, Android and iOS identity.
+
+**What specifically broke.** The first rewrite also removed the existing tests for the public `/.well-known/assetlinks.json` Vyakti door: unset/empty configuration, valid and lowercase certificate fingerprints, five malformed fingerprints, GET response shape, POST refusal, and the Vercel rewrite/header. Those checks protect current Vyakti deep links and are independent of the removed native flavour.
+
+**What fixed it.** The handler, malformed-input negative controls and Vercel routing checks were restored around the single-identity assertions. The focused suite now passes 51/51.
+
+**The rule.** When removing dual-product assertions from a mixed suite, classify each section by the behavior it protects. Preserve every section that exercises a Vyakti door, even when it was originally added in the same workstream as the retired product split.

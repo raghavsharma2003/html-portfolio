@@ -25183,7 +25183,7 @@ Treat `vyakti-replica-processing` as the actual scheduled consumer: its ARM meta
 
 ## `wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity` (2026-09-14)
 
-**Decision.** The shared compiler requires `CompileInput.agent`, fails closed with `agent_module_required` when it is absent, and has no bundled character fallback. Room passes the module resolved from its published sheet and Meet compiles from the authenticated replica definition. The native shell likewise carries one identity, `app.vyakti.studio`, in Capacitor, Android and iOS; Android no longer has product flavours.
+**Decision.** The shared compiler requires `CompileInput.agent`, fails closed with `agent_module_required` when it is absent, and has no bundled character fallback. Room passes the module resolved from its published sheet and Meet compiles from the authenticated replica definition. The native shell likewise carries one identity, `app.vyakti.studio`, in Capacitor, Android and iOS; Android no longer has product flavours. Renaming the native updater advances `OTA_NATIVE_CONTRACT` from 1 to 2 and the APK from version 26 to 27, so an older Vyakti APK refuses a web bundle that assumes the renamed bridge.
 
 **Why.** A default character remained reachable through the otherwise generic compiler, and the native project still shipped a second product's application id, strings, source package and updater domain. Either fallback could put the wrong product identity on a Vyakti path even after the web entry was removed.
 
