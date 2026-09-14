@@ -1,4 +1,5 @@
-// WS-R174 (wave twenty-three) — a personal AI's Room walked in Chromium.
+// A personal AI's active Room walked in Chromium, with its text-only
+// predecessor kept on the narrower material-publication surface.
 //
 //   node evals/rehearsal/person-room.mjs
 //
@@ -9,33 +10,18 @@
 // (`DeployStudio.tsx`). Neither ever drove a real signed-in person clicking
 // "Set up your Room" — WS-R162's own STATE.md entry says plainly a real
 // published personal-AI Room "cannot exist yet" on this tree. This file is
-// that walk: sign in as a text-ready person, open Deploy, publish a Room
+// that walk: sign in as an active person, open Deploy, publish a Room
 // through the REAL `RoomStudio` controls, then a SECOND browser context
 // visits `/r/<slug>` as a stranger, joins, asks a question, and gets a real
 // reply — in English and Hindi.
 //
-// ── THE REAL BREAK THIS WALK FOUND, FIXED AT ITS CAUSE ─────────────────────
+// ── THE DEPLOY CAPABILITY BOUNDARY ─────────────────────────────────────────
 //
-// `ExpertSharePanel.tsx` (the screen `CloneExperience.tsx` mounts for the
-// bottom nav's "Share" tab) only ever rendered `DeployStudio` when
-// `voiceWorkspaceReady` was true — a completed VOICE pipeline. A text-ready
-// person (an approved HumanOS sheet, no voice recorded at all — WS-R161/167's
-// own `textReady`) had NO route to Deploy/RoomStudio through the real UI: the
-// tab bar showed (`RoomNav`'s own `voiceWorkspaceReady || textReady` gate),
-// the Share tab was clickable, but it always rendered the pre-voice
-// `MaterialSharePanel` instead — regardless of how ready the person's own
-// sheet was. `RoomStudio`'s own publish predicate
-// (`api/_room-publish.js#publishBlockers`) has never depended on voice at
-// all (an active runtime capability, Readiness, and an approved disclosure —
-// none of the three is a voice fact), so nothing about the DOOR this screen
-// calls needed to change; only the CLIENT gate deciding whether to mount it
-// did. Fixed: `ExpertSharePanel` now renders `DeployStudio` on
-// `voiceWorkspaceReady || textReady`, and the sibling "back to knowledge"
-// button above it is suppressed on the same widened condition (it read
-// `!voiceWorkspaceReady` alone, which would have put a redundant button
-// above Deploy for a text-ready person now that this screen is reachable).
-// See `context/rejected.md#ws-r174-expertsharepanel-showed-deploy-only-for-
-// voiceworkspaceready-never-textready`.
+// `RoomStudio` calls `_room-publish.js`, whose authority is an active runtime
+// capability. `text_ready` is a separate text capability. The first page in
+// each locale therefore proves that a text-ready, inactive person sees
+// `MaterialSharePanel`; the same fixture is then advanced to a fully active
+// voice runtime before the Room publish and visitor walk begins.
 //
 // ── WHAT IS DRIVEN THROUGH THE BROWSER, AND WHAT THROUGH A FIXTURE SHORTCUT
 //    (named here rather than left to be inferred) ──────────────────────────
@@ -124,7 +110,8 @@ const { freshRehearsalCreatorState, rehearsalCreatorDb, loadFixtureAgent } = awa
 );
 const { USER_A, USER_B, PERSON_A, PERSON_B } = await import(pathToFileURL(join(ROOT, "evals/room/fixtures.mjs")).href);
 const { READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } = await import(pathToFileURL(join(ROOT, "api/_readiness.js")).href);
-const { OWNED_TEXT_PROFILE_SQL } = await import(pathToFileURL(join(ROOT, "api/_replica-runtime.js")).href);
+const { OWNED_TEXT_PROFILE_SQL, RUNTIME_QUALIFICATION_SUITES } = await import(pathToFileURL(join(ROOT, "api/_replica-runtime.js")).href);
+const VOICE_SOURCE_ID = "a7100000-0000-4000-8000-000000000001";
 
 let builtOnce = false;
 function ensureBuilt() {
@@ -228,16 +215,32 @@ function personRuntimePatterns(state, sql, params, has) {
     const approvedProfile = (state.personProfiles || [])
       .filter((p) => p.replica_id === rid && p.status === "approved")
       .sort((a, b) => b.version - a.version)[0];
+    const voiceActive = state.personVoiceActive === true;
     return [{
-      replica_id: replica.replica_id, subject_mode: replica.subject_mode, lifecycle: replica.lifecycle,
-      subject_person_id: replica.subject_person_id || null, age_verified_at: null, identity_verified_at: null, liveness_verified_at: null,
-      identity_expires_at: null, person_age_tier: null,
+      replica_id: replica.replica_id, subject_mode: replica.subject_mode, lifecycle: voiceActive ? "active" : replica.lifecycle,
+      subject_person_id: replica.subject_person_id || null,
+      age_verified_at: voiceActive ? new Date().toISOString() : null,
+      identity_verified_at: voiceActive ? new Date().toISOString() : null,
+      liveness_verified_at: voiceActive ? new Date().toISOString() : null,
+      identity_expires_at: voiceActive ? new Date(Date.now() + 86_400_000).toISOString() : null,
+      person_age_tier: voiceActive ? "adult_verified" : null,
       account_person_matches: Boolean(replica.subject_person_id), inference_consent: inferenceConsent,
       profile_version: approvedProfile ? approvedProfile.version : null, profile_approved: Boolean(approvedProfile),
-      calibration_version: null, calibration_approved: false,
-      genome_version: null, genome_approved: false, genome_latest_version: null, genome_latest_status: null,
-      voice_profile_id: null, voice_ready: false, test_voice: false, qualification_passed: 0,
-      fidelity_status: null, candidate_binding_required: false,
+      calibration_version: voiceActive ? 1 : null, calibration_approved: voiceActive,
+      genome_version: voiceActive ? 1 : null, genome_approved: voiceActive,
+      genome_latest_version: voiceActive ? 1 : null, genome_latest_status: voiceActive ? "approved" : null,
+      voice_profile_id: voiceActive ? "a7200000-0000-4000-8000-000000000001" : null,
+      voice_ready: voiceActive, test_voice: false,
+      qualification_passed: voiceActive ? RUNTIME_QUALIFICATION_SUITES.length : 0,
+      fidelity_qualified: voiceActive, fidelity_status: voiceActive ? "pass" : null,
+      fidelity_score: voiceActive ? { mean: 0.9, p10: 0.85, worst: 0.82, windows: 4 } : null,
+      fidelity_computed_at: voiceActive ? new Date().toISOString() : null,
+      readiness_qualified: voiceActive, readiness_overall: voiceActive ? 90 : null,
+      readiness_min_part: voiceActive ? 85 : null, readiness_unmeasured: voiceActive ? 0 : null,
+      readiness_computed_at: voiceActive ? new Date().toISOString() : null,
+      capability_state: voiceActive ? "active" : null,
+      capability_activated_at: voiceActive ? new Date().toISOString() : null,
+      candidate_binding_required: false, candidate_runtime_authorized: true,
     }];
   }
   if (sql === OWNED_TEXT_PROFILE_SQL) {
@@ -306,6 +309,28 @@ async function startServer(state) {
 
       const door = doors[pathname];
       if (door) { await door(req, res); return; }
+
+      if (pathname === "/api/replica-source") {
+        const source = {
+          source_id: VOICE_SOURCE_ID, replica_id: state.replicas[0]?.replica_id,
+          kind: "audio", capture_mode: "live_challenge", mime: "audio/wav", byte_size: 48_000,
+          state: "ready", contains_third_parties: false, voice_role: "primary", rejection_code: "",
+          created_at: "2026-09-14T00:00:00.000Z", updated_at: "2026-09-14T00:00:00.000Z",
+        };
+        return res.status(200).json({ sources: state.personVoiceActive ? [source] : [] });
+      }
+      if (pathname === "/api/replica-review") {
+        const genome = {
+          version: 1, status: "approved", source_set_hash: "a".repeat(64), manifest_hash: "b".repeat(64),
+          builder_version: "person-room-fixture/v1", embedding_families: 1, target_segments: 1,
+          enrollment_artifacts: 1, source_ids: [VOICE_SOURCE_ID], references: [], created_at: "2026-09-14T00:00:00.000Z",
+        };
+        return res.status(200).json({ review: state.personVoiceActive ? {
+          replica_id: state.replicas[0]?.replica_id, self_test_mode: false,
+          sources: [], jobs: [], attempts: [], artifacts: [], evidence: [], builds: [], voice_genomes: [genome],
+          voice_genome_readiness: { ready: true, blockers: [], reviewed_real_evidence: 1, embedding_families: 1, voice_measurements: 1, quality_measurements: 1, speaker_segments: 1 },
+        } : null });
+      }
 
       if (pathname === "/api/room" && (req.method === "POST" || req.method === "OPTIONS")) {
         return await roomHandler(req, res);
@@ -406,6 +431,7 @@ async function walkLocale(locale) {
   // state; this walk seeds the RESULT directly, its own subject being the
   // screen one step past it (this file's own header).
   state.personProfiles = [{ replica_id: rid, version: 1, source_set_hash: "seed", definition: {}, status: "approved", created_at: now }];
+  state.personVoiceActive = false;
   // Room create needs an agent — minted opaquely at real runtime activation
   // in production (out of scope here, `evals/rehearsal/personal.mjs`'s own
   // Deploy section takes the identical shortcut for the identical reason).
@@ -416,7 +442,8 @@ async function walkLocale(locale) {
   });
   const runtimeBody = await runtimeCheck.json().catch(() => ({}));
   ok(`${locale}: the real /api/replica-runtime door reports text_ready true for the seeded person`,
-    runtimeCheck.status === 200 && runtimeBody?.runtime?.text_ready === true, JSON.stringify(runtimeBody?.runtime));
+    runtimeCheck.status === 200 && runtimeBody?.runtime?.text_ready === true && runtimeBody?.runtime?.active === false,
+    JSON.stringify(runtimeBody?.runtime));
 
   const fakeMicArgs = [];
   const launched = await launchRehearsalBrowser(fakeMicArgs);
@@ -442,9 +469,18 @@ async function walkLocale(locale) {
     await page.getByText(new RegExp(`^${shareLabel}$`)).first().click({ timeout: 15_000 });
 
     const setupLabel = locale === "hi" ? "अपना रूम बनाएं" : "Set up your Room";
+    await page.locator("#material-share-title").waitFor({ state: "visible", timeout: 15_000 });
+    ok(`${locale}: text_ready without an active runtime opens material sharing, never RoomStudio`,
+      await page.getByRole("button", { name: setupLabel }).count() === 0);
+
+    state.personVoiceActive = true;
+    replica.lifecycle = "active";
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByText(new RegExp(`^${shareLabel}$`)).first().click({ timeout: 15_000 });
+
     const setupButton = page.getByRole("button", { name: setupLabel });
     await setupButton.waitFor({ state: "visible", timeout: 15_000 });
-    ok(`${locale}: the real Share tab opened Deploy (RoomStudio's "Set up your Room" is reachable for a TEXT-ready person, the break this walk found and fixed)`, true);
+    ok(`${locale}: the real Share tab opens RoomStudio only after the runtime becomes active`, true);
 
     const [createResponse] = await Promise.all([
       page.waitForResponse((r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "create", { timeout: 15_000 }),

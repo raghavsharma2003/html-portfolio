@@ -13,21 +13,21 @@ const voiceFieldCss = readFileSync(resolve(root, "src/studio/voice-field.css"), 
 const mark = readFileSync(resolve(root, "src/studio/VyaktiMark.tsx"), "utf8");
 const videoEnroll = readFileSync(resolve(root, "src/studio/VideoEnrollPanel.tsx"), "utf8");
 const contextLocker = readFileSync(resolve(root, "src/studio/ContextLockerPanel.tsx"), "utf8");
+const studioCopy = readFileSync(resolve(root, "src/studio/copy.ts"), "utf8");
 let checks = 0;
 const ok = (label, value) => { assert.ok(value, label); console.log(`ok ${++checks} - ${label}`); };
 
 ok("an active replacement saga suppresses old-primary rooms",
-  /voiceWorkspaceReady = Boolean\(selected && consentActive && !voiceSaga && currentVoiceReady/.test(experience));
-ok("knowledge can open independently while voice workspace authority stays unchanged",
+  /voiceWorkspaceReady = Boolean\(selected && consentActive && !voiceSaga && runtimeStatus\?\.active[\s\S]*?&& currentVoiceReady/.test(experience));
+ok("knowledge can open independently while voice workspace authority stays exact",
   /knowledgeOpen = Boolean\(selected && consentActive && room === "enrich" && !upload\)/.test(experience)
   && /textWorkspaceOpen = knowledgeOpen \|\| textShareOpen \|\| textReviewOpen/.test(experience)
   && /showRooms = voiceWorkspaceReady \|\| textWorkspaceOpen/.test(experience)
+  && /firstMeetSurface\(\{ voiceWorkspaceReady, textReady/.test(experience)
   // WS-R161 (wave twenty-two): RoomNav's own gate widened, on purpose, to
   // ALSO open on `textReady` (an approved person sheet, Meet opens with no
-  // voice recorded) -- `voiceWorkspaceReady` itself is still the exact,
-  // untouched first operand this check's own name asks for ("voice
-  // workspace authority stays unchanged"), now OR'd with the new clause
-  // rather than replaced.
+  // voice recorded) -- `voiceWorkspaceReady` remains the exact first
+  // operand, with the active runtime requirement asserted above.
   && /\(voiceWorkspaceReady \|\| textReady\) && <RoomNav/.test(experience)
   && /captureState === "idle" && !sample && onKnowledge/.test(experience));
 ok("the replacement candidate resolves only by its exact source or upload intent",
@@ -39,7 +39,7 @@ ok("a finalized idempotent replay skips private PUT and finalize",
   && /if \(!operation\.finalized\) \{[\s\S]*?onFinalizeUpload/.test(experience));
 ok("a missing saga receipt exposes two owner recovery actions",
   /showSagaRecovery = Boolean\(selected && consentActive && voiceSaga && !activeCandidate && !upload\)/.test(experience)
-  && /Check private receipt/.test(experience) && /Start again/.test(experience));
+  && /copy\.sagaRecovery\.checkReceipt/.test(experience) && /copy\.sagaRecovery\.startAgain/.test(experience));
 ok("an older draft cannot complete a candidate without its promoted build intent",
   /candidatePromoted = !candidateSourceId \|\| Boolean\(buildIntent/.test(verification)
   && /exactDraftReady && candidatePromoted/.test(verification));
@@ -62,8 +62,8 @@ ok("the app uses the verified Vyakti wordmark and official neutral brand palette
   && /--vx-paper:\s*#f8f8f5/.test(experienceCss)
   && /--vx-brand-ember:\s*#b93627/.test(experienceCss));
 ok("invented upload phase percentages are absent outside byte transfer",
-  /upload\.phase === "hash" \? "Checking recording"/.test(experience)
-  && /upload\.phase === "upload" \? `Uploading \$\{upload\.progress\}%`/.test(experience));
+  /upload\.phase === "hash" \? copy\.upload\.checkingRecording/.test(experience)
+  && /upload\.phase === "upload" \? copy\.upload\.uploadingPercentTemplate\.replace/.test(experience));
 ok("reduced motion removes drawer travel, room blur travel, and live ray movement",
   /initial=\{reduceMotion \? false : \{ x: "-102%" \}\}/.test(experience)
   && /className="vx-scene vx-room"[\s\S]*?initial=\{reduceMotion \? false/.test(experience)
@@ -72,8 +72,9 @@ ok("the branded home target and short-landscape copy keep their mobile floors",
   /\.vx-wordmark\s*\{[\s\S]*?min-height:\s*44px/.test(experienceCss)
   && /@media \(max-height: 680px\)[\s\S]*?\.vx-stage-title p\s*\{[\s\S]*?font-size:\s*13px/.test(experienceCss));
 ok("identity copy does not claim that a document proves voice ownership",
-  /confirms your age and identity\. A separate live check connects you to the recording\./.test(verification)
-  && !/ID[\s\S]{0,120}voice belongs to you/.test(verification));
+  /copy\.addBody/.test(verification)
+  && /confirms your age and identity\. A separate live check connects you to the recording\./.test(studioCopy)
+  && !/ID[\s\S]{0,120}voice belongs to you/.test(studioCopy));
 
 const harness = readFileSync(resolve(root, "evals/clone-experience-qa/harness.tsx"), "utf8");
 ok("the deterministic rooms fixture carries no active replacement saga",

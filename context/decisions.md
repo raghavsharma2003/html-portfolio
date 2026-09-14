@@ -25286,3 +25286,11 @@ The sponsored Azure subscription and working Speech/Foundry access do not resolv
 ## wave25-cloud-build-submitted-20260914-decision
 
 Build the exact committed worker source on the existing sponsored subscription with CPU 2 and a 1200-second timeout. Activation remains separate and requires release acceptance. Reverse the source pin only after a reviewed source change and a new immutable package; do not equate runtime limits with a dollar cap.
+
+## `wave25-first-journey-uses-existing-text-authorities` (2026-09-14, wave 25)
+
+**Decision.** Before a personal workspace has either `text_ready` or an active voice capability, Meet may enter the existing `PrivateTextRehearsal` ceremony only after the studio has observed a saved sheet and at least one Context Locker text item. The ceremony's own server readiness remains authoritative for the exact sheet, source, canonical evidence, capture and storage receipts, and per-question attestations. Once `text_ready` or voice is active, Meet keeps the standard `ExpertConversation` path. Deploy mounts RoomStudio only for `voiceWorkspaceReady`; every no-voice workspace keeps MaterialSharePanel. A Room visitor signs in by email OTP first, matching the enabled provider, with Google retained as a separately configured alternative.
+
+**Why.** The standard dialogue door requires `inference` consent, and that consent is granted only by the verified biometric ceremony. The private rehearsal already has the narrower authority needed for a first text answer and cannot grant voice, training, inference or publication. Room publication separately requires an active `vy_replica_runtime_capability`; `vy_replica_text_capability` cannot satisfy it. Routing each surface through the authority its backend consumes creates a usable first journey without weakening the biometric voice gates or inventing a new consent scope.
+
+**Reversal.** A text-ready workspace may enter RoomStudio only after the Room publish and visitor reply doors explicitly accept a versioned text capability and focused negative controls prove that it cannot be confused with voice authority. The private rehearsal may be replaced as first Meet only by a narrower or equivalent server-enforced text ceremony with the same source and consent revocation fences.

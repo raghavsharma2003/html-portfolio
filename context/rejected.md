@@ -18992,3 +18992,13 @@ A 30-second UI timer was rejected as zero-margin: browser scheduling and upload 
 ## wave25-cloud-build-submitted-20260914-rejection
 
 Read-only review initially inferred that a code-entry form meant magic-link mail could not complete. Root inspected both session restorers and found access-token hash callbacks already implemented. The actual source gap is send_otp omitting redirect_to; current Supabase site URL and allowlist are unverified. Correct the destination rather than duplicating callback code or demanding an unnecessary owner code-versus-link choice.
+
+## `wave25-text-ready-is-not-room-publish-authority` (2026-09-14, wave 25)
+
+**Tried.** The personal Deploy surface treated `text_ready` as enough to mount RoomStudio, and the person-Room rehearsal encoded that route as expected behavior.
+
+**What specifically broke.** `text_ready` records `vy_replica_text_capability`, while `api/_room-publish.js` checks an active `vy_replica_runtime_capability` and readiness before publishing. A no-voice owner therefore reached a control the real backend had to refuse. The same journey audit found the public Room offering phone OTP first even though the live auth configuration had email enabled and phone disabled.
+
+**What replaced it.** No-voice Deploy uses the existing material publication ceremony, voice-ready Deploy keeps RoomStudio, and the Room join sheet calls the existing email OTP functions. The earlier text-only person-Room browser premise must be retained as a voice-active Room journey or rewritten around material publication; restoring the false client gate is not an acceptable test fix.
+
+**The rule.** A client readiness flag may open only the backend capability that actually consumes it. A broader-looking label such as `text_ready` cannot stand in for a distinct runtime capability, and a sign-in screen must lead with a provider verified enabled in the deployed auth project.

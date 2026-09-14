@@ -18893,3 +18893,7 @@ The mirrored UI constants are 25 seconds while identity_audio.py remains RATE * 
 ## wave25-cloud-build-submitted-20260914-measurement
 
 2026-09-14, n=1 actual Azure build submission. Exact source95f4be92, archive SHA256 a74d30e2713d0e1e19e5edab262e92e24860f2d76a04801f2ed89449ddb6d8ae; all61 source files independently match79e6c085. ARM recorded run cu3t; two read-only polls observed Queued. No image acceptance, Job update, GPU wake or runtime execution. Ignored receipt STANDALONE25-PROCESSING-ACR-INTENT-V3.json preserves the sole submission.
+
+## `wave25-first-journey-surface-controls-20260914`
+
+2026-09-14. Offline and local browser verification from exact integration base `6f0ab212`: forced TypeScript passed; Vite transformed 751 modules and completed; the journey-surface control passed 13 new route/capability assertions including inactive-runtime, unfiltered-context and phone-regression mutations; copy passed 6 scopes and 21 negative controls; Room copy passed 19/19; focused Room layout rendered 20 English/Hindi screenshots, judged 242 prose blocks, and glyph-checked 288 Hindi strings. The built first-use private flow passed 18/18 across 390 px and 1440 px, including the complete source-to-answer walk. Visual inspection of the 390 px English join screenshot showed email address and code controls first with Google second. No database statement, model call, cloud mutation, OTP delivery or deployment was performed.

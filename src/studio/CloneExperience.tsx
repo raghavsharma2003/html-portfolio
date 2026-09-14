@@ -3,7 +3,7 @@ import "./voice-field.css";
 import "./clone-verification-journey.css";
 import "./ListeningTest.css";
 import "./emotionos-studio.css";
-import { initialMeetView } from "./workspaceNavigation";
+import { firstMeetSurface, initialMeetView } from "./workspaceNavigation";
 import { readVoiceLikeness } from "./calibrationApi";
 import { ReplicaApiError } from "./replicaApi";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -765,6 +765,18 @@ export default function CloneExperience(props: CloneExperienceProps) {
     : { teach: "Teach your AI", test: "Test this source", back: "Back to private test" };
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [privateTextItems, setPrivateTextItems] = useState<{ replicaId: string; count: number } | null>(null);
+  const onPrivateTextItemCount = useCallback((count: number) => {
+    if (!selected) return;
+    setPrivateTextItems((current) => current?.replicaId === selected.replica_id && current.count === count
+      ? current
+      : { replicaId: selected.replica_id, count });
+  }, [selected?.replica_id]);
+  // This is an entry hint from the exact Context Locker rows, never authority
+  // to ask. PrivateTextRehearsal still rechecks source receipts, evidence and
+  // all three question attestations on the server.
+  const privateTextEntryEligible = Boolean(selected && wizardInput.sheetPersisted
+    && privateTextItems?.replicaId === selected.replica_id && privateTextItems.count > 0);
   // WS-R157: the install card's own state — `installEvent` is the captured
   // `beforeinstallprompt` (null on every browser that never fires one, iOS
   // included by design), `installReady`/`installDismissed` come from
@@ -1305,7 +1317,12 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const showRecorder = Boolean(selected && consentActive && !voiceSaga && !activeCandidate && !upload
     && (textReady ? replacePrimary : (!currentPrimary || replacePrimary)));
   const showVerification = Boolean(selected && consentActive && activeCandidate && !upload);
-  const voiceWorkspaceReady = Boolean(selected && consentActive && !voiceSaga && currentVoiceReady && !replacePrimary && !upload);
+  const voiceWorkspaceReady = Boolean(selected && consentActive && !voiceSaga && runtimeStatus?.active
+    && currentVoiceReady && !replacePrimary && !upload);
+  const privateFirstMeet = Boolean(selected && consentActive && room === "voice" && meetView === "conversation"
+    && !voiceSaga && !activeCandidate && !upload && !replacePrimary
+    && firstMeetSurface({ voiceWorkspaceReady, textReady, hasSavedSheet: wizardInput.sheetPersisted,
+      hasTextMaterial: privateTextEntryEligible }) === "private-rehearsal");
   const showRooms = voiceWorkspaceReady || textWorkspaceOpen || (textReady && !upload && !voiceSaga && !activeCandidate);
   const readBlocked = workspaceReadState !== "ready" || Boolean(selected && !creatingNew && !agreementBusy && room !== "rehearsal" && consentReadState !== "ready");
 
@@ -1317,7 +1334,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const firstFiveMinutesStepId = selected && !creatingNew && !readBlocked
     ? firstFiveMinutesStep({
         hasFirstSource: wizardInput.sourceCount > 0 || (wizardInput.contextItemCount ?? 0) > 0,
-        reachedMeet: showRooms,
+        reachedMeet: showRooms || privateFirstMeet,
       })
     : null;
 
@@ -1397,6 +1414,12 @@ export default function CloneExperience(props: CloneExperienceProps) {
             <section className="vx-scene vx-read-state" key="consent-read" aria-live="polite"><div className="vx-stage-title"><h1>{consentReadState === "error" ? copy.readStates.consentError : copy.readStates.consentLoading}</h1></div>{consentReadState === "error" ? <button className="vx-button vx-button--primary" type="button" onClick={onRetryConsent}>{copy.readStates.checkAgain}</button> : <p role="status">{copy.readStates.loadingAgreement}</p>}</section>
           ) : needsAgreement ? (
             <motion.div className="vx-scene" key="agreement" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><Agreement busy={agreementBusy || creating} error={agreementError} onContinue={() => void continueAgreement()} /></motion.div>
+          ) : privateFirstMeet && selected ? (
+            <motion.div className="vx-scene" key={`first-meet-rehearsal:${selected.replica_id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><Suspense fallback={<p role="status">{copy.readStates.openingPrivateDraftTest}</p>}><PrivateTextRehearsal initialDraft={rehearsalReturn.current?.draft} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} onBack={() => { setEnrichView("files"); chooseRoom("enrich"); }} onEditContext={draft => {
+              if (!reissueMounted.current || reissueCurrent.current.identity !== identity || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== selected.replica_id) return;
+              rehearsalReturn.current = { identity, token: accessToken, replicaId: selected.replica_id, draft };
+              setEnrichView("files"); chooseRoom("enrich");
+            }} onAuthError={onAuthError} /></Suspense></motion.div>
           ) : upload ? (
             <motion.section className="vx-scene vx-upload" key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-labelledby="vx-upload-title">
               <div className="vx-stage-title"><h1 id="vx-upload-title">{upload.phase === "failed" ? copy.upload.pausedHeading : copy.upload.securingHeading}</h1><p>{upload.message}</p></div>
@@ -1434,14 +1457,19 @@ export default function CloneExperience(props: CloneExperienceProps) {
                   </section>
                 )
               ) : meetView === "conversation" ? <Suspense fallback={<p role="status">{copy.rooms.voice.openingConversation}</p>}><ExpertConversation key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} runtimeStatus={runtimeStatus} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} /></Suspense> : <VoicePreviewPanel token={accessToken} replicaId={selected.replica_id} wizardInput={wizardInput} onAuthError={onAuthError} testEnvironment onManageSources={() => chooseRoom("enrich")} />}</section>}
-              {room === "share" && <section className="vx-room__panel vx-room__scroll">{!voiceWorkspaceReady && !textReady && <button type="button" className="vx-back" onClick={() => chooseRoom("enrich")}>{copy.rooms.share.backToKnowledge}</button>}<Suspense fallback={<p role="status">{copy.rooms.share.openingSharing}</p>}><ExpertSharePanel key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} voiceWorkspaceReady={voiceWorkspaceReady} textReady={textReady} /></Suspense></section>}
-              {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.backToVoice}</button>}<div className="vx-stage-title"><h1 id="knowledge-menu-title">{copy.rooms.enrich.heading}</h1><p>{copy.rooms.enrich.body}</p></div><div className="vx-enrich-menu">{!voiceWorkspaceReady && <button type="button" onClick={() => chooseRoom("share")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.shareKnowledgeTitle}</strong><small>{copy.rooms.enrich.shareKnowledgeNote}</small></span><Icon name="chevron" /></button>}<button type="button" onClick={() => chooseRoom("rehearsal")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.testDraftTitle}</strong><small>{copy.rooms.enrich.testDraftNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("describe")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.describeMeTitle}</strong><small>{copy.rooms.enrich.describeMeNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("humanos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.whoYouAreTitle}</strong><small>{copy.rooms.enrich.whoYouAreNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("files")}><Icon name="add" /><span><strong>{copy.rooms.enrich.filesTitle}</strong><small>{copy.rooms.enrich.filesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("video")}><Icon name="voice" /><span><strong>{copy.rooms.enrich.videoTitle}</strong><small>{copy.rooms.enrich.videoNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}><Icon name="voice" /><span><strong>{copy.rooms.enrich.improveVoiceTitle}</strong><small>{copy.rooms.enrich.improveVoiceNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => chooseRoom("emotionos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.vibeTitle}</strong><small>{copy.rooms.enrich.vibeNote}</small></span><Icon name="chevron" /></button></div></> : <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>{copy.rooms.enrich.backToChoices}</button>{!voiceWorkspaceReady && <button className="vx-text-button" type="button" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.recordInstead}</button>}{enrichView === "files" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-text-button" onClick={() => chooseRoom("share")}>{copy.rooms.enrich.reviewTextSharing}</button>}{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
+              {room === "share" && <section className="vx-room__panel vx-room__scroll">{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("enrich")}>{copy.rooms.share.backToKnowledge}</button>}<Suspense fallback={<p role="status">{copy.rooms.share.openingSharing}</p>}><ExpertSharePanel key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} voiceWorkspaceReady={voiceWorkspaceReady} /></Suspense></section>}
+              {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}>{copy.rooms.enrich.backToVoice}</button>}<div className="vx-stage-title"><h1 id="knowledge-menu-title">{copy.rooms.enrich.heading}</h1><p>{copy.rooms.enrich.body}</p></div><div className="vx-enrich-menu">{!voiceWorkspaceReady && <button type="button" onClick={() => chooseRoom("share")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.shareKnowledgeTitle}</strong><small>{copy.rooms.enrich.shareKnowledgeNote}</small></span><Icon name="chevron" /></button>}<button type="button" onClick={() => chooseRoom("rehearsal")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.testDraftTitle}</strong><small>{copy.rooms.enrich.testDraftNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("describe")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.describeMeTitle}</strong><small>{copy.rooms.enrich.describeMeNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("humanos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.whoYouAreTitle}</strong><small>{copy.rooms.enrich.whoYouAreNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("files")}><Icon name="add" /><span><strong>{copy.rooms.enrich.filesTitle}</strong><small>{copy.rooms.enrich.filesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("video")}><Icon name="voice" /><span><strong>{copy.rooms.enrich.videoTitle}</strong><small>{copy.rooms.enrich.videoNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}><Icon name="voice" /><span><strong>{copy.rooms.enrich.improveVoiceTitle}</strong><small>{copy.rooms.enrich.improveVoiceNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => chooseRoom("emotionos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.vibeTitle}</strong><small>{copy.rooms.enrich.vibeNote}</small></span><Icon name="chevron" /></button></div></> : <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>{copy.rooms.enrich.backToChoices}</button>{!voiceWorkspaceReady && <button className="vx-text-button" type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}>{copy.rooms.enrich.recordInstead}</button>}{enrichView === "files" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-text-button" onClick={() => chooseRoom("share")}>{copy.rooms.enrich.reviewTextSharing}</button>}{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} onPrivateTextItemCount={onPrivateTextItemCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || source.replicaId !== selected.replica_id || !isPrivateTextId(source.itemId) || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== source.replicaId) return;
                   chooseRoom("evolve");
                 }} testSourceLabel={feedCopy.test} onTestSource={savedRehearsal ? undefined : source => {
                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || source.replicaId !== selected.replica_id || !isPrivateTextId(source.itemId) || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== source.replicaId) return;
                   rehearsalReturn.current = { identity, token: accessToken, replicaId: source.replicaId, draft: { question: rehearsalReturn.current?.draft.question || "", sheetId: rehearsalReturn.current?.draft.sheetId || "", contextItemId: source.itemId } };
-                  chooseRoom("rehearsal");
+                  if (wizardInput.sheetPersisted) {
+                    setMeetView("conversation");
+                    chooseRoom("voice");
+                  } else {
+                    chooseRoom("rehearsal");
+                  }
                 }} /></> : null}{enrichView === "video" ? <VideoEnrollPanel token={accessToken} replicaId={selected.replica_id} onUseFileUpload={() => { setReplacePrimary(true); chooseRoom("voice"); }} /> : null}{enrichView === "describe" ? <DescribeMe token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} onSaved={onContextCount} /> : null}{enrichView === "humanos" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingWhoYouAre}</p>}><HumanOsStudio token={accessToken} replica={selected} onAuthError={onAuthError} /></Suspense> : null}</>}</section>}
               {room === "evolve" && <section className="vx-room__panel vx-room__scroll"><div className="vx-stage-title"><h1>{copy.rooms.evolve.heading}</h1><p>{copy.rooms.evolve.body}</p></div><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.evolve.openingHistory}</p>}><PersonModelStudio token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} /></Suspense></section>}
               {room === "emotionos" && <section className="vx-room__panel vx-room__scroll"><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.emotionos.openingVibe}</p>}><EmotionOsStudio token={accessToken} replicaId={selected.replica_id} replica={selected as { locale?: unknown }} onAuthError={onAuthError} onBack={() => chooseRoom("enrich")} /></Suspense></section>}
