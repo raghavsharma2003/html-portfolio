@@ -2640,11 +2640,8 @@ const EN: StudioCopy = {
     eyebrow: "Your Room",
     loadingTitle: "Loading your Room",
     checkingExists: "Checking whether your Room exists yet.",
-    setupTitle: "Set up the place your AI lives",
-    setupIntro:
-      "A Room is a private, continuing address for every follower who talks to your AI. It remembers each " +
-      "of them, on its own, and never shows one follower to another. Set it up once, then publish it when " +
-      "the gates below are clear.",
+    setupTitle: "Set up your Room",
+    setupIntro: "Give each person a private place to talk with your AI. When everything looks right, publish it and share the link.",
     settingUp: "Setting up...",
     setupButton: "Set up your Room",
     liveTitle: "The place your AI lives",

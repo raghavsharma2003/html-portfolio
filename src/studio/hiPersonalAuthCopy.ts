@@ -43,7 +43,7 @@ export const HI_PERSONAL_AUTH_COPY: PersonalAuthCopy = {
   workspaceLoadError: "आपका स्टूडियो खुल नहीं सका। आपका साइन-इन अभी भी सुरक्षित है। फिर खोलने के लिए दोबारा कोशिश करें।",
   retryWorkspace: "फिर कोशिश करें",
   legalNotice: "साइन इन के बाद आप चुनेंगे कि आपका AI क्या इस्तेमाल कर सकता है।",
-  visualAlt: "अपने स्टूडियो में एक विचार समझाती शिक्षिका का चित्र",
+  visualAlt: "हल्की चांदी जैसी रोशनी में चमकते घुमावदार कांच के पैनल",
   visualCaptions: { knowledge: "आपका ज्ञान।", voice: "आपकी आवाज़।", people: "आपके लोग।" },
   variant: {
     generic: { brandTag: "आपका निजी AI", introEyebrow: "", introTitle: "आपकी विशेषज्ञता। आपका अपना अंदाज़।", introBody: "अपने ज्ञान और आवाज़ वाला AI बनाएं, जो हर व्यक्ति से हुई बातों को याद रखे।" },

@@ -44,7 +44,7 @@ const EN_PERSONAL_AUTH_COPY: PersonalAuthCopy = {
   workspaceLoadError: "Your studio could not open. Your sign-in is still saved. Try again to reopen it.",
   retryWorkspace: "Try again",
   legalNotice: "After sign-in, you choose what your AI can use.",
-  visualAlt: "Illustration of an educator explaining an idea in her studio",
+  visualAlt: "Luminous curved glass panels in soft silver light",
   visualCaptions: { knowledge: "Your knowledge.", voice: "Your voice.", people: "Your people." },
   variant: {
     generic: { brandTag: "PERSONAL AI", introEyebrow: "", introTitle: "Your expertise. More personal.", introBody: "Create an AI with your knowledge, your voice, and a memory for each person." },

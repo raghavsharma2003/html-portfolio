@@ -22,6 +22,7 @@
   }
 }
 
+
 @layer components {
   .processing-review {
     display: grid;
@@ -211,27 +212,27 @@
   :root {
     color-scheme: light;
     font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    color: #171915;
-    background: #f4f1e9;
+    color: #161817;
+    background: #f7f7f4;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
-    --paper: #f4f1e9;
-    --paper-deep: #ebe6da;
-    --panel: rgba(255, 254, 249, 0.9);
-    --panel-solid: #fffef9;
-    --ink: #171915;
-    --ink-soft: #52564e;
-    --ink-faint: #7a7e74;
-    --line: rgba(28, 32, 26, 0.12);
-    --line-strong: rgba(28, 32, 26, 0.22);
-    --forest: #17493b;
-    --forest-deep: #0e352a;
-    --forest-soft: #e1eee7;
+    --paper: #f7f7f4;
+    --paper-deep: #eceeea;
+    --panel: rgba(255, 255, 255, 0.86);
+    --panel-solid: #ffffff;
+    --ink: #161817;
+    --ink-soft: #4f5651;
+    --ink-faint: #626a64;
+    --line: rgba(28, 34, 30, 0.12);
+    --line-strong: rgba(28, 34, 30, 0.22);
+    --forest: #245746;
+    --forest-deep: #173f33;
+    --forest-soft: #e7ede9;
     --signal: #ed693d;
     --signal-soft: #fce9df;
     --danger: #9d302d;
     --danger-soft: #f9e9e5;
-    --shadow: 0 24px 70px rgba(41, 43, 35, 0.1), 0 3px 12px rgba(41, 43, 35, 0.04);
+    --shadow: 0 30px 78px rgba(30, 38, 33, 0.1), 0 3px 12px rgba(30, 38, 33, 0.04);
     --radius-sm: 12px;
     --radius: 20px;
     --radius-lg: 28px;
@@ -247,7 +248,7 @@
     min-height: 100vh;
     min-height: 100svh;
     background:
-      radial-gradient(circle at 80% 0%, rgba(231, 165, 117, 0.16), transparent 29rem),
+      radial-gradient(circle at 82% 0%, rgba(196, 202, 198, 0.32), transparent 31rem),
       var(--paper);
   }
 
@@ -4732,5 +4733,123 @@
     .queue-language { align-items: stretch; flex-direction: column; }
     .queue-language select { width: 100%; }
     .source-language-label { align-items: flex-start; flex-direction: column; }
+  }
+}
+
+/* Premium journey shell: pearl surfaces, silver depth, and one restrained accent. */
+@layer components {
+  .studio-shell {
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 86% 0%, rgba(198, 204, 200, 0.28), transparent 32rem),
+      var(--paper);
+  }
+
+  .studio-header {
+    height: 72px;
+    border-bottom-color: rgba(28, 34, 30, 0.09);
+    padding-inline: clamp(20px, 3vw, 42px);
+    background: rgba(248, 248, 246, 0.84);
+    backdrop-filter: blur(22px) saturate(145%);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+
+  .studio-logo small,
+  .account-copy small { font-size: var(--text-micro); }
+
+  .studio-layout { grid-template-columns: 292px minmax(0, 1fr); }
+
+  .studio-rail {
+    top: 72px;
+    height: calc(100svh - 72px);
+    padding: 24px 16px;
+    border-right: 1px solid rgba(28, 34, 30, 0.09);
+    background: linear-gradient(180deg, rgba(238, 240, 237, 0.9), rgba(245, 246, 243, 0.72));
+  }
+
+  .studio-rail .replica-rail {
+    height: auto;
+    border-right: 0;
+    padding: 22px 0 0;
+    background: transparent;
+  }
+
+  .studio-main {
+    width: min(100%, 1260px);
+    padding: clamp(38px, 5vw, 74px) clamp(28px, 5.6vw, 82px) 112px;
+  }
+
+  .workspace-heading { margin-bottom: 36px; }
+  .workspace-heading h1 {
+    font-size: clamp(42px, 5vw, 66px);
+    line-height: 1.02;
+  }
+
+  .wizard-step {
+    border-color: rgba(28, 34, 30, 0.09);
+    background: rgba(255, 255, 255, 0.4);
+  }
+  .wizard-step:hover { background: rgba(255, 255, 255, 0.72); }
+  .wizard-step.current {
+    border-color: rgba(36, 87, 70, 0.24);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 32px rgba(31, 40, 35, 0.08);
+  }
+
+  .empty-card {
+    min-height: 540px;
+    gap: clamp(38px, 7vw, 94px);
+    border-color: rgba(28, 34, 30, 0.1);
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(18px) saturate(130%);
+  }
+
+  .portrait-placeholder {
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    border-radius: 24px;
+    background: url("/expert/auth-silver-1200.webp") 61% 50% / cover no-repeat, var(--paper-deep);
+    box-shadow: 0 28px 68px rgba(31, 39, 34, 0.14);
+  }
+  .portrait-placeholder::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px rgba(23, 28, 25, 0.05);
+  }
+  .portrait-placeholder .scan-ring,
+  .portrait-placeholder .portrait-core { display: none; }
+
+  .deferred-workspace {
+    min-height: 280px;
+    border: 1px solid rgba(28, 34, 30, 0.1);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.74);
+    box-shadow: 0 22px 60px rgba(30, 38, 33, 0.07);
+  }
+
+  .skeleton { background: rgba(64, 72, 67, 0.09); }
+  .skeleton::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent); }
+  .skeleton-card,
+  .skeleton-panel,
+  .skeleton-enrollment { border: 1px solid rgba(28, 34, 30, 0.05); }
+
+  .button,
+  .signout-button,
+  .wizard-step,
+  .replica-tab { transition: background var(--motion-quick) var(--ease-standard), border-color var(--motion-quick) var(--ease-standard), color var(--motion-quick) var(--ease-standard), opacity var(--motion-quick) var(--ease-standard), transform var(--motion-instant) var(--ease-standard); }
+}
+
+@layer responsive {
+  @media (max-width: 590px) {
+    .studio-header { height: 68px; padding-inline: 16px; }
+    .studio-main { padding: 32px 18px 92px; }
+    .workspace-heading { margin-bottom: 24px; }
+    .workspace-heading h1 { font-size: 38px; }
+    .empty-card { min-height: 0; padding: 20px; gap: 26px; }
+    .portrait-placeholder { width: 100%; aspect-ratio: 2.35 / 1; border-radius: 18px; background-position: 61% 50%; }
+    .deferred-workspace { min-height: 220px; padding: 24px; }
   }
 }

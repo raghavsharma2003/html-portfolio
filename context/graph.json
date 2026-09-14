@@ -20247,6 +20247,24 @@
       "kind": "rejection",
       "title": "Conservative unknown language silently changed the measured baseline",
       "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-premium-journey-uses-pearl-silver-and-human-imagery",
+      "kind": "decision",
+      "title": "Use pearl, silver and human brand imagery for the internal journey",
+      "at": "context/decisions.md#wave25-premium-journey-uses-pearl-silver-and-human-imagery"
+    },
+    {
+      "id": "wave25-premium-journey-visual-pass-20260914",
+      "kind": "measurement",
+      "title": "Premium journey rendered at mobile and desktop sizes",
+      "at": "context/measurements.md#wave25-premium-journey-visual-pass-20260914"
+    },
+    {
+      "id": "wave25-green-everywhere-and-a-scanning-you-orb-are-not-premium",
+      "kind": "rejection",
+      "title": "Green styling and the scanning YOU orb do not serve the product",
+      "at": "context/rejected.md#wave25-green-everywhere-and-a-scanning-you-orb-are-not-premium"
     }
   ],
   "edges": [
@@ -34482,6 +34500,21 @@
       "src": "wave25-unmatched-cfg-zero-is-not-baseline",
       "rel": "constrains",
       "dst": "wave25-reuse-recorded-owner-voice-anchor"
+    },
+    {
+      "src": "wave25-premium-journey-uses-pearl-silver-and-human-imagery",
+      "rel": "measured_by",
+      "dst": "wave25-premium-journey-visual-pass-20260914"
+    },
+    {
+      "src": "wave25-green-everywhere-and-a-scanning-you-orb-are-not-premium",
+      "rel": "caused_by",
+      "dst": "wave25-premium-journey-uses-pearl-silver-and-human-imagery"
+    },
+    {
+      "src": "wave25-owner-prioritizes-private-internal-product",
+      "rel": "constrains",
+      "dst": "wave25-premium-journey-uses-pearl-silver-and-human-imagery"
     }
   ]
 }

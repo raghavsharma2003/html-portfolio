@@ -59,14 +59,14 @@
 
 @layer components {
   :root {
-    --vx-paper: #f8f8f5;
-    --vx-paper-deep: #efefea;
-    --vx-ink: #0c0e0d;
-    --vx-muted: #50524f;
-    --vx-line: #d7d7d0;
-    --vx-green: #1f6b54;
-    --vx-green-bright: #2d866c;
-    --vx-green-soft: #dfece6;
+    --vx-paper: #f7f7f4;
+    --vx-paper-deep: #eceeea;
+    --vx-ink: #161817;
+    --vx-muted: #4f5651;
+    --vx-line: #d7dad6;
+    --vx-green: #245746;
+    --vx-green-bright: #39735f;
+    --vx-green-soft: #e7ede9;
     --vx-blue: #4e8ee6;
     --vx-danger: #b93627;
     --vx-brand-ember: #b93627;
