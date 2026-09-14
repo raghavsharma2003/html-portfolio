@@ -6,6 +6,7 @@
 // cross-agent leak can otherwise be silent: pending-log selection and the
 // consolidation watermark.
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { splitSql } from "../../db/migrations/apply.mjs";
@@ -204,6 +205,18 @@ function scopedRawStatement(sql) {
   return s.includes("agentScopePredicate(") || /\bagent_id\s*=/.test(s);
 }
 
+// Person-wide forget deliberately spans agents (purgeRelational's contract).
+// Its raw UPDATE only clears cursors to the same person's doomed episodes;
+// it returns no raw content and preserves each surviving row's agent identity.
+// Pin the entire reviewed statement, not a keyword exception. Any SQL change
+// requires renewed scope review. Actual PostgreSQL behavior is independently
+// covered by wave25's source-pinned rollback proof; this is a source scanner.
+const PERSON_FORGET_REPAIR_SHA256 = "d33cea0ef590316887c48b7627e3a0b7821759eae9f1449b60548ab4ad26c1ef";
+function personForgetRepair(file, sql) {
+  return file === "api/memory.js" &&
+    createHash("sha256").update(norm(sql)).digest("hex") === PERSON_FORGET_REPAIR_SHA256;
+}
+
 console.log("\n-- R4 production call-site coverage --");
 {
   const files = [
@@ -217,17 +230,33 @@ console.log("\n-- R4 production call-site coverage --");
   const fullEraseException = "delete from ${t(\"meera_log\")} where speaker_person_id = $1 and group_id is not null";
   const misses = [];
   let covered = 0;
+  const personRepairs = [];
   for (const file of files) {
     for (const sql of sqlTemplates(read(file))) {
       const s = norm(sql);
       if (!RAW.some((table) => new RegExp(`\\b${table}\\b`).test(s))) continue;
       if (s.startsWith(fullEraseException)) continue; // all-agent data-subject erase, not relationship forget
+      if (personForgetRepair(file, sql)) { personRepairs.push(sql); continue; }
       if (scopedRawStatement(sql)) covered++;
       else misses.push(`${file}: ${s.slice(0, 140)}`);
     }
   }
   check(covered >= 25, "all expected raw runtime statements were scanned", `${covered} scoped statements`);
   check(misses.length === 0, "no unscoped raw runtime statement", misses.join(" | "));
+  check(personRepairs.length === 1, "exactly one reviewed person-wide cursor repair is recognized");
+  const repair = personRepairs[0] || "";
+  const unsafeRepairs = [
+    ["seed person boundary removed", repair.replace("where person_id = $1 and id = any($2::bigint[])", "where id = any($2::bigint[])")],
+    ["lineage person boundary removed", repair.replace("e.person_id = $1 and", "true and")],
+    ["raw cursor update widened", repair.replace("where l.episode_id in (select id from doomed)", "where true")],
+    ["wake agent identity replaced", repair.replace("select l.agent_id,$1::uuid", "select null,$1::uuid")],
+  ];
+  for (const [label, brokenRepair] of unsafeRepairs) {
+    check(repair !== brokenRepair && !personForgetRepair("api/memory.js", brokenRepair),
+      `negative control: person repair refuses ${label}`);
+  }
+  check(!personForgetRepair("api/consolidate.js", repair),
+    "negative control: person repair is not allowed in another runtime file");
   const fetchSource = read("api/consolidate.js").match(/select l\.id[\s\S]*?order by l\.id asc limit \$2`/)?.[0] || "";
   const broken = fetchSource.replace(/\$\{agentScopePredicate\([^\n]+\)\}/, "");
   check(scopedRawStatement(fetchSource) && !scopedRawStatement(broken), "negative control: call-site checker catches a missing predicate");
