@@ -195,7 +195,12 @@ try {
       ['if (providerStarted || spendBeginState === "attempted_unknown") await markFoundrySpendUncertain','if (false) await markFoundrySpendUncertain'],
       ['can_voice: evidence.length === 0 && !runtime.capability.private_selection && !runtime.candidateBinding,','can_voice: true,'],
       ['generator, input, prompt, evidence);','generator, input, prompt);'],
-    ]) { assert.ok(next.includes(before)); assert.throws(()=>verify(next.replace(before,after))); }
+    ]) {
+      // The text-only path also meters spend. Mutate the voice generator that
+      // this authority check inspects, rather than the first match in the file.
+      const target=block(next); assert.ok(target.includes(before));
+      assert.throws(()=>verify(next.replace(target,target.replace(before,after))));
+    }
   });
   console.log(`${groups} dialogue Unicode groups passed. Offline seams; no SQL/model calls.`);
 } finally { hooks.deregister(); delete globalThis.__dialogueUnicode; }

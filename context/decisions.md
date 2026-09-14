@@ -25439,3 +25439,8 @@ Owner forbids Microsoft-account browser use on the employer laptop and explicitl
 ## wave25-composite-typescript-build-required
 
 2026-09-14. Integration validation must run npx tsc -b --force, matching the project references that CI builds. Root tsc --noEmit at the solution root is not evidence that referenced projects type-check. Explicitly type the private follow-up history mapping result so user/assistant roles retain their union. Reverse the command choice only if the root TypeScript project ceases to use project references and the replacement is proven to catch this negative case.
+
+
+## wave25-scope-dialogue-negative-controls
+
+2026-09-14. Scope Unicode suite spend/authority mutations to the parsed generateOwnedDialogue body. The new text-only generator legitimately contains the same spend calls earlier in the file. Keep every existing negative assertion and runtime Unicode boundary case. Reverse this source mutation approach if an equivalent behavioral counterfactual proves all these authority/order failures without source matching.

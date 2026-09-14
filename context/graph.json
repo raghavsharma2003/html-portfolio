@@ -20487,6 +20487,24 @@
       "kind": "rejection",
       "title": "A solution-root noEmit success did not validate referenced source",
       "at": "context/rejected.md#wave25-noemit-solution-root-false-confidence"
+    },
+    {
+      "id": "wave25-scope-dialogue-negative-controls",
+      "kind": "decision",
+      "title": "Mutate the generator the authority check actually inspects",
+      "at": "context/decisions.md#wave25-scope-dialogue-negative-controls"
+    },
+    {
+      "id": "wave25-linux-performance-and-dialogue-controls-20260914",
+      "kind": "measurement",
+      "title": "Linux performance passed; dialogue control scope repaired",
+      "at": "context/measurements.md#wave25-linux-performance-and-dialogue-controls-20260914"
+    },
+    {
+      "id": "wave25-first-text-match-mutated-another-generator",
+      "kind": "rejection",
+      "title": "A first-file-match mutation stopped testing its intended function",
+      "at": "context/rejected.md#wave25-first-text-match-mutated-another-generator"
     }
   ],
   "edges": [
@@ -34872,6 +34890,16 @@
       "src": "wave25-composite-typescript-build-required",
       "rel": "caused_by",
       "dst": "wave25-noemit-solution-root-false-confidence"
+    },
+    {
+      "src": "wave25-scope-dialogue-negative-controls",
+      "rel": "measured_by",
+      "dst": "wave25-linux-performance-and-dialogue-controls-20260914"
+    },
+    {
+      "src": "wave25-scope-dialogue-negative-controls",
+      "rel": "caused_by",
+      "dst": "wave25-first-text-match-mutated-another-generator"
     }
   ]
 }

@@ -19193,3 +19193,8 @@ Read-only Azure metadata found the operator could attach four existing UMIs, but
 ## wave25-noemit-solution-root-false-confidence
 
 2026-09-14. Agents and root reported TypeScript success from an insufficient noEmit check; Android CI exposed a widened role string in the new history compiler. Vite also built successfully, so neither result proved the missing type check. Use the actual composite build, explicitly type history records, and never relabel the prior success as a full TypeScript pass.
+
+
+## wave25-first-text-match-mutated-another-generator
+
+2026-09-14. The dialogue Unicode verifier correctly inspected generateOwnedDialogue, but its negative control replaced the first matching beginFoundrySpend in the whole file. After text-only budgeting was added, that first match belonged to another generator, so the negative control no longer damaged the verified body and falsely failed. Mutate the parsed target body; do not remove the negative control. Separately do not interpret Windows zero load-average output as evidence of a quiet machine; Linux release timing passed the original Hindi budget.

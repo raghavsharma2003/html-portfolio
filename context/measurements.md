@@ -19033,3 +19033,8 @@ No new SQL statement or migration was added: the caller uses the existing runtim
 ## wave25-followup-type-widening-ci-20260914
 
 2026-09-14T13:10:31.943325+00:00. Exact15bcb3ad Android job103985078060 failed at npx tsc -b with TS2322 in privateExpertRehearsal.ts104: history role widened to string. Its sanitized log SHA6d26113bbaa27f8a6b03bfd81a4c769fdd8f6bd6052916ac13b3e2582e6ee8ff. Root added one explicit callback return type; npx tsc -b --force then exited0 on the combined integration tree, n=1. No runtime behavior, provider calls, SQL or deployed code changed. Exact15bc remains rejected; Node release outcomes were still pending when this entry was written.
+
+
+## wave25-linux-performance-and-dialogue-controls-20260914
+
+2026-09-14T13:22:57.135566+00:00. Node24 exact15bcb3ad release job103985168640 finished22/25, failing types, layout and eval registry. Performance passed in69420ms, including unchanged800ms Hindi checks; exact successful child medians were not uploaded by the workflow. Six layout findings identify a two-button internal voice switch inheriting four tracks. Ten failed eval suites are retained in standalone25-ci-103985168640.log, SHA3e836b7f2009460b8b8b51e0ff61ace9f8bacd2201b8bc532dd01d1935b83323. Root reproduced dialogue-unicode failure in its negative controls, scoped the mutation to the checked function, then ran13/13 groups successfully. No provider/SQL calls or deployment.
