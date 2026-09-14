@@ -18899,3 +18899,7 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 **What replaced it.** Terra has a distinct v2 receipt that preserves the explicit absence, exact dated model, fresh deployment baseline commitment and pair equality. Mini remains v1 and still requires its fingerprint. Arbitrary deployment names remain refused. This is weaker backend identity for Terra and is stated as such; no fingerprint or immutable-weight claim is inferred.
 
 **Reversal condition.** Retire this rejection only if the exact Terra API contract supplies a stable fingerprint or a different provider identity signal that can be verified on every paired response and bound through materialization, qualification and activation.
+
+## `wave25-bandwidth-fix-does-not-prove-worker-current`
+
+2026-09-14. Reading only the corrected-bandwidth result would wrongly clear the processing worker for the new product. The same retained image-byte recovery receipt identifies missing newer Azure-only enforcement, purpose authority, tracked storage leases and erase/abort fences. Keep the narrow bandwidth proof; prepare a worker-specific update for the actual missing behavior. Do not rebuild merely from a historical statement that the bandwidth fix was never deployed, and do not call the current image equal to the new source.
