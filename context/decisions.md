@@ -25481,3 +25481,8 @@ The owner reports the personal-device Cloud Shell grant completed. Root verified
 ## wave26-owner-mobile-failures-lead-release
 
 Use the owner's actual phone journey as the next release target. Rebuild capture as a compact silver interface, repair real recording/upload failures, and support each signed-in account's own workspace. The pinned retained-owner voice test remains separate diagnostic work. Transient notices expire after six seconds unless being read and clear on navigation; errors remain until dismissed. Reverse this sequencing only after the exact idle, recording, preview, failed-upload, retry and source flows work on phone and desktop. Existing successful CI does not reverse observed live defects.
+
+
+## wave26-silver-capture-keeps-controls-in-flow
+
+2026-09-14. The owner explicitly rejected the giant forest-green dial. Code 897ebe43 replaces its recorder presentation with a compact waveform driven by the existing microphone history, a timer, and one rectangular control. Idle, recording and preview share a 342px minimum surface. The rail explanation spans the whole rail, and capture/upload/recovery reserve the rail in normal flow. Error and upload actions remain in the scroll owner. Scoped silver tokens preserve the other product behavior and all capture callbacks. Reverse only if a replacement proves equally reachable controls, readable copy and stable state geometry at 360, 390, 768 and 1440 pixels with real mounted components. The owner-pinned silver direction supersedes the skill roll; no new assets, providers or cloud calls were needed.

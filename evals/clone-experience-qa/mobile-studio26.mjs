@@ -17,6 +17,7 @@ page.on('pageerror', e=>errors.push(e.message));
 async function capture(state) {
  for (const width of sizes) {
   await page.setViewportSize({width,height:width>=768?900:844});
+  await page.evaluate(async()=>{await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))});
   await page.locator('.vx-capture, .vx-upload').evaluate(e=>e.scrollTop=0);
   const data=await page.evaluate(()=>{
    const rect=s=>{const e=document.querySelector(s);return e?e.getBoundingClientRect().toJSON():null};

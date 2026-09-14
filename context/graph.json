@@ -20643,6 +20643,24 @@
       "kind": "rejection",
       "title": "wave26 green gates and owner pinned sample are not product completion",
       "ref": "context/rejected.md#wave26-green-gates-and-owner-pinned-sample-are-not-product-completion"
+    },
+    {
+      "id": "wave26-silver-capture-keeps-controls-in-flow",
+      "kind": "decision",
+      "title": "Silver capture keeps controls in document flow",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave26-silver-capture-mounted-states-20260914",
+      "kind": "measurement",
+      "title": "Silver capture mounted state measurements",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave26-floating-orb-and-fixture-layer-order",
+      "kind": "rejection",
+      "title": "Floating orb and fixture layer order fail capture readability",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -35103,6 +35121,16 @@
       "src": "wave26-green-gates-and-owner-pinned-sample-are-not-product-completion",
       "rel": "caused_by",
       "dst": "wave26-owner-mobile-failures-lead-release"
+    },
+    {
+      "src": "wave26-silver-capture-keeps-controls-in-flow",
+      "rel": "measured_by",
+      "dst": "wave26-silver-capture-mounted-states-20260914"
+    },
+    {
+      "src": "wave26-floating-orb-and-fixture-layer-order",
+      "rel": "caused_by",
+      "dst": "wave26-silver-capture-keeps-controls-in-flow"
     }
   ]
 }
