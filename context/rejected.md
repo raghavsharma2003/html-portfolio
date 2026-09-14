@@ -18997,3 +18997,13 @@ A 30-second UI timer was rejected as zero-margin: browser scheduling and upload 
 **What replaced it.** Callers provide the current origin plus a bounded path; the API rejects non-web URLs and lets Supabase enforce its configured allow-list. No cloud configuration was changed.
 
 **Reversal condition.** Remove forwarding only after a verified deployed allow-list and a measured flow proves every supported Studio/Room host returns correctly without it.
+
+## standalone25-email-redirect-body-is-not-gotrue-query-20260914
+
+**Tried.** Sent a validated `redirect_to` inside the JSON body passed to `authFetch("otp", ...)`.
+
+**What specifically broke.** GoTrue reads this OTP return value from the request query. The body remained well formed, but the requested Studio or Room return path never reached the provider's redirect parser.
+
+**What replaced it.** The account door builds the validated `otp?redirect_to=...` path and keeps the body limited to `email` and `create_user`. The handler-level regression captures the generated fetch URL and body, including a Room path and query.
+
+**Reversal condition.** Change the transport only when an authenticated GoTrue contract revision documents a different `/otp` input shape and a focused outgoing-request regression captures that revision.

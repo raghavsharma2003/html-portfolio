@@ -11,3 +11,10 @@ export function emailRedirect(value) {
     return null;
   }
 }
+
+// GoTrue's `/otp` contract reads this value from the request URL, not its
+// JSON body. Keeping the serialization beside validation makes it difficult
+// for a caller to validate one value and accidentally transport another.
+export function emailOtpPath(redirect) {
+  return redirect ? `otp?${new URLSearchParams({ redirect_to: redirect }).toString()}` : "otp";
+}

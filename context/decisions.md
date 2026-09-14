@@ -25284,4 +25284,4 @@ The sponsored Azure subscription and working Speech/Foundry access do not resolv
 
 ## standalone25-email-redirect-forwarding-20260914
 
-2026-09-14. Email sign-in callers pass the current HTTPS origin and `/studio` return path to the server proxy; the proxy validates absolute HTTP(S) URLs and forwards `redirect_to` to Supabase GoTrue. Reconsider if the deployed allow-list intentionally excludes the canonical studio origin or if a signed return-state design replaces URL forwarding.
+2026-09-14. Email sign-in callers pass an origin-local return path and query to the server proxy; the proxy validates the resulting absolute HTTP(S) URL and sends `redirect_to` in GoTrue's `/otp` request query, while the JSON body contains only OTP fields. GoTrue's configured allow-list remains authoritative. Reconsider if a signed return-state design replaces URL forwarding.

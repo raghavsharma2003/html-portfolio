@@ -41,8 +41,18 @@ function toSession(data: any): StudioSession {
   };
 }
 
+function emailReturnPath(returnPath = "/studio") {
+  if (typeof window === "undefined" || typeof returnPath !== "string" || !returnPath.startsWith("/") || returnPath.startsWith("//")) return "/studio";
+  try {
+    const url = new URL(returnPath, window.location.origin);
+    return url.origin === window.location.origin && !url.hash ? `${url.pathname}${url.search}` : "/studio";
+  } catch {
+    return "/studio";
+  }
+}
+
 export function sendEmailOtp(email: string, returnPath = "/studio") {
-  const path = returnPath.startsWith("/") ? returnPath : "/studio";
+  const path = emailReturnPath(returnPath);
   const redirect = `${window.location.origin}${path}`;
   return accountPost({ op: "send_otp", email, redirect_to: redirect });
 }
