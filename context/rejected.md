@@ -19092,3 +19092,8 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 ## `wave25-public-verifier-is-not-internal-test-readiness`
 
 2026-09-14. The available audiovisual models do not establish calibrated ownership or synthetic-risk probabilities: the prior runner resets tracks perwindow, drops tails and assumesCUDA; currentdiarizer explicitly lacks overlap detection. Repackaging models or adding an unused verifier endpoint would not finish public verification. The owner has now deferred that review/policy work for an internal-only product. Preserve this audit for the later public boundary, but do not block every internal voice experiment on it or manufacture detector probabilities. Reuse staged models when relevant and implement explicit internal authority; no universal bypass or public-ready claim follows.
+
+
+## wave25-deployed-broker-source-is-not-runtime-proof (2026-09-14)
+
+The initial assumption that the deployed CPU broker already implemented the current six-field child callback was rejected by root Azure metadata: deployed Hindi/general brokers exposed only HMAC and runtime-origin configuration, with no allocation origin. Likewise, no verified shared durable filesystem was found, so fsync-based local attempt storage was rejected for Vercel/replica durability. The implementation uses existing private Blob conditional writes and documents the exact three-file CPU broker rebuild/configuration requirement. General GPU max2 is not selected; root identified existing dormant Hindi min0/max1 app, still requiring exact isolation tag, immutable image/config binding and live readback. Offline success must not be presented as voice readiness or a model result.

@@ -20175,6 +20175,24 @@
       "kind": "rejection",
       "title": "Do not spend the internal pilot on a public verification system",
       "at": "context/rejected.md#wave25-public-verifier-is-not-internal-test-readiness"
+    },
+    {
+      "id": "wave25-internal-owner-voice-runtime",
+      "kind": "decision",
+      "title": "Internal own-voice uses exact owner and private Blob attempts",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-internal-owner-voice-controls-20260914",
+      "kind": "measurement",
+      "title": "37 offline internal voice and lifecycle controls pass",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-deployed-broker-source-is-not-runtime-proof",
+      "kind": "rejection",
+      "title": "Current broker source cannot prove deployed child admission",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -34360,6 +34378,16 @@
       "src": "wave25-public-verifier-is-not-internal-test-readiness",
       "rel": "constrains",
       "dst": "wave25-owner-prioritizes-private-internal-product"
+    },
+    {
+      "src": "wave25-internal-owner-voice-runtime",
+      "rel": "measured_by",
+      "dst": "wave25-internal-owner-voice-controls-20260914"
+    },
+    {
+      "src": "wave25-deployed-broker-source-is-not-runtime-proof",
+      "rel": "constrains",
+      "dst": "wave25-internal-owner-voice-runtime"
     }
   ]
 }

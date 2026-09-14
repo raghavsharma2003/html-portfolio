@@ -167,6 +167,23 @@ async function azureStorageFetch(objectPath, options = {}) {
   return response;
 }
 
+// Private internal experiments use the existing Azure account and SAS signer.
+// Exact owner/authorization namespace; no container creation or public URL.
+export async function internalVoiceStorageRequest(owner, authorization, name, options = {}) {
+  if (!UUID.test(owner || "") || !UUID.test(authorization || "") ||
+      !/^(?:state\.json|reference\.wav|[a-f0-9-]{36}\.wav)$/.test(name || "") ||
+      !["GET", "PUT", "DELETE"].includes(options.method || "GET"))
+    throw new ReplicaStorageError("internal_voice_storage_scope_invalid", 400);
+  if (options.method === "PUT" && (!Buffer.isBuffer(options.body) || options.body.length > 25 * 1024 * 1024 ||
+      (!options.headers?.["If-Match"] && options.headers?.["If-None-Match"] !== "*")))
+    throw new ReplicaStorageError("internal_voice_storage_condition_required", 400);
+  return azureStorageFetch(`${owner}/${authorization}/internal-voice/${name}`, {
+    method: options.method || "GET", permissions: options.method === "PUT" ? "cw" : options.method === "DELETE" ? "d" : "r",
+    body: options.body, headers: options.headers, timeoutMs: 20000,
+    fetchImpl: async (url, init) => (options.fetchImpl || fetch)(url, {...init, redirect: "error"}),
+  });
+}
+
 // Get Container Properties does not accept a service SAS, even when that SAS
 // is container-scoped with read permission; Azure documents it as an account
 // SAS / Shared Key operation. The browser must never receive account-level
