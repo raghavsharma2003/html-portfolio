@@ -1,39 +1,70 @@
 # STATE — read this first, then the graph
 
-## START HERE: WAVE TWENTY-FIVE INTEGRATED, RELEASE NOT ACCEPTED (2026-09-14)
+## START HERE: PRIVATE INTERNAL PRODUCT, RELEASE CANDIDATE NOT ACCEPTED (2026-09-14)
 
-**Latest owner direction: private internal build/test first.** Reviews and public
-enrollment policy/compliance are explicitly deferred by the owner. Do not
-block internal voice tests on the unfinished public verifier or build human
-review now. Prepare a protected Vercel preview; main merge/public production
-cutover below are pending older plans, not the next action under this direction.
-Keep internal test access truthful and restricted. See
-`decisions.md#wave25-owner-prioritizes-private-internal-product` and
-`docs/handoff/2026-09-14/VOICE-PRODUCER-NEXT.md`.
+**Latest owner direction wins:** build and test the whole product privately first.
+Defer enrollment reviews, public rollout policy and compliance work. Prioritize
+real voice likeness, memory/personality, the full user journey, and a premium,
+clean, image-led mobile/desktop design. No human-review workflow is selected.
+Do not claim public verification for explicit internal test access.
 
-This repo is Vyakti. Meera's exact deployed source and full history are preserved in `raghavsharma2003/Meera` at `archive/production-20260914`; Meera production remains unchanged. Owner-selected branch is `claude/vyakti-cloning-platform-aq05n4`, integration checkout `Vyakti-platform-standalone25`, starting base `16fae19`. Old dirty coordinator worktrees remain untouched. Read `docs/handoff/2026-09-14/VYAKTI-STANDS-ALONE.md` and `WAVE-25-LIVE-READBACK.md`. Wave25 must finish before the ten preserved wave24 patches.
+**Work here:** `Vyakti-platform-standalone25`, branch
+`claude/vyakti-cloning-platform-aq05n4`, repo `raghavsharma2003/html-portfolio`.
+Never reset or edit the old dirty `Vyakti-platform` checkout. Its ignored
+`scratchpad/expert-tools` holds protected-access helpers and receipts. Secrets
+stay outside Git and tool output. At most five independent workstreams; use
+Sol for bounded work and Astra for voice architecture/integration.
 
-Integrated through a672136b: standalone landing/Studio/Room and single native identity; Meera-only product surface retired while shared engines remain; Room uses Meet's Azure registry; Terra correction/comparison uses exact dated model and honest nullable revision receipt. Native OTA contract is bumped so older apps cannot accept incompatible web updates. Vercel automatic Git deployment is disabled; explicit main deploy runs the full gate first. All 23 actual crons are retained. The first full release run failed locally3/25 and on GitHub2/25; source checkpoint is not deployment. Shared fixture repairs are integrated throughd57e22c8. The local run was diagnostic only because a CI agent changed integration during it; repeat once the repaired batch is frozen.
+**Release:** c4a26771 is the last pushed candidate. Both Node22/24 completed
+24/25 (run34835578719); only three Hindi-call labels failed contrast. Their
+source fix b5339990 is integrated through a50fbaf6, 3.33:1 -> 6.02:1,
+five focused accessibility pages pass. Android34835578675 passed the main
+eval registry then hit obsolete Meera-native watch harnesses. Their two
+workflow invocations are removed in31b087f8, integrated c9a1e34c; current
+native52/52 and workflow4/4 checks pass. No accepted full gate or product
+deployment yet. Next push is a repaired baseline for a **protected preview**.
+Do not run prepared main-merge/production-cutover helpers under this scope.
 
-Vercel access works with OS-protected credentials outside Git. Existing sponsored Azure subscription and successful Terra/mini deployments verified; remaining grant credits unknown. Vercel is configured for Terra conversation/correction and mini extraction, with scoped costs and a shared $1 pilot text cap. Private-session/feedback/eval keys and voice-evidence bindings are restored from exact existing versions. Two correction metadata values are now independently verified in Production, Preview and Development. No new inference or GPU wake in this wave. Some older sensitive runtime variables still lack separate Development bindings. Production branch remains the old branch until cutover; STUDIO_ROOT remains until accepted removal.
+**Working configuration:** Vercel access and Azure sponsored subscription
+work. Terra conversation/correction, mini extraction, Azure storage and open
+voice bindings are present in Preview/Production. Ten missing Development
+bindings are now value/scope verified; five unknown Development names remain
+untouched. Shared text pilot cap is configured USD1, but its ledger had no row
+at11:02UTC; initialization is lazy, not a measured balance. Grant balance is
+unknown. Vercel SSO protects generated preview URLs. Supabase dashboard is
+signed into an account with only CBAM/Lead management; the owner's correct
+Vyakti account switch is still pending for redirect settings. No real fresh-user
+sign-in or creator/visitor walk has yet passed.
 
-Actual live database: citation discipline,3/3 dialogue EXPLAINs and5/5 Terra activation SELECT EXPLAINs plus42703 negative control pass. Source7175a071 memory repair is integrated incd580a4f, with both changed SQL statements exercised in a synthetic rollback and independently verified absent afterward. Root also committed the separately reviewed exact20-message legacy incident repair: all20 preserved,2 empty wake markers,6 forget records intact. Independent readback and actual relcheck nowgreen40checks. This does not update deployed Meera bee906; its old writer can reproduce the defect. See wave25-orphan-repair-committed-20260914.
+**Already proved; do not redo blindly:** real Neon relcheck40, citation and
+dialogue/activation EXPLAINs passed. Exact20-message legacy repair committed
+and read back; never rerun its commit script. Personal63/63, first-use10/10,
+private UI20/20, publication UI32/32 and person-room20/20 are simulated
+journeys, not real-model/user proof. Native decoder7/7 plus25sWebM/MP4 pass.
 
-Current Azure scheduled processing image already contains both historic bandwidth fixes, proven by retained recovered image bytes. It lacks later Azure-only/purpose/storage/erase controls; a worker-specific update is being prepared. Neither the recovered fixes nor Speech catalogue access proves voice likeness. Actual signed-in Feed -> Meet -> correct -> Deploy -> visitor journey, Hindi/Hinglish/English voice quality, final full gate, main merge and deployment remain unaccepted. GroupAI was archived and remains private. No product deployment has occurred in this wave.
+**Azure worker:** one build cu3t succeeded. Immutable processing image
+`sha256:f824cfd367986eb5656998468e93054e96d9f711fe657723836521f1e89c5e6e`
+is verified; all61 packaged source files match c4a26771. Not activated.
+Use reviewed `standalone25-processing-job-v3.py` only after accepted gates;
+no rebuild, explicit Job start or permanent GPU warming is currently needed.
 
-Later checkpoint through79e6c085: closed creator-material boundaries keep relationship-stage changes out of the cached CORE without swallowing trusted compiler instructions; focused Room leak372 and drift41 assertions across44turns pass. Face result parsing and capture-duration headroom are repaired, with9 and10 focused checks. The committed processing worker packet is byte-identical across61 source files to this checkpoint. One Azure ACR build cu3t was submitted on the sponsored subscription, with CPU2 and1200s timeout; succeeded. Root verified immutable image sha256:f824cfd367986eb5656998468e93054e96d9f711fe657723836521f1e89c5e6e against both tag and digest. No Job update or worker execution. These operational limits are not a dollar cap.
+**Voice and design underway:** isolated `internal-owner-voice25` builds an
+explicit private owner-authorized lane reusing Azure Chatterbox and retained
+owner reference, without Face/document review or fabricated public identity.
+`premium-journey25` improves actual landing/auth/Studio with two generated
+pearl/silver images and real existing handlers. No new owner-likeness result
+exists. Older YuNet/Light-ASD assets are recovered for later public research;
+do not restage them or block internal experiments on their calibration.
 
-Read `docs/handoff/2026-09-14/PRODUCT-STATUS.md` for the plain-language product/model map and `VOICE-ENROLLMENT-REALITY.md` for the actual voice blocker. The fresh enrollment evidence producer is incomplete; no new voice likeness measurement exists. Email magic-link return destinations and publication callback restoration are now repaired; Supabase redirect configuration remains unverified.
-
-The first-user batch is now integrated: eligible Feed material reaches private Meet, inactive text-only clones remain on material sharing, and Room publication requires an active runtime. Integrated person-room rehearsal passed20/20; publication UI passed32/32 at390/1440 including fresh magic-link callback and stale-account refusal. Email return URLs are transported in the GoTrue query and retain Room/publication destinations. Azure build cu3t succeeded and its image digest is verified; activation still waits for the full release gate. The Vercel dashboard is authenticated and still tracks the old production branch. Supabase login succeeded but this account only exposes CBAM-Dashboard and Lead management; opening Vyakti project chvduaujdztgjcnoswhh redirects to organizations. Correct-account access was requested. Redirect settings remain unverified.
-
-The aa481598 candidate was pushed. Android CI rejected three stale fixture assumptions: Feed callback VM inputs, Room email-return arguments, and the person-wide forget cursor repair in the raw-agent scanner. All three repairs are now integrated without production SQL changes; focused callback13, navigation, and raw-isolation58 checks pass. The full Node22/24 gate on aa481598 rejected it22/25: layout and accessibility coverage plus evalsuite. The shared auth simulator is repaired; personal63/63 and first-use10/10 pass offline. The latter deliberately accepts a fake-generator503 and is not a real reply proof. Layout/a11y fixture repair d55894ab is now integrated: active-runtime is distinct from inactive voice-ready; Studio layout1781blocks, clone22blocks/12loads and five affected accessibility pages pass. Production readiness and gate thresholds are unchanged. Direct private rehearsal now dismisses the overlapping onboarding rail, verified20/20 UI groups at390/1440. Native real-decoder7/7 and explicit25s WebM/MP4 tests now pass using the existing FFmpeg installation, superseding the earlier PATH wall. This proves decoder compatibility, not enrollment evidence or owner likeness.
-
-Meera repo now opens its preserved production archive branch by default; its unrelated original main remains intact. No Meera deployment or Vercel repo reconnection yet. Ten recoverable Development-only bindings are now written and value/scope verified. Neon differed only by the stricter local channel_binding parameter; local legacy Supabase service_role and processing opaque key are separately authorized for the same exact project. Both failed zero-write attempts remain recorded. Five unknown Development names remain untouched; Production/Preview values were not changed.
-
-Candidate c4a26771 is pushed. Android passed the main eval registry, then failed obsolete native-watch harnesses whose production classes were deliberately removed. Repair31b087f8 removes exactly those two stale APK workflow invocations; current Vyakti native52/52 and workflow4/4 checks pass. Historical harnesses remain unchanged and no current multimodal pass is claimed. Node22/24 on c4a26771 are still pending. The live pilot ledger is not initialized yet (0rows read, not a remaining-balance claim). Post-gate merge/cutover helpers and the bounded live text runbook are prepared in ignored oldroot scratchpad/expert-tools; nothing deployed.
-
-Next: finish observing c4a26771, then push the repaired frozen source for the full release gate; activate the already verified worker only after acceptance; merge PR6 and cut over only after acceptance; walk the real creator/visitor journey; then resume wave24 in at most five workstreams. Never represent offline fixtures as owner voice or real journey proof.
+**Product map:** `docs/handoff/2026-09-14/PRODUCT-STATUS.md`;
+`VOICE-PRODUCER-NEXT.md` is the eventual public-verifier audit, explicitly
+superseded as an internal prerequisite. Ignored `STANDALONE25-INTERNAL-VOICE-ADDENDUM.md`
+and `STANDALONE25-LIVE-TEXT-JOURNEY.md` hold current implementation/run plans.
+Meera's bee906 source/history is preserved in `raghavsharma2003/Meera`, default
+`archive/production-20260914`; production unchanged, Vercel repo link pending.
+GroupAI is archived/private. Ten wave24 patches remain unintegrated; automatic
+text memory is the next high-value preserved feature. Older START HERE blocks
+below are historical and can contradict this one.
 
 ## START HERE: WAVE TWENTY-FOUR OPENED AND PAUSED (main loop, 2026-09-14, read with the block below it)
 
