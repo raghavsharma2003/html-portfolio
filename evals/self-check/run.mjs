@@ -49,6 +49,16 @@ const { ENV_MANIFEST_BY_NAME } = await import(pathToFileURL(join(REPO, "api/_env
 const { sweepSchedules, sweepNameFromPath, expectedIntervalMs } = await import(
   pathToFileURL(join(REPO, "api/_sweep-schedule.js")).href
 );
+const VALID_SERVING_ENV = Object.freeze({
+  NEON_URL: "postgresql://synthetic@db.invalid/synthetic",
+  AZURE_FOUNDRY_ENDPOINT: "https://synthetic-self-check.services.ai.azure.com",
+  AZURE_FOUNDRY_API_KEY: "synthetic-key-long-enough",
+  AZURE_FOUNDRY_DIALOGUE_MODEL: "synthetic-model",
+  AZURE_REPLICA_APP_BUDGET_USD: "1",
+  AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.4",
+  AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1.6",
+});
+const EFFECTIVE_REQUIRED_ENV = Object.freeze(Object.keys(VALID_SERVING_ENV));
 
 // ═════════════════════════════════════════════════════════════════════════
 // §0 — migration 120: the kind is registered, and only there
@@ -64,7 +74,7 @@ ok("migration 120's CHECK names all six kinds", INCIDENT_KINDS.every((k) => migr
 ok("migration 120 is one drop-if-exists + one add, no DO block", !/do\s+\$\$/i.test(migrationSql) && /drop constraint if exists/i.test(migrationSql));
 
 // ═════════════════════════════════════════════════════════════════════════
-// §1 — (a) env presence: mirrors scripts/write-config.mjs, by NAME only
+// §1 — (a) env presence: standalone Vyakti provider contract, by NAME only
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── §1: env presence, by name only ──");
 
@@ -83,24 +93,24 @@ function parseRequiredArray(src) {
 const realStrings = parseStringsArray(writeConfigSrc);
 const realRequired = parseRequiredArray(writeConfigSrc);
 
-ok("scripts/write-config.mjs actually parsed to something (the regexes did not silently miss)",
-  realStrings.length > 0 && realRequired.length > 0);
-ok("REQUIRED_ENV mirrors scripts/write-config.mjs's own required-keys deploy guard exactly",
-  JSON.stringify([...REQUIRED_ENV].sort()) === JSON.stringify([...new Set(realRequired)].sort()));
-ok("OPTIONAL_ENV mirrors scripts/write-config.mjs's own STRINGS array (minus the required two) plus GOOGLE_KEYS",
-  JSON.stringify([...OPTIONAL_ENV].sort()) ===
-    JSON.stringify([...new Set([...realStrings.filter((n) => !realRequired.includes(n)), "GOOGLE_KEYS"])].sort()));
+ok("scripts/write-config.mjs arrays still parse (the regexes did not silently miss)",
+  realStrings.length > 0 && realRequired.length === 1);
+ok("the non-deploy config writer requires Neon but never OpenRouter",
+  JSON.stringify(realRequired) === JSON.stringify(["NEON_URL"]));
+ok("legacy baked config names remain observable but no retired reply selector is baked",
+  realStrings.includes("OPENROUTER_KEY") &&
+    !realStrings.some((n) => n.startsWith("AZURE_FOUNDRY_REPLY_") || n === "VYAKTI_REPLY_PROVIDER"));
 ok("REQUIRED_ENV and OPTIONAL_ENV never overlap", REQUIRED_ENV.every((n) => !OPTIONAL_ENV.includes(n)));
 
 {
-  const env = { OPENROUTER_KEY: "x", NEON_URL: "y", SUPABASE_URL: "z" };
+  const env = VALID_SERVING_ENV;
   const rows = envPresence(env);
   ok("envPresence returns one row per name (REQUIRED_ENV + OPTIONAL_ENV + MANIFEST_ONLY_ENV), required flagged correctly",
-    rows.length === REQUIRED_ENV.length + OPTIONAL_ENV.length + MANIFEST_ONLY_ENV.length &&
-    rows.filter((r) => r.required).every((r) => REQUIRED_ENV.includes(r.name)));
-  const openrouter = rows.find((r) => r.name === "OPENROUTER_KEY");
+    new Set(rows.map((r) => r.name)).size === rows.length &&
+    JSON.stringify(rows.filter((r) => r.required).map((r) => r.name).sort()) === JSON.stringify([...EFFECTIVE_REQUIRED_ENV].sort()));
+  const dialogue = rows.find((r) => r.name === "AZURE_FOUNDRY_DIALOGUE_MODEL");
   const azure = rows.find((r) => r.name === "AZURE_KEY");
-  ok("a set var reports present: true", openrouter?.present === true);
+  ok("a set required Azure var reports present: true", dialogue?.present === true);
   ok("an unset var reports present: false", azure?.present === false);
   ok("every row's own value is a boolean, never the string itself",
     rows.every((r) => typeof r.present === "boolean"));
@@ -123,8 +133,9 @@ ok("MANIFEST_ONLY_ENV includes a Sarvam name", MANIFEST_ONLY_ENV.includes("SARVA
 {
   const rows = envPresence({});
   const manifestRows = rows.filter((r) => MANIFEST_ONLY_ENV.includes(r.name));
-  ok("every MANIFEST_ONLY_ENV row from envPresence is required: false — widening WHICH names are reported, never WHICH can fail",
-    manifestRows.length === MANIFEST_ONLY_ENV.length && manifestRows.every((r) => r.required === false));
+  ok("only the Azure serving subset of MANIFEST_ONLY_ENV is required",
+    manifestRows.length === MANIFEST_ONLY_ENV.length &&
+    manifestRows.every((r) => r.required === EFFECTIVE_REQUIRED_ENV.includes(r.name)));
   ok("an unset manifest-only name reports present: false", manifestRows.every((r) => r.present === false));
 }
 {
@@ -243,8 +254,9 @@ function familyFakeDb(presentTables, presentColumns) {
   ok("no db function at all reports every family missing, never a silent zero",
     missing.length === MIGRATION_FAMILY_TABLES.length + MIGRATION_FAMILY_COLUMNS.length);
 }
-ok("every family anchor table name is a real vy_/meera_ table this repo's migrations actually create",
-  MIGRATION_FAMILY_TABLES.every((f) => /^(vy|meera)_/.test(f.table)));
+const schemaSql = fs.readFileSync(join(REPO, "db/schema.sql"), "utf8");
+ok("every family anchor table name exists in the committed schema mirror",
+  MIGRATION_FAMILY_TABLES.every((f) => new RegExp(`\\b${f.table}\\b`).test(schemaSql)));
 
 // ═════════════════════════════════════════════════════════════════════════
 // §4 — (d) sibling sweeps versus vercel.json's own schedule
@@ -331,14 +343,15 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
 {
   // A clean world: every required env set, db answers, every family
   // present, every sweep fresh.
-  const env = Object.fromEntries(REQUIRED_ENV.map((n) => [n, "x"]));
+  const env = { ...Object.fromEntries(REQUIRED_ENV.map((n) => [n, "x"])), ...VALID_SERVING_ENV };
   const db = worldDb({ tablesPresent: ALL_TABLES, colsPresent: ALL_COLS });
   const result = await runSelfCheck({ db, env, now: NOW, sweepSchedulesFn: () => ({}) });
   ok("a fully healthy world passes every check", result.ok === true && result.failed === 0 && result.checked === result.passed);
   ok("checked/passed/failed are plain numbers (survive api/_sweep-run.js's own sanitizeCounts)",
     typeof result.checked === "number" && typeof result.passed === "number" && typeof result.failed === "number");
   ok("WS-R102/WS-R116: a world with NO env at all reports every OPTIONAL_ENV name AND every MANIFEST_ONLY_ENV name absent",
-    [...result.optional_absent].sort().join("|") === [...OPTIONAL_ENV, ...MANIFEST_ONLY_ENV].sort().join("|"));
+    [...result.optional_absent].sort().join("|") ===
+      [...OPTIONAL_ENV, ...MANIFEST_ONLY_ENV].filter((n) => !EFFECTIVE_REQUIRED_ENV.includes(n)).sort().join("|"));
   ok("WS-R116: optional_absent_by_section groups the SAME names groupAbsentBySection would over this exact list",
     result.optional_absent_by_section.sections.reduce((s, sec) => s + sec.names.length, 0) + result.optional_absent_by_section.ungrouped.length
       === result.optional_absent.length);
@@ -367,12 +380,20 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
     result.optional_absent_by_section.sections.some((s) => s.names.includes("WHATSAPP_DISPLAY_PHONE_NUMBER")));
 }
 {
-  // A required env var missing, everything else fine.
-  const env = { NEON_URL: "x" }; // OPENROUTER_KEY missing
+  // A required Azure env var missing, everything else fine.
+  const env = {
+    NEON_URL: "x",
+    AZURE_FOUNDRY_ENDPOINT: "https://synthetic-self-check.services.ai.azure.com",
+    AZURE_FOUNDRY_API_KEY: "synthetic-key-long-enough",
+    AZURE_FOUNDRY_DIALOGUE_MODEL: "",
+    AZURE_REPLICA_APP_BUDGET_USD: "1",
+    AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.4",
+    AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1.6",
+  };
   const db = worldDb({ tablesPresent: ALL_TABLES, colsPresent: ALL_COLS });
   const result = await runSelfCheck({ db, env, now: NOW, sweepSchedulesFn: () => ({}) });
   ok("a missing REQUIRED env var fails exactly one check, named by the var's own NAME",
-    result.ok === false && result.failing_doors.includes("env: OPENROUTER_KEY missing"));
+    result.ok === false && result.failing_doors.includes("env: AZURE_FOUNDRY_DIALOGUE_MODEL missing"));
   ok("a missing OPTIONAL env var is never a failing check at all",
     !result.failing_doors.some((d) => d.includes("AZURE_KEY")));
   ok("WS-R102: that same missing OPTIONAL env var IS on optional_absent, by its own name",
@@ -384,7 +405,11 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
   // name PRESENT is absent from optional_absent, and result.ok/result.failed
   // are UNCHANGED by which optional names are set - the whole point of the
   // "not a failing check" law, now proven over the widened list too.
-  const env = Object.fromEntries([...REQUIRED_ENV, ...OPTIONAL_ENV, ...MANIFEST_ONLY_ENV].map((n) => [n, "x"]));
+  const env = {
+    ...Object.fromEntries([...REQUIRED_ENV, ...OPTIONAL_ENV, ...MANIFEST_ONLY_ENV].map((n) => [n, "x"])),
+    ...VALID_SERVING_ENV,
+    AZURE_REPLICA_BUDGET_ID: "vyakti",
+  };
   const db = worldDb({ tablesPresent: ALL_TABLES, colsPresent: ALL_COLS });
   const result = await runSelfCheck({ db, env, now: NOW, sweepSchedulesFn: () => ({}) });
   ok("WS-R102/WS-R116: every OPTIONAL_ENV and MANIFEST_ONLY_ENV name set reports an empty optional_absent, not omitted",
@@ -392,13 +417,13 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
   ok("WS-R116: an empty optional_absent groups to zero sections and zero ungrouped",
     result.optional_absent_by_section.sections.length === 0 && result.optional_absent_by_section.ungrouped.length === 0);
   ok("WS-R102: a fully-optional-configured world still passes every check (law 1)",
-    result.ok === true && result.failed === 0);
+    result.ok === true && result.failed === 0, result.failing_doors.join(" | "));
 }
 {
   // The database itself is down — (c)/(d) must be SKIPPED, not attempted,
   // so a database outage never produces a cascade of misleading "table
   // missing" findings for tables that were simply unreachable.
-  const env = Object.fromEntries(REQUIRED_ENV.map((n) => [n, "x"]));
+  const env = { ...Object.fromEntries(REQUIRED_ENV.map((n) => [n, "x"])), ...VALID_SERVING_ENV };
   const db = worldDb({ selectOneOk: false, tablesPresent: ALL_TABLES, colsPresent: ALL_COLS });
   const result = await runSelfCheck({ db, env, now: NOW, sweepSchedulesFn: () => ({}) });
   ok("a down database fails exactly the db check, and (c)/(d) are SKIPPED rather than cascading false findings",
@@ -406,7 +431,7 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
 }
 {
   // Everything fine except one family table, plus one stale sibling.
-  const env = Object.fromEntries(REQUIRED_ENV.map((n) => [n, "x"]));
+  const env = { ...Object.fromEntries(REQUIRED_ENV.map((n) => [n, "x"])), ...VALID_SERVING_ENV };
   const tables = new Set(ALL_TABLES);
   tables.delete("vy_room_showcase");
   const sweepRows = [{ sweep: "checkins", started_at: new Date(NOW - 30 * 24 * 3_600_000).toISOString() }];

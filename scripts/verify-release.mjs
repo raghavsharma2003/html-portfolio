@@ -11,8 +11,8 @@
 //   node scripts/verify-release.mjs --mp               → also the multiparty gates
 //   node scripts/verify-release.mjs --live <base-url>  → also probe production
 //
-// The live probes cost real money (they call her actual brain), so they are
-// opt-in rather than default.
+// Live probes are opt-in because they assert an external deployment rather
+// than the local tree. The current set is read-only or auth-refusal shaped.
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
@@ -78,6 +78,7 @@ const gate = async (name, cmd, cmdArgs) => {
 console.log("── static gates ──");
 await gate("typecheck", NODE, [fileURLToPath(TSC), "-b", "--force"]);
 await gate("prompt budget", NODE, ["scripts/check-prompt-budget.mjs"]);
+await gate("Azure build contract", NODE, ["evals/azure-build-config/run.mjs"]);
 // The gates below all run the code. This one lints a file the code never reads,
 // which is exactly why nothing caught it: `deploy-web.yml` gated a job on the
 // `secrets` context, which GitHub does not evaluate there, so the file was
@@ -111,12 +112,10 @@ await gate("motion lint", NODE, ["scripts/check-motion.mjs"]);
 // reduced-motion silence, one-shot scheduling and idempotent cleanup. A source
 // assertion pins context creation before the Agree handler's first await.
 await gate("brand reveal sound", NODE, ["evals/brand-reveal/run.mjs"]);
-// Board legibility floors + the ttt keyframe's explicit end state. Same
-// species as the motion lint: properties of files the code never reads,
-// invisible to every test that runs the code. Each numbered floor in it is
-// a measured failure that shipped (1.27:1 black pieces, 1.18:1 ttt cells,
-// marks that animated 1 -> 1 into permanent invisibility).
-await gate("board legibility", NODE, ["scripts/check-contrast.mjs"]);
+// Vyakti's shared Room/Studio palette is measured directly from the CSS both
+// surfaces load. Rendered accessibility stays later in this runner; this fast
+// floor catches token drift before browser setup and proves two mutations bite.
+await gate("Vyakti token contrast", NODE, ["scripts/check-contrast.mjs"]);
 // The em-dash ban, on the half of the app it never bound: product chrome.
 // She has stripTextingDashes on every bubble; the humans had nothing.
 await gate("chrome copy", NODE, ["scripts/check-copy.mjs"]);
@@ -135,7 +134,7 @@ await gate("mirrored constants", NODE, ["scripts/check-mirrors.mjs"]);
 // only the table right after it did (`context/rejected.md#046-replica-
 // voice-preference`), and this gate's own first real run found a SECOND,
 // previously unknown case the same way (migration 056's event-time columns
-// on vy_fact/meera_nodes). It walks every migration file in numeric order
+// on two persisted graph tables). It walks every migration file in numeric order
 // and proves every table, column, index and routine it declares exists
 // SOMEWHERE in db/schema.sql, under the identical name — never a positional
 // check (the mirror is append-only, so a later fix for an earlier gap lands
@@ -164,7 +163,7 @@ await gate("enrollment sample rate", NODE, ["scripts/check-enrollment-sample-rat
 await gate("enrollment bandwidth", NODE, ["scripts/check-enrollment-bandwidth.mjs"]);
 // The room path (api/tg.js and every future surface) does not import src/ — it
 // reads the committed bundle api/_engine.gen.js. So a change to the engine that
-// is not regenerated ships a DIFFERENT Meera to Telegram than the one every
+// is not regenerated ships a different engine to Telegram than the one every
 // gate above just tested, and nothing says so.
 //
 // This guard already existed, already worked, and had caught real drift — and
@@ -174,22 +173,10 @@ await gate("enrollment bandwidth", NODE, ["scripts/check-enrollment-bandwidth.mj
 // guard produces false confidence. Wired here so the family of "exists and is
 // connected to nothing" loses another member.
 await gate("engine bundle fresh", NODE, ["scripts/build-engine-bundle.mjs", "--check"]);
-// The stuck-turn watchdog (liveCall.ts STUCK_OPEN_MS). It is wired HERE rather
-// than left beside the other echosim experiments because those are a manual
-// before/after diff of an acoustic table, while this is a pass/fail behavioural
-// assertion with its own negative control — the same test `dead-writers` says a
-// suite must have to exist at all.
-//
-// It builds the real liveCall.ts standalone and drives it for 32 simulated
-// seconds, so it costs ~20s. That is the price of the one defect that ends a
-// call outright: with the watchdog disabled the uplink carries ZERO ms of
-// silence across the whole call and she never answers again.
-await gate("stuck-turn endpoint", NODE, ["evals/echosim/stucksim.mjs"]);
-// Her voice must be the same voice on every lane that names it. The live lanes
-// cannot be configured, so every lane that CAN choose has to match them — and
-// when they disagreed once, a call that fell back mid-sentence swapped her for
-// a different woman and was reported as "multiple personalities".
-await gate("one voice", NODE, ["scripts/verify-voice.mjs"]);
+// The standalone product has one native identity and opens the Studio from
+// its local bundle. Keep this as a named gate because the old dual-flavour
+// build could pass the web checks while packaging a different product.
+await gate("native Vyakti app", NODE, ["evals/vyakti-app/run.mjs"]);
 await gate("web build", NODE, [fileURLToPath(VITE), "build"]);
 // CAN A PERSON READ THE STUDIO. It has to run after the build because it opens
 // the BUILT bundle in a real browser at 390, 834 and 1355px, on all three
@@ -305,8 +292,8 @@ await gate("security headers", NODE, ["scripts/check-headers.mjs"]);
 // discipline (SPEC §4.2). Both are read-only sub-second queries against the
 // live database, so they need NEON_URL — which the APK workflow does not have
 // (api/_config.js is secrets-built only where deploys run). Skipping is
-// PRINTED, never silent: a skipped gate that looks like a passed gate is how
-// the meera_tel_session index shadowed its table for a day.
+// PRINTED, never silent: a skipped gate that looks like a passed gate once let
+// an index shadow its table for a day.
 //
 // WS-R: `process.env.NEON_URL ||` is not decoration. api/_db.js has ALWAYS
 // read `process.env.NEON_URL || NEON_URL`, so an environment that supplies the
@@ -347,13 +334,13 @@ if (liveAt) {
   console.log(`\n── live probes against ${liveAt} ──`);
   const base = liveAt.replace(/\/$/, "");
 
-  const probe = async (name, path, body, check) => {
+  const probe = async (name, path, method, check) => {
     const t0 = Date.now();
     try {
       const r = await fetch(base + path, {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        ...(method === "POST" ? { body: "{}" } : {}),
         signal: AbortSignal.timeout(30_000),
       });
       const j = await r.json().catch(() => ({}));
@@ -364,56 +351,11 @@ if (liveAt) {
     }
   };
 
-  // Her brain. A 200 is not enough — an empty reply is a 200, and an empty
-  // reply on a call is a turn where she just says nothing.
-  await probe(
-    "brain replies",
-    "/api/chat",
-    {
-      system: "You are a helpful test harness. Answer in one short sentence.",
-      messages: [{ role: "user", content: "say hello" }],
-      max_tokens: 300,
-    },
-    (s, j) => (s !== 200 ? `http ${s}` : j.text ? true : "200 but empty reply"),
-  );
-
-  // The live voice cannot start without a token, so this is the single most
-  // load-bearing endpoint in the product.
-  await probe("live token mints", "/api/live-token", {}, (s, j) =>
-    s !== 200 ? `http ${s}` : j.token ? true : "200 but no token",
-  );
-
-  // Her web lookup: proves she can answer something she does not know.
-  await probe("web lookup", "/api/search", { q: "who won the 2025 ipl final" }, (s, j) =>
-    s !== 200 ? `http ${s}` : j.facts ? true : "200 but no facts",
-  );
-
-  // The audit trail. If this is silently broken, every future diagnosis is
-  // blind — and it fails soft by design, so nothing else would ever tell us.
-  await probe(
-    "diag accepts writes",
-    "/api/diag",
-    {
-      device: "verify-release-probe",
-      session: "verify-release",
-      records: [{ scope: "app", event: "verify_probe", t: 0, detail: {}, at: Date.now() }],
-    },
-    (s, j) => (s !== 200 ? `http ${s}` : j.ok === true ? true : "accepted but not stored"),
-  );
-
-  // A tail bigger than the OLD cap, to prove the raised limit is really live:
-  // this is the exact shape that once silently deleted her crisis helplines.
-  await probe(
-    "big tail not truncated",
-    "/api/chat",
-    {
-      system: "You are a helpful test harness. Answer in one short sentence.",
-      system_tail: "x".repeat(16_000),
-      messages: [{ role: "user", content: "say hello" }],
-      max_tokens: 300,
-    },
-    (s, j) => (s !== 200 ? `http ${s}` : j.text ? true : "200 but empty reply"),
-  );
+  const bearerBoundary = (s, j) => s === 401 && j.error === "bearer_token_required"
+    ? true : `expected 401 bearer_token_required, got http ${s} ${String(j.error || "no error")}`;
+  await probe("AI lifecycle boundary", "/api/replica", "GET", bearerBoundary);
+  await probe("private upload boundary", "/api/replica-source", "POST", bearerBoundary);
+  await probe("voice preview boundary", "/api/voice-preview", "POST", bearerBoundary);
 }
 
 const failed = results.filter((r) => !r.ok);

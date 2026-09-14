@@ -74,17 +74,13 @@ if (existsSync(OUT) && !process.env.CI) {
   process.exit(1);
 }
 
-// Explicit Azure selection uses the same pure admission configuration as the
-// shared reply adapter. This import closure has no config-file or service I/O.
-// Validate before writing, including --stub, so a selected but invalid Azure
-// lane cannot be disguised as a successful static preview.
-const azureSelected = process.env.VYAKTI_MODEL_SERVING === "azure_only" ||
-  process.env.VYAKTI_REPLY_PROVIDER === "azure_foundry";
-if (azureSelected) {
+// A production Vyakti build has one provider. The explicit CLI flag keeps
+// offline --stub use separate from deploy admission without a runtime product
+// selector or a project-specific environment switch.
+const vyaktiDeploy = process.argv.includes("--vyakti-deploy");
+if (vyaktiDeploy) {
   try {
-    const { resolveReplyServingProvider } = await import("../api/_model-serving-policy.js");
     const { azureSurfaceReplyConfig } = await import("../api/_azure-surface-reply.js");
-    resolveReplyServingProvider(process.env);
     azureSurfaceReplyConfig(process.env);
     if (!String(process.env.NEON_URL || "").trim()) {
       throw Object.assign(new Error("NEON_URL_required"), { code: "NEON_URL_required" });
@@ -92,7 +88,7 @@ if (azureSelected) {
   } catch (error) {
     const code = /^[A-Za-z][A-Za-z0-9_]{2,100}$/.test(error?.code || "")
       ? error.code : "azure_build_config_invalid";
-    console.error(`::error::${code} - explicit Azure configuration refused.`);
+    console.error(`::error::${code} - Vyakti Azure configuration refused.`);
     process.exit(1);
   }
 }
@@ -183,8 +179,8 @@ if (researchFallback) {
 // empty string, so nothing is granted, and an accidental query against an
 // empty NEON_URL fails loudly instead of quietly reaching production. The
 // deploy guard below is skipped because there is nothing to deploy.
-if (azureSelected) {
-  console.log("  explicit Azure shared reply configuration validated; private dialogue/auth/storage readiness remains separate.");
+if (vyaktiDeploy) {
+  console.log("  Vyakti Azure reply configuration validated; private dialogue/auth/storage readiness remains separate.");
   process.exit(0);
 }
 if (process.argv.includes("--stub")) {
@@ -192,10 +188,10 @@ if (process.argv.includes("--stub")) {
   process.exit(0);
 }
 
-// The site cannot function without these two: no OpenRouter key means she has
-// no brain and no voice fallback, no Neon URL means no memory at all. Failing
-// here is much cheaper than deploying a site that looks fine and answers 500.
-for (const required of ["OPENROUTER_KEY", "NEON_URL"]) {
+// Non-deploy workflows may still reconstruct this legacy config for database,
+// research, or maintenance scripts. Room provider admission belongs only to
+// --vyakti-deploy above and is Azure-only. The common floor here is Neon.
+for (const required of ["NEON_URL"]) {
   if (!process.env[required]) {
     console.error(`::error::${required} is required and was not set — refusing to deploy.`);
     process.exit(1);

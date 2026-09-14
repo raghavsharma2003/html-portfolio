@@ -35,7 +35,7 @@
 // rule -- CSP is a property of the page SHELL, and the fixture's shell is
 // byte-identical to the shipping one), the studio (`/studio`, the real
 // `dist/studio.html` -- no fixture needed, it fetches nothing signed out),
-// and the four static marketing pages `/`, `/vyakti`, `/suites`, `/creators`
+// and the three static marketing pages `/`, `/suites`, `/creators`
 // (served straight from `site/*.html`, the same no-build-step files
 // `scripts/check-performance.mjs` already reads by name). A seventh check
 // hits `/api/*` directly over plain HTTP (no browser needed for two headers
@@ -281,17 +281,6 @@ const TARGETS = [
   {
     name: "/",
     path: "/",
-    label: "site landing (site/index.html)",
-    pp: DENY_PP,
-    // The painting-picker script (hashed into "/"'s script-src) sets this
-    // attribute; if the hash ever goes stale this stays false even with zero
-    // reported violations racing the listener, which is why it is checked in
-    // addition to, not instead of, the violation capture above.
-    checkExecuted: () => document.documentElement.hasAttribute("data-sky"),
-  },
-  {
-    name: "/vyakti",
-    path: "/vyakti",
     label: "Vyakti landing (site/vyakti.html)",
     pp: DENY_PP,
     checkExecuted: null,
@@ -356,8 +345,7 @@ function contentTypeFor(path) {
 // no-build-step marketing pages that live only in `site/`).
 async function resolveFile(pathname) {
   if (pathname.includes("..")) return null;
-  if (pathname === "/") return join(SITE, "index.html");
-  if (pathname === "/vyakti") return join(SITE, "vyakti.html");
+  if (pathname === "/") return join(SITE, "vyakti.html");
   if (pathname === "/suites") return join(SITE, "suites.html");
   if (pathname === "/creators") return join(SITE, "creators.html");
   if (pathname === "/studio") return join(DIST, "studio.html");
@@ -422,8 +410,8 @@ async function runHeaderChecks(rules) {
   // above, so it can never go stale against the shipping builder.
   const { buildSuitesAboutFixture } = await import("./build-suites-about-fixture.mjs");
   await buildSuitesAboutFixture();
-  if (!existsSync(join(SITE, "index.html")) || !existsSync(join(SITE, "vyakti.html"))) {
-    fail("headers", "setup", "missing-fixture", "site/index.html or site/vyakti.html missing");
+  if (!existsSync(join(SITE, "vyakti.html"))) {
+    fail("headers", "setup", "missing-fixture", "site/vyakti.html missing");
     return;
   }
 
@@ -559,7 +547,7 @@ async function runHeaderChecks(rules) {
   }
 
   // ── API routes: nosniff + no-store, over plain HTTP, no browser needed ──
-  for (const apiPath of ["/api/chat", "/api/room", "/api/account"]) {
+  for (const apiPath of ["/api/replica", "/api/room", "/api/voice-preview"]) {
     const r = await fetch(`http://127.0.0.1:${PORT}${apiPath}`);
     const nosniff = r.headers.get("x-content-type-options");
     const cacheControl = r.headers.get("cache-control");
@@ -658,7 +646,7 @@ async function main() {
   const t0 = Date.now();
   const rules = await loadVercelHeaders();
 
-  const ROUTE_CLASSES = ["/r/:slug", "/studio", "/", "/vyakti", "/suites", "/creators", "/api/(.*)"];
+  const ROUTE_CLASSES = ["/r/:slug", "/studio", "/", "/suites", "/creators", "/api/(.*)"];
   for (const rc of ROUTE_CLASSES) {
     if (!rules.some((r) => r.source === rc)) fail("headers", rc, "route-class-missing-from-vercel-json", "no matching headers[] entry in vercel.json");
   }

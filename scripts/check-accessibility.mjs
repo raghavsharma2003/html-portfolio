@@ -241,22 +241,12 @@ const TARGETS = [
     mounted: ".emotionos-studio",
   },
   {
-    name: "site",
-    // Served straight off the dist root by `serveDist` below — no query,
-    // one screen each.
-    fixture: null,
-    query: () => "",
-    screens: ["/"],
-    mounted: "#root",
-  },
-  {
     name: "vyakti",
     // `site/vyakti.html` is self-contained (inline CSS, no build step —
     // `scripts/vercel-build.sh`'s own comment says why) and is not one of
     // `vite.config.ts`'s build inputs, so it is served straight from source
-    // rather than through `dist/`. Real production reaches this page only on
-    // the platform-branch build (see that script); this gate reaches it
-    // directly so the page is judged on every branch, not only that one.
+    // rather than through `dist/`. Production serves it at the root on every
+    // build; this gate reaches the same source directly.
     fixture: null,
     query: () => "",
     // WS-R160: `site/vyakti.html` gained a Hindi `.locale` block (the same
@@ -264,7 +254,7 @@ const TARGETS = [
     // workstream - the second screen is that Hindi wrapper, reached with a
     // literal query string the way `fixture === null`'s own `urlsFor`
     // treats every screen in this target: the screen string IS the path.
-    screens: ["/vyakti", "/vyakti?lang=hi"],
+    screens: ["/", "/?lang=hi"],
     mounted: "main h1",
   },
 ];
@@ -279,7 +269,7 @@ function serveDist() {
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
     let path;
-    if (url.pathname === "/vyakti") {
+    if (url.pathname === "/") {
       // Source, not dist — see the `vyakti` target's own comment above.
       path = join(ROOT, "site", "vyakti.html");
     } else {
@@ -303,7 +293,7 @@ function urlsFor(target) {
   return target.screens.map((screen) => {
     const page =
       target.fixture === null
-        ? screen // "/" or "/vyakti" — the screen IS the path
+        ? screen // the screen string is the complete root path and query
         : `/${target.fixture}?${target.query(screen)}`;
     return { screen, url: `http://127.0.0.1:${PORT}${page}` };
   });

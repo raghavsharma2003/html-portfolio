@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Vyakti Android
 
 on:
   push:
@@ -6,27 +6,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  vyakti-apk:
     runs-on: ubuntu-latest
     env:
-      # secrets aren't readable inside step `if:`s; hoist presence to a plain
-      # env flag once. Empty secret -> "false" -> release steps skip.
-      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_VYAKTI_KEYSTORE: ${{ secrets.VYAKTI_ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # WS-R165 moved every suite that read a historical blob with
-          # `git show <commit>:<path>` (20 files, Codex's merge controls,
-          # 2026-09-08/09) into a committed fixture instead
-          # (rejected.md#ci-shallow-checkout-starved-the-history-reading-
-          # suites) — a depth-1 checkout, the original defect, no longer
-          # starves any suite. Full history stays for a DIFFERENT reason:
-          # `evals/feltmem/arms.mjs` deliberately reads a real, fixed
-          # historical commit (`git archive`/`git log`, PREWAVE_REF) to
-          # materialize the pre-memory-wave tree for its A/B compiler
-          # battery, by design (rejected.md#shared-tree-concurrency) — a
-          # depth-1 checkout would starve THAT the same way. A future wave
-          # that moves feltmem off a live historical ref can drop this.
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -38,185 +24,38 @@ jobs:
           java-version: 21
       - run: npm ci
       - run: npx tsc -b
-      # Fails the build if a system prompt outgrows the cap api/chat.js slices
-      # it at. Truncation is silent and eats the END of the prompt, which is
-      # where the crisis helplines, the AI-honesty rule and the search protocol
-      # live — it has already cost us all three once.
       - run: node scripts/check-prompt-budget.mjs
-      # The project's memory must stay valid: a decision whose measurement was
-      # renamed, or an entry written up nowhere, is a story about the project
-      # rather than a record of it.
       - run: node scripts/context.mjs --check
-      # THE SAFETY FLOOR. Until 2026-08-21 no workflow ran this, so the persona
-      # invariants — the crisis helplines, never-deny-being-an-AI, NEVER
-      # MANIPULATE, the spoken-register bullets — gated NOTHING in CI. They ran
-      # only when somebody remembered to run verify-release by hand. That is
-      # `gates-that-live-nowhere` in its purest form: a suite everyone believed
-      # was protecting the product while every push went around it.
-      #
-      # It could not have run before this: evals/trace/run.mjs reaches
-      # api/_trace.js -> api/_db.js -> api/_config.js, which is gitignored, so
-      # the import died before the suite got anywhere near the persona checks.
-      # --stub writes that file with every value empty — nothing granted, and
-      # an accidental query fails loudly rather than quietly reaching prod.
       - run: node scripts/write-config.mjs --stub
       - run: node evals/run.mjs
-      # WS-WATCHPERF. Two suites that compile and RUN shipping Java, so this
-      # job — the one that already installs a JDK to build the APK — is the
-      # only place they can live. They gate the screen-share lane's two
-      # reported defects: the frame pacing (evals/watchlat, which proves a wake
-      # can no longer evaporate between the service's accounting of a frame and
-      # the engine's) and the device-audio mixer (evals/watchaudio, which
-      # proves by position that nothing in the barge-in floor can even name the
-      # media buffers). Both FAIL rather than skip without javac.
       - run: node evals/watchperf/run.mjs
-      # WS-MULTIMODAL, wired 2026-08-23 (WS-LIFECYCLE's wire-or-retire pass).
-      # Same argument as watchperf directly above: native-gate.mjs COMPILES AND
-      # RUNS SceneReader.java, so this JDK-bearing job is the only place it can
-      # live, and it had been living nowhere at all — written, correct, and
-      # invoked by no workflow, no npm script and not verify-release.
-      # `dead-writers`, fifth instance.
-      #
-      # It gates the recording half of the watch lane: the Java geometry stays
-      # tick-for-tick with src/watch/scene.ts, a FLAG_SECURE blackout stores
-      # ZERO rows, and no code under android/ can post an episode or name a
-      # visual-assertion table on its own.
-      #
-      # --offline because `write-config.mjs --stub` above creates api/_config.js
-      # with an EMPTY NEON_URL: without the flag the DB suite would run against
-      # nothing and fail. The flag prints that half as out of scope rather than
-      # skipping it silently — see the file header.
       - run: node evals/multimodal/run.mjs --offline
       - run: npx vite build
-      - run: npx cap sync android
-      # WS-R157: `android/app/build.gradle` now declares a `brand` flavour
-      # dimension (`meera`, `vyakti`), so the bare `assembleDebug` task this
-      # step used to call no longer names a single APK — AGP still accepts
-      # it as an AGGREGATE task that builds every flavour's debug variant
-      # together, which would ALSO build `vyakti`'s (using Meera's own
-      # namespace's resources for nothing this job needs) and would leave
-      # the fixed path below pointing at nothing, since a flavoured build
-      # writes each variant to its own `outputs/apk/<flavour>/debug/`
-      # subdirectory rather than the old flat `outputs/apk/debug/`. Naming
-      # the flavour explicitly keeps this job building ONLY what it always
-      # built — see `context/decisions.md#ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional`.
-      - run: cd android && ./gradlew assembleMeeraDebug --no-daemon
-      - uses: actions/upload-artifact@v4
-        with:
-          name: meera-apk
-          path: android/app/build/outputs/apk/meera/debug/app-meera-debug.apk
-      # ── Play Store release: signed .aab + release APK ────────────────────
-      # Runs only when the signing secrets exist, so forks and PRs without
-      # them still get the debug APK above unchanged. The keystore lives ONLY
-      # in the ANDROID_KEYSTORE_BASE64 secret; it is decoded to a path the
-      # gradle signing config probes for and never touches the repo.
-      - name: Decode upload keystore
-        if: ${{ env.HAS_KEYSTORE == 'true' }}
-        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/upload.keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-      - name: Build signed release bundle
-        if: ${{ env.HAS_KEYSTORE == 'true' }}
-        # WS-R157: flavour-qualified for the same reason `assembleMeeraDebug`
-        # is above — the bare `bundleRelease assembleRelease` pair would now
-        # also try to build `vyakti`'s release variant (unsigned, since no
-        # `vyakti` signing config exists), under this same job that only
-        # carries Meera's Play keystore.
-        run: cd android && ./gradlew bundleMeeraRelease assembleMeeraRelease --no-daemon
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      - name: Upload release artifacts
-        if: ${{ env.HAS_KEYSTORE == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: maya-release
-          path: |
-            android/app/build/outputs/bundle/meeraRelease/app-meera-release.aab
-            android/app/build/outputs/apk/meera/release/app-meera-release.apk
-
-  # WS-R157. Vyakti's own debug APK, built beside Meera's — a separate job
-  # (never a step tacked onto `build` above) so a Vyakti build failure never
-  # blocks Meera's, and so Meera's job above never has to know Vyakti exists.
-  # The debug build needs no secret: `assembleVyaktiDebug` always builds
-  # unsigned, exactly like Meera's own debug build always has.
-  #
-  # WS-R169 adds the release half, gated exactly like Meera's own release
-  # steps in the `build` job above: `HAS_VYAKTI_KEYSTORE` is the SAME
-  # hoist-presence-once pattern as `HAS_KEYSTORE` (secrets aren't readable
-  # inside a step `if:` directly), reading the flavour's OWN secret name
-  # (`VYAKTI_ANDROID_KEYSTORE_BASE64`, never Meera's `ANDROID_KEYSTORE_BASE64`
-  # — one leaked keystore must never compromise both Play listings) so an
-  # empty/absent secret keeps every step below unconditional exactly as it
-  # was before this workstream, and a configured secret adds the signed
-  # `.aab`/`.apk` without ever touching Meera's own signing config
-  # (`android/app/build.gradle`'s `vyakti` flavour block, WS-R169).
-  vyakti-apk:
-    runs-on: ubuntu-latest
-    env:
-      HAS_VYAKTI_KEYSTORE: ${{ secrets.VYAKTI_ANDROID_KEYSTORE_BASE64 != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-      - run: npm ci
-      - run: npx tsc -b
-      # The same empty-keys stub the `build` job above writes: `vite build`
-      # resolves api/_surface.js, which imports the gitignored api/_config.js,
-      # so a fresh checkout cannot build without it (the wave-21 merge push
-      # found this job red on exactly that import).
-      - run: node scripts/write-config.mjs --stub
-      - run: npx vite build
-      # Vyakti's start page is `/studio` (a SECOND vite entry, never the
-      # first — see `scripts/select-native-start-page.mjs`'s own header for
-      # why Meera needs no equivalent step: `dist/index.html` already IS her
-      # entry). Runs AFTER the same `vite build` Meera's job above also
-      # runs, on `dist/` in THIS job's own checkout — a separate runner, a
-      # separate `dist/`, so this can never race or interfere with Meera's.
       - run: node scripts/select-native-start-page.mjs studio
-      # Stages `capacitor.vyakti.config.ts` onto `capacitor.config.ts` —
-      # the ONE name Capacitor's CLI reads (`scripts/select-capacitor-
-      # config.mjs`'s own header) — so `cap sync` below picks up Vyakti's
-      # appId/appName/webDir rather than Meera's.
       - run: node scripts/select-capacitor-config.mjs vyakti
       - run: npx cap sync android
-      - run: cd android && ./gradlew assembleVyaktiDebug --no-daemon
+      - run: cd android && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: vyakti-apk
-          path: android/app/build/outputs/apk/vyakti/debug/app-vyakti-debug.apk
-      # ── Play Store release: signed .aab + release APK, Vyakti's own keystore ──
-      # Runs only when the flavour's own signing secrets exist, so forks and
-      # PRs without them still get the debug APK above unchanged. The
-      # keystore lives ONLY in the VYAKTI_ANDROID_KEYSTORE_BASE64 secret; it
-      # is decoded to a path `android/app/build.gradle`'s `vyakti` flavour
-      # signing block probes for (`vyakti-upload.keystore`, beside but never
-      # confused with Meera's own `upload.keystore`) and never touches the
-      # repo.
-      - name: Decode vyakti upload keystore
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Decode Vyakti upload keystore
         if: ${{ env.HAS_VYAKTI_KEYSTORE == 'true' }}
         run: echo "$VYAKTI_ANDROID_KEYSTORE_BASE64" | base64 -d > android/vyakti-upload.keystore
         env:
           VYAKTI_ANDROID_KEYSTORE_BASE64: ${{ secrets.VYAKTI_ANDROID_KEYSTORE_BASE64 }}
-      - name: Build signed vyakti release bundle
+      - name: Build signed Vyakti release bundle
         if: ${{ env.HAS_VYAKTI_KEYSTORE == 'true' }}
-        run: cd android && ./gradlew bundleVyaktiRelease assembleVyaktiRelease --no-daemon
+        run: cd android && ./gradlew bundleRelease assembleRelease --no-daemon
         env:
           VYAKTI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VYAKTI_ANDROID_KEYSTORE_PASSWORD }}
           VYAKTI_ANDROID_KEY_ALIAS: ${{ secrets.VYAKTI_ANDROID_KEY_ALIAS }}
           VYAKTI_ANDROID_KEY_PASSWORD: ${{ secrets.VYAKTI_ANDROID_KEY_PASSWORD }}
-      - name: Upload vyakti release artifacts
+      - name: Upload Vyakti release artifacts
         if: ${{ env.HAS_VYAKTI_KEYSTORE == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: vyakti-release
           path: |
-            android/app/build/outputs/bundle/vyaktiRelease/app-vyakti-release.aab
-            android/app/build/outputs/apk/vyakti/release/app-vyakti-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/apk/release/app-release.apk

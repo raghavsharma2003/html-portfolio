@@ -3,17 +3,17 @@
 # tools can touch it, then install exactly what package-lock.json describes.
 set -euo pipefail
 
-BRANCH="${VERCEL_GIT_COMMIT_REF:-claude/gurukul-platform}"
+BRANCH="${VERCEL_GIT_COMMIT_REF:-main}"
 TARBALL="https://codeload.github.com/raghavsharma2003/html-portfolio/tar.gz/refs/heads/$BRANCH"
 
 # Thin API-driven deployments carry the build contract but not the complete
 # repository. Materialise that source before hashing it. Full and Git-connected
 # deployments already have src/ and skip this branch.
 if [ ! -d src ]; then
-  curl -fsSL "$TARBALL" -o /tmp/meera-src.tgz
-  mkdir -p /tmp/meera-src
-  tar -xzf /tmp/meera-src.tgz -C /tmp/meera-src --strip-components=1
-  cp -Rn /tmp/meera-src/. .
+  curl -fsSL "$TARBALL" -o /tmp/vyakti-src.tgz
+  mkdir -p /tmp/vyakti-src
+  tar -xzf /tmp/vyakti-src.tgz -C /tmp/vyakti-src --strip-components=1
+  cp -Rn /tmp/vyakti-src/. .
 fi
 
 # The authenticated deploy client (scripts/deploy-vercel.mjs) passes the

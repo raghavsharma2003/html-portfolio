@@ -18815,3 +18815,21 @@ never clicks there would have shipped the same defect silently.
 **What was done.** Each worktree's dirty state was committed locally as a WIP commit and exported as a patch against `23d320f` under `docs/handoff/2026-09-14/wave-24-wip/` on the platform branch, with `INDEX.txt` and a per-workstream "where it stopped" table in `docs/handoff/2026-09-14/CODEX-HANDOFF.md`, so the next loop (Codex, per the owner) resumes each from its patch rather than from the brief.
 
 **The rule.** Run at most five workstreams at once, and every brief carries: commit your work every hour whether or not it is gated (a WIP commit on your own branch costs nothing and survives a killed agent). `CLAUDE.md`'s model policy already warned that the main loop hit a usage limit mid-build once; this is the same failure one level down.
+
+## `wave-25-fourteen-crons-was-a-stale-deployment-count` (2026-09-14, wave 25)
+
+**Tried.** Treated the handoff's instruction to preserve 14 required cron sweeps as the deployment inventory for the standalone Vyakti rewrite.
+
+**What specifically broke.** The exact base's `vercel.json` contains 23 distinct, resolvable Vyakti/shared scheduled callers. Reducing the array to 14 would silently retire nine active jobs while still satisfying a stale prose count. A readback of the actual Vyakti project confirmed the tree's 23-entry schedule rather than the handoff number.
+
+**What replaced it.** `evals/deploy-verifier/run.mjs` asserts the ordered 23-path inventory from `vercel.json` and fails on either deletion or reordering. `AGENTS.md`, `CLAUDE.md`, and the active deploy guide name 23 with the verification date and tell future work to trust the configuration and runner over older counts.
+
+**The rule.** A handoff count never authorizes deletion of live callers. Inventory the source of truth, verify the active project when access exists, and turn the observed set into an exact gate before changing deployment plumbing.
+
+## `wave-25-a-removed-board-cannot-remain-the-contrast-gate` (2026-09-14, wave 25)
+
+**Tried.** Kept `scripts/check-contrast.mjs` unchanged after the standalone surface removed the companion chess, tic-tac-toe, and world styles it read. The named release check then stopped at `ENOENT`; skipping the missing roots would have made a green line claim a contrast contract over no current product surface.
+
+**What replaced it.** The gate now reads the shared foundation that the real Vyakti Room imports and the matching Studio/status token sources. It holds ten text, action, state, and focus pairs to 4.5:1 or 3:1 floors and carries two source mutations. Its first run found a real defect: waiting ink `#b4551f` on waiting ground `#fbead9` measured 4.20:1. Both mirrored token files now use `#a94a18`, measured at 4.86:1, rather than lowering the floor.
+
+**The rule.** When a product surface is retired, replace its static gate with an equally concrete check of the surviving surface. Missing input is never a passing result, and a newly relevant floor stays at its stated accessibility threshold even when the current token fails it.

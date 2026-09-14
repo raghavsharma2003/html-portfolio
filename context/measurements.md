@@ -18739,3 +18739,11 @@ Method: each workstream's own report (suite counts as printed), the main loop's 
 | WS-R177 the studio fast on 4G | 123aa34 | performance-measurements 41, performance-prerequisites, performance-hindi-interface, gate-load |
 
 Batch gate on the ten-merge tree: 25 of 25 on ed1470e. Live database after the wave: unchanged (no workstream needed a migration; 172, 173 and 174 stay unused and 172 is still the next free number).
+
+## `wave-25-vyakti-build-contract-focused-gates-2026-09-14` (2026-09-14, wave 25)
+
+**n.** One exact-base worktree at `16fae19ff5a176178be11f7897d946d73a3bf68b`; 23 cron entries; 6 deploy-verifier positive checks; 2 stale/wrong-project negative controls; 2 Git/manual-deploy negative controls; 24 synthetic verifier requests; 4 workflow files; 1 probe-live fixture battery.
+
+**Method.** Installed the lockfile privately with `npm ci --no-audit --no-fund`. Ran `node evals/deploy-verifier/run.mjs`, which parsed the real Vercel/build/workflow sources and drove the real deploy verifier against a loopback server. Ran `node scripts/check-workflows.mjs` across every remaining workflow. Generated an empty gate-only `_config.js` and ran `node evals/probe-live/run.mjs`. Ran syntax checks on each changed JavaScript contract and `node scripts/context.mjs --check`. No network model call, SQL statement, GitHub write, Vercel write, or deployment was performed.
+
+**Result.** Deploy verifier: 6/6 positive, 2/2 stale/wrong-project negative, 2/2 Git/manual-deploy negative, 23/23 cron order, 0 removed-route requests. The source control requires `git.deploymentEnabled: false`, and the retained manual workflow runs the full offline gate before its exact-project Vercel CLI call. Workflow lint: 4/4 files and zero illegal job-level contexts. Probe-live fixture battery: zero findings. The replacement palette gate passed 10/10 real Vyakti token floors and 2/2 mutations after its first run measured the waiting pair at 4.20:1 and the token was corrected to a measured 4.86:1. Context graph before this append: 3233 nodes and 2761 edges, zero findings. The base tree's old dual-flavor native suite was intentionally not counted as passing because it still expects the frontend workstream's pending removal commit.

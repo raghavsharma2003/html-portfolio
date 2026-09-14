@@ -2,13 +2,10 @@
 //
 // WHAT CHANGED, AND WHY IT HAD TO
 // ---------------------------------------------------------------------------
-// This file used to do one thing: strip comments from `src/components/` and
-// `site/*.html`, and fail on any em-dash that survived. That was right, and it
-// was also half a gate — it never looked at `src/studio/`, which is where the
-// audit counted 73 em-dashes, and it had no opinion at all about the rest of
-// the "nonsense written on it" the owner named: version stamps, numbered
-// eyebrows, scroll cues, filler verbs, and the OTHER product's codename sitting
-// in this product's sign-in copy.
+// This file began as a dash check over the original app and `site/*.html`, then
+// grew to cover every Vyakti user-facing surface and the rest of the
+// "nonsense written on it" the owner named: version stamps, numbered eyebrows,
+// scroll cues, filler verbs, and retired product names in current Vyakti copy.
 //
 // THE ONE HARD PROBLEM: WHAT COUNTS AS COPY
 // ---------------------------------------------------------------------------
@@ -54,16 +51,13 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /* ═══ 1. SCOPE ══════════════════════════════════════════════════════════════
  *
- * `full` scope gets every rule. `dash` scope gets PASS 1 only, which is exactly
- * what this file enforced before today: `src/components/` is Meera's app, a
- * different product with its own voice, and widening the word bans onto it in
- * the same change that widened the dash ban would be two changes wearing one
- * coat. It is a deliberate hold, not an oversight.
+ * `full` scope gets every rule. The retired companion UI no longer exists, so
+ * every directory below is a current Vyakti surface and receives the complete
+ * contract.
  *
  * There is no `src/student/`. The student surface is `src/gurukul/` (the
  * practice/surface modules) plus `src/replica/` (the student-facing contracts);
- * `src/components/` is the companion app's UI and stays out of `full` for the
- * reason above.
+ * the directories below are the current product's user-facing source roots.
  */
 const SCOPES = [
   { dir: "src/studio/", rules: "full", codename: true },
@@ -76,7 +70,6 @@ const SCOPES = [
   { dir: "src/gurukul/", rules: "full", codename: true },
   { dir: "src/replica/", rules: "full", codename: true },
   { dir: "site/", rules: "full", codename: false },
-  { dir: "src/components/", rules: "dash", codename: false },
 ];
 
 /* Root-level HTML entry points. Not under any SCOPES dir, so they need their
@@ -86,13 +79,8 @@ const EXTRA_FILES = [
   { file: "room.html", rules: "full", codename: false },
 ];
 
-/* `site/index.html` and `site/privacy.html` ARE the Meera product's pages, so
- * the codename rule cannot bind there — it would be flagging a product for
- * being named. It binds on the Vyakti surfaces, where the name is a leak.
- * WS-R45 adds the creator directory: also a Vyakti surface, also a page a
- * stranger reads first. WS-R48 adds `site/suites.html`: the same product's
- * second landing page, telling the same Rooms story to a Suite buyer instead
- * of a solo creator. */
+/* The named landing and directory pages are explicit codename scopes. Other
+ * site files keep their established per-section rules. */
 const CODENAME_FILES = /^site\/(vyakti|creators|suites)\.html$/;
 
 /* The current expert-clone owner directive supersedes WS-R10's blanket

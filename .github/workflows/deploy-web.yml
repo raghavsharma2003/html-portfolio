@@ -1,218 +1,72 @@
-# The website must never lag behind the branch.
+# Build, gate and deploy the one Vyakti web product.
 #
-# It used to: deploys were manual, so the live site was whatever someone last
-# remembered to push out. On 2026-08-11 production was found serving a build
-# from two commits earlier, with the API older still — and nothing reported it,
-# because a stale deploy looks exactly like a working one.
-#
-# This runs the same deploy a human would, on every push, so "deployed" stops
-# being a thing anyone has to remember.
-#
-# NEEDS ONE SECRET: VERCEL_TOKEN, or VERCEL (Settings → Secrets and variables →
-# Actions → Repository secrets — NOT the Variables tab, NOT Environment
-# secrets; both look right and neither is read here). Without it the
-# job fails loudly rather than skipping quietly — a deploy workflow that
-# silently does nothing is worse than no workflow, because it looks like cover.
-name: Deploy web
+# The Vercel project owns runtime configuration. GitHub needs only a Vercel
+# token; the build itself validates the project's Azure and database names and
+# refuses before Vite when they are incomplete.
+name: Deploy Vyakti web
 
 on:
   push:
-    # Narrowed from "claude/**" on the gurukul branch (2026-08-25): this
-    # workflow deploys PRODUCTION meera-silk, and the first gurukul push
-    # proved the glob makes every feature branch of a *different product*
-    # overwrite the live companion. The union tree happened to be safe (all
-    # gates green, /chat verified serving the fresh bundle) — the next one
-    # might not be. Gurukul deploys get their own workflow when they exist;
-    # flipping this branch to production source is an owner decision, made
-    # here, deliberately.
-    branches: [main, "claude/ai-companion-app-rkt1lv"]
+    branches: [main]
   workflow_dispatch:
 
-# A newer push makes an in-flight deploy pointless. Cancel it rather than
-# racing: two deploys landing out of order would leave the OLDER one live.
 concurrency:
-  group: deploy-web-${{ github.ref }}
+  group: deploy-vyakti-production
   cancel-in-progress: true
 
 jobs:
-  # Visible without being a false alarm. The first version of this FAILED when
-  # VERCEL_TOKEN was missing, on the reasoning that a deploy workflow which
-  # silently does nothing reads as cover. That reasoning was right and the
-  # implementation was wrong: it went red on EVERY push, and a check that is
-  # always red is a check nobody reads — which would hide the real deploy
-  # failure it exists to catch. An annotation says it once per run, loudly, and
-  # leaves red meaning "something broke".
-  #
-  # It also carries the answer for the deploy job, because `secrets` is NOT a
-  # context GitHub evaluates in a job-level `if:` — see the block below.
   configured:
     runs-on: ubuntu-latest
     outputs:
-      # Safe to expose: these are BOOLEANS of comparisons, never the secrets.
-      # GitHub would redact a secret's value from an output; "true"/"false"
-      # carries only whether one is set, which is the thing we need to branch on
-      # and the thing the annotation already says out loud.
       ready: ${{ steps.check.outputs.ready }}
     steps:
-      - name: Report whether deploys are configured
+      - name: Report whether production deploys are configured
         id: check
-        # Accepts VERCEL_TOKEN or VERCEL. The secret was first added under the
-        # short name, the workflow read the long one, and the only symptom was
-        # `HAS_TOKEN: false` — a correct secret, in the right repository, in the
-        # right tab, silently not found. That is the same failure shape as the
-        # invalid `if:` this file already carries a comment about: the thing was
-        # there and nothing could see it.
-        #
-        # A fallback rather than a rename because renaming means re-pasting a
-        # token, and because a deploy that works under either name is strictly
-        # harder to break than one that insists on a spelling.
-        #
-        # It checks the API keys TOO, and that is the more important half. This
-        # gate used to pass on the Vercel token alone, so a repo with a token and
-        # no keys reported "deploys configured", then spent three minutes on
-        # `npm ci` + `tsc` + `vite build` before write-config.mjs refused at the
-        # last step. The signal said ready, the reality was not, and the distance
-        # between them was measured in minutes of CI. Check everything the deploy
-        # actually needs, here, before anything expensive runs.
-        #
-        # Only these two are hard requirements — write-config.mjs exits 1 without
-        # them, because no OpenRouter key means no brain and no voice fallback,
-        # and no Neon URL means no memory at all. The rest degrade to "" and the
-        # site still comes up, so they are NOT gated here; a partial deploy is a
-        # real choice and this workflow should not overrule it.
         env:
           HAS_TOKEN: ${{ (secrets.VERCEL_TOKEN || secrets.VERCEL) != '' }}
-          HAS_BRAIN: ${{ secrets.OPENROUTER_KEY != '' }}
-          HAS_DB: ${{ secrets.NEON_URL != '' }}
-          # These three are NOT "nice to have". write-config.mjs turns a missing
-          # secret into "" (and GOOGLE_KEYS into []), which does not fail the
-          # build — it ships a site whose features are silently gone:
-          #   GOOGLE_KEYS ""  -> the free pool is empty, so chat and the TTS
-          #                      cascade have no primary lane and fall entirely
-          #                      onto the metered OpenRouter key
-          #   GOOGLE_KEY  ""  -> api/live-token.js cannot mint a session, so the
-          #                      realtime voice call — the lane that takes most
-          #                      calls — does not connect at all
-          #   SUPABASE_*  ""  -> api/memory.js returns 500 "no backend
-          #                      configured" on EVERY op, so memory, recall and
-          #                      photos are dead
-          #
-          # Gating on them exists because of the specific way this can go wrong:
-          # a partial secret set deploys GREEN over a working production and
-          # takes features away. That is worse than not deploying, and it is
-          # invisible — the same `startup-failure-is-invisible` shape, one layer
-          # up. AZURE_* is deliberately NOT gated: without it extraction falls
-          # back to OpenRouter, which costs money but breaks nothing.
-          HAS_POOL: ${{ secrets.GOOGLE_KEYS != '' }}
-          HAS_LIVE: ${{ secrets.GOOGLE_KEY != '' }}
-          HAS_STORE: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_KEY != '' }}
         run: |
-          MISSING=""
-          [ "$HAS_TOKEN" = "true" ] || MISSING="$MISSING VERCEL_TOKEN(or VERCEL)"
-          [ "$HAS_BRAIN" = "true" ] || MISSING="$MISSING OPENROUTER_KEY"
-          [ "$HAS_DB"    = "true" ] || MISSING="$MISSING NEON_URL"
-          [ "$HAS_POOL"  = "true" ] || MISSING="$MISSING GOOGLE_KEYS(free-pool:chat+tts)"
-          [ "$HAS_LIVE"  = "true" ] || MISSING="$MISSING GOOGLE_KEY(realtime-call)"
-          [ "$HAS_STORE" = "true" ] || MISSING="$MISSING SUPABASE_URL+SUPABASE_KEY(memory+photos)"
-          if [ -n "$MISSING" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Deploys are not configured::Missing:$MISSING. The site is NOT being deployed automatically and will lag the branch. Add them in Settings → Secrets and variables → Actions → Repository secrets (NOT the Variables tab, NOT Environment secrets)."
-          else
+          if [ "$HAS_TOKEN" = "true" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "deploys configured"
+            echo "Vyakti production deploys are configured"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Vyakti deploy is not configured::Add VERCEL_TOKEN (or VERCEL) as a repository secret. Production was not deployed."
           fi
 
   deploy:
     runs-on: ubuntu-latest
     needs: configured
-    # Skipped (grey), not failed (red), when the token is absent.
-    #
-    # This CANNOT read `secrets` directly. GitHub does not evaluate the secrets
-    # context in a job-level `if:`, and the failure mode is not a skipped job or
-    # a warning — the whole WORKFLOW FILE becomes invalid and the run dies at
-    # startup with ZERO jobs. It did, on every push from 2026-08-11 to
-    # 2026-08-20: 15 consecutive red runs, each finishing in the same second it
-    # started, `total_jobs: 0`. So the site stopped auto-deploying and the
-    # annotation job above — the thing that was supposed to SAY so — never ran
-    # either, because a startup failure takes the whole file down with it.
-    #
-    # The irony is the point: the comment above `configured` is about a check
-    # that is always red being a check nobody reads. This check then went always
-    # red for nine days for a different reason, and nobody read it.
     if: needs.configured.outputs.ready == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      # The same gates the APK build runs. A green site with a red typecheck is
-      # how a broken build reaches production without anyone noticing.
-      - run: npm ci
-      - run: npx tsc -b
-      - run: node scripts/check-prompt-budget.mjs
-      - run: node scripts/context.mjs --check
-      # THE SAFETY FLOOR. Until 2026-08-21 no workflow ran this, so the persona
-      # invariants — the crisis helplines, never-deny-being-an-AI, NEVER
-      # MANIPULATE, the spoken-register bullets — gated NOTHING in CI. They ran
-      # only when somebody remembered to run verify-release by hand. That is
-      # `gates-that-live-nowhere` in its purest form: a suite everyone believed
-      # was protecting the product while every push went around it.
-      #
-      # It could not have run before this: evals/trace/run.mjs reaches
-      # api/_trace.js -> api/_db.js -> api/_config.js, which is gitignored, so
-      # the import died before the suite got anywhere near the persona checks.
-      # --stub writes that file with every value empty — nothing granted, and
-      # an accidental query fails loudly rather than quietly reaching prod.
+      - run: npm ci --no-audit --no-fund
       - run: node scripts/write-config.mjs --stub
-      - run: node evals/run.mjs
-
-      # api/_config.js holds every key and is gitignored, so CI does not have
-      # it. It is reconstructed here from secrets and never written to a log.
-      # A deploy without it returns 500 on every API route.
-      - name: Reconstruct api/_config.js
         env:
-          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
-          GOOGLE_KEY: ${{ secrets.GOOGLE_KEY }}
-          GOOGLE_KEYS: ${{ secrets.GOOGLE_KEYS }}
-          GOOGLE_PAID_KEY: ${{ secrets.GOOGLE_PAID_KEY }}
-          NEON_URL: ${{ secrets.NEON_URL }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          AZURE_KEY: ${{ secrets.AZURE_KEY }}
-          # the Telegram surface (api/tg.js) — WEBHOOK_SECRET is what
-          # authenticates the webhook; without it api/tg.js refuses every update
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
-          TELEGRAM_BOT_USERNAME: ${{ secrets.TELEGRAM_BOT_USERNAME }}
-          AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
-        run: node scripts/write-config.mjs
+          CI: "1"
+      - name: Install the bundled Devanagari face
+        run: |
+          mkdir -p "$HOME/.local/share/fonts"
+          cp node_modules/@expo-google-fonts/noto-sans-devanagari/400Regular/NotoSansDevanagari_400Regular.ttf "$HOME/.local/share/fonts/"
+          fc-cache -f "$HOME/.local/share/fonts"
+          fc-list | grep -qi "Noto Sans Devanagari" || { echo "::error::Noto Sans Devanagari did not register"; exit 1; }
+      - name: Install Chromium for release gates
+        run: npx playwright install --with-deps chromium
+      - name: Run the complete offline release gate
+        run: node scripts/verify-release.mjs
 
-      - name: Deploy to production
+      - name: Deploy Vyakti to production
         env:
-          # Same fallback as the `configured` job above — these two MUST agree,
-          # or the gate says "configured" and the deploy runs tokenless.
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN || secrets.VERCEL }}
-          # PIN THE PROJECT. The runner has no .vercel/project.json
-          # (gitignored), so without these the CLI auto-links by DIRECTORY
-          # NAME — and on 2026-08-22 the first fully-secreted run deployed
-          # Meera to a stale "html-portfolio" project and aliased a URL
-          # nobody uses, while the real site kept serving old code and the
-          # run stayed green. These IDs are not secrets (Vercel documents
-          # them as safe to commit); they are the identity of the deploy.
           VERCEL_ORG_ID: team_hQIoipGIvf1GHVj3878tDOR3
-          VERCEL_PROJECT_ID: prj_NZ4BT0Vr2BbkVrvWPcJNF68XCObp
-        # --archive=tgz: a plain upload of this tree (photos included) has
-        # failed with "fetch failed" mid-transfer; the tarball path is what
-        # actually completes.
-        run: node scripts/deploy-vercel.mjs --product meera-companion --prod --yes --archive=tgz
+          VERCEL_PROJECT_ID: prj_rfW81HIge0vtG6nzIcO41OGB5fP9
+        run: node scripts/deploy-vercel.mjs --product vyakti-clone --prod --yes --archive=tgz
 
-      # Deployed is not the same as serving the new code. Vercel reports READY
-      # for a build whose functions still 500, so assert the live site answers.
-      - name: Verify production is actually serving
-        # This workflow owns the companion project. verify-deploy defaults to
-        # the generic Vyakti clone product, so name this older surface
-        # explicitly and keep wrong-project detection meaningful for both.
-        run: node scripts/verify-deploy.mjs https://meera-silk.vercel.app --product meera-companion
+      - name: Verify production is serving this checkout
+        run: node scripts/verify-deploy.mjs https://vyakti-replica-lab.vercel.app --product vyakti-clone

@@ -18,10 +18,10 @@
 // A plain Node static server on 127.0.0.1:8932 (never 8931 — the layout gate
 // owns that port, and colliding with a sibling worktree's run of it produces
 // an EADDRINUSE that reads exactly like a real regression) serves the built
-// tree. Two of the four targets are static, no-build-step marketing pages
+// tree. Static, no-build-step marketing pages
 // that live in `site/`, not in `vite.config.ts`'s rollup inputs, so this
 // server falls back to `site/` for any path `dist/` does not have — this is
-// how `site/index.html` reaches `/styles.css` and `/assets/*`, which only
+// how `site/vyakti.html` reaches `/styles.css` and `/assets/*`, which only
 // `scripts/vercel-build.sh`'s production copy step would otherwise place next
 // to it. Nothing here mutates `dist/` or `site/` on disk.
 //
@@ -50,7 +50,7 @@
 // back after the page settles (`largest-contentful-paint`, `layout-shift`
 // summed where `!hadRecentInput`) — both injected via `page.addInitScript`,
 // which runs before any script on the page, including an inline `<head>`
-// script (site/index.html has one). TBT is approximated as the sum of
+// script (site/vyakti.html has one). TBT is approximated as the sum of
 // `max(0, duration - 50)` over every `longtask` PerformanceObserver entry for
 // the whole run — a simplification of the real FCP-to-TTI window (this file
 // has no interaction to bound TTI against), named here rather than presented
@@ -210,8 +210,7 @@ function findHiPersonalAuthCopyChunkPath() {
 // the whole memory question — is what a follower's phone actually renders the
 // first time, not a conversation that presupposes one already happened.
 const TARGETS = [
-  { name: "/", path: "/", label: "site landing (site/index.html)" },
-  { name: "/vyakti", path: "/vyakti", label: "Vyakti landing (site/vyakti.html)" },
+  { name: "/", path: "/", label: "Vyakti landing (site/vyakti.html)" },
   // WS-R139: the shared 180KB `BUDGETS.jsBytes` ceiling below is set for the
   // WORST target (`index-*.js`'s own review-queue-adjacent weight), and
   // leaving the Room at that same ceiling would hide a real regression on
@@ -315,8 +314,7 @@ function contentTypeFor(path) {
  *  otherwise supply via a real rewrite this static server does not run. */
 async function resolveFile(pathname) {
   if (pathname.includes("..")) return null; // no path traversal, even off loopback
-  if (pathname === "/") return join(SITE, "index.html");
-  if (pathname === "/vyakti") return join(SITE, "vyakti.html");
+  if (pathname === "/") return join(SITE, "vyakti.html");
   if (pathname === "/studio") return join(DIST, "studio.html");
   if (pathname === "/suites/about") return join(DIST, "suites-about-fixture.html");
   if (pathname.startsWith("/r/") && pathname.endsWith("/about")) return join(DIST, "room-about-fixture.html");
@@ -936,8 +934,8 @@ async function main() {
   if (absent.length) {
     return prerequisiteFailure(`dist/${absent.join(", dist/")} missing; restore the required fixtures.`);
   }
-  if (!existsSync(join(SITE, "index.html")) || !existsSync(join(SITE, "vyakti.html"))) {
-    return prerequisiteFailure("site/index.html or site/vyakti.html missing.");
+  if (!existsSync(join(SITE, "vyakti.html"))) {
+    return prerequisiteFailure("site/vyakti.html missing.");
   }
 
   let chromium;
