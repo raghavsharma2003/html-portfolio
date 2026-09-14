@@ -31,3 +31,11 @@ The latest STATE block, unlike the older CODEX-HANDOFF paragraph, says productio
 The Room caller trace is `_room-surface.js` -> `_surface.js` -> `think()`. Removing `api/chat.js` alone cannot migrate Room replies to Azure. The provider workstream owns the actual call path and preserves budget enforcement; surface removal must coordinate shared prompt-cap tests.
 
 No new deployment, model invocation, GPU wake, database mutation, or successful final release gate is claimed by this readback.
+
+## Follow-up results
+
+- The owner-requested retirement of `raghavsharma2003/Vyakti-GroupAI` completed through GitHub REST. Independent GET readback at `2026-09-14T07:26:26.866Z` reported `archived: true`, `private: true`, default branch `main`. Archiving retains its history. The current Vyakti port is the disclosure evaluator described in `docs/gurukul/HANDOFF-KERNEL.md`, not a claim that every GroupAI subsystem was copied.
+- Existing protected Azure service-principal authentication succeeded for read-only ARM queries. The existing Foundry account `raghavsharma1729-compan-resource` in `rg-raghavsharma1729-7190`, East US 2, reports succeeded deployments including `gpt-5.6-terra` and `gpt-4.1-mini`. Its services endpoint is `https://raghavsharma1729-compan-resource.services.ai.azure.com/`. No new Foundry provisioning is needed merely to obtain an account and chat deployments.
+- Two existing AI Services accounts returned HTTP200 and provisioning state Succeeded. This does not prove the Speech key flagged in Vercel is valid or that Personal Voice access is approved.
+- The protected local helper can retrieve an Azure key in memory when it is time to bind the app; no key was requested or printed in this discovery. Vercel write access remains the missing connection. The browser's normal ChatGPT sign-in route also reached an authentication screen; no account session was manufactured.
+- Baseline `npm ci --ignore-scripts --no-audit --no-fund` installed 161 packages and `node node_modules/typescript/bin/tsc -b --force` exited0 before product changes. Ignored config contains the checked-in blank stub only. Neither result proves the final release, real authentication or voice quality.
