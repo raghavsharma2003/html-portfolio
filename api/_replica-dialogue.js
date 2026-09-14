@@ -531,8 +531,54 @@ export async function generateOwnedTextDialogue(db, ownerUserId, rawInput, gener
   const relationship = [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts), ownerLanguagePolicyTail(languagePolicy)].filter(Boolean).join("\n\n");
   const prompt = compileDialoguePrompt({ core, relationship, evidence: "", history: [], message });
   signal?.throwIfAborted();
-  const generated = await generator.generate({ prompt, signal });
-  const output = validateDialogueOutput(generated?.output);
+  const turnId = randomUUID();
+  let reservation = null;
+  let beginAttempted = false;
+  let providerStarted = false;
+  let settlementAttempted = false;
+  let billingState = "not_metered";
+  let output;
+  try {
+    reservation = await reserveFoundrySpend(db, {
+      operation: "dialogue", requestKey: turnId, adapter: generator,
+      messages: prompt.messages,
+      ...(generator.billing?.budget_env ? { env: generator.billing.budget_env } : {}),
+    });
+    signal?.throwIfAborted();
+    if (reservation) {
+      beginAttempted = true;
+      await beginFoundrySpend(db, reservation);
+    }
+    signal?.throwIfAborted();
+    providerStarted = true;
+    const generated = await generator.generate({ prompt, signal });
+    // A paid response is charged even if its output cannot be delivered.
+    if (reservation) {
+      settlementAttempted = true;
+      try {
+        await settleFoundrySpend(db, reservation, generated?.usage);
+        billingState = "settled";
+      } catch (error) {
+        billingState = "reconcile_required";
+        await markFoundrySpendUncertain(db, reservation, error);
+      }
+    }
+    output = validateDialogueOutput(generated?.output);
+  } catch (error) {
+    if (reservation && providerStarted && !settlementAttempted && error?.measured_usage) {
+      settlementAttempted = true;
+      try {
+        await settleFoundrySpend(db, reservation, error.measured_usage);
+        billingState = "settled";
+      } catch { billingState = "reconcile_required"; }
+    }
+    if (reservation && billingState !== "settled") {
+      // An unknown begin/provider acknowledgement retains the reservation.
+      if (beginAttempted) await markFoundrySpendUncertain(db, reservation, error);
+      else await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
+    }
+    throw error;
+  }
   // Persist only a successfully answered owner's message. The SQL rechecks
   // ownership and active memory consent, then gives the scheduled sweep a raw
   // source row. Failure cannot erase a reply already generated; a later turn
@@ -548,12 +594,12 @@ export async function generateOwnedTextDialogue(db, ownerUserId, rawInput, gener
   return {
     has_continuity: false,
     has_memory: ownerFacts.length > 0,
-    turn_id: randomUUID(),
+    turn_id: turnId,
     session_id: null,
     reply: withApprenticeDisclosure(output.reply),
     delivery: output.delivery,
     can_voice: false,
-    billing_state: "not_metered",
+    billing_state: billingState,
     created_at: new Date().toISOString(),
     text_ready: true,
   };

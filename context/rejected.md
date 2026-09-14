@@ -19131,3 +19131,8 @@ Initial internal runner used .5/.5/.8 and unknown/unverified language. Existing 
 ## wave25-default-voice-conditioning-and-code-only-memory
 
 2026-09-14. The first internal voice implementation used unknown language evidence, which the existing conditioning law reduced to effectiveCFG0. The retained exact-reference receipt supported source-level mixed attribution and the historical anchor .2/.78/.6, seed41001; internal commit7b096951 restores only that exact reference profile with provenance and a real-adapter CFG.78 control. Do not generalize its source evidence to another reference. Separately, automatic memory source/caller tests pass but Vercel lacks CONSOLIDATE_SWEEP_MODE, CONSOLIDATE_ROOM_DEV, CONSOLIDATE_ROOM_PERSON_LIMIT, AZURE_FOUNDRY_ROOM_MEMORY_MODEL and AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL, and previews do not run Vercel cron. Merging R182 alone cannot establish background memory. Connect and test the deployed scheduler before claiming completion. Browser navigation of the JSON marker was blocked by client while HTML rendered; authenticated Vercel fetch verified the marker. API fetches redirected to SSO and are not API-health evidence.
+
+
+## wave25-first-reply-bypassed-shared-budget
+
+2026-09-14. Inspection found generateOwnedTextDialogue called generator.generate directly and returned billing_state:not_metered. The active-voice and private rehearsal callers used the shared ledger, so their tests could not establish coverage of the first text-ready Meet reply. Corrected the actual fallback caller and tested failure paths before any real text-floor inference. The first-reply session_id is still null; do not claim durable full conversation history from this fix.

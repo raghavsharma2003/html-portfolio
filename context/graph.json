@@ -20283,6 +20283,24 @@
       "kind": "rejection",
       "title": "Default conditioning and a code-only memory claim were insufficient",
       "at": "context/rejected.md#wave25-default-voice-conditioning-and-code-only-memory"
+    },
+    {
+      "id": "wave25-text-floor-uses-shared-spending-ledger",
+      "kind": "decision",
+      "title": "Meter the first text-ready Meet reply",
+      "at": "context/decisions.md#wave25-text-floor-uses-shared-spending-ledger"
+    },
+    {
+      "id": "wave25-text-floor-budget-control-20260914",
+      "kind": "measurement",
+      "title": "First-reply budget failure paths exercised",
+      "at": "context/measurements.md#wave25-text-floor-budget-control-20260914"
+    },
+    {
+      "id": "wave25-first-reply-bypassed-shared-budget",
+      "kind": "rejection",
+      "title": "Configured budget did not cover the first Meet reply",
+      "at": "context/rejected.md#wave25-first-reply-bypassed-shared-budget"
     }
   ],
   "edges": [
@@ -34543,6 +34561,16 @@
       "src": "wave25-default-voice-conditioning-and-code-only-memory",
       "rel": "caused_by",
       "dst": "wave25-private-preview-before-public-cutover"
+    },
+    {
+      "src": "wave25-text-floor-uses-shared-spending-ledger",
+      "rel": "measured_by",
+      "dst": "wave25-text-floor-budget-control-20260914"
+    },
+    {
+      "src": "wave25-text-floor-uses-shared-spending-ledger",
+      "rel": "caused_by",
+      "dst": "wave25-first-reply-bypassed-shared-budget"
     }
   ]
 }

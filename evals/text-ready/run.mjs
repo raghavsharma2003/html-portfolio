@@ -477,5 +477,59 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
         && sql.includes("l.speaker_person_id is null") && /d\.person_id=oa\.(?:person_id|subject_person_id)/.test(sql)));
 }
 
+// The first Meet reply must use the same real ledger helpers as later replies.
+// Fake DB rows exercise admission/failure control flow, not SQL correctness.
+for (const scenario of ['success', 'denied', 'begin_unknown', 'transport_unknown', 'measured_refusal', 'invalid_output', 'usage_missing', 'settlement_unknown', 'cancel_after_reserve']) {
+  const fixture = fakeDb({ row: statusRow() });
+  const events = [];
+  const aborter = new AbortController();
+  const env = { AZURE_REPLICA_BUDGET_ID: 'text-floor-test', AZURE_REPLICA_APP_BUDGET_USD: '1',
+    AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: '2', AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: '12' };
+  const db = async (sql, params) => {
+    if (sql.startsWith('insert into vy_provider_budget')) { events.push('ensure'); return []; }
+    if (sql.includes('insert into vy_provider_spend')) {
+      events.push('reserve');
+      if (scenario === 'denied') return [];
+      if (scenario === 'cancel_after_reserve') aborter.abort(new Error('cancelled'));
+      return [{ reservation_id: 'reservation-1', budget_id: params[0], request_hash: params[7],
+        reserved_microusd: params[10], state: 'reserved' }];
+    }
+    if (sql.startsWith("update vy_provider_spend set state='in_flight'")) {
+      events.push('begin');
+      if (scenario === 'begin_unknown') throw Error('transport_unknown');
+      return [{ reservation_id: params[0], state: 'in_flight' }];
+    }
+    if (sql.includes("set state='settled',actual_input_units")) {
+      events.push('settle');
+      if (scenario === 'settlement_unknown') throw Error('settlement_ack_unknown');
+      return [{ spent_microusd: params[5] }];
+    }
+    if (sql.startsWith("update vy_provider_spend set state='reconcile_required'")) { events.push('uncertain'); return []; }
+    if (sql.includes("set state='released',failure_code")) { events.push('release'); return [{}]; }
+    return fixture.db(sql, params);
+  };
+  const generator = { ...fakeGenerator().generator,
+    billing: { meter: 'azure_foundry_tokens', max_output_tokens: 700, budget_env: env },
+    generate: async () => {
+      events.push('provider');
+      if (scenario === 'transport_unknown') throw Error('connection_lost');
+      if (scenario === 'measured_refusal') throw Object.assign(Error('provider_refusal'), { measured_usage: { input_tokens: 10, output_tokens: 5 } });
+      return { usage: scenario === 'usage_missing' ? null : { input_tokens: 10, output_tokens: 5 },
+        output: scenario === 'invalid_output' ? null : { reply: 'Namaste', delivery: { mode: 'grounded', pace: 'natural', intensity: 0.4, language_hint: 'hi', nonverbals: [] } } };
+    } };
+  let result = null, error = null;
+  try { result = await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: 'Hello' }, generator, aborter.signal); }
+  catch (caught) { error = caught; }
+  const count = event => events.filter(item => item === event).length;
+  if (scenario === 'success') ok('text-floor paid reply reserves, begins and settles in order',
+    events.join(',') === 'ensure,reserve,begin,provider,settle' && result.billing_state === 'settled');
+  if (scenario === 'denied') ok('text-floor exhausted budget prevents the provider call', error?.code === 'provider_budget_reservation_denied' && count('provider') === 0);
+  if (scenario === 'begin_unknown') ok('text-floor unknown begin preserves reservation without inference', count('provider') === 0 && count('uncertain') === 1 && count('release') === 0 && !!error);
+  if (scenario === 'transport_unknown') ok('text-floor unknown provider outcome is never released or retried', count('provider') === 1 && count('uncertain') === 1 && count('release') === 0 && count('settle') === 0 && !!error);
+  if (scenario === 'measured_refusal' || scenario === 'invalid_output') ok(`text-floor ${scenario} still settles consumed tokens once`, !!error && count('settle') === 1 && count('release') === 0 && count('uncertain') === 0);
+  if (scenario === 'usage_missing' || scenario === 'settlement_unknown') ok(`text-floor ${scenario} reports reconciliation, never invented success`, result?.billing_state === 'reconcile_required' && count('uncertain') === 1 && count('release') === 0 && count('settle') <= 1);
+  if (scenario === 'cancel_after_reserve') ok('text-floor cancellation before begin returns its reservation', !!error && count('release') === 1 && count('provider') === 0 && count('begin') === 0);
+}
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

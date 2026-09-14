@@ -25381,3 +25381,8 @@ Root selected a matched historical hi-lesson baseline before spending on the CPU
 ## wave25-private-preview-before-public-cutover
 
 2026-09-14. Deploy the accepted dc52ce10 baseline as a protected Vercel preview while integrating the premium creator journey, automatic owner text memory, and explicit internal owner voice runtime. Keep public main/production cutover deferred under the owner's latest instruction. Root selected reuse of the exact historical owner reference, anchor style .2/.78/.6 and seed41001 to avoid an accidental CFG0 quality regression; this is an implementation decision, not a new owner directive. Reverse the preview sequencing if actual backend constraints prevent representative internal testing, or the owner requests public rollout. A successful build is not a successful signed-in or real-model journey.
+
+
+## wave25-text-floor-uses-shared-spending-ledger
+
+2026-09-14. The text-ready Meet fallback now reserves and begins the existing Foundry ledger before generation and settles real usage before validating delivery. It uses the same configured shared pilot budget and per-model rates, without a new budget or migration. Ambiguous begin/provider/settlement responses preserve reservations for reconciliation; cancellation before begin releases them. Reverse only if a replacement caller demonstrably enforces the same shared budget and failure semantics. Session persistence remains a separate known gap.
