@@ -1,117 +1,35 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "app.meera.companion"
+    namespace = "app.vyakti.studio"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.meera.companion"
+        applicationId "app.vyakti.studio"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 26
         versionName "26.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        // OTA native contract. Web and Java used to ship together, so a web
-        // bundle could always assume the Java beside it; OTA breaks that
-        // coupling, and a bundle that calls a @PluginMethod this APK does not
-        // have is a crash on a phone we cannot reach. BUMP THIS whenever the
-        // JS→Java surface gains something a web bundle may depend on (a new
-        // plugin method, a new event name, a changed payload shape). Bundles
-        // built after the bump carry min_native = the new number and are
-        // REFUSED by older APKs instead of applied — those need a reinstall,
-        // which is the honest answer. scripts/ota-bundle.mjs reads this exact
-        // line, so keep the shape parseable.
         buildConfigField "int", "OTA_NATIVE_CONTRACT", "1"
+        def vyaktiOrigin = System.getenv('VYAKTI_PUBLIC_APP_ORIGIN') ?: 'https://vyakti-replica-lab.vercel.app'
+        def vyaktiHost = vyaktiOrigin.replaceFirst('^https?://', '').replaceFirst('/.*$', '')
+        manifestPlaceholders = [vyaktiAppHost: vyaktiHost]
         aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-
-    // WS-R157: a second Capacitor app in this SAME project (the brief's own
-    // law 2 — never a copy of `android/`). `meera` carries no override at
-    // all, so its variant resolves every value straight off `defaultConfig`
-    // above, byte for byte, exactly as it did before this dimension existed
-    // — see `context/decisions.md#ws-r157-vyakti-flavour-uses-applicationid-not-applicationidsuffix`
-    // for why `vyakti` sets its own `applicationId` rather than a Gradle
-    // `applicationIdSuffix` (a suffix can only ever EXTEND
-    // `app.meera.companion`; it cannot reach the independent namespace
-    // `capacitor.vyakti.config.ts` declares).
-    //
-    // Each flavour's own resources (launcher icon, `app_name`) live under
-    // `src/<flavourName>/res/` — Gradle's own resource-merge rule, matching
-    // the folder name to the flavour name, so `meera` needs no folder of its
-    // own: it simply keeps reading `src/main/res/` exactly as it always has.
-    flavorDimensions "brand"
-    productFlavors {
-        meera {
-            dimension "brand"
-        }
-        vyakti {
-            dimension "brand"
-            applicationId "app.vyakti.studio"
-            // The deep-link host for `android/app/src/vyakti/AndroidManifest.xml`'s
-            // intent filters, resolved at CONFIGURE time so a CI run that never
-            // sets the env still produces a buildable (if defaulted) APK rather
-            // than a broken Gradle sync. Reuses the SAME env var name
-            // `api/_config.js`/`services/azure-verifier` already read
-            // (`VYAKTI_PUBLIC_APP_ORIGIN`, `docs/gurukul/ENV-MANIFEST.md` §6) —
-            // a new READER of an existing name, not a new name, so no new
-            // ENV-MANIFEST row is owed for it.
-            def vyaktiOrigin = System.getenv('VYAKTI_PUBLIC_APP_ORIGIN') ?: 'https://vyakti-replica-lab.vercel.app'
-            def vyaktiHost = vyaktiOrigin.replaceFirst('^https?://', '').replaceFirst('/.*$', '')
-            manifestPlaceholders = [vyaktiAppHost: vyaktiHost]
-
-            // WS-R169. Release signing for THIS flavour only, independent of
-            // Meera's own `signingConfigs.release`/`upload.keystore` below —
-            // a shared signing identity between two independently-branded
-            // Play listings would mean one leaked keystore compromises both
-            // at once. `signingConfigs.create(...)` here (rather than a
-            // second block inside the `signingConfigs {}` closure further
-            // down) is what lets a product-flavour override its OWN signing
-            // config without reordering this file: a NamedDomainObjectContainer
-            // entry can be created and configured from anywhere inside the
-            // `android {}` closure, not only where the container itself is
-            // declared. Same presence-check pattern as Meera's own
-            // (`ksFile.exists() && ksPass != null`): every environment today
-            // has neither set (`context/STATE.md`'s own "nothing is
-            // configured live"), so `assembleVyaktiDebug`/`assembleVyaktiRelease`
-            // simply build unsigned, exactly as they always have — this is
-            // additive, never a requirement to configure anything before a
-            // debug build keeps working.
-            def vyaktiKsFile = file('../vyakti-upload.keystore')
-            def vyaktiKsPass = System.getenv('VYAKTI_ANDROID_KEYSTORE_PASSWORD')
-            if (vyaktiKsFile.exists() && vyaktiKsPass != null) {
-                signingConfigs.create('vyaktiRelease') {
-                    storeFile vyaktiKsFile
-                    storePassword vyaktiKsPass
-                    keyAlias System.getenv('VYAKTI_ANDROID_KEY_ALIAS') ?: 'vyakti-upload'
-                    keyPassword System.getenv('VYAKTI_ANDROID_KEY_PASSWORD') ?: vyaktiKsPass
-                }
-                signingConfig signingConfigs.vyaktiRelease
-            }
-        }
-    }
-    // AGP 8 generates BuildConfig only on request; OTA_NATIVE_CONTRACT above
-    // is read from Java and is the reason this is on.
     buildFeatures {
         buildConfig true
     }
-    // Release signing for Play. The keystore NEVER enters the repo: CI decodes
-    // it from the ANDROID_KEYSTORE_BASE64 secret to android/upload.keystore
-    // (see build-apk.yml) and passes credentials via env. When the env is
-    // absent (local dev, PR builds) the release config is simply unsigned and
-    // assembleDebug keeps working exactly as before — the presence check
-    // below is what keeps this additive.
-    def ksFile = file('../upload.keystore')
-    def ksPass = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+    def ksFile = file('../vyakti-upload.keystore')
+    def ksPass = System.getenv('VYAKTI_ANDROID_KEYSTORE_PASSWORD')
     signingConfigs {
         if (ksFile.exists() && ksPass != null) {
             release {
                 storeFile ksFile
                 storePassword ksPass
-                keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'maya-upload'
-                keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: ksPass
+                keyAlias System.getenv('VYAKTI_ANDROID_KEY_ALIAS') ?: 'vyakti-upload'
+                keyPassword System.getenv('VYAKTI_ANDROID_KEY_PASSWORD') ?: ksPass
             }
         }
     }
@@ -127,7 +45,7 @@ android {
 }
 
 repositories {
-    flatDir{
+    flatDir {
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
     }
 }
@@ -138,10 +56,6 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    // Gemini Live realtime watch (LiveWatchEngine) needs a WebSocket client;
-    // Capacitor 8 ships none (its HTTP layer is HttpURLConnection), and
-    // android.net has no WS API. 4.12.0 is the last 4.x — minSdk 21, Java 8
-    // bytecode, pulls kotlin-stdlib transitively (no Kotlin plugin needed).
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

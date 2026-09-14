@@ -32,7 +32,7 @@
 // `public/room-sw.js`'s own documented `{t, title, body, url}` shape rather
 // than this file's older `{kind, route}` names, so `t`/`url` are read here
 // as ALIASES of `kind`/`route` (`data.t ?? data.kind`, `data.url ?? data.
-// route`) rather than the older field names being retired — Meera's own
+// route`) rather than the older field names being retired. The shared
 // sender (`api/_push.js`) is a different product built in this same repo
 // and out of this workstream's scope to touch, so it keeps sending `kind`/
 // `route` unchanged and this file keeps answering to both.
@@ -43,14 +43,14 @@
 // closed list (`checkin`/`renewal`/`dormancy`) is that OTHER worker's fix
 // for a bug this file never had (its own "no silent push" law below already
 // covers "never show nothing sensible") — and this file has no way to
-// enumerate Meera's own kind vocabulary, which is not this workstream's to
+// enumerate a separate product's kind vocabulary, which is not this worker's to
 // close over.
 //
 // ── WHY THERE IS NO SILENT PUSH ───────────────────────────────────────────
 //
 // The subscription is `userVisibleOnly: true`, and this handler always shows
 // something. A push that arrives with no displayable text is DROPPED rather
-// than shown as a placeholder: "Meera" with an empty body on a lock screen is
+// than shown as a placeholder: an app name with an empty body on a lock screen is
 // the generic notification this whole workstream exists to not send. Browsers
 // answer an unshown userVisibleOnly push with their own "This site has been
 // updated in the background" message, which is ugly and is also the correct
@@ -59,9 +59,9 @@
 /* global self, clients */
 
 const TAGS = {
-  reply: "meera-reply",
-  missedCall: "meera-missed-call",
-  story: "meera-story",
+  reply: "vyakti-reply",
+  missedCall: "vyakti-missed-call",
+  story: "vyakti-story",
   // WS-R81: Vyakti Rooms' two account-wide kinds, keyed by the NEW `t`
   // value each builder now emits (`api/_creator-push.js`'s `creator_week`,
   // `api/_incidents.js`'s `incident`).
@@ -92,23 +92,23 @@ self.addEventListener("push", (event) => {
       body,
       // One notification per KIND, replaced rather than stacked, exactly as the
       // fixed ids do on the local lane (src/notify/local.ts).
-      tag: TAGS[kind] || "meera",
+      tag: TAGS[kind] || "vyakti",
       renotify: false,
       icon: "/icon-192.png",
       // The BADGE is not a small icon — Android and Chrome mask it to a
       // monochrome silhouette, so a colour launcher icon (which is what this
       // was) arrives as a white blob in the status bar. `/badge-96.png` is
       // flat white on transparency at the 96px the spec asks for, the web
-      // half of the same fix `ic_stat_meera` is on the native lane.
+      // half of the same fix as the monochrome native status icon.
       badge: "/badge-96.png",
-      data: { url: typeof data.url === "string" ? data.url : (typeof data.route === "string" ? data.route : "#chat") },
+      data: { url: typeof data.url === "string" ? data.url : (typeof data.route === "string" ? data.route : "/studio") },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "#chat";
+  const url = (event.notification.data && event.notification.data.url) || "/studio";
   event.waitUntil(
     (async () => {
       const open = await clients.matchAll({ type: "window", includeUncontrolled: true });

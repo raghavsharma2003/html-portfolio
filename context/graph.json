@@ -19506,6 +19506,24 @@
       "kind": "decision",
       "title": "A killed wave's in-progress work is preserved as one patch per workstream on the platform branch (2026-09-14)",
       "at": "context/decisions.md#wave-24-wip-preserved-as-patches-on-the-platform-branch"
+    },
+    {
+      "id": "wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity",
+      "kind": "decision",
+      "title": "Vyakti requires an explicit sheet-backed agent and one native identity (2026-09-14)",
+      "at": "context/decisions.md#wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity"
+    },
+    {
+      "id": "wave-25-meera-only-surface-and-suites-do-not-belong-in-vyakti",
+      "kind": "rejection",
+      "title": "Meera-only surface files and regression suites do not remain registered in Vyakti (2026-09-14)",
+      "at": "context/rejected.md#wave-25-meera-only-surface-and-suites-do-not-belong-in-vyakti"
+    },
+    {
+      "id": "wave-25-vyakti-surface-separation-2026-09-14",
+      "kind": "measurement",
+      "title": "Focused compiler, door and native identity controls for the Vyakti-only surface (2026-09-14)",
+      "at": "context/measurements.md#wave-25-vyakti-surface-separation-2026-09-14"
     }
   ],
   "edges": [
@@ -33316,6 +33334,16 @@
       "src": "ten-parallel-agents-exhausted-the-session-limit-before-any-finished",
       "dst": "wave-23-merged-as-a-batch-with-plan-only-explains-at-the-merge",
       "rel": "constrains"
+    },
+    {
+      "src": "wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity",
+      "dst": "wave-25-vyakti-surface-separation-2026-09-14",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity",
+      "dst": "wave-25-meera-only-surface-and-suites-do-not-belong-in-vyakti",
+      "rel": "caused_by"
     }
   ]
 }

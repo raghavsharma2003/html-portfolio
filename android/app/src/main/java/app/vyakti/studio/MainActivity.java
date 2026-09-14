@@ -1,4 +1,4 @@
-package app.meera.companion;
+package app.vyakti.studio;
 
 import android.os.Bundle;
 import android.webkit.WebView;
@@ -9,14 +9,12 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
-    registerPlugin(WatchPlugin.class);
-    registerPlugin(CallMicPlugin.class);
     registerPlugin(OtaPlugin.class);
     // Which web root this launch uses is decided HERE, before the Bridge is
     // built, because the Bridge reads it exactly once during construction.
     // Deciding afterwards means setServerBasePath, which reloads the WebView
-    // out from under a running app — a white screen at best and her session
-    // restarting mid-conversation at worst. See OtaUpdater.
+    // out from under a running app, causing a white screen or session restart.
+    // See OtaUpdater.
     OtaUpdater.selectWebRootForThisBoot(this);
     super.onCreate(savedInstanceState);
     // Capacitor installs its own WebChromeClient inside super.onCreate. Swap

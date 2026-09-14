@@ -275,8 +275,8 @@ export const BUDGET_FIXTURES: BudgetFixture[] = [
     id: "crisis-flagged",
     status: "wired",
     note:
-      "crisis handling lives in persona.ts's never-truncated core (C2, CRISIS_LINES verbatim), not the " +
-      "tail — this fixture just proves CRISIS_LINES survives compilation unmodified on every lane.",
+      "crisis handling lives in the explicit agent module's never-truncated core (C2), not the " +
+      "tail; this fixture proves the sheet's crisis lines survive compilation unmodified on every lane.",
     input: base({}),
   },
   {

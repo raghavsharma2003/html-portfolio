@@ -25152,3 +25152,11 @@ maintaining two step-rail components in the same product long-term.
 **Why.** The platform branch is the one branch this session is allowed to push; ten new remote branches would need the owner's say and would scatter the handoff. A patch on the platform branch travels with the context that explains it, is reviewable in PR #6, and costs nothing to apply.
 
 **Reversal.** If a patch ever fails to apply cleanly on the base it names (the base moved, or binary files drifted), the next loop pushes the WIP branches instead with the owner's permission and this entry is superseded.
+
+## `wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity` (2026-09-14)
+
+**Decision.** The shared compiler requires `CompileInput.agent`, fails closed with `agent_module_required` when it is absent, and has no bundled character fallback. Room passes the module resolved from its published sheet and Meet compiles from the authenticated replica definition. The native shell likewise carries one identity, `app.vyakti.studio`, in Capacitor, Android and iOS; Android no longer has product flavours.
+
+**Why.** A default character remained reachable through the otherwise generic compiler, and the native project still shipped a second product's application id, strings, source package and updater domain. Either fallback could put the wrong product identity on a Vyakti path even after the web entry was removed.
+
+**Reversal.** A new built-in persona or native product may be added only as an explicit registry/configuration entry with its own public door, package identity and focused isolation test. It must never become the fallback for a sheet-backed Vyakti Room or Meet.

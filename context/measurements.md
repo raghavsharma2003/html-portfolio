@@ -18739,3 +18739,12 @@ Method: each workstream's own report (suite counts as printed), the main loop's 
 | WS-R177 the studio fast on 4G | 123aa34 | performance-measurements 41, performance-prerequisites, performance-hindi-interface, gate-load |
 
 Batch gate on the ten-merge tree: 25 of 25 on ed1470e. Live database after the wave: unchanged (no workstream needed a migration; 172, 173 and 174 stay unused and 172 is still the next free number).
+
+## `wave-25-vyakti-surface-separation-2026-09-14`
+
+Method: static import/caller search with `rg`, esbuild compilation of the real compiler/registry, direct focused suite runs in the isolated worktree based at `16fae19ff5a176178be11f7897d946d73a3bf68b`, and forced TypeScript build; date 2026-09-14; n=1 per reported command. No provider, database, browser, Gradle or full release-gate call was made.
+
+- `evals/vyakti-standalone/run.mjs`: 5/5. Missing agent fails closed, explicit sheet compile returns `{core, tail}`, `getAgent("meera")` is absent, Room passes `resolved.module`, Meet compiles from `profile.definition`.
+- `evals/vyakti-app/run.mjs`: 35/35. Capacitor, Android and iOS carry the Vyakti id/name; Android has one activity and no flavour split; required permissions, deep links, icons, shell, mic bridge and OTA classes remain; the shipping native sources contain no second product identity.
+- `evals/clonelife/run.mjs`: 62/62; `evals/relational/leak.mjs`: 130/130; `evals/room-doors/run.mjs`: 2719/2719; `scripts/verify-agent-id.mjs`: passed all three persisted UUID mirrors.
+- `npx tsc -b --force`: exit 0 after the web/compiler removal. The full 25-check gate was deliberately left for the combined build/provider/native integration tree.
