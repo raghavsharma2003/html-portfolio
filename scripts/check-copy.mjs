@@ -167,11 +167,10 @@ const RULES = [
     why: "poetic filler label; it says nothing and it costs a line a real label could have used",
     test: (s) =>
       // NOTE: `beautifully` was in this list for one run and is deliberately
-      // out. It fired on `site/index.html`'s "Beautifully human in how she
-      // talks", which is the OTHER product's real claim about its real
-      // subject, not filler — and it is not one of the shapes DESIGN-LAW §1
-      // actually names. A gate that invents bans beyond its law gets argued
-      // with, and a gate that gets argued with gets turned off.
+      // out. It once fired on a retired landing page's product claim rather
+      // than one of the shapes DESIGN-LAW §1 actually names. A gate that
+      // invents bans beyond its law gets argued with, and a gate that gets
+      // argued with gets turned off.
       /\b(?:from the field|field notes?|quietly trusted by|trusted by|loved by|crafted with|made with love|the future of|reimagin\w*)/i.test(
         s,
       ),

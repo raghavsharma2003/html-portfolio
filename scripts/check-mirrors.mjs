@@ -27,8 +27,8 @@
 // file's own JS block, which DOES carry markers this gate reads.
 //
 // ── WHERE THIS LOOKS ─────────────────────────────────────────────────────
-// `src/studio/`, `src/room/`, `src/gurukul/`, `src/replica/`,
-// `src/components/`, `site/`, plus the root `studio.html`/`room.html` entry
+// `src/studio/`, `src/creatorStudio/`, `src/room/`, `src/gurukul/`,
+// `src/replica/`, `site/`, plus the root `studio.html`/`room.html` entry
 // points — `scripts/check-copy.mjs`'s own SCOPES list, restated for `.ts`,
 // `.tsx`, `.js` and `.html` rather than re-deriving a second file walk. The
 // brief's own words ("grep 'mirror' in src/") name `src/`; `site/suites.html`
@@ -43,10 +43,11 @@
 // gate nobody knows is wired. `selfTest()` runs on every invocation, over an
 // inline fixture pair that must disagree and one that must not.
 import { readFileSync, readdirSync, statSync } from "fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-export const SCAN_DIRS = ["src/studio/", "src/creatorStudio/", "src/room/", "src/gurukul/", "src/replica/", "src/components/", "site/"];
+export const SCAN_DIRS = ["src/studio/", "src/creatorStudio/", "src/room/", "src/gurukul/", "src/replica/", "site/"];
 export const SCAN_FILES = ["studio.html", "room.html"];
 const EXT = /\.(tsx?|jsx?|html?)$/;
 
@@ -176,7 +177,7 @@ function selfTest() {
   return problems;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const dead = selfTest();
   if (dead.length) {
     console.log(`FAIL  check-mirrors self-test: the gate is not biting (${dead.length}):`);
