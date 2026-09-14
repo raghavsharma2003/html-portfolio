@@ -16,7 +16,9 @@ Later checkpoint through79e6c085: closed creator-material boundaries keep relati
 
 Read `docs/handoff/2026-09-14/PRODUCT-STATUS.md` for the plain-language product/model map and `VOICE-ENROLLMENT-REALITY.md` for the actual voice blocker. The fresh enrollment evidence producer is incomplete; no new voice likeness measurement exists. Email magic-link callbacks already exist in both Studio paths, but send_otp lacks an explicit return destination and Supabase redirect configuration remains unverified.
 
-Next: finish first-user Meet/share/email-entry fixes; verify the worker build; complete the frozen full gate; checkpoint/push; merge PR6 and cut over only after acceptance; walk the real creator/visitor journey; then resume wave24 in at most five workstreams. Never represent offline fixtures as owner voice or real journey proof.
+The first-user batch is now integrated: eligible Feed material reaches private Meet, inactive text-only clones remain on material sharing, and Room publication requires an active runtime. Integrated person-room rehearsal passed20/20; publication UI passed32/32 at390/1440 including fresh magic-link callback and stale-account refusal. Email return URLs are transported in the GoTrue query and retain Room/publication destinations. Azure build cu3t is Running, last observed at Docker step3/13 (OS packages), not yet accepted. The Vercel dashboard is authenticated and still tracks the old production branch. Supabase dashboard login reached MFA; owner was asked to complete it directly in the open browser tab. Redirect settings remain unverified.
+
+Next: freeze and push this source for the full release gate; verify the worker build; merge PR6 and cut over only after acceptance; walk the real creator/visitor journey; then resume wave24 in at most five workstreams. Never represent offline fixtures as owner voice or real journey proof.
 
 ## START HERE: WAVE TWENTY-FOUR OPENED AND PAUSED (main loop, 2026-09-14, read with the block below it)
 

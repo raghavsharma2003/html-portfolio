@@ -19022,3 +19022,13 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** The account door builds the validated `otp?redirect_to=...` path and keeps the body limited to `email` and `create_user`. The handler-level regression captures the generated fetch URL and body, including a Room path and query.
 
 **Reversal condition.** Change the transport only when an authenticated GoTrue contract revision documents a different `/otp` input shape and a focused outgoing-request regression captures that revision.
+
+## standalone25-publication-oauth-callback-blind-restore-rejected-20260914
+
+**Tried.** Reusing `restoreSession()` directly in PublicationApp.
+
+**What specifically broke.** Its unconditional storage write after refresh has no PublicationApp lifecycle or account-baseline guard, so an unmounted page or a newer account can be overwritten by a late callback result.
+
+**What replaced it.** PublicationApp consumes the same callback but applies its own existing `alive`, generation, and original-account checks before writing or setting state.
+
+**Reversal condition.** Reuse a shared primitive only after it accepts caller-owned lifecycle and stored-baseline predicates and the mounted stale-account negative still passes.

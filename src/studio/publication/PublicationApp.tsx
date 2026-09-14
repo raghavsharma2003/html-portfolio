@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { readStoredSession, writeStoredSession } from "../../creatorStudio/session";
+import { consumeStudioOAuthCallback } from "../../creatorStudio/studioAuth";
 import { ensureStudioSession } from "../studioAuth";
 import type { StudioSession } from "../types";
 import PublicationSignIn from "./PublicationSignIn";
@@ -36,13 +37,17 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
     let alive = true;
     locked.current = false; setBusy(false); setRestoring(true); setPublication(null); setAuth(null); setAdmission(null); setAgreed(false); setQuestion(""); setRequest(null); setMessage("");
     memoryRevision.current++; setMemory(null); setRemember(false); setMemoryError(false); setRejoinRequired(false);
-    const candidate = readStoredSession();
-    const stillSameAccount = () => { const current = readStoredSession(); return current?.userId === candidate?.userId && current?.accessToken === candidate?.accessToken && current?.refreshToken === candidate?.refreshToken; };
+    const storedCandidate = readStoredSession();
+    const callback = consumeStudioOAuthCallback();
+    const candidate = callback ?? storedCandidate;
+    // The callback has no user id until refresh. Keep the original stored
+    // account as the race baseline instead of writing that pending callback.
+    const stillSameAccount = () => { const current = readStoredSession(); return current?.userId === storedCandidate?.userId && current?.accessToken === storedCandidate?.accessToken && current?.refreshToken === storedCandidate?.refreshToken; };
     const restore = async () => {
       if (!candidate) { if (alive && stillSameAccount()) setAuth(null); return; }
       try { const fresh = await ensureStudioSession(candidate);
         if (alive && generation.current === revision && stillSameAccount()) {
-          if (fresh.userId !== candidate.userId || !fresh.accessToken || !fresh.refreshToken) throw new Error("invalid restored account");
+          if (!fresh.userId || !fresh.accessToken || !fresh.refreshToken || (!callback && fresh.userId !== candidate.userId)) throw new Error("invalid restored account");
           writeStoredSession(fresh); setAuth(fresh);
         }
       } catch { if (alive && generation.current === revision && stillSameAccount()) setAuth(null); }

@@ -18901,3 +18901,9 @@ The mirrored UI constants are 25 seconds while identity_audio.py remains RATE * 
 ## standalone25-email-redirect-forwarding-measurement-20260914
 
 Method: focused handler regression with captured fetch and a stub persistent-rate database, plus module checks in the isolated worktree; n=1 valid Room return and 4 malformed values, date 2026-09-14. The actual account handler emitted GoTrue `/otp?redirect_to=...`, retained `{email,create_user}` as its JSON body, executed both persistent send-rate gates for the valid request, and refused every malformed value before either gate or fetch. No provider call or auth message was sent.
+
+## standalone25-publication-oauth-callback-race-measurement-20260914
+
+Method: two new synthetic mounted cases registered in evals/text-publication-ui/run.mjs, date 2026-09-14. One starts with a callback and no stored account and requires a refreshed authenticated publication state; one holds callback refresh, changes the stored account, then requires the newer account to remain stored. The browser fixture was not run in this phase; syntax and graph checks passed, and no provider call was made.
+
+Root integrated verification after53c4cf96: 32/32 mounted text-publication-ui groups passed at390/1440 on2026-09-14. Root tightened the stale-callback case to wait until restoration settled before asserting the newer account remained. Separate actual integrated TypeScript force build and registered account-email-redirect handler test passed before that final callback change. This browser suite uses local synthetic auth/model seams, not live OTP delivery or user likeness. Evidence: scratchpad/text-publication-ui/1789381000837.
