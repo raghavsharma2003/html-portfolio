@@ -34,14 +34,14 @@ Anyone gives the platform their own context (files, links, a video, a call) and
 gets an AI version of themselves: mind, voice, relation, long-term memory of
 each person it talks to, plus a measured guarantee it still sounds like them.
 The studio is a three-step wizard — **Feed it, Meet it, Deploy it** — and the
-middle step is the product: interact with the clone, correct it, watch it
+middle step is the product: interact with your AI, correct it, watch it
 improve. Edtech (JEE teachers to students) is the first vertical, not the
 boundary.
 
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 25 checks without NEON_URL; 27 with it (2026-09-13, WS-R170)
+node scripts/verify-release.mjs      # 25 checks without NEON_URL; database checks add when configured
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -64,14 +64,18 @@ Notes that will otherwise cost you an hour:
   suite` gate fails on an import error. That failure is environmental. Confirm
   any failure reproduces on the untouched tree before attributing it to your
   change.
-- `evals/echosim/build.mjs` must have been run once or the `stuck-turn` gate
-  fails on a missing artifact. Same rule: check the untouched tree first.
 
-**Deploying: push, then probe.** Push before you deploy (`CLAUDE.md`'s own
-law — the Vercel build pulls the full source from the GitHub branch), and
-after every deploy run `node scripts/probe-live.mjs <base-url>` against the
-result (`docs/gurukul/DEPLOY.md` Phase 6) — it checks, for free, that the
-deployment actually serves what the tree promised.
+**Deploying: push, deploy, then probe.** This repository has one product and
+one Vercel build contract: `vyakti-clone`. `/` serves the Vyakti landing,
+`/studio` serves the creator studio, and `/r/<slug>` serves a Room. The build
+does not select a product from a branch name or `STUDIO_ROOT`. Preserve every
+entry in `vercel.json.crons` unless the route itself is deliberately retired;
+the verified count on 2026-09-14 is 23. `git.deploymentEnabled: false` prevents
+every source push from bypassing the complete gate. The explicit GitHub
+workflow runs that gate before its exact-project Vercel CLI deploy. Then run
+`node scripts/probe-live.mjs <base-url>` and `node scripts/verify-deploy.mjs
+<base-url> --product vyakti-clone` against the result. Never infer a live
+deployment from a local build or a source commit.
 
 ## The laws. These are not style preferences
 
@@ -144,31 +148,14 @@ never ships broken.
 
 ## The gate count and the vocabulary rule that ships with it
 
-`node scripts/verify-release.mjs` is **21 checks** as of WS-R57
-(2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
-leak battery, the room export completeness battery, the room door
-battery (`evals/room-doors/run.mjs`, every way into a Room attacked offline
-through the real decision modules the thin HTTP doors call), the
-accessibility gate (`scripts/check-accessibility.mjs`, axe-core WCAG 2.1 A/AA
-plus a keyboard walk over every follower and creator screen in both locales,
-on 127.0.0.1:8933), the performance budget gate
-(`scripts/check-performance.mjs`, the four public entry points measured in
-real Chromium under CDP throttling shaped like a bad Indian 4G day on
-127.0.0.1:8932, failing on a named target and metric), the mirrored-
-constant gate (`scripts/check-mirrors.mjs`, WS-R42: every `// mirror of
-api/<file>.js#<NAME>` marker in `src/` and `site/suites.html` parsed on both
-sides and asserted equal) and the security headers gate
-(`scripts/check-headers.mjs`, WS-R57: the Room, the studio and the four
-static marketing pages loaded in real Chromium on 127.0.0.1:8934 with
-`vercel.json`'s own `headers` array applied exactly as Vercel would and CSP
-violation reporting captured — fails on any violation, any missing header
-per route class, or a CSP looser than the workstream's own law — plus the
-supply-chain half in the same file: `npm ci --dry-run` lockfile integrity,
-`npm audit --omit=dev --audit-level=high` which FAILS rather than passing
-silently if the registry is unreachable, and an install-script scan against
-the named, justified allowlist in `scripts/installScriptAllowlist.mjs`) as
-named gates, 24 since Codex's Vercel upload boundary, deploy verifier and motion lint checks (2026-09-13), 25 since WS-R170's schema mirror gate (`scripts/check-schema-mirror.mjs`, 2026-09-13: proves every table, column, index and routine every migration file declares, walked in numeric order, exists by name somewhere in `db/schema.sql`) — and 27 with `NEON_URL`, the 25 above plus the zero-orphan sweep and citation
-discipline.
+`node scripts/verify-release.mjs` is **25 checks** without `NEON_URL` as of
+2026-09-14. Trust the runner for the database-enabled total and whenever the
+count changes. The named
+checks include the Room leak/export/door batteries, accessibility, performance,
+mirrored constants, security headers and supply-chain checks, Vercel upload
+boundaries, deploy verification, motion lint, prompt-budget arithmetic, Azure
+build admission, and the schema mirror. Removing a product-specific suite does
+not justify weakening a remaining Vyakti contract.
 Migrations 071 through 099, 101 through 123 and 125 through 133 are applied live,
 except 100, 103, 117, 124 and 131, which are unused (WS-R38 needed no new migration, every finding it
 fixed was a missing check in existing JS, never a schema change; WS-R41's

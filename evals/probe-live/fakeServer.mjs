@@ -152,7 +152,7 @@ export function startFakeServer(port, defects = {}) {
         }
         return json(res, unknownOpExp.status, unknownOpExp.body);
       }
-      if (pathname === "/api/room" || pathname === "/api/chat" || pathname === "/api/account") {
+      if (pathname === "/api/room" || pathname === "/api/replica" || pathname === "/api/voice-preview") {
         applyHeaders(res, "/api/(.*)");
         return json(res, 405, { error: "POST only" }, { "cache-control": "no-store" });
       }

@@ -90,14 +90,14 @@ export function headersFor(rules, pathname) {
 // is probed the day it ships with no change to this function for the two
 // shapes this repo actually uses: a literal path, and `:slug`. A bare
 // wildcard group is special-cased to the API's own three sample doors
-// (`/api/chat`, `/api/room`, `/api/account`) because "the rest of any path"
+// (`/api/replica`, `/api/room`, `/api/voice-preview`) because "the rest of any path"
 // has no single generic concrete instance — named here rather than left to
 // silently probe nothing.
 export function routeTargetsFromHeaderRules(rules, slug) {
   const targets = [];
   for (const rule of rules) {
     if (rule.source === "/api/(.*)") {
-      for (const p of ["/api/chat", "/api/room", "/api/account"]) {
+      for (const p of ["/api/replica", "/api/room", "/api/voice-preview"]) {
         targets.push({ source: rule.source, path: p, rule });
       }
       continue;

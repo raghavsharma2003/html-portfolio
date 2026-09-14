@@ -20,7 +20,7 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const DEPLOY_COMMITMENT_SCHEMA = 1;
-export const DEPLOY_PRODUCTS = Object.freeze(["vyakti-clone", "meera-companion"]);
+export const DEPLOY_PRODUCTS = Object.freeze(["vyakti-clone"]);
 
 const DIRECTORY_INPUTS = Object.freeze(["api", "assets", "public", "site", "src"]);
 const FILE_INPUTS = Object.freeze([

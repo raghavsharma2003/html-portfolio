@@ -18871,3 +18871,21 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 **What fixed it.** The handler, malformed-input negative controls and Vercel routing checks were restored around the single-identity assertions. The focused suite now passes 51/51.
 
 **The rule.** When removing dual-product assertions from a mixed suite, classify each section by the behavior it protects. Preserve every section that exercises a Vyakti door, even when it was originally added in the same workstream as the retired product split.
+
+## `wave-25-fourteen-crons-was-a-stale-deployment-count` (2026-09-14, wave 25)
+
+**Tried.** Treated the handoff's instruction to preserve 14 required cron sweeps as the deployment inventory for the standalone Vyakti rewrite.
+
+**What specifically broke.** The exact base's `vercel.json` contains 23 distinct, resolvable Vyakti/shared scheduled callers. Reducing the array to 14 would silently retire nine active jobs while still satisfying a stale prose count. A readback of the actual Vyakti project confirmed the tree's 23-entry schedule rather than the handoff number.
+
+**What replaced it.** `evals/deploy-verifier/run.mjs` asserts the ordered 23-path inventory from `vercel.json` and fails on either deletion or reordering. `AGENTS.md`, `CLAUDE.md`, and the active deploy guide name 23 with the verification date and tell future work to trust the configuration and runner over older counts.
+
+**The rule.** A handoff count never authorizes deletion of live callers. Inventory the source of truth, verify the active project when access exists, and turn the observed set into an exact gate before changing deployment plumbing.
+
+## `wave-25-a-removed-board-cannot-remain-the-contrast-gate` (2026-09-14, wave 25)
+
+**Tried.** Kept `scripts/check-contrast.mjs` unchanged after the standalone surface removed the companion chess, tic-tac-toe, and world styles it read. The named release check then stopped at `ENOENT`; skipping the missing roots would have made a green line claim a contrast contract over no current product surface.
+
+**What replaced it.** The gate now reads the shared foundation that the real Vyakti Room imports and the matching Studio/status token sources. It holds ten text, action, state, and focus pairs to 4.5:1 or 3:1 floors and carries two source mutations. Its first run found a real defect: waiting ink `#b4551f` on waiting ground `#fbead9` measured 4.20:1. Both mirrored token files now use `#a94a18`, measured at 4.86:1, rather than lowering the floor.
+
+**The rule.** When a product surface is retired, replace its static gate with an equally concrete check of the surviving surface. Missing input is never a passing result, and a newly relevant floor stays at its stated accessibility threshold even when the current token fails it.

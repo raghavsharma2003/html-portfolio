@@ -3,14 +3,10 @@
 // "/" — checked against the installed CLI's own `declarations.d.ts`:
 // `server.url` is a REMOTE override for live-reload only ("not intended for
 // use in production"), and there is no field that picks a different LOCAL
-// entry file out of `webDir`. Meera's own web build never needed a script
-// for this: `index.html` at the repo root already IS her chat app's real
-// vite entry (`vite.config.ts`'s `index: "index.html"`), so a plain
-// `npx vite build` already puts the right page at `dist/index.html`.
+// entry file out of `webDir`.
 //
-// The Vyakti flavour's start page is `/studio` — a SECOND vite entry
-// (`studio: "studio.html"`), never the first — so after the SAME build this
-// script does the one thing Meera's flavour never has to: copy the
+// Vyakti's start page is `/studio`, a Vite entry emitted as `studio.html`.
+// After the web build this script copies the
 // ALREADY-BUILT `dist/studio.html` over `dist/index.html`, byte for byte.
 // It never re-runs vite and never rewrites a hashed asset path, because
 // `studio.html`'s own `<script>`/`<link>` tags are already absolute

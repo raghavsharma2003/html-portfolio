@@ -1,25 +1,15 @@
-# WS-R77. `node scripts/verify-release.mjs` has always been "the law", and
-# the law lived on exactly one machine: whichever one a human, or an agent,
-# remembered to run it on. `build-apk.yml` and `deploy-web.yml` both run
-# `tsc -b` and the eval suite, but NEITHER runs the room leak battery, the
-# door battery, the export battery, accessibility, performance budgets,
-# security headers, or the layout gate's glyph pass. A push that only passed
-# those two workflows could still be breaking every one of those and nothing
-# in GitHub would say so. `gates-that-live-nowhere` and
-# `gates-that-live-nowhere-2` (`context/rejected.md`) are the same shape
-# twice already: a suite exists, runs clean by hand, and gates nothing in
-# CI because nobody wired it. This is the wiring, for the whole gate this
-# time, not one suite inside it.
+# This workflow runs the repository's complete offline release contract.
+# Keeping the runner as the single list prevents a focused build workflow
+# from silently becoming the product's only gate.
 #
 # WHAT THIS JOB DOES NOT DO. It never reconstructs `api/_config.js` from a
-# secret (`consolidate.yml`/`deploy-web.yml`/`drift.yml` do, for their own
-# separate reasons) and it never touches the live database. Every one of the
-# 21 checks `node scripts/verify-release.mjs` runs without `NEON_URL` is
+# secret (`consolidate.yml` and `deploy-web.yml` do for their own reasons)
+# and it never touches the live database. Every check
+# `node scripts/verify-release.mjs` runs without `NEON_URL` is
 # offline: a stub config with every key empty, and the two relational-db
 # checks skip themselves (printed, never silent) exactly as they do on any
-# machine without a URL. There is nothing here for `NEON_URL` to unlock —
-# this job never sets it — so this workflow is always the 21-check run, on
-# purpose, matched by the assertion step below.
+# machine without a URL. This job never sets `NEON_URL`; the relational skips
+# stay visible in the log.
 #
 # NODE 22 AND 24. This repo runs on Node 22 today; Vercel builds it on Node
 # 24. Nothing before this workflow ever ran the gate under both, so a
@@ -32,17 +22,14 @@ on:
   push:
     branches: [main, "claude/**", "codex/**"]
   workflow_dispatch:
-  # WS-R122. Weekly, for the `hindi-rehearsals` job below only — the Hindi
+  # Weekly, for the `hindi-rehearsals` job below only — the Hindi
   # creator and follower rehearsals under `REHEARSAL_FULL=1` are not part of
-  # the 21/23-check gate `evals/run.mjs` registers by default (that registry
+  # the default gate `evals/run.mjs` registers (that registry
   # runs the English gate of each rehearsal only, this workstream's own
   # brief and `context/rejected.md`'s WS-R119 entries restate why: minutes
   # and rate-limit budget a push-triggered gate cannot spend twice), so
   # without a schedule the Hindi walks would run only when a human happens
-  # to invoke them by hand. Sunday 04:37 UTC: neither `drift.yml`'s existing
-  # weekly "15 3 * * 0" nor `culture.yml`'s existing daily "45 3 * * *"
-  # (`grep -rn "cron:" .github/workflows/*.yml`, checked before picking this
-  # so three schedules do not stack onto one runner-minute).
+  # to invoke them by hand.
   schedule:
     - cron: "37 4 * * 0"
 
@@ -168,13 +155,6 @@ jobs:
           fc-cache -f "$HOME/.local/share/fonts"
           fc-list | grep -qi "Noto Sans Devanagari" || { echo "::error::Noto Sans Devanagari did not register with fontconfig -- the glyph pass would be blind on this runner"; exit 1; }
 
-      # The audio floor. `evals/echosim/stucksim.mjs` (inside verify-release,
-      # named "stuck-turn endpoint") and the manual before/after tables both
-      # need this artifact built first, exactly as `AGENTS.md`'s own gate
-      # notes say — same rule as the missing-`_config.js` trap just above,
-      # different missing artifact.
-      - run: node evals/echosim/build.mjs
-
       # The one download this job needs from the network beyond npm's own
       # registry. Cached by Playwright's own version plus the lockfile hash,
       # so a run that changes neither re-downloads nothing.
@@ -189,8 +169,8 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 
-      # THE WHOLE GATE — every one of the 21 checks (23 only when `NEON_URL`
-      # is set, which this job never does; see the header above). This is
+      # THE WHOLE GATE. The runner is authoritative for its current count; the
+      # database-only checks skip visibly because this job has no `NEON_URL`. This is
       # the ONE command whose exit code this job's own status is allowed to
       # depend on for its central claim ("CI ran the whole gate"): every
       # step before this one is setup, and every step after it (none) would

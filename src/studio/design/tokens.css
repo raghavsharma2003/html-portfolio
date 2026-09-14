@@ -159,7 +159,7 @@
      */
     --state-done: var(--forest);
     --state-done-soft: var(--forest-soft);
-    --state-waiting: #b4551f;   /* ember, darkened from --signal for contrast on paper */
+    --state-waiting: #a94a18;   /* ember, AA-safe on the waiting ground */
     --state-waiting-soft: #fbead9;
     --state-running: #4c5a6b;   /* slate: working, not waiting on you */
     --state-running-soft: #e8ecf1;
