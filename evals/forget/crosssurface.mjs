@@ -204,7 +204,8 @@ function consolidationSuppressionFollowsPerson(source) {
   return (
     /select d\.device_id from vy_person_device d where d\.person_id = \$1::uuid/.test(suppression) &&
     /select \$1::uuid where not exists/.test(suppression) &&
-    /group by f\.term/.test(suppression)
+    /group by f\.term/.test(suppression) &&
+    !/\.catch\(\(\) => \[\]\)/.test(suppression)
   );
 }
 
@@ -219,6 +220,15 @@ const suppressionMutant = consolidateSrc.replace(
 ok(
   "NEGATIVE CONTROL: narrowing suppression back to person_id alone is detected",
   suppressionMutant !== consolidateSrc && !consolidationSuppressionFollowsPerson(suppressionMutant),
+);
+const failOpenSuppressionMutant = consolidateSrc.replace(
+  "    [person, agentId],\n  );\n  const esc",
+  "    [person, agentId],\n  ).catch(() => []);\n  const esc",
+);
+ok(
+  "NEGATIVE CONTROL: treating a suppression query failure as an empty ledger is detected",
+  failOpenSuppressionMutant !== consolidateSrc &&
+    !consolidationSuppressionFollowsPerson(failOpenSuppressionMutant),
 );
 
 // ── arm 2: live ────────────────────────────────────────────────────────────

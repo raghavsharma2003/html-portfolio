@@ -18900,6 +18900,8 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 
 **The rule.** Referential integrity is not enough for a queue cursor. A repair must preserve both pointer validity and the caller that will consume the repaired state.
 
+The same review rejected treating a suppression-ledger query failure as an empty result. That catch can silently rederive forgotten content during a transient database or query failure. The replacement lets the error propagate from `suppressionRegexes`; existing consolidation callers already turn that rejection into a failed run before finalization writes. The focused suite mutates the catch back in and requires its detection.
+
 ## `wave25-terra-correction-cannot-require-mini-style-fingerprint` (2026-09-14, wave 25)
 
 **Tried.** Extend the existing Mini-only provider revision whitelist to Terra while retaining the v1 rule that every accepted response must carry a non-null `fp_*` system fingerprint.

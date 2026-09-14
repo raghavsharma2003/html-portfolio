@@ -362,7 +362,7 @@ async function suppressionRegexes(person, agentId = MEERA_AGENT_ID) {
       group by f.term
       order by max(f.at) desc limit 200`,
     [person, agentId],
-  ).catch(() => []);
+  );
   const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return rows.map((r) => new RegExp(`\\b${esc(r.term)}\\b`, "i")).filter(Boolean);
 }
