@@ -25346,3 +25346,11 @@ Build the exact committed worker source on the existing sponsored subscription w
 ## `wave25-owner-prioritizes-private-internal-product`
 
 2026-09-14. In response to the human-review-versus-automated-enrollment question, the owner explicitly said to avoid reviews for now, not roll out to people, first build and test internally and perfect the product, then address policy/compliance. This supersedes treating public enrollment review as a blocker for internal voice tests. Build an explicit restricted internal test path using existing assets; retain truthful test status and distinguish it from public verification. Do not build the human-review workflow now. Root is preparing a protected Vercel preview rather than triggering main production deployment. Reverse when the owner chooses public rollout or a different testing scope; ordinary source-rights/identity claims cannot be fabricated.
+
+## `wave25-mirror-availability-labels-use-personal-aa-ink` (2026-09-14)
+
+**Decision.** Mirror Call's three availability labels use the personal studio's existing `--ink-soft` token on the card's `--paper-deep` background. The change is scoped to `.mirror-availability dt` in canonical `studio.css` and its authenticated `studio-workspace.css` partition; adjacent values already use the same token. The accessibility threshold, Hindi fixture and typography stay unchanged.
+
+**Why.** The rendered 9px bold labels measured 3.33:1 with `--ink-faint`, below the 4.5:1 normal-text floor. `--ink-soft` measures 6.02:1 against the actual card background and keeps the labels visually secondary. The design scale declares 11px as the eventual micro-type floor, so 9px remains known migration debt; changing size here would add wrapping and layout scope not needed to repair the measured contrast failure.
+
+**Reversal.** Change this scoped token only if the label or card background changes and a real built-page measurement proves the replacement remains at least 4.5:1 in both locales and both supported widths. A future 11px typography migration must recheck wrapping at 390px before replacing this size.

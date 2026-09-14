@@ -20175,6 +20175,24 @@
       "kind": "rejection",
       "title": "Do not spend the internal pilot on a public verification system",
       "at": "context/rejected.md#wave25-public-verifier-is-not-internal-test-readiness"
+    },
+    {
+      "id": "wave25-mirror-availability-labels-use-personal-aa-ink",
+      "kind": "decision",
+      "title": "Mirror Call availability labels use a scoped personal Studio AA ink",
+      "at": "context/decisions.md#wave25-mirror-availability-labels-use-personal-aa-ink"
+    },
+    {
+      "id": "wave25-mirror-availability-faint-ink-and-cross-studio-token",
+      "kind": "rejection",
+      "title": "Faint ink fails on the Call card and creator tokens do not cross Studio cascades",
+      "at": "context/rejected.md#wave25-mirror-availability-faint-ink-and-cross-studio-token"
+    },
+    {
+      "id": "wave25-hindi-call-label-contrast-20260914",
+      "kind": "measurement",
+      "title": "Hindi Call labels clear contrast in the built phone and desktop page",
+      "at": "context/measurements.md#wave25-hindi-call-label-contrast-20260914"
     }
   ],
   "edges": [
@@ -34360,6 +34378,21 @@
       "src": "wave25-public-verifier-is-not-internal-test-readiness",
       "rel": "constrains",
       "dst": "wave25-owner-prioritizes-private-internal-product"
+    },
+    {
+      "src": "wave25-mirror-availability-labels-use-personal-aa-ink",
+      "rel": "measured_by",
+      "dst": "wave25-hindi-call-label-contrast-20260914"
+    },
+    {
+      "src": "wave25-mirror-availability-labels-use-personal-aa-ink",
+      "rel": "caused_by",
+      "dst": "wave25-mirror-availability-faint-ink-and-cross-studio-token"
+    },
+    {
+      "src": "wave25-mirror-availability-faint-ink-and-cross-studio-token",
+      "rel": "constrains",
+      "dst": "ws-r50-ink-faint-token-wide-recolour"
     }
   ]
 }
