@@ -1191,6 +1191,7 @@ const suites = {
   "room-memory-correction": "room-memory-correction/run.mjs",
   "consolidation-config": "consolidation/config.mjs",
   "room-memory-caller": "consolidation/room-caller.mjs",
+  "owner-memory-delivery": "owner-memory-delivery/run.mjs",
   // Migration 018 and the raw RelationalOS boundary: schema parity, explicit
   // writers, pre-rank readers, per-agent consolidation cursors/leases and
   // cross-agent negative controls. Offline, deterministic, no DB/network.

@@ -19131,3 +19131,13 @@ Initial internal runner used .5/.5/.8 and unknown/unverified language. Existing 
 ## wave25-default-voice-conditioning-and-code-only-memory
 
 2026-09-14. The first internal voice implementation used unknown language evidence, which the existing conditioning law reduced to effectiveCFG0. The retained exact-reference receipt supported source-level mixed attribution and the historical anchor .2/.78/.6, seed41001; internal commit7b096951 restores only that exact reference profile with provenance and a real-adapter CFG.78 control. Do not generalize its source evidence to another reference. Separately, automatic memory source/caller tests pass but Vercel lacks CONSOLIDATE_SWEEP_MODE, CONSOLIDATE_ROOM_DEV, CONSOLIDATE_ROOM_PERSON_LIMIT, AZURE_FOUNDRY_ROOM_MEMORY_MODEL and AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL, and previews do not run Vercel cron. Merging R182 alone cannot establish background memory. Connect and test the deployed scheduler before claiming completion. Browser navigation of the JSON marker was blocked by client while HTML rendered; authenticated Vercel fetch verified the marker. API fetches redirected to SSO and are not API-health evidence.
+
+## `wave25-preview-cron-only-memory-has-no-caller`
+
+**Tried.** Automatic owner memory relied on the existing hourly `room_only` Vercel cron after a successful Meet turn wrote a source.
+
+**What specifically broke.** The private product target is a protected Preview deployment, and Vercel cron runs only on Production. A Preview conversation could therefore persist a correct source, have valid consolidation code at both ends, and still never call it. Setting the five Room consolidation variables made the lane valid but did not create a Preview caller. Calling the broad sweep from Studio would have scanned and sorted global Room and owner candidates, exceeding the one owner and one requested replica scope of the user action.
+
+**What replaced it.** Studio starts one authenticated same-origin POST after a successful answer when memory is on. The endpoint resolves only that owner's requested replica, uses one existing agent/person lease and one existing metered owner batch, and leaves the hourly sweep in place for eventual catch-up. Configuration failure, memory off, a held lease and duplicate settled spend remain distinct non-success outcomes.
+
+**The rule.** A scheduled capability is not delivered on an environment where its scheduler does not run. Add a caller at the narrowest already-authorized product event; never turn an owner action into a global backlog drain.
