@@ -82,3 +82,18 @@ Sources checked:
 The next agent should fix and prove the concrete parser/duration defects,
 finish the reachable text journey, and resolve the missing evidence design.
 Do not spend another cycle searching for an absent Azure key as the sole cause.
+
+## Repair checkpoint later on 2026-09-14
+
+The Face parser repair is integrated in `5abc1773`; nine focused provider-shaped
+tests pass. Capture now auto-stops at 25 seconds on both Studio surfaces,
+leaving five seconds of scheduling headroom beneath the unchanged 30-second
+decoder ceiling. A JavaScript timer is not a hard media-duration guarantee;
+oversized captures still refuse on the backend. Ten contract tests pass;
+the full native decoder suite was not run here without ffmpeg/ffprobe.
+
+Microsoft's [current Face tutorial](https://learn.microsoft.com/en-us/azure/ai-services/face/tutorials/liveness)
+documents model version `2025-05-20`, so that configured pin was retained.
+The older REST example's `2024-11-15` alone was insufficient reason to change it.
+None of these repairs enables the missing composite evidence producer or
+establishes live Face approval, successful enrollment or voice likeness.

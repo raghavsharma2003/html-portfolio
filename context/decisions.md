@@ -25273,3 +25273,11 @@ The sponsored Azure subscription and working Speech/Foundry access do not resolv
 **Why.** `compile()` adds trusted CORE text after `AgentModule.buildSystemPromptParts()` returns. The former split left the CORE block open until the selected stage in TAIL, placing those trusted additions inside creator-controlled material on call, minor, and Room paths even while the normal chat prompt looked sound.
 
 **Reversal.** Change this layout only if the compiler gains a separately typed trusted-material channel that makes envelope membership mechanically impossible to confuse, and an actual compile regression proves all current compiler additions and static/sheet parity remain protected without increasing either operational cap.
+
+## standalone25-capture-duration-30s-20260914
+
+2026-09-14. Align both live LivenessCapture surfaces with the voice-evidence decoder's 30-second MAX_FRAMES ceiling. A 60-second browser auto-stop could create uploads the backend rejects; the shared named constant and backend assertion keep the boundary mirrored. Reverse if the backend contract is deliberately raised with matching UI and tests.
+
+## standalone25-capture-duration-headroom-20260914
+
+2026-09-14. Set the browser auto-stop to 25 seconds, leaving five seconds of headroom under the strict 30-second decoder ceiling because wall timers can fire late and tabs can stall during upload handoff. The server remains authoritative and refuses decoded audio beyond 30 seconds. Reverse if the transport gains a measured hard deadline with equivalent protection.

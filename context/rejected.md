@@ -18979,3 +18979,11 @@ The prior flat latest.verifyResult read was rejected because the official Face v
 **What replaced it.** The stable and selected-stage material are separate closed blocks, and the teacher-sheet suite compiles chat, call, minor, and Room prompts through the real compiler. It verifies the safety instruction, selected platform stage, and each applicable compiler insertion occur outside creator material while preserving the selected raw stage in the TAIL envelope.
 
 **Reversal condition.** Revisit only with a compiler representation that separates trusted instructions from creator material before string assembly and an end-to-end compile test that proves the same envelope property.
+
+## standalone25-capture-duration-60s-rejected-20260914
+
+A 60-second LivenessCapture auto-stop was rejected because services/voice-evidence/identity_audio.py enforces MAX_FRAMES = RATE * 30 and refuses decoded frames beyond that limit. The parser and Face version were not changed beyond this duration alignment; no readiness or enablement change was made.
+
+## standalone25-capture-duration-zero-margin-rejected-20260914
+
+A 30-second UI timer was rejected as zero-margin: browser scheduling and upload handoff can overshoot the decoder's strict 30-second limit by milliseconds. A 25-second UX budget preserves an honest server-side refusal for stalled or oversized captures without silent trimming.

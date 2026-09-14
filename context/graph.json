@@ -19899,6 +19899,42 @@
       "kind": "rejection",
       "title": "Open creator material absorbs trusted compiler additions (2026-09-14)",
       "at": "context/rejected.md#wave25-open-creator-material-across-the-compiler-boundary"
+    },
+    {
+      "id": "standalone25-capture-duration-30s-20260914",
+      "kind": "decision",
+      "title": "Liveness capture uses the 30-second backend ceiling",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-capture-duration-30s-measurement-20260914",
+      "kind": "measurement",
+      "title": "Thirty-second capture contract checks pass",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-capture-duration-60s-rejected-20260914",
+      "kind": "rejection",
+      "title": "Sixty-second capture ceiling rejected",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-capture-duration-headroom-20260914",
+      "kind": "decision",
+      "title": "Liveness UI keeps five seconds of decoder headroom",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-capture-duration-headroom-measurement-20260914",
+      "kind": "measurement",
+      "title": "Twenty-five second UI and thirty second decoder contract",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-capture-duration-zero-margin-rejected-20260914",
+      "kind": "rejection",
+      "title": "Zero-margin liveness timer rejected",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -33923,6 +33959,26 @@
     {
       "src": "wave25-creator-material-blocks-close-at-each-compiler-boundary",
       "dst": "wave25-open-creator-material-across-the-compiler-boundary",
+      "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-capture-duration-30s-20260914",
+      "dst": "standalone25-capture-duration-30s-measurement-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-capture-duration-60s-rejected-20260914",
+      "dst": "standalone25-capture-duration-30s-20260914",
+      "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-capture-duration-headroom-20260914",
+      "dst": "standalone25-capture-duration-headroom-measurement-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-capture-duration-zero-margin-rejected-20260914",
+      "dst": "standalone25-capture-duration-headroom-20260914",
       "rel": "caused_by"
     }
   ]

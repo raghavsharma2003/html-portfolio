@@ -18872,3 +18872,19 @@ The nine liveness assertions include the nested provider shape and three fail-cl
 2026-09-14. One isolated worktree at `6f0ab212` was checked without Docker or cloud access. The worker package syntax command passed. `node evals/processing-worker/run.mjs` passed 59 checks: the production-entry import closure resolved with no missing source, every reachable module matched an explicit Docker copy, the purpose and two private-storage controls remained reachable, removing the controller copy triggered the negative, four invalid production bindings stopped before database/config/work, database mismatch stopped before config, config failure stopped before work, and the valid fixture observed database then config then worker. The existing database guard passed 17 mocked-HTTP assertions. No real SQL, database connection, native tool, provider call, processing execution, model load, Docker build, ACR submission, job update or browser/full release gate ran.
 
 Completion review on the preserved candidate, 2026-09-14, Node 24.13.0: independently reproduced the original 59 worker checks and 17 mocked database assertions; after strengthening the actual Docker-copy negatives and builtin-only dependency check, the final worker suite passed 61 checks. The replica-processing suite reported all checks passed. Worker package syntax, the bootstrap/entry syntax, `node --check scripts/write-config.mjs`, and `git diff --check` passed. Additional `node evals/source-storage-writer/run.mjs` stopped during import because ignored `api/_config.js` is absent; no assertions in that suite ran and no real credential file was generated or copied. The config writer was parsed only. No database, provider, native tool, Docker, ACR, job, browser or full-release execution occurred in this completion review.
+
+## standalone25-capture-duration-30s-20260914
+
+Method: scoped Python ContractTests and static source contract checks in the isolated capture-duration worktree; n=10 contract tests, date 2026-09-14, all passed. Full decoder unittest was not claimable because ffmpeg/ffprobe are unavailable. Microsoft Learn's Face liveness v1.2 documentation shows modelVersion 2025-05-20 in the current tutorial and 2024-11-15 in an older response example; this task leaves the pinned version unchanged.
+
+## standalone25-capture-duration-30s-measurement-20260914
+
+Both UI surfaces assert the named 30-second timer and backend MAX_FRAMES remains RATE * 30.
+
+## standalone25-capture-duration-headroom-20260914
+
+Method: static contract tests on both liveness capture surfaces; n=2 UI sources plus the existing decoder boundary, date 2026-09-14. Both require the 25-second UX constant, reject 60-second and zero-headroom 30-second mutants, and retain RATE * 30 decoder enforcement.
+
+## standalone25-capture-duration-headroom-measurement-20260914
+
+The mirrored UI constants are 25 seconds while identity_audio.py remains RATE * 30.
