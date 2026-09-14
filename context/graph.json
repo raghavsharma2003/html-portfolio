@@ -20625,6 +20625,24 @@
       "kind": "rejection",
       "title": "Grant success does not deploy the voice service",
       "at": "2026-09-14"
+    },
+    {
+      "id": "wave26-owner-mobile-failures-lead-release",
+      "kind": "decision",
+      "title": "wave26 owner mobile failures lead release",
+      "ref": "context/decisions.md#wave26-owner-mobile-failures-lead-release"
+    },
+    {
+      "id": "wave26-mobile-notice-and-voice-binding-20260914",
+      "kind": "measurement",
+      "title": "wave26 mobile notice and voice binding 20260914",
+      "ref": "context/measurements.md#wave26-mobile-notice-and-voice-binding-20260914"
+    },
+    {
+      "id": "wave26-green-gates-and-owner-pinned-sample-are-not-product-completion",
+      "kind": "rejection",
+      "title": "wave26 green gates and owner pinned sample are not product completion",
+      "ref": "context/rejected.md#wave26-green-gates-and-owner-pinned-sample-are-not-product-completion"
     }
   ],
   "edges": [
@@ -35075,6 +35093,16 @@
       "src": "wave25-owner-grant-unblocks-reviewed-voice-service",
       "rel": "measured_by",
       "dst": "wave25-owner-grant-verified-20260914"
+    },
+    {
+      "src": "wave26-owner-mobile-failures-lead-release",
+      "rel": "measured_by",
+      "dst": "wave26-mobile-notice-and-voice-binding-20260914"
+    },
+    {
+      "src": "wave26-green-gates-and-owner-pinned-sample-are-not-product-completion",
+      "rel": "caused_by",
+      "dst": "wave26-owner-mobile-failures-lead-release"
     }
   ]
 }

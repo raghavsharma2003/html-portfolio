@@ -33,7 +33,7 @@ or a passing simulated test must never appear as a finished clone.
 | --- | --- | --- |
 | Conversation and correction | Azure Foundry `gpt-5.6-terra`, expected response model `gpt-5.6-terra-2026-07-09` | Complete the real signed-in conversation on the accepted preview. |
 | Extraction and memory consolidation | Azure Foundry `gpt-4.1-mini`, with the memory response bound to `gpt-4.1-mini-2025-04-14` | Test actual extraction, useful recall and forgetting against real material. |
-| Selected voice lane | Chatterbox Multilingual V3 on Azure, with general and Hindi checkpoint arms | Deploy the prepared private CPU service after the owner's narrow Azure role grant, then generate and listen to a real comparison. No fresh likeness measurement exists. |
+| Selected voice lane | Chatterbox Multilingual V3 on Azure, with general and Hindi checkpoint arms | The private CPU service and Hindi broker are deployed, and the retained reference is primed. Connect the Preview configuration, then generate and listen to a real comparison. No fresh likeness measurement exists. |
 | Other voice research | IndicF5, Qwen3-TTS, VoxCPM2 and MOSS-TTS code | These are experiments, not evidence of deployed or selected fine-tuned models. |
 | HumanOS and EmotionOS | Approved person sheet, communication preferences and prompt compilation | Measure whether answers preserve the expert's style and judgment. These are application components, not separate foundation models or human consciousness. |
 | RelationOS and memory | Per-person relationship state, retrieval, consolidation and erasure in the shared engine/database | The post-reply memory caller is implemented; live multi-turn recall and isolation still need verification. |
@@ -69,13 +69,14 @@ never invent an expert profile or require all material to be uploaded again.
 
 ## Remaining work
 
-1. Deploy the fully gated UI candidate as a protected preview and verify its
-   source, sign-in and actual creator/visitor journeys. No public cutover is
+1. Finish the real signed-in creator/visitor journey on the protected preview.
+   The accepted UI is deployed and its source verified. No public cutover is
    authorized for this private phase.
-2. Verify the narrow Hindi GPU role granted on the owner's personal system,
-   then deploy the already-built private voice CPU service and broker. Compare
-   a generated sample with the retained reference; collect separate likeness,
-   naturalness, pronunciation and responsiveness evidence.
+2. Connect the deployed private voice service to a fresh Preview deployment.
+   The owner's narrow Hindi GPU grant, CPU service, broker and retained reference
+   are verified. Compare a generated sample with the retained reference; collect
+   separate likeness, naturalness, pronunciation and responsiveness evidence.
+   The GPU remains dormant until the bounded sample run.
 3. Complete and test fresh voice enrollment. The private retained-reference
    comparison is not proof that any new expert can finish voice enrollment.
    See `VOICE-ENROLLMENT-REALITY.md` for the evidence-producer gap.
@@ -95,10 +96,10 @@ comparisons, repeat use and observed serving costs.
 
 ## Owner-only inputs
 
-- On a **personal system**, run the committed personal Cloud Shell script
-  `grant-internal-voice-identity-personal-cloud-shell.sh`, then confirm completion.
-  Never use a personal Microsoft account in any browser on this employer laptop.
-  Existing authorized Azure service-principal API access remains allowed.
+- The personal-device Azure grant is complete and API-verified. No further
+  Microsoft sign-in is requested. Never use a personal Microsoft account in a
+  browser on this employer laptop; authorized service-principal API access remains
+  allowed.
 - Sign into the protected Vyakti preview with the account that owns the retained
   clone and supply or select genuine expert material for the Feed and Meet walk.
   Do not paste credentials, tokens or login codes into the handoff.

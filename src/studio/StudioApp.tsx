@@ -2439,7 +2439,7 @@ export default function StudioApp({
       setSources((items) => result.erasure === "complete"
         ? items.filter((item) => item.source_id !== sourceId)
         : items.map((item) => item.source_id === sourceId ? { ...item, state: "deleting" } : item));
-      setNotice(result.erasure === "complete" ? "Private source erased." : "Source disabled. Verified erasure is pending.");
+      setNotice(result.erasure === "complete" ? "Source deleted." : "Source removed from your AI. Deletion is finishing.");
       return result.erasure;
     } catch (cause) {
       handleApiError(cause, "Could not erase private source");

@@ -25476,3 +25476,8 @@ Use accepted3bc5 as the newest private preview and keep the two owner inputs exp
 ## wave25-owner-grant-unblocks-reviewed-voice-service
 
 The owner reports the personal-device Cloud Shell grant completed. Root verified exact dedicated identity, role actions and Hindi GPU scope through authorized Azure API; execute the preserved three-write plan against accepted3bc5 without another permission request. This authorizes CPU creation, broker configuration and isolation tag only; actual synthesis remains a separate supervised bounded run. Reverse if any live identity/resource binding differs from the plan.
+
+
+## wave26-owner-mobile-failures-lead-release
+
+Use the owner's actual phone journey as the next release target. Rebuild capture as a compact silver interface, repair real recording/upload failures, and support each signed-in account's own workspace. The pinned retained-owner voice test remains separate diagnostic work. Transient notices expire after six seconds unless being read and clear on navigation; errors remain until dismissed. Reverse this sequencing only after the exact idle, recording, preview, failed-upload, retry and source flows work on phone and desktop. Existing successful CI does not reverse observed live defects.

@@ -1,5 +1,38 @@
 # STATE — read this first, then the graph
 
+## START HERE: OWNER PHONE JOURNEY FAILS; REPAIR BEFORE READY CLAIMS (2026-09-14, owner mobile test)
+
+The owner tested the actual mobile product and supplied seven screenshots.
+Capture layout overlaps, its dial is oversized, notifications persist across
+screens, lifecycle labels leak raw values, and recording/video upload stops at
+Paused without a useful explanation. These observations supersede earlier
+visual acceptance claims. Any supported signed-in account must create its own
+workspace; the retained-owner-only Hindi experiment is only a diagnostic.
+
+Priority: functional recording/upload repair plus a compact silver/metallic
+Studio redesign, stable phone/desktop state layouts, accurate navigation and
+transient feedback. Root owns notices/drawer labels; recording_upload_repair26
+owns capture async/upload behavior; mobile_studio_redesign26 owns presentation;
+sources_journey25 owns unified Sources; internal_text_memory diagnoses Azure
+CORS read-only. Keep five workstreams maximum and isolated sibling worktrees.
+The integration remains Vyakti-platform-standalone25 on the required Claude
+branch. Never edit/reset the old dirty checkout. PRODUCT.md and DESIGN.md now
+record the owner's actual product and replacement visual direction.
+
+The Azure grant, private voice CPU/broker and primed retained reference are
+verified. Five Preview bindings are verified. A fresh protected preview at
+https://vyakti-replica-kefkrsmzn-raghav-carbonsettles-projects.vercel.app
+uses accepted3bc code, deployment dpl_FNxsGdY4CvTEmi5ju4BbGr6MKrFY;
+probe-live60/0 findings and verify-deploy6/6 passed. It has the SAME broken
+capture UI pending these repairs. No fresh GPU/model call or voice likeness
+result exists. Never replay the used infra apply, prime or deployment intents.
+
+No personal Microsoft browser access on this employer laptop. Authorized
+service-principal Azure API access remains allowed. Public cutover is deferred.
+Continue preserving useful uploads, genuine sign-in, actual quality uncertainty
+and the prior exact runbooks below. Do not call green fixtures a complete product.
+
+
 ## START HERE: PRIVATE INTERNAL PRODUCT, 3bc5 ACCEPTED AND PREVIEW LIVE (2026-09-14)
 
 **Latest owner direction wins:** build and test the whole product privately first.

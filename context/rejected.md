@@ -19225,3 +19225,8 @@ An older landing screenshot showed a5154px page with a giant gap and application
 ## wave25-successful-role-grant-is-not-service-creation
 
 The owner saw Verified with no container created or warmed and needed the next step. That output is expected: the personal script grants narrowly scoped identity permissions only. It does not prove the CPU service, broker update, reference priming, supervisor or voice sample exists. Verify the grant by API, then execute the already-reviewed separate infra plan; do not ask the owner to rerun the successful grant or open personal Microsoft sign-in here.
+
+
+## wave26-green-gates-and-owner-pinned-sample-are-not-product-completion
+
+The owner could sign in and reach recording on a phone but could not complete audio/video upload. The prior checks missed oversized capture geometry, text overlays, sticky Done notification and raw consent_pending/enrolling strings. A retained-owner-only voice panel cannot substitute for a new account creating its own AI. Live Vercel logs on6uu show source authorization201 and other source200/202 responses but no5xx in the observed45-minute window; this does not prove Azure upload success. Fix the client/storage seam and surface its exact failure instead of inferring a working product from API acceptance or checking only signed-out entry and idealized fixtures.

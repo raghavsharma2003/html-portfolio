@@ -43,6 +43,8 @@ import type {
 import type { WizardInput } from "./wizardModel";
 import { useStudioLocale } from "./localeContext";
 import type { CloneExperienceShellCopy } from "./copy";
+import WorkspaceNotice from "./WorkspaceNotice";
+import { workspaceLifecycleLabel } from "./workspaceLifecycle";
 
 const MirrorCallStudio = lazy(() => import("./MirrorCallStudio"));
 const PersonModelStudio = lazy(() => import("./PersonModelStudio"));
@@ -612,7 +614,7 @@ function WorkspaceDrawer({ open, replicas, selected, runtimeStatus, onClose, onS
   busy: boolean;
   reduceMotion: boolean;
 }) {
-  const { t } = useStudioLocale();
+  const { t, locale } = useStudioLocale();
   const copy = t.cloneExperienceShell.drawer;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const drawerRef = useRef<HTMLElement | null>(null);
@@ -657,7 +659,7 @@ function WorkspaceDrawer({ open, replicas, selected, runtimeStatus, onClose, onS
             {replicas.map((replica) => (
               <button key={replica.replica_id} type="button" disabled={busy} className={selected?.replica_id === replica.replica_id ? "is-current" : ""} onClick={() => onSelect(replica.replica_id)}>
                 <span>{replica.display_name.slice(0, 1).toUpperCase()}</span>
-                <div><strong>{replica.display_name}</strong><small>{replica.replica_id === selected?.replica_id && runtimeStatus?.versions.voice_genome ? copy.voiceVersionTemplate.replace("{n}", String(runtimeStatus.versions.voice_genome)) : replica.lifecycle}</small></div>
+                <div><strong>{replica.display_name}</strong><small>{replica.replica_id === selected?.replica_id && runtimeStatus?.versions.voice_genome ? copy.voiceVersionTemplate.replace("{n}", String(runtimeStatus.versions.voice_genome)) : workspaceLifecycleLabel(replica.lifecycle, locale)}</small></div>
                 <Icon name="chevron" />
               </button>
             ))}
@@ -1525,7 +1527,10 @@ export default function CloneExperience(props: CloneExperienceProps) {
           )}
         </aside>
       )}
-      {!readBlocked && (notice || error) && <div className={`vx-toast${error ? " is-error" : ""}`} role={error ? "alert" : "status"}><div><strong>{error?.headline || "Done"}</strong><p>{error?.detail || notice}</p></div><button type="button" aria-label="Dismiss" onClick={error ? onDismissError : onDismissNotice}><Icon name="close" /></button></div>}
+      <WorkspaceNotice message={notice} error={error} locale={locale}
+        scope={`${identity}:${selected?.replica_id || "new"}:${room}:${enrichView}`}
+        hidden={readBlocked || drawerOpen || accountOpen}
+        onDismissNotice={onDismissNotice} onDismissError={onDismissError} />
       <WorkspaceDrawer open={drawerOpen} replicas={replicas} selected={selected} runtimeStatus={runtimeStatus} onClose={() => setDrawerOpen(false)} onSelect={(id) => { setDrawerOpen(false); void onSelectReplica(id); }} onNew={() => { setDrawerOpen(false); onStartNew(); }} onReplace={() => void replaceRecording()} onDelete={() => void onRevoke()} busy={revoking || Boolean(upload)} reduceMotion={reduceMotion} />
     </div>
   );
