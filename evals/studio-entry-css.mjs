@@ -169,8 +169,20 @@ if (process.argv.includes("--browser")) {
       await page.getByRole("button", { name: "Open account menu", exact: true }).click();
       await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
       await page.locator(".auth-card").waitFor();
+      // Sign-out schedules the email field focus after the auth card mounts.
+      // Let that real focus target settle, then hold the same element focused
+      // on both sides of the cascade comparison. Otherwise adding the baseline
+      // stylesheet can become the extra async beat that lands focus, comparing
+      // an unfocused control with a focused one rather than two CSS cascades.
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const signedOutFocus = await page.evaluateHandle(() => document.activeElement);
       const signedOutBefore = await snapshot(page);
       const signedOutBaseline = await page.addStyleTag({ content: builtFullCss });
+      await signedOutFocus.evaluate(element => {
+        if (element instanceof HTMLElement) element.focus();
+      });
+      assert.equal(await signedOutFocus.evaluate(element => element === document.activeElement), true,
+        `${width}px sign-out cascade comparison must keep the same focused element`);
       assert.deepEqual(await snapshot(page), signedOutBefore, `${width}px sign-out styles differ from original cascade`);
       await signedOutBaseline.evaluate(el => el.remove());
       check(`built ${width}px sign out returns to styled auth`, () => {});
