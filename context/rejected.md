@@ -18913,3 +18913,13 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 **What replaced it.** The material block is split without changing its combined bytes: stable rows remain in CORE and the selected stage row starts TAIL. Shared eval harnesses explicitly bind the real demo teacher fixture, keep missing-agent refusal as a negative control, and inspect the surviving Meet voice client and shared sync engine instead of deleted product files.
 
 **Reversal condition.** Reconsider only with a measured provider-cache mechanism that does not depend on core byte identity and a replacement suite that preserves the 44-turn safety, budget, stage-boundary and static/dynamic parity checks. Restoring an implicit persona fallback is not an acceptable reversal.
+
+## `wave25-open-creator-material-across-the-compiler-boundary` (2026-09-14, wave 25)
+
+**Tried.** Kept one creator-material block open in an agent module's CORE and emitted its closing marker with the selected stage in TAIL, so combining module parts retained the earlier bytes.
+
+**What specifically broke.** `compiler.compile()` appends trusted speech style for calls, `AGE_TIER_SAFETY_OVERRIDE` for minor-safe turns, and `ROOM_MODE_NOTE` for Room turns between those module parts. All three therefore became text inside the open creator-material envelope, even though they are platform-owned instructions. A module-only concatenation assertion could not see the final composition.
+
+**What replaced it.** The stable and selected-stage material are separate closed blocks, and the teacher-sheet suite compiles chat, call, minor, and Room prompts through the real compiler. It verifies the safety instruction, selected platform stage, and each applicable compiler insertion occur outside creator material while preserving the selected raw stage in the TAIL envelope.
+
+**Reversal condition.** Revisit only with a compiler representation that separates trusted instructions from creator material before string assembly and an end-to-end compile test that proves the same envelope property.

@@ -676,22 +676,15 @@ export function renderCreatorMaterial(lines: readonly MaterialLine[]): string {
   );
 }
 
-/**
- * Split one creator-material block at its final, stage-selected line without
- * changing a byte of the combined prompt. The stable prefix belongs in CORE;
- * the selected line and closing marker belong in TAIL because the selected
- * stage can change while a session is active.
- */
+/** Build two closed creator-material blocks across the cache boundary. */
 export function renderCreatorMaterialParts(
   stableLines: readonly MaterialLine[],
   selectedLine: MaterialLine,
 ): { readonly core: string; readonly tail: string } {
-  const selectedValue = selectedLine.value?.trim();
-  const full = renderCreatorMaterial([...stableLines, selectedLine]);
-  if (!selectedValue || !full) return { core: full, tail: "" };
-  const tail = `${selectedLine.label}: ${selectedValue}\n${MATERIAL_BLOCK_CLOSE}`;
-  if (!full.endsWith(tail)) throw new Error("creator_material_stage_split_failed");
-  return { core: full.slice(0, -tail.length), tail };
+  return {
+    core: renderCreatorMaterial(stableLines),
+    tail: renderCreatorMaterial([selectedLine]),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

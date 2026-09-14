@@ -3531,13 +3531,10 @@ ${body}
 ${MATERIAL_BLOCK_CLOSE}`;
 }
 function renderCreatorMaterialParts(stableLines, selectedLine) {
-  const selectedValue = selectedLine.value?.trim();
-  const full = renderCreatorMaterial([...stableLines, selectedLine]);
-  if (!selectedValue || !full) return { core: full, tail: "" };
-  const tail = `${selectedLine.label}: ${selectedValue}
-${MATERIAL_BLOCK_CLOSE}`;
-  if (!full.endsWith(tail)) throw new Error("creator_material_stage_split_failed");
-  return { core: full.slice(0, -tail.length), tail };
+  return {
+    core: renderCreatorMaterial(stableLines),
+    tail: renderCreatorMaterial([selectedLine])
+  };
 }
 var VIBE_WARMTH_WORDS = ["cold", "reserved", "warm", "affectionate", "devoted"];
 var VIBE_ENERGY_WORDS = ["still", "low", "steady", "upbeat", "high"];

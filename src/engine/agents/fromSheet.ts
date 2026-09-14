@@ -166,10 +166,9 @@ const STAGE_MATERIAL_LABEL = "how they'd describe this stage of getting to know 
  * SANITIZED copy of the sheet — MATERIAL_FIELDS blanked, so the shared core
  * template's interpolation sites for them render empty rather than fusing the
  * creator's raw words into an instruction sentence — and then appends the
- * material block (built from the REAL, unsanitized values) across the cache
- * boundary: stable creator material stays in CORE while the one stage line
- * selected for this turn starts TAIL. Concatenating the two pieces is exactly
- * the previous material block, byte for byte.
+ * material blocks (built from the REAL, unsanitized values) across the cache
+ * boundary: one closed stable block stays in CORE while a separate closed
+ * block carrying the one stage line selected for this turn starts TAIL.
  * `buildSpeechStyle` and `WATCH_MODE_NOTE` are untouched: neither reads any of
  * the five (grepped: `C.identityWho`/`identityLife`/`lifeTexture`/
  * `tasteTopics`/`curiosityTopics` appear in `persona.ts` only inside the CORE

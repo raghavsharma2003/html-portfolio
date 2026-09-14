@@ -25220,3 +25220,11 @@ Restore private rehearsal, feedback and evaluation key IDs and exact versioned K
 **Why.** The raw selected stage was appended to CORE, so crossing message count 149 to 150 produced two core hashes in one 44-turn session and forfeited the provider cache prefix. The platform-owned active-stage instruction already lived in TAIL; the creator's matching stage description is turn state too.
 
 **Reversal.** Move stage material back into CORE only if the provider cache no longer keys on that prefix and a focused session measurement shows the change improves reply quality without reintroducing multiple core hashes. Any alternate split must retain exact selected content, platform authority and static/dynamic module parity without raising either budget.
+
+## `wave25-creator-material-blocks-close-at-each-compiler-boundary` (2026-09-14, wave 25)
+
+**Decision.** Stable creator material in CORE and the selected creator-stage material in TAIL are separate, independently closed `CREATOR MATERIAL` blocks. Trusted compiler additions, including call speech style, the minor safety override, and the Room note, remain outside both envelopes. The two blocks need not preserve the old concatenated byte sequence; the safety envelope takes precedence. `teacher.ts` and `fromSheet.ts` retain static/sheet parity.
+
+**Why.** `compile()` adds trusted CORE text after `AgentModule.buildSystemPromptParts()` returns. The former split left the CORE block open until the selected stage in TAIL, placing those trusted additions inside creator-controlled material on call, minor, and Room paths even while the normal chat prompt looked sound.
+
+**Reversal.** Change this layout only if the compiler gains a separately typed trusted-material channel that makes envelope membership mechanically impossible to confuse, and an actual compile regression proves all current compiler additions and static/sheet parity remain protected without increasing either operational cap.

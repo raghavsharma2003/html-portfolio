@@ -19713,6 +19713,24 @@
       "kind": "rejection",
       "title": "Active creator stage material cannot live in the provider cache core (2026-09-14)",
       "at": "context/rejected.md#wave25-active-creator-stage-material-cannot-live-in-core"
+    },
+    {
+      "id": "wave25-creator-material-blocks-close-at-each-compiler-boundary",
+      "kind": "decision",
+      "title": "Creator material closes independently on each side of the compiler boundary (2026-09-14)",
+      "at": "context/decisions.md#wave25-creator-material-blocks-close-at-each-compiler-boundary"
+    },
+    {
+      "id": "wave25-closed-creator-material-boundary-regression-20260914",
+      "kind": "measurement",
+      "title": "Closed creator-material envelopes pass real compiler regressions (2026-09-14)",
+      "at": "context/measurements.md#wave25-closed-creator-material-boundary-regression-20260914"
+    },
+    {
+      "id": "wave25-open-creator-material-across-the-compiler-boundary",
+      "kind": "rejection",
+      "title": "Open creator material absorbs trusted compiler additions (2026-09-14)",
+      "at": "context/rejected.md#wave25-open-creator-material-across-the-compiler-boundary"
     }
   ],
   "edges": [
@@ -33638,6 +33656,16 @@
       "src": "wave-25-vyakti-requires-an-explicit-agent-and-one-native-identity",
       "dst": "wave25-explicit-agent-regression-and-core-stability-20260914",
       "rel": "measured_by"
+    },
+    {
+      "src": "wave25-creator-material-blocks-close-at-each-compiler-boundary",
+      "dst": "wave25-closed-creator-material-boundary-regression-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave25-creator-material-blocks-close-at-each-compiler-boundary",
+      "dst": "wave25-open-creator-material-across-the-compiler-boundary",
+      "rel": "caused_by"
     }
   ]
 }

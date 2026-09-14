@@ -46,7 +46,8 @@ writeFileSync(
   `export * from ${JSON.stringify(join(REPO, "src/engine/agents/fromSheet"))};\n` +
   `export { DEMO_TEACHER } from ${JSON.stringify(join(REPO, "src/engine/agents/characters/demoTeacher"))};\n` +
   `export { getAgent } from ${JSON.stringify(join(REPO, "src/engine/agents/registry"))};\n` +
-    `export { renderCreatorMaterial, renderCreatorMaterialParts } from ${JSON.stringify(join(REPO, "src/engine/compiler"))};\n` +
+    `export { compile, MATERIAL_BLOCK_OPEN, MATERIAL_BLOCK_CLOSE, AGE_TIER_SAFETY_OVERRIDE, PLATFORM_STAGE_GETTING_CLOSE, PLATFORM_STAGE_ESTABLISHED, OPERATIONAL_CORE_CAP, OPERATIONAL_TAIL_CAP, renderCreatorMaterial, renderCreatorMaterialParts } from ${JSON.stringify(join(REPO, "src/engine/compiler"))};\n` +
+    `export { ROOM_MODE_NOTE } from ${JSON.stringify(join(REPO, "src/engine/room"))};\n` +
     `export { PUBLISHED_HELPLINES } from ${JSON.stringify(join(REPO, "src/engine/honesty"))};\n`,
 );
 const BUNDLE = join(OUT, "teachersheet.bundle.mjs");
@@ -64,6 +65,15 @@ const {
   PLACEHOLDER_CONSENT_ARTIFACT_ID,
   DEMO_TEACHER,
   getAgent,
+  compile,
+  MATERIAL_BLOCK_OPEN,
+  MATERIAL_BLOCK_CLOSE,
+  AGE_TIER_SAFETY_OVERRIDE,
+  PLATFORM_STAGE_GETTING_CLOSE,
+  PLATFORM_STAGE_ESTABLISHED,
+  OPERATIONAL_CORE_CAP,
+  OPERATIONAL_TAIL_CAP,
+  ROOM_MODE_NOTE,
   renderCreatorMaterial,
   renderCreatorMaterialParts,
   PUBLISHED_HELPLINES,
@@ -184,8 +194,9 @@ const materialStable = [{ label: "who", value: "teacher" }];
 const materialSelected = { label: "stage", value: "regular student" };
 const splitMaterial = renderCreatorMaterialParts(materialStable, materialSelected);
 ok(
-  "splitting the material block changes zero combined bytes and adds zero budget",
-  splitMaterial.core + splitMaterial.tail === renderCreatorMaterial([...materialStable, materialSelected]),
+  "both sides of the cache boundary are independently closed material blocks",
+  splitMaterial.core === renderCreatorMaterial(materialStable) &&
+    splitMaterial.tail === renderCreatorMaterial([materialSelected]),
 );
 const materialPartsAt = (agent, messageCount) => agent.buildSystemPromptParts(
   { name: "", vibe: [], facts: {} }, messageCount, "text",
@@ -214,6 +225,104 @@ ok(
   static149.core === dynamic149.core && static149.tail === dynamic149.tail &&
     static150.core === dynamic150.core && static150.tail === dynamic150.tail,
 );
+
+// Exercise the FINAL compiler composition, where speech style, the minor
+// override and ROOM_MODE_NOTE are inserted between AgentModule.core and
+// AgentModule.tail. A module-level concatenation test cannot see this seam.
+const compileAt = (agent, messageCount, patch = {}) => compile({
+  agent,
+  user: { name: "", vibe: [], facts: {} },
+  messageCount,
+  medium: patch.mode === "call" ? "voice" : "text",
+  mode: "chat",
+  voiceEngine: patch.mode === "call" ? "eleven" : "gemini",
+  isDirective: false,
+  watching: false,
+  innerThread: "",
+  innerWants: "",
+  memories: "",
+  herLife: "",
+  cultureNoteText: "",
+  ...patch,
+});
+const envelopeSpans = (text) => {
+  const spans = [];
+  let cursor = 0;
+  while (true) {
+    const open = text.indexOf(MATERIAL_BLOCK_OPEN, cursor);
+    if (open < 0) break;
+    const nextOpen = text.indexOf(MATERIAL_BLOCK_OPEN, open + MATERIAL_BLOCK_OPEN.length);
+    const close = text.indexOf(MATERIAL_BLOCK_CLOSE, open + MATERIAL_BLOCK_OPEN.length);
+    if (close < 0 || (nextOpen >= 0 && nextOpen < close)) return null;
+    spans.push([open, close + MATERIAL_BLOCK_CLOSE.length]);
+    cursor = close + MATERIAL_BLOCK_CLOSE.length;
+  }
+  return text.indexOf(MATERIAL_BLOCK_CLOSE, cursor) >= 0 ? null : spans;
+};
+const stageInsideTailEnvelope = (compiled, stage) =>
+  envelopeSpans(compiled.tail)?.some(([start, end]) => compiled.tail.slice(start, end).includes(stage)) === true;
+const trustedInstructionHasAnOutsideCreatorEnvelope = (compiled, instruction) => {
+  const outside = (text) => {
+    const spans = envelopeSpans(text);
+    if (!spans) return false;
+    let at = text.indexOf(instruction);
+    while (at >= 0) {
+      if (!spans.some(([start, end]) => at >= start && at < end)) return true;
+      at = text.indexOf(instruction, at + instruction.length);
+    }
+    return false;
+  };
+  return outside(compiled.core) || outside(compiled.tail);
+};
+
+const finalCases = [
+  ["chat", { mode: "chat" }],
+  ["call", { mode: "call" }],
+  ["minor", { mode: "chat", ageGates: { romanceRegisters: false, engagementMechanics: false } }],
+  ["Room", { mode: "chat", roomBundle: { members: [], bridge: [] } }],
+];
+for (const [label, patch] of finalCases) {
+  const dynamicCompiled = compileAt(built, 149, patch);
+  const staticCompiled = compileAt(registered, 149, patch);
+  const coreOpen = dynamicCompiled.core.indexOf(MATERIAL_BLOCK_OPEN);
+  const coreClose = dynamicCompiled.core.lastIndexOf(MATERIAL_BLOCK_CLOSE);
+  const tailClose = dynamicCompiled.tail.lastIndexOf(MATERIAL_BLOCK_CLOSE);
+  const modeInstruction = label === "call"
+    ? built.buildSpeechStyle("eleven")
+    : label === "minor"
+    ? AGE_TIER_SAFETY_OVERRIDE
+    : label === "Room"
+    ? ROOM_MODE_NOTE
+    : "";
+  const modeInstructionAfterCoreMaterial = !modeInstruction ||
+    dynamicCompiled.core.indexOf(modeInstruction, coreClose) > coreClose;
+  ok(`${label}: final compile has one closed material envelope in CORE and one in TAIL`,
+    envelopeSpans(dynamicCompiled.core)?.length === 1 && envelopeSpans(dynamicCompiled.tail)?.length === 1);
+  ok(`${label}: every trusted instruction stays outside creator material`,
+    trustedInstructionHasAnOutsideCreatorEnvelope(dynamicCompiled, "NEVER MANIPULATE") &&
+      trustedInstructionHasAnOutsideCreatorEnvelope(dynamicCompiled, PLATFORM_STAGE_GETTING_CLOSE) &&
+      (!modeInstruction || trustedInstructionHasAnOutsideCreatorEnvelope(dynamicCompiled, modeInstruction)) &&
+      dynamicCompiled.core.indexOf("NEVER MANIPULATE") < coreOpen &&
+      dynamicCompiled.tail.lastIndexOf(PLATFORM_STAGE_GETTING_CLOSE) > tailClose &&
+      modeInstructionAfterCoreMaterial);
+  ok(`${label}: exact raw active-stage content stays inside the TAIL material envelope`,
+    stageInsideTailEnvelope(dynamicCompiled, DEMO_TEACHER.stageGettingClose));
+  ok(`${label}: static and sheet-backed final compiles remain identical`,
+    dynamicCompiled.core === staticCompiled.core && dynamicCompiled.tail === staticCompiled.tail);
+  ok(`${label}: configured operational budgets are unchanged and the prompt fits`,
+    OPERATIONAL_CORE_CAP === 72_000 && OPERATIONAL_TAIL_CAP === 24_000 &&
+      dynamicCompiled.core.length <= OPERATIONAL_CORE_CAP && dynamicCompiled.tail.length <= OPERATIONAL_TAIL_CAP);
+}
+const final149 = compileAt(built, 149);
+const final150 = compileAt(built, 150);
+ok("final compile CORE stays byte-identical across 149 -> 150", final149.core === final150.core);
+ok("final compile 149 keeps only the exact raw getting-close stage inside TAIL material",
+  stageInsideTailEnvelope(final149, DEMO_TEACHER.stageGettingClose) && !final149.tail.includes(DEMO_TEACHER.stageEstablished));
+ok("final compile 150 keeps only the exact raw established stage inside TAIL material",
+  stageInsideTailEnvelope(final150, DEMO_TEACHER.stageEstablished) && !final150.tail.includes(DEMO_TEACHER.stageGettingClose));
+ok("the platform's selected stage instruction remains outside creator material at 149 and 150",
+  final149.tail.lastIndexOf(PLATFORM_STAGE_GETTING_CLOSE) > final149.tail.lastIndexOf(MATERIAL_BLOCK_CLOSE) &&
+    final150.tail.lastIndexOf(PLATFORM_STAGE_ESTABLISHED) > final150.tail.lastIndexOf(MATERIAL_BLOCK_CLOSE));
 
 // ── 4. the consent gate, and its negative control ──────────────────────────
 console.log("\n── the consent gate: registration is impossible without a consent artifact ──");
