@@ -6,17 +6,15 @@
 // `site/vyakti.html` used to sell "an AI version of a creator to their
 // followers". The owner's intent is broader: any person builds an AI
 // version of themselves. This suite proves the REAL, shipping file (never a
-// re-typed excerpt) tells that story: three screens (build it, test and
-// tweak it, deploy it), the three named systems (HumanOS, EmotionOS,
-// RelationOS) as section promises, the honest "apprentice" line, no
+// re-typed excerpt) tells that story: one image-led entrance and three
+// journey sections (Feed, Meet, Deploy), no internal system labels, no
 // "creator" anywhere, and all of it in both English and Hindi. Four
 // sections:
 //
 //   §1 STRUCTURE, PER LOCALE. Each of `#loc-en`/`#loc-hi` carries exactly
 //      three named screens (`build-title`/`test-title`/`deploy-title` and
-//      their `-hi` twins), each naming its own OS exactly once, the
-//      apprentice line present, and the consent/provenance strip
-//      (`#boundary`/`#boundary-hi`) present.
+//      their `-hi` twins), the responsive approved hero image, a Studio
+//      primary action, and the retained consent/provenance section.
 //   §2 VOCABULARY. The real `scripts/check-copy.mjs` scanner run against
 //      the REAL file source finds nothing (the same gate `verify-release`
 //      runs), plus this suite's own narrower "creator" check the copy
@@ -73,7 +71,7 @@ function extractLocaleBlock(source, id) {
  *  possibly-drifting sets of assertions. Returns the list of finding
  *  strings (empty = clean) so §3's negative control can call it against a
  *  deliberately broken block and assert the list is non-empty. */
-function structuralFindings(rawBlock, { suffix, apprentice, boundaryId }) {
+function structuralFindings(rawBlock, { suffix, studioHref, studioLabel, boundaryId }) {
   // HTML comments are exempt from every copy rule (`scripts/check-copy.mjs`'s
   // own doctrine, restated here): a per-section marker comment naming its
   // own OS (`<!-- ... build it: HumanOS ... -->`) must not double-count
@@ -84,10 +82,10 @@ function structuralFindings(rawBlock, { suffix, apprentice, boundaryId }) {
   need(`build-title${suffix} present`, block.includes(`id="build-title${suffix}"`));
   need(`test-title${suffix} present`, block.includes(`id="test-title${suffix}"`));
   need(`deploy-title${suffix} present`, block.includes(`id="deploy-title${suffix}"`));
-  need("HumanOS named exactly once", (block.match(/HumanOS/g) || []).length === 1);
-  need("EmotionOS named exactly once", (block.match(/EmotionOS/g) || []).length === 1);
-  need("RelationOS named exactly once", (block.match(/RelationOS/g) || []).length === 1);
-  need("the apprentice line is present verbatim", block.includes(apprentice));
+  need("exactly three journey sections", (block.match(/<section class="journey journey-(?:feed|meet|deploy)"/g) || []).length === 3);
+  need("one responsive hero visual", (block.match(/<picture class="hero-visual">/g) || []).length === 1 && block.includes("/site/assets/vyakti-mirror-960.webp") && block.includes("/site/assets/vyakti-mirror-1600.webp"));
+  need("the primary action opens Studio", block.includes(`<a class="btn" href="${studioHref}">${studioLabel}</a>`));
+  need("no internal OS labels in the customer journey", !/(?:HumanOS|EmotionOS|RelationOS)/.test(block));
   need(`the boundary/consent section (${boundaryId}) is present`, block.includes(`id="${boundaryId}"`));
   need("no banned word \"creator\" (case-insensitive)", !/creator/i.test(block));
   need("no banned word \"क्रिएटर\"", !block.includes("क्रिएटर"));
@@ -107,14 +105,16 @@ console.log("── §1: structure, per locale ──");
 
   const enFindings = structuralFindings(enBlock, {
     suffix: "",
-    apprentice: "An unfinished AI is an apprentice, not broken.",
+    studioHref: "/studio",
+    studioLabel: "Open your studio",
     boundaryId: "boundary",
   });
   ok("English locale: every structural requirement holds", enFindings.length === 0, JSON.stringify(enFindings));
 
   const hiFindings = structuralFindings(hiBlock, {
     suffix: "-hi",
-    apprentice: "अधूरा AI एक शागिर्द है, टूटा हुआ नहीं।",
+    studioHref: "/studio?lang=hi",
+    studioLabel: "अपना स्टूडियो खोलें",
     boundaryId: "boundary-hi",
   });
   ok("Hindi locale: every structural requirement holds", hiFindings.length === 0, JSON.stringify(hiFindings));
@@ -139,24 +139,24 @@ console.log("\n── §2: vocabulary (the real gate, plus this suite's own narr
 
 console.log("\n── §3: negative controls ──");
 {
-  // (a) §1's own finder catches a deleted OS name.
-  const brokenBlock = enBlock.replace(/HumanOS/g, "SomethingElseOS");
+  // (a) §1's own finder catches a missing journey section.
+  const brokenBlock = enBlock.replace('class="journey journey-feed"', 'class="journey-feed"');
   const brokenFindings = structuralFindings(brokenBlock, {
-    suffix: "", apprentice: "An unfinished AI is an apprentice, not broken.", boundaryId: "boundary",
+    suffix: "", studioHref: "/studio", studioLabel: "Open your studio", boundaryId: "boundary",
   });
-  ok("NEGATIVE CONTROL (a): removing HumanOS is caught", brokenFindings.includes("HumanOS named exactly once"));
+  ok("NEGATIVE CONTROL (a): removing one journey marker is caught",
+    brokenBlock !== enBlock && brokenFindings.includes("exactly three journey sections"));
 
-  // (a again) a doubled OS name (a future accidental second mention) is
-  // caught too — "exactly once", never merely "at least once".
-  const doubledBlock = enBlock.replace(
-    "Deploy it: a private, continuing relationship with everyone who talks to it.",
-    "Deploy it: a private, continuing relationship with everyone who talks to it. HumanOS again.",
+  // (a again) the same finder refuses internal implementation vocabulary.
+  const jargonBlock = enBlock.replace(
+    "Meet the first draft. Then make it yours.",
+    "Meet the first HumanOS draft. Then make it yours.",
   );
-  const doubledFindings = structuralFindings(doubledBlock, {
-    suffix: "", apprentice: "An unfinished AI is an apprentice, not broken.", boundaryId: "boundary",
+  const jargonFindings = structuralFindings(jargonBlock, {
+    suffix: "", studioHref: "/studio", studioLabel: "Open your studio", boundaryId: "boundary",
   });
-  ok("NEGATIVE CONTROL (a again): a doubled HumanOS mention is caught",
-    doubledFindings.includes("HumanOS named exactly once"));
+  ok("NEGATIVE CONTROL (a again): an internal OS label is caught",
+    jargonBlock !== enBlock && jargonFindings.includes("no internal OS labels in the customer journey"));
 
   // (b) §2's own narrower, comment-stripped check catches "creator"
   // reintroduced into the BODY. Asserted against the comment-stripped text
@@ -165,10 +165,11 @@ console.log("\n── §3: negative controls ──");
   // that would pass even without the mutation below, an always-true
   // negative control that proves nothing).
   const poisonedBody = SOURCE.replace(/<!--[\s\S]*?-->/g, "").replace(
-    "Build the AI version of",
-    "Build the AI version of your creator's",
+    "Build an AI that feels like",
+    "A creator can build an AI that feels like",
   );
-  ok("NEGATIVE CONTROL (b): a reintroduced \"creator\" IS caught", /creator/i.test(poisonedBody));
+  ok("NEGATIVE CONTROL (b): a reintroduced \"creator\" IS caught",
+    poisonedBody !== SOURCE.replace(/<!--[\s\S]*?-->/g, "") && /creator/i.test(poisonedBody));
 
   // (c) the real copy gate DOES fire on a planted em dash in this file's
   // own text — proving §2's clean pass is a real absence, not a scanner
@@ -176,12 +177,12 @@ console.log("\n── §3: negative controls ──");
   const checkCopy = await import(pathToFileURL(join(REPO, "scripts/check-copy.mjs")).href);
   const { scanScopedSource } = checkCopy;
   const dashPoisoned = SOURCE.replace(
-    "Test it, tweak it, and deploy it",
-    "Test it — tweak it, and deploy it",
+    "Give it your work. Talk to it. Shape what it becomes.",
+    "Give it your work — talk to it. Shape what it becomes.",
   );
   const dashHits = await scanScopedSource("site/vyakti.html", dashPoisoned, { rules: "full", codename: false });
   ok("NEGATIVE CONTROL (c): a planted em dash in this exact file IS caught",
-    dashHits.some((h) => h.rule === "dash"));
+    dashPoisoned !== SOURCE && dashHits.some((h) => h.rule === "dash"));
 }
 
 console.log("\n── §4: the bilingual mechanism ──");

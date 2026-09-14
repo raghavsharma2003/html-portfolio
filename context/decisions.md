@@ -25391,3 +25391,7 @@ Root selected a matched historical hi-lesson baseline before spending on the CPU
 ## wave25-pin-app-and-revision-templates-separately (2026-09-14)
 
 Root read-only Azure metadata on2026-09-14 showed app and revision template documents differ in four explicit fields. Add optional revision_template_sha256 to the existing controller plan and stored-window binding. Check app template against template_sha256 and target revision against revision_template_sha256. Absence preserves the existing strict same-hash contract. No field normalization, defaults removal, image change or GPU start. Reverse if Azure returns identical documents again or another exact versioned representation supersedes this explicit binding.
+
+## `wave25-ci-fixtures-track-public-assets-and-current-journey`
+
+2026-09-14. Browser fixtures that bundle Studio CSS treat root-relative `/expert/` files as public assets and serve them from the real `public/` tree. The landing suite now checks the current image-led entrance, Studio action, and three Feed, Meet and Deploy journey sections in both languages, while rejecting internal OS labels. The internal voice proxy remains outside the Room incident taxonomy, but its exclusion is valid only while the real `internal-voice.js` caller imports it. Reverse the public-asset fixture rule if Studio stops using root-relative public assets. Change the landing assertions only with the shipping journey, and keep a mutation that proves every replacement check can fail.

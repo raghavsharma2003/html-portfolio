@@ -18986,3 +18986,7 @@ The private stub build transformed 751 modules and completed. `node scripts/chec
 ## wave25-exact-revision-template-controls-20260914 (2026-09-14)
 
 2026-09-14, n40 Node tests; node --test services/internal-voice/runtime.test.mjs services/internal-voice/http.test.mjs allpass. Two new controls prove distinct app-default and revision documents require separate hashes, app/revision drift still fails, invalid hash fails, and durable window cannot omit the configured revision hash. Root metadata receipt standalone25-hindi-template-diff-1789387046276967700.json reports revisionGET/list hash388256a983bf59e4192f460ee74c116faac52911a17ea1ca6e65f2ca6d4b4260 and app hash5f0b47de21bac3b86d6593bd6f5a86ab2087da9a96aced91cebca683b447e2c1. No GPU/model/cloud calls by this implementation.
+
+## `wave25-ci-regression-repairs-20260914`
+
+2026-09-14, n=3 focused suites on exact integration base `fe7dbc6b`. `node evals/personal-studio-entry-recovery.mjs` passed its real browser recovery, retry, logout and relogin flow while loading the committed WebP through the fixture's public-root server. With the official keyless config stub, `node evals/incidents/run.mjs` passed 136 checks and discovered all 53 remote-fetch files; the internal voice proxy caller and missing-import negative control both passed. `node evals/site-landing/run.mjs` passed 15 checks across English and Hindi, including non-vacuous missing-journey, internal-label, creator and em-dash mutations. No database, provider, cloud, full release gate or deployment ran.
