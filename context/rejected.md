@@ -18903,3 +18903,7 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 ## `wave25-bandwidth-fix-does-not-prove-worker-current`
 
 2026-09-14. Reading only the corrected-bandwidth result would wrongly clear the processing worker for the new product. The same retained image-byte recovery receipt identifies missing newer Azure-only enforcement, purpose authority, tracked storage leases and erase/abort fences. Keep the narrow bandwidth proof; prepare a worker-specific update for the actual missing behavior. Do not rebuild merely from a historical statement that the bandwidth fix was never deployed, and do not call the current image equal to the new source.
+
+## standalone25-ci-stale-contracts-rejected-20260914
+
+The stale alternatives were rejected: requiring nonexistent root index.html, checking /vyakti headers absent from current vercel.json, retaining nonexistent chat.js in the provider inventory, and byte-equality with the older copy scanner. Each caused a focused suite failure; current path and behavior assertions preserve the negative controls.

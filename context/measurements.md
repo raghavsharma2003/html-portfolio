@@ -18802,3 +18802,7 @@ The retained actual Terra response evidence has `n=1` for this contract question
 ## `wave25-live-correction-and-db-readback-20260914`
 
 2026-09-14. Root applied two nonsecret Vercel settings and independently read back exact values and all three scopes: AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL=gpt-5.6-terra-2026-07-09 and AZURE_CORRECTION_BASE_MODEL_COMMITMENT=eb2c9bd293de800a6e3eea2c2a556cb11be4489b941fbf47b625dda5a8589fbd. Zero model calls. Live Neon citation discipline passed its four constraint, four GIN and four data checks; all three actual private-dialogue SQL statements passed EXPLAIN without ANALYZE. Two additional SELECTs classified the 20 orphan logs into four missing episodes on one unmapped legacy Meera device, and found six later forget-ledger entries on that device. No contents selected or database writes performed. Full release runner started on a672136b and is not yet complete. Retained processing198 image-byte receipt confirms both bandwidth fixes in the currently pinned e521 digest, but also identifies later Azure-only, purpose and storage/erase-fence changes absent from that image. No owner voice likeness measured.
+
+## standalone25-ci-contracts-20260914
+
+Method: four focused offline suites on standalone25 commit 6f0ab212 after contract repair; n=4 suites, date 2026-09-14. Azure package 18 groups, copy portable 9 groups, ops 155 checks, incidents 134 checks; zero browser, cloud, model or database calls.

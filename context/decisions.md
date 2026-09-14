@@ -25212,3 +25212,7 @@ Restore private rehearsal, feedback and evaluation key IDs and exact versioned K
 ## `wave25-source-checkpoint-preserves-release-blockers`
 
 2026-09-14. Preserve the integrated standalone source on the owner-selected branch while the complete gate runs. Automatic Vercel Git deployment is explicitly disabled in the candidate; main deployment remains behind its full gate. Source checkpoint is not production acceptance. Reverse this sequencing if Git deployment disabling is not honored; stop before any unverified production cutover. Current source base for the running gate is a672136b.
+
+## standalone25-ci-contracts-follow-current-assets-20260914
+
+2026-09-14. Keep focused CI contracts aligned with the standalone25 product: the Azure package asserts the real site/vyakti.html landing asset, ops checks /room.html headers, and provider inventory names only discovered API files. Reverse if the Vite/Vercel entry map changes and the affected suite is updated with the same source evidence.

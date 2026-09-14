@@ -19695,6 +19695,24 @@
       "kind": "rejection",
       "title": "Bandwidth fixes do not establish current worker behavior",
       "at": "context/rejected.md#wave25-bandwidth-fix-does-not-prove-worker-current"
+    },
+    {
+      "id": "standalone25-ci-contracts-follow-current-assets-20260914",
+      "kind": "decision",
+      "title": "CI contracts follow current standalone25 assets",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-ci-contracts-20260914",
+      "kind": "measurement",
+      "title": "Focused CI contract suite results",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-ci-stale-contracts-rejected-20260914",
+      "kind": "rejection",
+      "title": "Stale standalone25 CI expectations rejected",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -33605,6 +33623,16 @@
       "src": "wave25-bandwidth-fix-does-not-prove-worker-current",
       "rel": "constrains",
       "dst": "wave25-source-checkpoint-preserves-release-blockers"
+    },
+    {
+      "src": "standalone25-ci-contracts-follow-current-assets-20260914",
+      "dst": "standalone25-ci-contracts-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-ci-stale-contracts-rejected-20260914",
+      "dst": "standalone25-ci-contracts-follow-current-assets-20260914",
+      "rel": "caused_by"
     }
   ]
 }
