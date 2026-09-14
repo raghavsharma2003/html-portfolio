@@ -1,0 +1,9 @@
+version: v1.1.0
+steps:
+  - build: >-
+      -t $Registry/vyakti/moss-tts-local-v1-5-eval:$ID
+      -f services/moss-tts-runtime/Dockerfile
+      .
+    timeout: 7200
+  - push:
+      - $Registry/vyakti/moss-tts-local-v1-5-eval:$ID

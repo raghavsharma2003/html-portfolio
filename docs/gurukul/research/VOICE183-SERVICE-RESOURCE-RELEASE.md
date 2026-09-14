@@ -1,0 +1,13 @@
+# Voice183: reusable resource, separately held bill
+
+SOURCE ONLY, no DB/cloud writes. Parent84a8 and all prior freezes preserved.
+
+The old controller-only second-window test was insufficient:147 resource uniqueness refused the actual second request because successful cleanup still marked accounting uncertain.183 keeps that monetary state and reserved amount, but records a separate verified resource release.
+
+Source-only158 adds resource_released_at and resource_release_sha256 to existing147 windows. It installs the replacement partial unique index BEFORE dropping the original stricter index;147 migration itself is unchanged. Reserve and resource release both take the same resource advisory transaction lock. Release additionally locks the current allocation/lifecycle, requires terminal_observed, known activation state, exact persisted observation and all listed revisions inactive with zero replicas. The update touches only resource-release fields, never budget, usage, actual cost, finished_at or state. A crash after terminal observation but before release conservatively retains exclusion; retry observation may repair it. Real transaction/snapshot/concurrency acceptance remains unrun.
+
+Actual production boundary and shared meter functions were exercised twice with a synthetic DB model: initial held138600, each new allocation100000, two owners succeeded sequentially while held became338600/spent0, both monetary states uncertain. A third allocation refused at synthetic350000 cap. These are fixture values, not a configured budget change or real invoice. Unknownactivation release is refused. Delayed/unknown activation remains operational recovery, not a bounded stop guarantee; we do not issue repeated deactivate mutations or pretend inactive readback resolves an unknown activation.
+
+After ARM token acquisition, controller invokes a new durable activation_dispatch CAS. It rechecks current full owner/source/consent/generation/intent/lease authority and deadline before marking once-only dispatch and sending POST. Tests withdraw authority or replace lease during token await and assert0ARMPOST. This is a durable authorization point; no system can atomically commit an external Azure call in the same PostgreSQL transaction. SQL races require actual proof before operational enablement.
+
+Offline2026-09-09: controller28, shared meter/resource two-owner controls, outer-window/exhausted tests passed. No live SQL/Cloud/provider or audio work. Source-only158 needs root-approved migration and independent review. Operational deployment, bootstrap, actual auth flow, pricing and independent supervisor remain required.

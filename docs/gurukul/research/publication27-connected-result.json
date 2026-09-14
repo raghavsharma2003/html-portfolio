@@ -1,0 +1,20 @@
+{
+  "state": "transport_passed_quality_failed",
+  "session_id": 91371,
+  "exit_code": 0,
+  "candidate": "c3cae7ddbb6992ed9311d46f88d89b31f3fee8b0",
+  "started_at": "2026-09-07T21:00:16.779Z",
+  "finished_at": "2026-09-07T21:03:01.109Z",
+  "model_attempts": 1,
+  "flow_checks": 10,
+  "private_count_scopes": 145,
+  "positive_private_counts": 0,
+  "auth_absent": true,
+  "physical_source_receipts": 1,
+  "retired_content_free_ids": 2,
+  "spent_microusd": 866,
+  "ledger_spent_microusd": 129872,
+  "report_sha256": "4b891bb8ad9e2f86215ddae2c87eb556f31024952d0c8a6c5403dfee728b0430",
+  "quality_review": "NATIVE-PUBLICATION27-QUALITY-REVIEW-20260908.md",
+  "release": "Not promoted, pushed or deployed. Full gate deferred for grounding and owner-review fixes."
+}

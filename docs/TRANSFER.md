@@ -69,7 +69,7 @@ something the push above will silently not include.
 | thing | why git misses it | what to do |
 |---|---|---|
 | `api/_config.js` | gitignored — holds every key | recreated by `scripts/write-config.mjs` from GitHub Actions secrets. **Never commit it.** |
-| GitHub Actions secrets | live in repo settings, not the tree | re-add on the new repo: `VERCEL_TOKEN`, `OPENROUTER_KEY`, `GOOGLE_KEY`, `GOOGLE_KEYS`, `GOOGLE_PAID_KEY`, `NEON_URL`, `SUPABASE_URL`, `SUPABASE_KEY`, `AZURE_KEY`, `AZURE_ENDPOINT`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME` — the full list is the `env:` block of `.github/workflows/deploy-web.yml` |
+| GitHub Actions secrets | live in repo settings, not the tree | re-add on the new repo: `VERCEL_TOKEN`, `OPENROUTER_KEY`, `GOOGLE_KEY`, `GOOGLE_KEYS`, `GOOGLE_PAID_KEY`, `NEON_URL`, `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `AZURE_KEY`, `AZURE_ENDPOINT`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME` — the full list is the `env:` block of `.github/workflows/deploy-web.yml` |
 | Vercel project link | the Vercel project points at the OLD repo | repoint the project's Git integration at `Vyakti-products`, or the auto-deploy keeps building the dummy repo |
 | the database | Neon is external and **unaffected** | nothing to do — the 131 episodes and 26 texture rows written today are in Neon, not in git |
 | Supabase storage | external, unaffected | nothing to do |

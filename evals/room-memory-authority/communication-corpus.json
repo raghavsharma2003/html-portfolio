@@ -1,0 +1,146 @@
+[
+  {
+    "id": "en1",
+    "language": "English",
+    "source": "For future lessons, explain in Hindi but write with Roman letters.",
+    "expected": {
+      "language": "hindi",
+      "script": "roman",
+      "brevity": null
+    }
+  },
+  {
+    "id": "en2",
+    "language": "English",
+    "source": "From now on, concise English answers suit me best.",
+    "expected": {
+      "language": "english",
+      "script": null,
+      "brevity": "short"
+    }
+  },
+  {
+    "id": "en3",
+    "language": "English",
+    "source": "Whenever we study together, I prefer detailed Hinglish explanations. What happens if the force doubles?",
+    "expected": {
+      "language": "hinglish",
+      "script": null,
+      "brevity": "detailed"
+    }
+  },
+  {
+    "id": "hi1",
+    "language": "Hindi",
+    "source": "आगे से मुझे हिंदी में छोटे जवाब दिया करें।",
+    "expected": {
+      "language": "hindi",
+      "script": null,
+      "brevity": "short"
+    }
+  },
+  {
+    "id": "hi2",
+    "language": "Hindi",
+    "source": "हमेशा मेरे लिए अंग्रेज़ी में विस्तार से समझाइए।",
+    "expected": {
+      "language": "english",
+      "script": null,
+      "brevity": "detailed"
+    }
+  },
+  {
+    "id": "hi3",
+    "language": "Hindi",
+    "source": "मेरे साथ बात करते समय हिंग्लिश इस्तेमाल करें और रोमन अक्षरों में लिखें।",
+    "expected": {
+      "language": "hinglish",
+      "script": "roman",
+      "brevity": null
+    }
+  },
+  {
+    "id": "mix1",
+    "language": "Hinglish",
+    "source": "Aage se Hindi ko Roman letters mein likhna, detail mein samjhana.",
+    "expected": {
+      "language": "hindi",
+      "script": "roman",
+      "brevity": "detailed"
+    }
+  },
+  {
+    "id": "mix2",
+    "language": "Hinglish",
+    "source": "Har lesson mein short Hinglish replies chahiye mujhe.",
+    "expected": {
+      "language": "hinglish",
+      "script": null,
+      "brevity": "short"
+    }
+  },
+  {
+    "id": "mix3",
+    "language": "Hinglish",
+    "source": "Ab se Hindi mein baat karein, lekin Devanagari script use karna.",
+    "expected": {
+      "language": "hindi",
+      "script": "devanagari",
+      "brevity": null
+    }
+  },
+  {
+    "id": "en4",
+    "language": "English",
+    "source": "Translate this sentence: Please always use Hindi.",
+    "expected": null
+  },
+  {
+    "id": "en5",
+    "language": "English",
+    "source": "My sister prefers brief English answers. I have no preference.",
+    "expected": null
+  },
+  {
+    "id": "en6",
+    "language": "English",
+    "source": "Use Hindi for this answer only; do not save a language preference.",
+    "expected": null
+  },
+  {
+    "id": "hi4",
+    "language": "Hindi",
+    "source": "इस वाक्य का अनुवाद करें: हमेशा हिंदी में जवाब दें।",
+    "expected": null
+  },
+  {
+    "id": "hi5",
+    "language": "Hindi",
+    "source": "मुझे छोटे जवाब पसंद नहीं हैं।",
+    "expected": null
+  },
+  {
+    "id": "hi6",
+    "language": "Hindi",
+    "source": "मेरे दोस्त को अंग्रेज़ी में जवाब अच्छे लगते हैं।",
+    "expected": null
+  },
+  {
+    "id": "mix4",
+    "language": "Hinglish",
+    "source": "Teacher ne bola tha ki hamesha short English answers do; woh unki preference hai.",
+    "expected": null
+  },
+  {
+    "id": "mix5",
+    "language": "Hinglish",
+    "source": "Bas is question ka Hindi mein jawab do, baad ke liye koi preference save mat karna.",
+    "expected": null
+  },
+  {
+    "id": "mix6",
+    "language": "Hinglish",
+    "source": "Socho agar main bolun hamesha Hinglish use karo, iska English translation kya hoga?",
+    "expected": null
+  }
+]

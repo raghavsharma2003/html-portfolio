@@ -1,0 +1,580 @@
+/* mobile.css — the studio, designed at 390pt first. WS-AJ.
+ *
+ * WHY THIS FILE EXISTS
+ * ---------------------------------------------------------------------------
+ * The owner tested on a phone and reported: "the mobile ui is also extremely
+ * fucked. ux is also fully fucked, think in terms of a user using this from a
+ * phone and revamp the phone design... keep most things minimised... this
+ * should be fully working, there should not be gaps like this."
+ *
+ * `studio.css` is not un-responsive. It has fourteen media queries and they are
+ * all conscientious. They are also all SUBTRACTIVE: every one of them takes a
+ * desktop layout and removes or restacks a piece of it. That produces a phone
+ * screen which is technically correct at every breakpoint and, taken together,
+ * spends its first viewport on a masthead, an eyebrow, a 43px serif title, a
+ * four-line paragraph and a four-card dashboard before any control appears. No
+ * single rule in it is wrong. The composition is, and a composition defect
+ * cannot be fixed by another subtraction.
+ *
+ * So this file states the phone layout POSITIVELY, in one place, at one
+ * breakpoint, in terms of what the screen is for: one step, one primary action,
+ * everything else one tap away. It is loaded LAST, in `@layer responsive`, so
+ * it is the final word on the selectors it touches and it does not have to
+ * out-specify anything to win.
+ *
+ * WHY IT IS A SEPARATE FILE, and not 400 more lines inside studio.css: the same
+ * mechanical reason `tokens.css` gives. `studio.css` is 3 300 lines and the
+ * most contended file in the repo, and a layout that only exists as a diff
+ * inside a contended file is a layout that loses a merge.
+ *
+ * THE BREAKPOINT. 720px, matching `useCompact.ts`'s `COMPACT_QUERY`, because
+ * three of the changes here are structural (different DOM, not different
+ * paint) and the two halves have to agree. If you change one, change both, or
+ * you get a page that renders the compact rail in a desktop grid slot.
+ *
+ * WHAT IS DELIBERATELY NOT HERE: nothing animates a layout property, nothing
+ * runs over 300ms, and there are no new keyframes. `scripts/check-motion.mjs`
+ * enforces the first two and would have caught them; the third is judgment.
+ */
+
+@layer responsive {
+  @media (max-width: 720px) {
+    /* ── 1. THE VIEWPORT ITSELF ─────────────────────────────────────────
+     *
+     * `100dvh`, not `100vh`. On iOS Safari and Chrome Android `100vh` is the
+     * viewport with the browser chrome RETRACTED, which is taller than what is
+     * ever on screen when the page first loads, so a `100vh` shell puts its
+     * last 60 to 100px permanently under the address bar. That is the "there
+     * should not be gaps like this" defect in its most literal form: a sticky
+     * footer that is not where the footer is. `100svh` (already used in
+     * studio.css) fixes the initial paint and is then wrong the other way once
+     * the chrome retracts. `100dvh` follows the chrome, which is what a person
+     * scrolling actually experiences.
+     *
+     * The `100svh` fallback stays underneath for browsers without `dvh`; the
+     * cascade picks the last one it understands. */
+    .studio-shell {
+      min-height: 100svh;
+      min-height: 100dvh;
+      /* The horizontal safe area matters in landscape on a notched phone,
+       * where content otherwise runs under the sensor housing. */
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    .studio-layout {
+      min-height: auto;
+      display: block;
+    }
+
+    /* ── 2. THE HEADER ──────────────────────────────────────────────────
+     *
+     * 52px, down from 68. It carries a logo and a sign-out and it is chrome:
+     * the only reason it is sticky at all is so the way out is always reachable
+     * (DESIGN-LAW §2, "every screen answers how do I leave"). The trust line
+     * and the account email are already hidden by studio.css at this width; the
+     * remaining cost was pure height. */
+    .studio-header {
+      height: 52px;
+      padding: 0 12px;
+      padding-top: env(safe-area-inset-top);
+      height: calc(52px + env(safe-area-inset-top));
+    }
+    .studio-logo .mark { width: 26px; height: 26px; }
+    .studio-logo strong { font-size: var(--text-small); letter-spacing: 0.1em; }
+    .studio-logo small { display: none; }
+
+    /* 44pt is the floor and it is REAL hit area, not a painted box: the
+     * padding is what the finger lands on. A 10px-tall "Sign out" with 44px of
+     * margin around it is a control people miss and then press twice. */
+    .signout-button {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: var(--text-small);
+    }
+
+    /* ── 3. THE COMPACT RAIL ────────────────────────────────────────────
+     *
+     * Where am I, what state is each step in, what is left here. Three answers,
+     * about 88px. The full rail's three rows carry a title, a promise, a status
+     * and a next-thing each, which is twelve lines of type: on a 390pt screen
+     * that is the whole first viewport spent before the person sees a control.
+     *
+     * Sticky under the header because "where am I" is a question people ask
+     * again halfway down a long form, and because tapping between steps is the
+     * single most frequent navigation in this product. */
+    .compact-rail {
+      position: sticky;
+      z-index: 15;
+      top: calc(52px + env(safe-area-inset-top));
+      display: grid;
+      gap: var(--space-tight);
+      border-bottom: var(--hairline) solid var(--line);
+      padding: var(--space-tight) 12px;
+      /* Floating chrome: translucent with the page moving beneath it, per
+       * DESIGN-LAW §2. The reduced-transparency answer is at the foot. */
+      background: rgba(244, 241, 233, 0.86);
+      backdrop-filter: blur(18px) saturate(160%);
+    }
+
+    .compact-rail-steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+      margin: 0;
+      padding: 3px;
+      border-radius: var(--radius-control);
+      background: rgba(41, 43, 35, 0.06);
+      list-style: none;
+    }
+
+    .compact-step {
+      width: 100%;
+      /* 44px floor, and the button IS the target: no inner element takes the
+       * press, so there is no dead ring around a live centre. */
+      min-height: 44px;
+      display: grid;
+      grid-template-columns: 8px minmax(0, 1fr);
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 0;
+      border-radius: calc(var(--radius-control) - 3px);
+      padding: 0 8px;
+      background: transparent;
+      font-family: var(--sans);
+      /* Transform and opacity only. The background change is a colour, not a
+       * layout property, and it is inside the 300ms cap. */
+      transition:
+        background-color var(--motion-quick) var(--ease-standard),
+        transform var(--motion-instant) var(--ease-standard);
+    }
+
+    .compact-step-title {
+      overflow: hidden;
+      color: var(--ink-soft);
+      font-size: var(--text-small);
+      font-weight: var(--weight-medium);
+      /* Body-sized type sits at zero tracking. DESIGN-LAW §2: one
+       * letter-spacing across all sizes is always wrong somewhere, and the
+       * caps tracking that reads well on an 11px eyebrow reads loose here. */
+      letter-spacing: var(--tracking-body);
+      line-height: var(--leading-snug);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Present for every step so a screen reader hears all three, visible only
+     * on the current one so three status words do not compete for a 390pt
+     * line. `clip` rather than `display: none`, which would remove it from the
+     * accessibility tree along with the layout. */
+    .compact-step-status {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .compact-step.current {
+      background: var(--panel-solid);
+      box-shadow: 0 1px 2px rgba(41, 43, 35, 0.12);
+    }
+    .compact-step.current .compact-step-title { color: var(--ink); }
+    .compact-step:active { transform: scale(0.97); }
+
+    /* The one named line. Never a count: "9 things" is not a thing a person can
+     * start, and naming the top one is the whole repair. */
+    .compact-rail-next {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin: 0;
+      min-width: 0;
+      font-size: var(--text-small);
+      line-height: var(--leading-snug);
+    }
+    .compact-rail-next-class {
+      flex: none;
+      padding: 2px 6px;
+      border-radius: var(--radius-pill);
+      font-size: var(--text-micro);
+      font-weight: var(--weight-medium);
+    }
+    .compact-rail-next-you .compact-rail-next-class {
+      color: var(--state-waiting);
+      background: var(--state-waiting-soft);
+    }
+    .compact-rail-next-us .compact-rail-next-class {
+      color: var(--state-running);
+      background: var(--state-running-soft);
+    }
+    .compact-rail-next-label {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--ink-soft);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .compact-rail-next-clear .compact-rail-next-label { color: var(--ink-faint); }
+
+    /* ── 4. THE STEP BODY ───────────────────────────────────────────────
+     *
+     * The padding that was `clamp(34px, 5vw, 72px)` top and 100px bottom. On a
+     * 390pt screen 34px of top padding under a sticky rail is 34px of nothing
+     * at the exact place the person is looking. */
+    .studio-main {
+      width: 100%;
+      padding: var(--space-item) 14px calc(120px + env(safe-area-inset-bottom));
+    }
+
+    /* One line, at body size. The 43px serif workspace name was a masthead, and
+     * a phone has room for exactly one display heading, which has to be the
+     * STEP title because the step is what the screen is about. */
+    .workspace-heading-compact {
+      display: flex;
+      align-items: center;
+      gap: var(--space-tight);
+      margin: 0 0 var(--space-row);
+      min-width: 0;
+    }
+    .workspace-heading-compact strong {
+      overflow: hidden;
+      color: var(--ink);
+      font-size: var(--text-small);
+      font-weight: var(--weight-medium);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .workspace-heading-compact small {
+      flex: none;
+      color: var(--ink-faint);
+      font-size: var(--text-micro);
+      letter-spacing: var(--tracking-caps);
+      text-transform: uppercase;
+    }
+
+    /* The one display heading on the screen. Size-specific tracking and
+     * leading, per DESIGN-LAW §2: a 26px serif line needs the negative
+     * tracking and 1.15 leading, and the desktop's 42px values shrunk would
+     * give it neither. */
+    .step-head-compact { margin: 0 0 var(--space-item); }
+    .step-head-compact h2 {
+      margin: 0;
+      color: var(--ink);
+      font-family: var(--serif);
+      font-size: 26px;
+      font-weight: var(--weight-normal);
+      letter-spacing: var(--tracking-heading);
+      line-height: 1.15;
+    }
+
+    /* "Why this step" replaces a four-line paragraph with one tap. The
+     * paragraph is not deleted and not shortened: an explanation that has been
+     * cut to fit is worse than one that is behind a control, because the cut
+     * version is what people read. */
+    .step-why {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      margin-top: 2px;
+      padding: 0 2px;
+      border: 0;
+      color: var(--forest);
+      background: none;
+      font-family: var(--sans);
+      font-size: var(--text-small);
+      font-weight: var(--weight-medium);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: transform var(--motion-instant) var(--ease-standard);
+    }
+    .step-why:active { transform: scale(0.97); }
+    .step-head-compact .step-promise {
+      margin: 0 0 var(--space-tight);
+      font-size: var(--text-body);
+      letter-spacing: var(--tracking-body);
+      line-height: var(--leading-body);
+    }
+
+    /* ── 5. MINIMISED BY DEFAULT ────────────────────────────────────────
+     *
+     * The readiness dashboard, the secondary bands and the workspace switcher
+     * all collapse to a summary row. Every one of them is either a REPORT (no
+     * action inside) or a band whose act is not this step's primary act, which
+     * is what makes them eligible: `UX-Q-05` and DESIGN-LAW §4 forbid hiding
+     * what is required-but-later, and none of these is hidden in that sense.
+     * They are on their step, named in the rail's open-items line, and one tap
+     * from open. */
+    .readiness-compact,
+    .workspace-switch,
+    .wizard-band-collapsible,
+    .wizard-blockers-rest {
+      border: var(--hairline) solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel);
+    }
+    .readiness-compact,
+    .workspace-switch { margin-bottom: var(--space-item); }
+    .wizard-band-collapsible { margin: 0 0 var(--space-item); }
+
+    .readiness-compact > summary,
+    .workspace-switch > summary,
+    .wizard-band-collapsible > summary,
+    .wizard-blockers-rest > summary {
+      /* 44px floor on the whole row, and the row is the target. */
+      min-height: 44px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 16px;
+      align-items: center;
+      gap: var(--space-tight);
+      padding: var(--space-row) var(--space-item);
+      cursor: pointer;
+      list-style: none;
+      transition: transform var(--motion-instant) var(--ease-standard);
+    }
+    .readiness-compact > summary::-webkit-details-marker,
+    .workspace-switch > summary::-webkit-details-marker,
+    .wizard-band-collapsible > summary::-webkit-details-marker,
+    .wizard-blockers-rest > summary::-webkit-details-marker { display: none; }
+
+    /* THE SECOND HALF OF THE TRACK-LIST CLASS, and the one that actually put a
+     * paragraph on screen sixteen pixels wide.
+     *
+     * The summaries above are `minmax(0, 1fr) 16px`, where the 16px track
+     * belongs to the `::after` chevron. A pseudo-element does not take part in
+     * auto-placement, so the SECOND real child of the summary auto-flows into
+     * the chevron's column and renders one word per line under it. Every one of
+     * these summaries has two real children: a title and a sentence under it.
+     *
+     * The over-count detector cannot see this variant, because here the track
+     * count and the child count agree; it is the placement that is wrong. So
+     * the text is pinned to column 1 explicitly rather than left to auto-flow,
+     * which is also what makes the rule survive someone adding a third child.
+     * The chevron owns column 2 and says so where it is defined. */
+    .workspace-switch > summary > *,
+    .wizard-band-collapsible > summary > *,
+    .wizard-blockers-rest > summary > * { grid-column: 1; min-width: 0; }
+
+    /* `.readiness-compact` is the three-track version: count, label, chevron.
+     * Its two children happen to auto-place correctly today, which is luck
+     * rather than instruction, and luck is what the rest of this comment is
+     * about. Stated explicitly so it stays true. */
+    .readiness-compact > summary > :nth-child(1) { grid-column: 1; }
+    .readiness-compact > summary > :nth-child(2) { grid-column: 2; min-width: 0; }
+
+    .readiness-compact > summary:active,
+    .workspace-switch > summary:active,
+    .wizard-band-collapsible > summary:active,
+    .wizard-blockers-rest > summary:active { transform: scale(0.99); }
+
+    /* The chevron. `rotate` is a transform, so it is on the allowed list, and
+     * it turns rather than swapping glyphs so the closed and open states are
+     * visibly the same object. */
+    .readiness-compact > summary::after,
+    .workspace-switch > summary::after,
+    .wizard-band-collapsible > summary::after,
+    .wizard-blockers-rest > summary::after {
+      content: "";
+      grid-column: 2;
+      justify-self: end;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--ink-faint);
+      border-bottom: 2px solid var(--ink-faint);
+      transform: rotate(45deg) translate(-2px, -2px);
+      transition: transform var(--motion-quick) var(--ease-standard);
+    }
+    .readiness-compact[open] > summary::after,
+    .workspace-switch[open] > summary::after,
+    .wizard-band-collapsible[open] > summary::after,
+    .wizard-blockers-rest[open] > summary::after {
+      transform: rotate(-135deg) translate(-3px, -3px);
+    }
+
+    .readiness-compact-count {
+      color: var(--ink);
+      font-family: var(--serif);
+      font-size: var(--text-lead);
+      letter-spacing: var(--tracking-heading);
+    }
+    .readiness-compact-label { color: var(--ink-faint); font-size: var(--text-small); }
+    .readiness-compact > summary { grid-template-columns: auto minmax(0, 1fr) 16px; }
+    .readiness-compact > summary::after { grid-column: 3; }
+    .readiness-compact .readiness-grid {
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-tight);
+      margin: 0;
+      padding: 0 var(--space-item) var(--space-item);
+    }
+    .readiness-compact .readiness-card { min-height: 0; padding: var(--space-row); }
+    .readiness-compact .readiness-primary { grid-column: 1 / -1; }
+    .readiness-compact .readiness-primary strong { font-size: 28px; }
+    .readiness-compact .readiness-card strong { font-size: var(--text-heading); }
+
+    /* A collapsible band's title and blurb. The blurb is hidden while closed:
+     * a person deciding whether to open a drawer has already decided from the
+     * title, and the blurb is what they read after. */
+    .wizard-band-collapsible > summary h2 {
+      margin: 0;
+      color: var(--ink);
+      font-family: var(--serif);
+      font-size: var(--text-title);
+      font-weight: var(--weight-normal);
+      letter-spacing: var(--tracking-heading);
+      line-height: var(--leading-tight);
+    }
+    .wizard-band-collapsible > summary p {
+      display: none;
+      margin: var(--space-hair) 0 0;
+      color: var(--ink-faint);
+      font-size: var(--text-small);
+      letter-spacing: var(--tracking-body);
+      line-height: var(--leading-body);
+    }
+    .wizard-band-collapsible[open] > summary p { display: block; }
+    .wizard-band-collapsible[open] > summary { border-bottom: var(--hairline) solid var(--line); }
+    .wizard-band-collapsible > .wizard-band-body {
+      display: grid;
+      gap: var(--space-item);
+      padding: var(--space-item) 12px;
+    }
+
+    .workspace-switch { margin-top: var(--space-section); }
+    .workspace-switch > summary strong { font-size: var(--text-body); }
+    .workspace-switch > summary span {
+      display: block;
+      color: var(--ink-faint);
+      font-size: var(--text-small);
+    }
+    .workspace-switch .replica-rail {
+      position: static;
+      width: 100%;
+      height: auto;
+      border: 0;
+      border-top: var(--hairline) solid var(--line);
+      padding: var(--space-row) var(--space-item);
+      background: none;
+    }
+    .workspace-switch .replica-tab { min-height: 44px; }
+
+    /* ── 6. THE BLOCKING NOTICE ─────────────────────────────────────────
+     *
+     * The class is a WORD in a badge, never only a colour (DESIGN-SYSTEM §5
+     * rule 2), and the two classes get genuinely different paint so the
+     * difference survives a glance: ember for your turn, slate for ours.
+     * Slate is the most neutral of the four state colours on purpose, because
+     * a cold start takes about three minutes in this system and a colour that
+     * looked urgent for three minutes would be a lie told in paint. */
+    .blocker-notice {
+      display: grid;
+      gap: var(--space-hair);
+      margin: var(--space-row) 0 0;
+      border-radius: var(--radius-sm);
+      padding: var(--space-row) var(--space-item);
+      font-size: var(--text-small);
+      letter-spacing: var(--tracking-body);
+      line-height: var(--leading-body);
+    }
+
+    /* ── 7. THE PAGER ───────────────────────────────────────────────────
+     *
+     * One primary action, full width, above a secondary. The primary is on TOP
+     * because that is where a thumb rests, and because a stack that puts Back
+     * where Next visually belongs gets pressed by mistake exactly once per
+     * person and then distrusted. */
+    .wizard-pager {
+      margin-top: var(--space-block);
+      padding: var(--space-row) 0 calc(var(--space-row) + env(safe-area-inset-bottom));
+    }
+    .wizard-pager-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-tight);
+    }
+    .wizard-pager-actions .button { width: 100%; min-height: 48px; }
+    .wizard-pager-actions > span:empty { display: none; }
+
+    /* ── 8. CONTROLS ────────────────────────────────────────────────────
+     *
+     * The 44px floor, applied to the control families this studio actually
+     * ships rather than to a list of five hand-picked selectors. Text inputs
+     * get 16px because anything smaller makes iOS Safari zoom the viewport on
+     * focus, which then does not zoom back, and a person filling a consent form
+     * ends up panning a 1.3x page for the rest of the session. */
+    .studio-shell .button,
+    .studio-shell .text-button,
+    .studio-shell select,
+    .studio-shell summary { min-height: 44px; }
+    .studio-shell .text-button {
+      display: inline-flex;
+      align-items: center;
+      padding-block: 4px;
+    }
+    .studio-shell input,
+    .studio-shell textarea,
+    .studio-shell select { font-size: 16px; }
+    .studio-shell .field { min-height: 48px; }
+
+    /* Wide content scrolls inside its own box. The page body must never scroll
+     * horizontally, and a code snippet or an embed key is the usual culprit. */
+    .studio-main pre,
+    .studio-main table { max-width: 100%; overflow-x: auto; }
+    .studio-main img { max-width: 100%; height: auto; }
+
+    /* ── 9. THE ACTIVITY PANEL (WS-AF) ──────────────────────────────────
+     *
+     * Its row is a three-column grid: dot, body, and a side column holding a
+     * timestamp and an action. At 390pt minus the studio's padding the side
+     * column squeezes the reason text to about four words a line, and the
+     * reason is the whole point of the row. So the side column moves under the
+     * body and the action goes full width, where a thumb can reach it.
+     *
+     * This is the surface that answers the owner's actual question on the day
+     * they tested ("is anything stuck?"), so it is worth the twelve lines. */
+    .vy-activity__row {
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--space-tight) var(--space-row);
+      padding: var(--space-row);
+    }
+    .vy-activity__side {
+      grid-column: 2;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-tight);
+    }
+    .vy-activity__act { min-height: 44px; flex: 1 1 auto; }
+    .vy-activity__subject { overflow-wrap: anywhere; }
+  }
+
+  /* ── the three preferences, at this width too ──────────────────────────
+   *
+   * Honoured here rather than left to studio.css's block, because the surfaces
+   * this file introduces (the compact rail) are not in that block's selector
+   * list and would otherwise keep their blur when a person had asked for none.
+   * DESIGN-LAW §2: accessibility is part of the feel, not a checkbox. */
+  @media (max-width: 720px) and (prefers-reduced-transparency: reduce) {
+    .compact-rail { background: var(--paper-deep); backdrop-filter: none; }
+  }
+
+  @media (max-width: 720px) and (prefers-contrast: more) {
+    .compact-rail { background: var(--paper); backdrop-filter: none; }
+    .compact-step.current { border: var(--hairline) solid var(--line-strong); }
+  }
+
+  @media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+    /* The durations already collapse at the token level in tokens.css. What
+     * cannot collapse there is a press SCALE, which is a transform rather than
+     * a duration, so it is removed here instead. */
+    .compact-step:active,
+    .step-why:active,
+    .readiness-compact > summary:active,
+    .workspace-switch > summary:active,
+    .wizard-band-collapsible > summary:active,
+    .wizard-blockers-rest > summary:active { transform: none; }
+  }
+}

@@ -1,0 +1,1060 @@
+// WS-W. The "Preview my voice" panel's server logic, offline.
+//
+// Four things this suite exists to hold, each of which fails SILENTLY:
+//
+//  - THE OWNERSHIP REFUSAL, COUNTED AS AN ABSENCE. A caller who does not own
+//    the replica must not merely get a 4xx — the private bucket must not be
+//    read and the GPU must not be touched. Those are asserted as ZEROS, with a
+//    positive control (the real owner) proving the counters can move at all,
+//    and a negative control (the owner predicate struck out of the SQL) proving
+//    the refusal comes from the owner binding rather than from something
+//    incidental about the fixture.
+//  - THE COLD-START STATE MACHINE. `docs/gurukul/AZURE-DEPLOY-STATE.md` §8
+//    measured a runtime that is ready at 161 s while the request that woke it
+//    dies at 242 s. Every honest way of surfacing that is a THIRD outcome
+//    alongside audio and error, and a third outcome is exactly the kind of
+//    thing a later refactor folds back into one of the other two.
+//  - THE 401 THAT IS NOT A 401. `context/rejected.md#hmac-skew-shorter-than-cold-start`
+//    is the whole reason the broker is woken on an unauthenticated `/healthz`
+//    before anything is signed. The suite asserts no signed byte leaves before
+//    that answers 200, and its negative control is a classifier that treats a
+//    wrong key as a cold start — which must fail, because WS-L's negative
+//    control at the broker exists precisely to keep those apart.
+//  - THE DISCLOSURE AND THE WATERMARK. A clip whose rendered text does not
+//    carry the spoken disclosure must not become audio, on this path as on
+//    every other. Asserted through the REAL `assertSynthesisResult`.
+//
+// Offline, deterministic, $0, no database and no network: the real
+// `beginOwnedVoicePreview`, the real warm-up module and the real handler,
+// driven through a fake db, a fake bucket, a fake broker and a virtual clock.
+import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+import {
+  WARMUP,
+  capPanelText,
+  classifyPreviewFailure,
+  createWarmthRegistry,
+  probeAdmissionHealth,
+} from "../api/_voice/warmup.js";
+import { handleVoicePreviewPanel as realHandleVoicePreviewPanel, isRetryableVoicePreviewFailure } from "../api/_voice/preview-panel.js";
+import { beginOwnedVoicePreview } from "../api/_replica-voice-preview.js";
+import { VOICE_PCM_FORMAT } from "../api/_voice/contracts.js";
+import { buildVoiceTextPlan, voiceTextPlanAudit } from "../api/_voice/hindi-text-frontend.js";
+import { buildProsodyPlan } from "../api/_voice/prosody.js";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const ORIGIN = "https://broker.example.invalid";
+
+let passed = 0;
+const failures = [];
+function check(name, condition, detail = "") {
+  if (condition) { passed += 1; return; }
+  failures.push(`${name}${detail ? ` — ${detail}` : ""}`);
+}
+function section(name) { console.log(`\n  ${name}`); }
+
+// ── fixtures ────────────────────────────────────────────────────────────────
+
+const OWNER = randomUUID();
+const INTRUDER = randomUUID();
+const REPLICA = randomUUID();
+const ARTIFACT = randomUUID();
+const SOURCE = randomUUID();
+const GENOME_VERSION = 3;
+
+function wav(seconds = 8) {
+  const samples = VOICE_PCM_FORMAT.sampleRate * seconds;
+  const pcm = Buffer.alloc(samples * 2);
+  for (let i = 0; i < samples; i += 1) pcm.writeInt16LE(Math.round(Math.sin(i / 40) * 8000), i * 2);
+  const head = Buffer.alloc(44);
+  head.write("RIFF", 0); head.writeUInt32LE(36 + pcm.length, 4); head.write("WAVE", 8);
+  head.write("fmt ", 12); head.writeUInt32LE(16, 16); head.writeUInt16LE(1, 20);
+  head.writeUInt16LE(1, 22); head.writeUInt32LE(24_000, 24); head.writeUInt32LE(48_000, 28);
+  head.writeUInt16LE(2, 32); head.writeUInt16LE(16, 34); head.write("data", 36);
+  head.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([head, pcm]);
+}
+const REFERENCE = wav();
+const REFERENCE_SHA = createHash("sha256").update(REFERENCE).digest("hex");
+const FUTURE = new Date(Date.now() + 86_400_000).toISOString();
+const PAST = new Date(Date.now() - 86_400_000).toISOString();
+
+function generationRow(ownerUserId, traceId) {
+  return {
+    generation_id: randomUUID(),
+    replica_id: REPLICA,
+    owner_user_id: ownerUserId,
+    channel: "studio_preview",
+    purpose: "voice_preview",
+    policy_version: "vyakti-replica-output-v1",
+    trace_id: traceId,
+    genome_version: GENOME_VERSION,
+    genome_status: "draft",
+    subject_mode: "self",
+    lifecycle: "calibrating",
+    replica_policy_version: "replica-self-v1",
+    age_verified_at: PAST,
+    identity_verified_at: PAST,
+    liveness_verified_at: PAST,
+    identity_expires_at: FUTURE,
+    artifact_id: ARTIFACT,
+    source_id: SOURCE,
+    object_path: `replica/${REPLICA}/enhance/${ARTIFACT}.wav`,
+    mime: "audio/wav",
+    byte_size: REFERENCE.length,
+    duration_ms: 8_000,
+    sha256: REFERENCE_SHA,
+    stage: "enhance",
+    selection_decision: "selected",
+    source_state: "ready",
+    contains_third_parties: false,
+    consent_id: randomUUID(),
+    consent_scope: "inference",
+    consent_policy_version: "replica-self-v1",
+    consent_granted_at: PAST,
+    consent_expires_at: null,
+    consent_revoked_at: null,
+    preview_model_commitment: "x".repeat(64),
+  };
+}
+
+/**
+ * A fake db that refuses to answer a statement whose owner predicate has been
+ * removed. `rejected.md#router-matched-a-table-instead-of-a-statement`: a mock
+ * keyed on a table name will one day answer a different query than the one it
+ * was written for, and one that OVER-RETURNS hides the defect it exists to
+ * catch.
+ */
+function fakeDb({ owner = OWNER, requireOwnerPredicate = true } = {}) {
+  const calls = [];
+  const db = async (sql, params) => {
+    calls.push({ sql, params });
+    if (/^\s*update vy_replica_generation set state=/i.test(sql)) return [];
+    if (requireOwnerPredicate && !sql.includes("r.owner_user_id=$2::uuid")) {
+      throw new Error("fake db refused a statement with no owner predicate");
+    }
+    if (params[0] !== REPLICA) return [];
+    if (requireOwnerPredicate && params[1] !== owner) return [];
+    const row = generationRow(params[1], params[4]);
+    if (sql.includes("vy_replica_voice_preview_intent")) {
+      row.generation_id = params[15];
+      row.intent_id = params[14];
+      row.intent_key = "i".repeat(64).replaceAll("i", "a");
+      row.regeneration_key = params[17] || "";
+      row.intent_state = "synthesizing";
+      row.intent_attempt = 1;
+      row.intent_lease_token_hash = params[16];
+      row.intent_started_at = PAST;
+      row.intent_updated_at = PAST;
+      row.intent_completed_at = null;
+      row.intent_next_attempt_at = PAST;
+      row.intent_failure_code = "";
+      row.result_metadata = {};
+      row.preview_result_storage_bucket = params[19];
+      row.preview_result_object_path = `${params[1]}/${REPLICA}/${SOURCE}/derived/voice-preview/${params[15]}.wav`;
+    }
+    return [row];
+  };
+  db.calls = calls;
+  return db;
+}
+
+function fakeProvider(options = {}) {
+  const seen = [];
+  const statusChecks = [];
+  const provider = {
+    name: "open_chatterbox_multilingual_v3",
+    modelCommitment: "a".repeat(64),
+    calls: seen,
+    statusChecks,
+    async synthesizePreview(input) {
+      seen.push(input);
+      if (options.throws) throw options.throws;
+      if (options.gate) await options.gate;
+      if (options.hangMs) await new Promise((resolve) => setTimeout(resolve, options.hangMs));
+      const pcm = Buffer.alloc(4_800, 1);
+      const plan = buildVoiceTextPlan({ text: input.text, languageId: input.languageId });
+      return {
+        renderedText: options.skipDisclosure ? input.text : plan.targetText,
+        disclosureText: plan.disclosureText,
+        format: VOICE_PCM_FORMAT,
+        stream: (async function* () { yield new Uint8Array(pcm); })(),
+        receipt: { textFrontend: voiceTextPlanAudit(plan) },
+      };
+    },
+  };
+  if (Object.prototype.hasOwnProperty.call(options, "runtimeReady") || options.runtimeReadyThrows) {
+    provider.probeRuntimeReadiness = async (input) => {
+      statusChecks.push(input);
+      if (options.runtimeReadyThrows) throw options.runtimeReadyThrows;
+      return options.runtimeReady;
+    };
+  }
+  return provider;
+}
+
+function fakeProtect(generationIdRef) {
+  return async ({ sourceStream }) => {
+    const chunks = [];
+    for await (const chunk of sourceStream) chunks.push(Buffer.from(chunk));
+    return {
+      stream: (async function* () { yield new Uint8Array(Buffer.concat(chunks)); })(),
+      completion: Promise.resolve({ generation_id: generationIdRef.value }),
+    };
+  };
+}
+
+function harness(options = {}) {
+  const clock = { t: options.startAt ?? 1_000_000 };
+  const warmth = options.warmth || createWarmthRegistry();
+  const provider = options.provider || fakeProvider();
+  const db = options.db || fakeDb();
+  const generationIdRef = { value: null };
+  const state = {
+    reads: 0, healthFetches: [], failures: [], aborted: [], protections: 0, slept: 0,
+    storedResults: [], sealedIntents: [], retryable: [], renewals: 0, expired: 0, cleanupEvents: [],
+  };
+  const deps = {
+    origin: ORIGIN,
+    outputStorageBucket: "private-test",
+    warmth,
+    provider,
+    traceId: `panel_${"a".repeat(24)}`,
+    now: () => clock.t,
+    sleep: async (ms) => { state.slept += ms; clock.t += ms; },
+    flushMs: options.flushMs ?? 12_000,
+    healthBudgetMs: options.healthBudgetMs,
+    fetchImpl: options.fetchImpl || (async (url, init) => {
+      state.healthFetches.push({ url, init });
+      clock.t += 800;
+      return { ok: true, status: 200 };
+    }),
+    authorize: async (input) => {
+      const started = await beginOwnedVoicePreview(db, options.callerId ?? OWNER, input);
+      generationIdRef.value = started.generation.generation_id;
+      return started;
+    },
+    markFailed: async (generationId, error) => {
+      state.failures.push({ generationId, code: String(error?.code || error?.message || "") });
+    },
+    markAborted: async (generationId, reason) => {
+      state.aborted.push({ generationId, code: String(reason?.code || reason?.message || "") });
+    },
+    markWarming: async (started, reason) => {
+      state.aborted.push({
+        generationId: started.generation.generation_id,
+        intentId: started.intent.intentId,
+        code: String(reason?.code || reason?.message || ""),
+      });
+    },
+    markRetryable: async (started, error) => {
+      state.retryable.push({
+        generationId: started.generation.generation_id,
+        intentId: started.intent.intentId,
+        code: String(error?.code || error?.message || ""),
+      });
+    },
+    markTerminal: async (started, error) => {
+      state.failures.push({
+        generationId: started.generation.generation_id,
+        intentId: started.intent.intentId,
+        code: String(error?.code || error?.message || ""),
+      });
+    },
+    renewIntent: async () => {
+      state.renewals += 1;
+      return options.renewLease !== false;
+    },
+    readObject: async () => {
+      state.reads += 1;
+      return { body: REFERENCE, byteSize: REFERENCE.length, mime: "audio/wav" };
+    },
+    protect: options.protect || (async (input) => {
+      state.protections += 1;
+      return fakeProtect(generationIdRef)(input);
+    }),
+    storeResult: async (started, body) => {
+      const result = {
+        storageBucket: "private-test",
+        objectPath: `${OWNER}/${REPLICA}/${SOURCE}/derived/voice-preview/${started.generation.generation_id}.wav`,
+        mime: "audio/wav",
+        byteSize: body.length,
+        sha256: createHash("sha256").update(body).digest("hex"),
+      };
+      state.storedResults.push({ ...result, body: Buffer.from(body) });
+      return result;
+    },
+    sealIntent: async (started, result) => {
+      state.sealedIntents.push({ started, result });
+      if (options.sealThrows) throw options.sealThrows;
+      return { intent_id: started.intent.intentId };
+    },
+    readResult: async (locator) => {
+      const found = state.storedResults.find((entry) => entry.objectPath === locator.objectPath);
+      if (!found) throw Object.assign(new Error("not found"), { status: 404 });
+      return { body: found.body, byteSize: found.byteSize, mime: found.mime };
+    },
+    deleteResult: async (locator) => {
+      state.cleanupEvents.push("delete");
+      const index = state.storedResults.findIndex((entry) => entry.objectPath === locator.objectPath);
+      if (index >= 0) state.storedResults.splice(index, 1);
+    },
+    markResultDeleted: async () => {
+      state.cleanupEvents.push("confirm");
+      return true;
+    },
+    expireIntent: async (started) => {
+      state.cleanupEvents.push("settle");
+      state.expired += 1;
+      return started.intent?.result || null;
+    },
+    // WS-R168: absent by default (the pre-existing shape every section
+    // above this one already exercises); a case that wants "hear the vibe"
+    // passes its own `getVibe` through `options`.
+    getVibe: options.getVibe,
+  };
+  return { clock, deps, state, provider, db, warmth };
+}
+
+const PREVIEW = Object.freeze({
+  op: "preview",
+  replica_id: REPLICA,
+  genome_version: GENOME_VERSION,
+  language_id: "hi",
+  text: "Namaste! Main aapka apna AI version hoon.",
+});
+
+// ── 1. the text cap ─────────────────────────────────────────────────────────
+
+section("text cap");
+{
+  check("empty text is refused", (() => {
+    try { capPanelText("   "); return false; } catch (e) { return e.code === "voice_preview_text_required" && e.status === 400; }
+  })());
+  check("280 characters is accepted", capPanelText("क".repeat(280)).length === 280);
+  check("281 characters is refused with 413", (() => {
+    try { capPanelText("क".repeat(281)); return false; } catch (e) { return e.code === "voice_preview_text_too_large" && e.status === 413; }
+  })());
+  // The lab's cap is 600. If the panel ever inherits it instead of imposing its
+  // own, this is the assertion that notices — the panel is one click from a
+  // landing view and every character is GPU seconds.
+  check("the lab's 600-character text is refused by the panel", (() => {
+    try { capPanelText("a".repeat(600)); return false; } catch (e) { return e.code === "voice_preview_text_too_large"; }
+  })());
+  check("whitespace is collapsed, not counted", capPanelText("  a\n\n   b  ") === "a b");
+  // Negative control: a cap that measures UTF-16 units instead of code points
+  // would let 280 astral characters through as 140. Assert the real one counts
+  // code points.
+  check("code points, not UTF-16 units", (() => {
+    try { capPanelText("😀".repeat(281)); return false; } catch (e) { return e.code === "voice_preview_text_too_large"; }
+  })());
+}
+
+// ── 2. the warmth state machine ─────────────────────────────────────────────
+
+section("warmth state machine");
+{
+  const warmth = createWarmthRegistry();
+  let t = 5_000_000;
+  check("an unknown origin reads cold", warmth.read(ORIGIN, t).state === "cold");
+  warmth.note(ORIGIN, "waking", t);
+  check("a dispatched wake reads warming", warmth.read(ORIGIN, t + 1_000).state === "warming");
+  check("a wake still reads warming just inside its window",
+    warmth.read(ORIGIN, t + WARMUP.wakeInFlightMs - 1).state === "warming");
+  check("a wake that never landed decays back to cold",
+    warmth.read(ORIGIN, t + WARMUP.wakeInFlightMs + 1).state === "cold");
+  warmth.note(ORIGIN, "ready", t);
+  check("a success reads warm", warmth.read(ORIGIN, t + 1_000).state === "warm");
+  check("warmth expires at the ttl", warmth.read(ORIGIN, t + WARMUP.warmTtlMs + 1).state === "cold");
+  warmth.note(ORIGIN, "unreachable", t + 10);
+  check("an unreachable runtime clears warmth", warmth.read(ORIGIN, t + 20).state === "cold");
+  check("warmth is scoped to its origin", warmth.read("https://other.invalid", t + 20).state === "cold");
+  // Negative control: a registry with no expiry passes every "is it warm"
+  // assertion above and fails this one. Warmth that never decays is a
+  // guaranteed four-minute hang the first time the runtime scales to zero.
+  const neverExpires = { read: () => ({ state: "warm", ageMs: 0 }) };
+  check("NEGATIVE CONTROL: a never-expiring registry is caught",
+    neverExpires.read().state === "warm" && warmth.read(ORIGIN, t + WARMUP.warmTtlMs + 1).state !== "warm");
+}
+
+// ── 3. the unauthenticated wake ─────────────────────────────────────────────
+
+section("admission wake (nothing is signed until /healthz answers)");
+{
+  const clock = { t: 0 };
+  const seen = [];
+  let attempt = 0;
+  const health = await probeAdmissionHealth({
+    origin: ORIGIN,
+    now: () => clock.t,
+    sleep: async (ms) => { clock.t += ms; },
+    fetchImpl: async (url, init) => {
+      seen.push({ url, init });
+      clock.t += 700;
+      attempt += 1;
+      if (attempt < 3) throw new Error("ECONNREFUSED");
+      return { ok: true, status: 200 };
+    },
+  });
+  check("the broker is woken and answers", health.ok && health.attempts === 3, JSON.stringify(health));
+  check("only /healthz is called", seen.every((call) => call.url === `${ORIGIN}/healthz`));
+  check("the wake is a GET", seen.every((call) => call.init.method === "GET"));
+  // The whole point of rejected.md#hmac-skew-shorter-than-cold-start: a
+  // signature minted before a wake is verified after it, ~3x outside the
+  // window, and comes back wearing the mask of a wrong key.
+  check("NOTHING is signed during the wake", seen.every((call) => {
+    const headers = call.init.headers || {};
+    return !Object.keys(headers).some((name) => /^x-vyakti-(signature|timestamp|nonce)$/i.test(name));
+  }));
+
+  const cold = await probeAdmissionHealth({
+    origin: ORIGIN,
+    budgetMs: 9_000,
+    intervalMs: 3_000,
+    now: () => clock.t,
+    sleep: async (ms) => { clock.t += ms; },
+    fetchImpl: async () => { clock.t += 100; throw new Error("ECONNREFUSED"); },
+  });
+  check("a broker that never answers is reported, not retried forever",
+    !cold.ok && cold.code === "voice_admission_cold", JSON.stringify(cold));
+
+  const bad = await probeAdmissionHealth({ origin: "http://plain.invalid", fetchImpl: async () => ({ ok: true }) });
+  check("a non-https origin is refused before any request", !bad.ok && bad.code === "voice_origin_invalid" && bad.attempts === 0);
+  const missing = await probeAdmissionHealth({ origin: "", fetchImpl: async () => ({ ok: true }) });
+  check("an absent origin is refused", !missing.ok && missing.code === "voice_origin_invalid");
+}
+
+// ── 4. failure classification ───────────────────────────────────────────────
+
+section("failure classification");
+{
+  for (const code of ["open_voice_unreachable", "open_voice_http_504", "open_voice_http_503", "open_voice_runtime_warming", "voice_preview_timeout"]) {
+    check(`${code} reads as warming`, classifyPreviewFailure({ code }).state === "warming");
+  }
+  for (const code of ["transport_binding_invalid", "transport_replay_denied", "open_voice_response_binding_invalid",
+    "voice_preview_reference_binding_failed", "open_voice_http_401", "open_voice_http_409"]) {
+    check(`${code} stays an error`, classifyPreviewFailure({ code }).state === "error", code);
+  }
+  // Negative control. WS-L's smoke test proved a wrong key and an unreachable
+  // runtime are distinguishable AT THE BROKER; a lenient classifier throws that
+  // away on the client side instead, and would tell an owner with a rotated
+  // secret to wait two minutes, forever.
+  const lenient = () => ({ state: "warming" });
+  check("NEGATIVE CONTROL: a classifier that calls a wrong key a cold start is caught",
+    lenient().state === "warming" && classifyPreviewFailure({ code: "transport_binding_invalid" }).state === "error");
+  for (const [code, status] of [
+    ["azure_replica_storage_unreachable", 503], ["private_storage_read_failed", 503],
+    ["private_storage_write_failed", 503], ["audio_protection_http_503", 503],
+    ["audio_protection_http_429", 429],
+  ]) {
+    check(`${code} is a bounded transient failure`, isRetryableVoicePreviewFailure({ code, status }));
+  }
+  for (const [code, status] of [
+    ["azure_replica_storage_read_failed", 409], ["private_storage_read_failed", 404],
+    ["open_voice_response_signature_invalid", 503], ["voice_preview_result_binding_failed", 409],
+  ]) {
+    check(`${code} at ${status} stays terminal`, !isRetryableVoicePreviewFailure({ code, status }));
+  }
+}
+
+// ── 5. ownership ────────────────────────────────────────────────────────────
+
+section("ownership");
+{
+  const intruderProvider = fakeProvider({ runtimeReady: true });
+  const intruder = harness({ callerId: INTRUDER, provider: intruderProvider });
+  const refused = await handleVoicePreviewPanel({ ...PREVIEW }, intruder.deps);
+  check("a caller who does not own the replica is refused",
+    refused.kind === "json" && refused.status === 409 && refused.body.error === "voice_preview_not_authorized",
+    JSON.stringify(refused.body));
+  // Counted as absences. A refusal that still read the private bucket or woke a
+  // GPU would pass a status-code-only assertion.
+  check("the refusal reads NOTHING from the private bucket", intruder.state.reads === 0);
+  check("the refusal touches NO synthesis", intruder.provider.calls.length === 0);
+  check("the refusal does not even wake or inspect the broker",
+    intruder.state.healthFetches.length === 0 && intruderProvider.statusChecks.length === 0);
+
+  const wrongReplica = harness();
+  const other = await handleVoicePreviewPanel({ ...PREVIEW, replica_id: randomUUID() }, wrongReplica.deps);
+  check("an owner previewing somebody else's replica is refused",
+    other.kind === "json" && other.status === 409, JSON.stringify(other.body));
+  check("that refusal spends nothing either",
+    wrongReplica.state.reads === 0 && wrongReplica.provider.calls.length === 0);
+
+  // POSITIVE CONTROL: the same fixture with the real owner must get through, or
+  // the three zeros above prove nothing but a broken fixture.
+  const owner = harness();
+  owner.warmth.note(ORIGIN, "ready", owner.clock.t);
+  const allowed = await handleVoicePreviewPanel({ ...PREVIEW }, owner.deps);
+  check("POSITIVE CONTROL: the real owner does get audio",
+    allowed.kind === "audio" && allowed.status === 200, JSON.stringify(allowed.body || {}));
+  check("POSITIVE CONTROL: the counters can move", owner.state.reads === 1 && owner.provider.calls.length === 1);
+  check("the executor renews its durable lease before protection and private storage",
+    owner.state.renewals === 1 && owner.state.protections === 1 && owner.state.sealedIntents.length === 1);
+  check("the one-click owner preview uses the model-native balanced preset instead of the rejected flat anchor",
+    owner.provider.calls[0]?.style?.cfgWeight === 0.5 &&
+      owner.provider.calls[0]?.style?.exaggeration === 0.5 &&
+      owner.provider.calls[0]?.style?.temperature === 0.8,
+    JSON.stringify(owner.provider.calls[0]?.style));
+
+  // NEGATIVE CONTROL: strike the owner predicate out of the fence and the
+  // intruder gets through. This is what makes the refusal above evidence about
+  // the owner binding rather than about the fixture.
+  const struck = harness({ callerId: INTRUDER, db: fakeDb({ requireOwnerPredicate: false }) });
+  struck.warmth.note(ORIGIN, "ready", struck.clock.t);
+  const leaked = await handleVoicePreviewPanel({ ...PREVIEW }, struck.deps);
+  check("NEGATIVE CONTROL: without the owner predicate the intruder DOES get through",
+    leaked.kind === "audio", JSON.stringify(leaked.body || {}));
+
+  // Identity is never read from the body. A request that tries to name its own
+  // owner must be treated exactly like one that does not.
+  const spoof = harness({ callerId: INTRUDER });
+  const spoofed = await handleVoicePreviewPanel(
+    { ...PREVIEW, owner_user_id: OWNER, user_id: OWNER, ownerUserId: OWNER }, spoof.deps);
+  check("an owner id in the request body buys nothing",
+    spoofed.kind === "json" && spoofed.status === 409, JSON.stringify(spoofed.body));
+  check("the db was bound to the SESSION owner, not the body's",
+    spoof.db.calls.every((call) => call.params[1] === INTRUDER));
+}
+
+// ── 6. the cold-start state machine, end to end ─────────────────────────────
+
+section("durable result replay and expiry");
+{
+  const h = harness();
+  h.warmth.note(ORIGIN, "ready", h.clock.t);
+  const first = await handleVoicePreviewPanel({ ...PREVIEW }, h.deps);
+  const settlement = h.state.sealedIntents[0];
+  const stored = h.state.storedResults[0];
+  const sealedIntent = {
+    ...settlement.started.intent,
+    role: "sealed",
+    state: "sealed",
+    completedAt: new Date(h.clock.t - 1_000).toISOString(),
+    result: {
+      storageBucket: stored.storageBucket,
+      objectPath: stored.objectPath,
+      mime: stored.mime,
+      byteSize: stored.byteSize,
+      sha256: stored.sha256,
+      objectId: "",
+      metadata: settlement.result.metadata,
+      expiresAt: new Date(h.clock.t + 60_000).toISOString(),
+    },
+  };
+  h.deps.authorize = async () => ({ ...settlement.started, intent: sealedIntent });
+  const replay = await handleVoicePreviewPanel({ ...PREVIEW }, h.deps);
+  check("a sealed exact retry returns the same protected private WAV without GPU work",
+    first.kind === "audio" && replay.kind === "audio" && replay.body.equals(first.body) &&
+    replay.headers["X-Vyakti-Preview-Reused"] === "true" && h.provider.calls.length === 1,
+    JSON.stringify({ first: first.kind, replay: replay.kind, syntheses: h.provider.calls.length }));
+
+  h.deps.authorize = async () => ({
+    ...settlement.started,
+    intent: { ...sealedIntent, result: { ...sealedIntent.result, expiresAt: new Date(h.clock.t - 1).toISOString() } },
+  });
+  const expired = await handleVoicePreviewPanel({ ...PREVIEW }, h.deps);
+  check("an expired sealed WAV is never served and returns deliberate retry progress",
+    expired.status === 202 && expired.body.stage === "result_expired" && h.provider.calls.length === 1);
+  check("expiry settles SQL state before idempotent private object deletion",
+    h.state.cleanupEvents.join(",") === "settle,delete,confirm" && h.state.storedResults.length === 0,
+    JSON.stringify(h.state.cleanupEvents));
+
+  const failedSeal = harness({
+    sealThrows: Object.assign(new Error("voice_preview_intent_seal_denied"), {
+      code: "voice_preview_intent_seal_denied", status: 409,
+    }),
+  });
+  failedSeal.warmth.note(ORIGIN, "ready", failedSeal.clock.t);
+  const failedSealResult = await handleVoicePreviewPanel({ ...PREVIEW }, failedSeal.deps);
+  check("a DB seal refusal removes and acknowledges the exact protected private object",
+    failedSealResult.status === 409 && failedSeal.state.storedResults.length === 0 &&
+    failedSeal.state.cleanupEvents.join(",") === "delete,confirm" && failedSeal.state.protections === 1,
+    JSON.stringify({ body: failedSealResult.body, cleanup: failedSeal.state.cleanupEvents }));
+}
+
+section("cold start");
+{
+  // A cold runtime: the synthesis is dispatched and hangs past the flush window.
+  const cold = harness({ provider: fakeProvider({ hangMs: 5_000 }), flushMs: 40 });
+  const first = await handleVoicePreviewPanel({ ...PREVIEW }, cold.deps);
+  check("a cold runtime answers 202 warming, not a hung request",
+    first.kind === "json" && first.status === 202 && first.body.state === "warming", JSON.stringify(first.body));
+  check("the warming answer names the runtime as the reason", first.body.stage === "runtime_cold");
+  check("the warming answer carries the measured 2-8 minute eta",
+    first.body.eta_seconds_low === 120 && first.body.eta_seconds_high === 480 &&
+      /2 to 8 minutes/.test(first.body.message), JSON.stringify(first.body));
+  check("the warming answer carries a retry hint", first.body.retry_after_ms > 0);
+  check("it sets Retry-After", Number(first.headers["Retry-After"]) > 0);
+  check("the wake was actually DISPATCHED, not skipped", cold.provider.calls.length === 1);
+  check("the wake is recorded so the next click does not pay again",
+    cold.warmth.read(ORIGIN, cold.clock.t).state === "warming");
+  check("the dispatched durable attempt keeps its lease and is not settled as failure",
+    first.body.intent_id && first.body.generation_id && cold.state.aborted.length === 0 && cold.state.failures.length === 0,
+    JSON.stringify({ body: first.body, aborted: cold.state.aborted, failures: cold.state.failures }));
+
+  // A second click while that wake is in flight must not buy a second GPU boot.
+  const second = await handleVoicePreviewPanel({ ...PREVIEW }, cold.deps);
+  check("a second click during the wake returns warming", second.status === 202 && second.body.stage === "wake_in_flight");
+  check("a second click does NOT start a second synthesis", cold.provider.calls.length === 1);
+  check("a second click does not re-read the reference", cold.state.reads === 1);
+
+  // The first HTTP response is already gone when a cold provider resolves.
+  // That late success must still clear the per-process warming belief, while
+  // the durable attempt remains leased and never reaches protection in the
+  // disconnected request.
+  let releaseLateWake;
+  const lateWakeGate = new Promise((resolve) => { releaseLateWake = resolve; });
+  const late = harness({ provider: fakeProvider({ gate: lateWakeGate }), flushMs: 40 });
+  const dispatched = await handleVoicePreviewPanel({ ...PREVIEW }, late.deps);
+  check("a late wake first answers with the non-blocking warming response",
+    dispatched.status === 202 && dispatched.body.wake_dispatched === true, JSON.stringify(dispatched.body));
+  check("the late wake is still warming before the provider answers",
+    late.warmth.read(ORIGIN, late.clock.t).state === "warming");
+  releaseLateWake();
+  await new Promise((resolve) => setImmediate(resolve));
+  check("a provider success after the flush marks the runtime ready",
+    late.warmth.read(ORIGIN, late.clock.t).state === "warm");
+  check("the disconnected durable attempt stays leased and is never protected or sealed",
+    late.state.aborted.length === 0 && late.state.failures.length === 0 && late.state.protections === 0,
+    JSON.stringify({ aborted: late.state.aborted, failures: late.state.failures, protections: late.state.protections }));
+
+  // Once warm, the same request returns audio.
+  cold.warmth.note(ORIGIN, "ready", cold.clock.t);
+  const warmProvider = fakeProvider();
+  const warm = harness({ provider: warmProvider, warmth: cold.warmth });
+  const third = await handleVoicePreviewPanel({ ...PREVIEW }, warm.deps);
+  check("once warm the same request returns audio", third.kind === "audio", JSON.stringify(third.body || {}));
+  check("the warm path waits for the synthesis rather than dispatching it", warmProvider.calls.length === 1);
+  check("the audio is a RIFF/WAVE container",
+    third.body.subarray(0, 4).toString() === "RIFF" && third.body.subarray(8, 12).toString() === "WAVE");
+  check("the receipt headers are present",
+    third.headers["X-Vyakti-Disclosure"] === "audible-prefix-v1" &&
+    /^[0-9a-f-]{36}$/.test(third.headers["X-Vyakti-Generation"]) &&
+    /^[0-9a-f]{64}$/.test(third.headers["X-Vyakti-Model-Commitment"]));
+
+  // A broker that never answers: warming, and nothing signed or read.
+  const noBroker = harness({
+    healthBudgetMs: 6_000,
+    fetchImpl: async () => { throw new Error("ECONNREFUSED"); },
+  });
+  const brokerCold = await handleVoicePreviewPanel({ ...PREVIEW }, noBroker.deps);
+  check("an unreachable broker answers warming, not 401",
+    brokerCold.status === 202 && brokerCold.body.stage === "admission_cold", JSON.stringify(brokerCold.body));
+  check("an unreachable broker means no bucket read", noBroker.state.reads === 0);
+  check("an unreachable broker means no synthesis", noBroker.provider.calls.length === 0);
+
+  // A 504 out of the broker is a cold runtime, not a failure to show the owner.
+  const timedOut = harness({ provider: fakeProvider({ throws: Object.assign(new Error("open_voice_http_504"), { code: "open_voice_http_504", status: 503 }) }) });
+  timedOut.warmth.note(ORIGIN, "ready", timedOut.clock.t);
+  const gateway = await handleVoicePreviewPanel({ ...PREVIEW }, timedOut.deps);
+  check("a 504 after dispatch remains one processing intent behind its lease",
+    gateway.status === 202 && gateway.body.state === "processing" && gateway.body.stage === "synthesizing",
+    JSON.stringify(gateway.body));
+  check("a 504 clears the warm belief so the next click waits properly",
+    timedOut.warmth.read(ORIGIN, timedOut.clock.t).state === "warming");
+
+  const ambiguous = harness({
+    provider: fakeProvider({
+      throws: Object.assign(new Error("open_voice_execution_may_continue"), {
+        code: "open_voice_execution_may_continue", status: 503,
+      }),
+    }),
+  });
+  ambiguous.warmth.note(ORIGIN, "ready", ambiguous.clock.t);
+  const ambiguousResult = await handleVoicePreviewPanel({ ...PREVIEW }, ambiguous.deps);
+  check("an ambiguous post-dispatch transport loss keeps the active SQL lease",
+    ambiguousResult.status === 202 && ambiguousResult.body.stage === "synthesizing" &&
+    ambiguous.state.retryable.length === 0 && ambiguous.state.failures.length === 0 &&
+    ambiguous.state.aborted.length === 0,
+    JSON.stringify({ body: ambiguousResult.body, state: ambiguous.state }));
+  check("an ambiguous server transport resets local warmth before lease recovery",
+    ambiguous.warmth.read(ORIGIN, ambiguous.clock.t).state === "warming");
+
+  const lostLease = harness({ renewLease: false });
+  lostLease.warmth.note(ORIGIN, "ready", lostLease.clock.t);
+  const lostLeaseResult = await handleVoicePreviewPanel({ ...PREVIEW }, lostLease.deps);
+  check("a lost lease refuses protection, storage and audio",
+    lostLeaseResult.status === 409 && lostLeaseResult.body.error === "voice_preview_intent_lease_lost" &&
+    lostLease.state.protections === 0 && lostLease.state.storedResults.length === 0,
+    JSON.stringify(lostLeaseResult.body));
+
+  // The admission broker uses this exact signed 503 while the Container App
+  // has allocated a replica but the private runtime has not passed readiness.
+  // It is a cold-start state, not a terminal preview failure.
+  const runtimeStarting = harness({ provider: fakeProvider({ throws: Object.assign(new Error("open_voice_runtime_warming"), { code: "open_voice_runtime_warming", status: 503 }) }) });
+  runtimeStarting.warmth.note(ORIGIN, "ready", runtimeStarting.clock.t);
+  const runtimeStartingResult = await handleVoicePreviewPanel({ ...PREVIEW }, runtimeStarting.deps);
+  check("the broker's explicit runtime-warming response remains a 202 wait state",
+    runtimeStartingResult.status === 202 && runtimeStartingResult.body.state === "warming" &&
+    runtimeStartingResult.body.stage === "runtime_cold", JSON.stringify(runtimeStartingResult.body));
+
+  // The local registry can say `warming` for 200 seconds even after Azure has
+  // made the private runtime application-ready. A signed broker status check
+  // is the remote source of truth and must let that same poll synthesize now.
+  const remotelyReadyProvider = fakeProvider({ runtimeReady: true });
+  const remotelyReady = harness({ provider: remotelyReadyProvider });
+  remotelyReady.warmth.note(ORIGIN, "waking", remotelyReady.clock.t);
+  const readyNow = await handleVoicePreviewPanel({ ...PREVIEW }, remotelyReady.deps);
+  check("private runtime readiness overrides a stale in-process warming hint",
+    readyNow.kind === "audio" && remotelyReadyProvider.statusChecks.length === 1 &&
+    remotelyReadyProvider.calls.length === 1 && remotelyReady.state.reads === 1,
+    JSON.stringify({ kind: readyNow.kind, statusChecks: remotelyReadyProvider.statusChecks.length,
+      syntheses: remotelyReadyProvider.calls.length, reads: remotelyReady.state.reads }));
+  check("remote readiness refreshes the local hint after successful synthesis",
+    remotelyReady.warmth.read(ORIGIN, remotelyReady.clock.t).state === "warm");
+
+  const remotelyColdProvider = fakeProvider({ runtimeReady: false });
+  const remotelyCold = harness({ provider: remotelyColdProvider });
+  const stillStarting = await handleVoicePreviewPanel({ ...PREVIEW }, remotelyCold.deps);
+  check("a signed not-ready result wakes without reading or synthesizing",
+    stillStarting.status === 202 && stillStarting.body.runtime_status_checked === true &&
+    remotelyColdProvider.statusChecks.length === 1 && remotelyColdProvider.calls.length === 0 &&
+    remotelyCold.state.reads === 0,
+    JSON.stringify({ body: stillStarting.body, statusChecks: remotelyColdProvider.statusChecks.length,
+      syntheses: remotelyColdProvider.calls.length, reads: remotelyCold.state.reads }));
+
+  const refusedStatusProvider = fakeProvider({
+    runtimeReadyThrows: Object.assign(new Error("transport_binding_invalid"), {
+      code: "transport_binding_invalid", status: 401,
+    }),
+  });
+  const refusedStatus = harness({ provider: refusedStatusProvider });
+  const refusedStatusResult = await handleVoicePreviewPanel({ ...PREVIEW }, refusedStatus.deps);
+  check("a readiness HMAC refusal stays terminal and spends no private bytes",
+    refusedStatusResult.status === 401 && refusedStatusResult.body.error === "transport_binding_invalid" &&
+    refusedStatusProvider.calls.length === 0 && refusedStatus.state.reads === 0,
+    JSON.stringify(refusedStatusResult.body));
+
+  for (const code of ["open_voice_runtime_status_timeout", "client_aborted"]) {
+    const readinessTimeoutProvider = fakeProvider({
+      runtimeReadyThrows: Object.assign(new Error(code), { code, status: 503 }),
+    });
+    const readinessTimeout = harness({ provider: readinessTimeoutProvider });
+    const readinessTimeoutResult = await handleVoicePreviewPanel({ ...PREVIEW }, readinessTimeout.deps);
+    check(`${code} before synthesis releases into delayed warming without GPU work`,
+      readinessTimeoutResult.status === 202 && readinessTimeoutResult.body.stage === "runtime_cold" &&
+      readinessTimeoutProvider.calls.length === 0 && readinessTimeout.state.aborted.length === 1 &&
+      readinessTimeout.state.retryable.length === 0 && readinessTimeout.state.failures.length === 0,
+      JSON.stringify({ body: readinessTimeoutResult.body, state: readinessTimeout.state }));
+  }
+
+  // A wrong key must NOT be dressed as a cold start.
+  const wrongKey = harness({ provider: fakeProvider({ throws: Object.assign(new Error("transport_binding_invalid"), { code: "transport_binding_invalid", status: 401 }) }) });
+  wrongKey.warmth.note(ORIGIN, "ready", wrongKey.clock.t);
+  const rejected = await handleVoicePreviewPanel({ ...PREVIEW }, wrongKey.deps);
+  check("an admission refusal stays an error",
+    rejected.kind === "json" && rejected.status === 401 && rejected.body.state === "error" &&
+    rejected.body.error === "transport_binding_invalid", JSON.stringify(rejected.body));
+}
+
+// ── 7. status, and what it must not spend ───────────────────────────────────
+
+section("status");
+{
+  const h = harness();
+  const cold = await handleVoicePreviewPanel({ op: "status" }, h.deps);
+  check("status answers cold before anything has run", cold.status === 200 && cold.body.state === "cold");
+  check("status spends no db, no bucket, no GPU, no broker",
+    h.db.calls.length === 0 && h.state.reads === 0 && h.provider.calls.length === 0 && h.state.healthFetches.length === 0);
+  h.warmth.note(ORIGIN, "ready", h.clock.t);
+  const warm = await handleVoicePreviewPanel({ op: "status" }, h.deps);
+  check("status answers warm after a success", warm.body.state === "warm" && warm.body.retry_after_ms === 0);
+  const bad = await handleVoicePreviewPanel({ op: "delete-everything" }, h.deps);
+  check("an unknown op is refused", bad.status === 400 && bad.body.error === "voice_preview_op_invalid");
+  const lang = await handleVoicePreviewPanel({ ...PREVIEW, language_id: "fr" }, h.deps);
+  check("an unsupported language is refused before authorization",
+    lang.status === 400 && lang.body.error === "voice_preview_language_not_supported" && h.db.calls.length === 0);
+}
+
+// ── 8. the invariants that must not weaken ──────────────────────────────────
+
+section("disclosure and watermark");
+{
+  // The provider renders the disclosure and the runtime verifies its own PerTh
+  // watermark before it will return audio. The panel asserts the first through
+  // the REAL contract; there is deliberately no branch that skips it.
+  const naked = harness({ provider: fakeProvider({ skipDisclosure: true }) });
+  naked.warmth.note(ORIGIN, "ready", naked.clock.t);
+  const refused = await handleVoicePreviewPanel({ ...PREVIEW }, naked.deps);
+  check("a clip with no spoken disclosure never becomes audio", refused.kind === "json" && refused.status === 500,
+    JSON.stringify(refused.body));
+
+  const withIt = harness();
+  withIt.warmth.note(ORIGIN, "ready", withIt.clock.t);
+  const ok = await handleVoicePreviewPanel({ ...PREVIEW }, withIt.deps);
+  check("POSITIVE CONTROL: the same clip WITH the disclosure is audio", ok.kind === "audio");
+
+  const panel = readFileSync(join(ROOT, "api/_voice/preview-panel.js"), "utf8");
+  const route = readFileSync(join(ROOT, "api/voice-preview.js"), "utf8");
+  const provider = readFileSync(join(ROOT, "api/_voice/providers/open-chatterbox-preview.js"), "utf8");
+  check("the panel asserts the real synthesis contract", /assertSynthesisResult\(/.test(panel));
+  check("the panel adds no disclosure bypass",
+    !/(skip|no|without)[_-]?disclosure/i.test(panel) && !/allowTestAdapters/.test(panel) && !/allowTestAdapters/.test(route));
+  check("the runtime's PerTh check is still mandatory in the provider",
+    /perth_watermark_verified\s*!==\s*true/.test(provider));
+  check("the panel reaches the runtime through that provider only",
+    /createOpenChatterboxPreviewProvider/.test(route) && !/fetch\(/.test(panel));
+
+  // The activation gate is a separate lane and this one may not touch it.
+  check("the panel does not touch the activation gate",
+    !/activat/i.test(panel) && !/can_activate|vy_replica_activation/.test(panel) && !/activat/i.test(route));
+}
+
+// ── 8b. "hear the vibe" (WS-R168, EmotionOS in the voice) ───────────────────
+
+section("hear the vibe (WS-R168)");
+{
+  // NEGATIVE CONTROL: `apply_vibe` absent (the default, and the shape every
+  // section above this one already exercises unchanged) — never applied,
+  // whatever `getVibe` would have returned.
+  let offGetVibeCalls = 0;
+  const off = harness({ getVibe: async () => { offGetVibeCalls += 1; return { warmth: 4, energy: 4, humour: 4, directness: 4, formality: 0 }; } });
+  off.warmth.note(ORIGIN, "ready", off.clock.t);
+  const noVibe = await handleVoicePreviewPanel({ ...PREVIEW }, off.deps);
+  check("apply_vibe absent: audio, and the panel never even asked getVibe",
+    noVibe.kind === "audio" && offGetVibeCalls === 0);
+  check("apply_vibe absent: the prosody header says false",
+    noVibe.headers["X-Vyakti-Voice-Prosody-Applied"] === "false" && noVibe.headers["X-Vyakti-Voice-Prosody-Plan"] === "");
+  check("apply_vibe absent: the provider's own style is untouched (no exaggeration/cfg/temperature drift)",
+    off.provider.calls[0].style.exaggeration === 0.5 && off.provider.calls[0].style.cfgWeight === 0.5 && off.provider.calls[0].style.temperature === 0.8);
+
+  // NEGATIVE CONTROL: `apply_vibe: true` but the owner never set one
+  // (`getVibe` resolves `null`, exactly like `getReplicaVibe`'s own "no
+  // vibe yet" return) — the neutral plan, not a different "absent" shape.
+  const noneSet = harness({ getVibe: async () => null });
+  noneSet.warmth.note(ORIGIN, "ready", noneSet.clock.t);
+  const neutral = await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, noneSet.deps);
+  check("apply_vibe true, no vibe set: still audio", neutral.kind === "audio");
+  // PREVIEW's own `language_id` is "hi" — the neutral plan for "hi" carries
+  // a different `planSha256` than `NEUTRAL_PROSODY_PLAN` (which is fixed to
+  // "en" by construction, see its own comment in `prosody.js`), never
+  // because a single dial differs.
+  const neutralHi = buildProsodyPlan({ vibe: null, register: null, languageId: "hi" });
+  check("apply_vibe true, no vibe set: the header names the SAME sha a fresh neutral plan for this language carries",
+    neutral.headers["X-Vyakti-Voice-Prosody-Applied"] === "true" &&
+    neutral.headers["X-Vyakti-Voice-Prosody-Plan"] === neutralHi.planSha256);
+  check("apply_vibe true, no vibe set: the provider's style is unchanged (ZERO_STYLE_DELTA)",
+    noneSet.provider.calls[0].style.exaggeration === 0.5 && noneSet.provider.calls[0].style.cfgWeight === 0.5 && noneSet.provider.calls[0].style.temperature === 0.8);
+  check("apply_vibe true, no vibe set: no extra pause glyph in the spoken text (medium band, single sentence anyway)",
+    !decodeURIComponent(neutral.headers["X-Vyakti-Spoken-Text"]).includes("…"));
+
+  // POSITIVE: a real, high-energy vibe reaches the PROVIDER's own fields.
+  const highEnergy = { warmth: 4, energy: 4, humour: 3, directness: 2, formality: 0 };
+  const on = harness({ getVibe: async (replicaId) => { check("getVibe is called with the body's own replica_id", replicaId === REPLICA); return highEnergy; } });
+  on.warmth.note(ORIGIN, "ready", on.clock.t);
+  const vibed = await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, on.deps);
+  const expectedPlan = buildProsodyPlan({ vibe: highEnergy, register: null, languageId: "hi" });
+  check("POSITIVE: audio, with the prosody header naming the SAME plan this test computed independently",
+    vibed.kind === "audio" && vibed.headers["X-Vyakti-Voice-Prosody-Plan"] === expectedPlan.planSha256);
+  check("POSITIVE: the provider's style actually moved off the base preset",
+    on.provider.calls[0].style.exaggeration !== 0.5 || on.provider.calls[0].style.cfgWeight !== 0.5);
+  check("POSITIVE: the style is still inside the provider's own validated ranges",
+    on.provider.calls[0].style.exaggeration >= 0 && on.provider.calls[0].style.exaggeration <= 1.5 &&
+    on.provider.calls[0].style.cfgWeight >= 0 && on.provider.calls[0].style.cfgWeight <= 1 &&
+    on.provider.calls[0].style.temperature >= 0.2 && on.provider.calls[0].style.temperature <= 1.5);
+
+  // POSITIVE: a multi-sentence text with a SLOW plan carries the pause
+  // glyph between sentences, and the disclosure/watermark checks (section
+  // 8, above) still pass on it — the plan never breaks the one invariant
+  // this whole file exists to hold.
+  const lowEnergy = { warmth: 0, energy: 0, humour: 0, directness: 0, formality: 4 };
+  const slow = harness({ getVibe: async () => lowEnergy });
+  slow.warmth.note(ORIGIN, "ready", slow.clock.t);
+  const slowResult = await handleVoicePreviewPanel(
+    { ...PREVIEW, text: "Suno na. Kal wali baat sach thi. Main bhi wahi soch raha tha.", apply_vibe: true },
+    slow.deps,
+  );
+  check("POSITIVE: a slow plan on a multi-sentence text inserts the pause glyph, and still becomes audio",
+    slowResult.kind === "audio" && decodeURIComponent(slowResult.headers["X-Vyakti-Spoken-Text"]).includes("…"));
+
+  // NEGATIVE CONTROL: the disclosure/watermark invariant (section 8) holds
+  // even with `apply_vibe: true` — a vibe-modified text with NO disclosure
+  // still never becomes audio.
+  const nakedVibed = harness({ provider: fakeProvider({ skipDisclosure: true }), getVibe: async () => highEnergy });
+  nakedVibed.warmth.note(ORIGIN, "ready", nakedVibed.clock.t);
+  const refusedVibed = await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, nakedVibed.deps);
+  check("NEGATIVE CONTROL: apply_vibe never bypasses the disclosure check",
+    refusedVibed.kind === "json" && refusedVibed.status === 500);
+
+  // THE CACHE-BUST PROOF. `beginOwnedVoicePreview`'s own durable dedup key
+  // (`api/_replica-voice-preview.js`) is built from `text_hash` and the
+  // RESOLVED style PRESET object, which never itself carries the vibe
+  // delta — so a plain-text, same-everything-else request that differs
+  // ONLY by `apply_vibe` must still reach the database with a DIFFERENT
+  // `regeneration_key`, or two toggled requests for the identical text
+  // would durably collide on the same sealed row. `params[17]` is the
+  // exact positional index `fakeDb`'s own `row.regeneration_key =
+  // params[17]` assignment (above) already names for this statement.
+  const regenParamOf = (calls) => {
+    const insert = [...calls].reverse().find((c) => c.sql.includes("vy_replica_voice_preview_intent") && c.sql.includes("insert into"));
+    return insert ? insert.params[17] : undefined;
+  };
+  const plainRun = harness();
+  plainRun.warmth.note(ORIGIN, "ready", plainRun.clock.t);
+  await handleVoicePreviewPanel({ ...PREVIEW }, plainRun.deps);
+  const plainRegen = regenParamOf(plainRun.db.calls);
+
+  const vibedRun = harness({ getVibe: async () => highEnergy });
+  vibedRun.warmth.note(ORIGIN, "ready", vibedRun.clock.t);
+  await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, vibedRun.deps);
+  const vibedRegen = regenParamOf(vibedRun.db.calls);
+
+  const vibedRunAgain = harness({ getVibe: async () => highEnergy });
+  vibedRunAgain.warmth.note(ORIGIN, "ready", vibedRunAgain.clock.t);
+  await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, vibedRunAgain.deps);
+  const vibedRegenAgain = regenParamOf(vibedRunAgain.db.calls);
+
+  const vibedRunDifferent = harness({ getVibe: async () => lowEnergy });
+  vibedRunDifferent.warmth.note(ORIGIN, "ready", vibedRunDifferent.clock.t);
+  await handleVoicePreviewPanel({ ...PREVIEW, apply_vibe: true }, vibedRunDifferent.deps);
+  const vibedRegenDifferent = regenParamOf(vibedRunDifferent.db.calls);
+
+  check("apply_vibe on vs off, SAME text: the durable regeneration_key differs (no silent cache collision)",
+    typeof plainRegen === "string" && typeof vibedRegen === "string" && plainRegen !== vibedRegen,
+    `plain=${JSON.stringify(plainRegen)} vibed=${JSON.stringify(vibedRegen)}`);
+  check("apply_vibe on, SAME vibe, two separate requests: the SAME regeneration_key (legitimate replay still works)",
+    vibedRegen === vibedRegenAgain);
+  check("apply_vibe on, a DIFFERENT vibe: a DIFFERENT regeneration_key",
+    vibedRegen !== vibedRegenDifferent);
+  check("apply_vibe off: no explicit/derived regeneration_key at all (the pre-existing, unchanged shape)",
+    plainRegen === "");
+  check("every VIBE-derived regeneration_key satisfies the real TRACE format (8-96 of [A-Za-z0-9_-])",
+    /^[A-Za-z0-9_-]{8,96}$/.test(vibedRegen || "") && /^[A-Za-z0-9_-]{8,96}$/.test(vibedRegenDifferent || ""));
+}
+
+// ── 9. the route's identity boundary ────────────────────────────────────────
+
+section("route identity boundary");
+{
+  const route = readFileSync(join(ROOT, "api/voice-preview.js"), "utf8");
+  check("identity comes from requireUser", /const user = await requireUser\(req\)/.test(route));
+  check("ownership is bound to the session user", /beginOwnedVoicePreview\(q, user\.id,/.test(route));
+  check("the body never supplies an owner",
+    !/body\.(owner_user_id|user_id|ownerUserId)/.test(route) && !/req\.body\.owner/.test(route));
+  check("an auth failure answers with its own status", /error instanceof AuthError/.test(route));
+  check("the route is rate limited per IP and per user",
+    /allow\(ipOf\(req\)/.test(route) && /allow\(user\.id/.test(route));
+  check("the preview bucket is tighter than the status bucket",
+    /voice_preview_panel_run/.test(route) && /voice_preview_panel_status/.test(route));
+  check("the HMAC secret never crosses to the client",
+    !/OPEN_VOICE_HMAC_SECRET/.test(route) &&
+    !readFileSync(join(ROOT, "src/studio/voicePanelApi.ts"), "utf8").includes("HMAC") &&
+    !readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8").includes("AZURE_OPEN_VOICE_ORIGIN"));
+  check("the client never calls the broker directly",
+    !/azurecontainerapps\.io/.test(readFileSync(join(ROOT, "src/studio/voicePanelApi.ts"), "utf8")));
+}
+
+// ── report ──────────────────────────────────────────────────────────────────
+
+section("client warmup budget");
+{
+  // WS-R166 moved the panel's strings into src/studio/copy.ts; the copy-shaped
+  // checks read the panel plus its English block (evals/voice-preview-ui.mjs
+  // states the rule).
+  const copyTable = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+  const copyStart = copyTable.indexOf("const EN_VOICE_PREVIEW_PANEL");
+  const client = `${readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8")}\n${copyTable.slice(copyStart, copyTable.indexOf("\n};\n", copyStart) + 4)}`;
+  const clientApi = readFileSync(join(ROOT, "src/studio/voicePanelApi.ts"), "utf8");
+  check("the client observes the durable intent for the life of the open page instead of stopping at a retry cap",
+    !/MAX_AUTO_RETRIES/.test(client) && /window\.setTimeout\(\(\) => void runIntent/.test(client) &&
+      /outcome\.retryAfterMs/.test(client));
+  const formerRequiredBudgetMs = WARMUP.wakeInFlightMs + 60_000 + WARMUP.retryAfterMs;
+  // Negative controls: six polls stop inside the original wake window; seven
+  // cross it but stop on the response that dispatches the second synthesis.
+  check("NEGATIVE CONTROL: the former six-poll budget is caught",
+    6 * WARMUP.retryAfterMs <= WARMUP.wakeInFlightMs);
+  check("NEGATIVE CONTROL: the former seven-poll budget cannot finish the second synthesis",
+    7 * WARMUP.retryAfterMs < formerRequiredBudgetMs);
+  check("the panel and its API fallback both tell the owner the eight-minute ceiling",
+    /OBSERVED_COLD_HIGH_SECONDS\s*=\s*480/.test(client) && /2 to 8 minutes/.test(clientApi) &&
+      /etaSecondsHigh:\s*positiveNumber\(data\?\.eta_seconds_high, 480\)/.test(clientApi) &&
+      /etaSecondsHigh:\s*Number\(data\?\.eta_seconds_high\) \|\| 480/.test(clientApi));
+  check("the warm-runtime copy promises only a relative improvement, not seconds",
+    /after that it is usually much faster/i.test(client) && !/after that it is seconds/i.test(client));
+  check("NEGATIVE CONTROL: no voice-panel path retains the disproved three-minute ceiling",
+    !/(?:two|2) to (?:three|3) minutes|2-3 minutes|etaSecondsHigh:[^\n]+\|\| 180/.test(`${client}\n${clientApi}`));
+}
+
+section("ownership before deployment configuration");
+{
+  const route = readFileSync(join(ROOT, "api/voice-preview.js"), "utf8");
+  check("the real route defers provider configuration to an accessor",
+    /get provider\(\) \{ return provider \|\|= createOpenChatterboxPreviewProvider\(\{ allocation: allocation\(\) \}\); \}/.test(route));
+  const intruder = harness({ callerId: INTRUDER });
+  let constructions = 0;
+  Object.defineProperty(intruder.deps, "provider", { get() {
+    constructions += 1;
+    throw Object.assign(new Error("open_voice_origin_required"), { status: 503 });
+  } });
+  const refused = await handleVoicePreviewPanel({ ...PREVIEW }, intruder.deps);
+  check("ownership refusal wins over missing provider configuration",
+    refused.status === 409 && constructions === 0 && intruder.state.healthFetches.length === 0);
+  try { void intruder.deps.provider; } catch {}
+  check("positive control: accessing the missing provider really fails", constructions === 1);
+  const legacy = readFileSync(join(ROOT, "api/replica-voice-preview.js"), "utf8");
+  check("legacy ordinary preview is explicitly refused before allocating a durable lease",
+    legacy.indexOf('if (!body.trial_id)') > legacy.indexOf('await requireUser(req)') &&
+    legacy.indexOf('if (!body.trial_id)') < legacy.indexOf('started = await beginOwnedVoicePreview') &&
+    legacy.includes('voice_preview_trial_required'));
+}
+
+section("local protection configuration before runtime wake");
+{
+  const route = readFileSync(join(ROOT, "api/voice-preview.js"), "utf8");
+  check("actual route prepares both adapters and reuses the protection instance",
+    /prepare: \(\) => \{[\s\S]*?provider \|\|= createOpenChatterboxPreviewProvider\(\{ allocation: allocation\(\) \}\);[\s\S]*?createProductionProtectionAdapters\(\{ db: q \}\)/.test(route) &&
+    /protect: \(input\) => protectReplicaStream\(\{[\s\S]*?adapters: protectionAdapters/.test(route));
+  const missing = harness({ provider: fakeProvider({ runtimeReady: true }) });
+  let prepared = 0;
+  missing.deps.prepare = () => {
+    prepared += 1;
+    throw Object.assign(new Error("audio_protection_origin_required"), { code: "audio_protection_origin_required", status: 503 });
+  };
+  const refused = await handleVoicePreviewPanel({ ...PREVIEW }, missing.deps);
+  check("missing protection config returns its actionable 503",
+    refused.status === 503 && refused.body.error === "audio_protection_origin_required" && prepared === 1);
+  check("configuration refusal touches no health, runtime, synthesis or reference bytes",
+    missing.state.healthFetches.length === 0 && missing.provider.statusChecks.length === 0 &&
+    missing.provider.calls.length === 0 && missing.state.reads === 0 && missing.state.protections === 0);
+  check("configuration refusal settles the claimed intent as failed",
+    missing.state.failures.length === 1 && missing.state.failures[0].code === "audio_protection_origin_required");
+  const intruder = harness({ callerId: INTRUDER });
+  intruder.deps.prepare = missing.deps.prepare;
+  const denied = await handleVoicePreviewPanel({ ...PREVIEW }, intruder.deps);
+  check("unauthorized callers cannot inspect local configuration", denied.status === 409 && prepared === 1);
+  const status = await handleVoicePreviewPanel({ op: "status" }, missing.deps);
+  check("cached status does not construct synthesis adapters", status.status === 200 && prepared === 1);
+  const ready = harness({ provider: fakeProvider({ runtimeReady: true }) });
+  let preparedBeforeHealth = false;
+  ready.deps.prepare = () => { preparedBeforeHealth = ready.state.healthFetches.length === 0; };
+  const audio = await handleVoicePreviewPanel({ ...PREVIEW }, ready.deps);
+  check("configured positive control reaches protected audio after preparation",
+    preparedBeforeHealth && audio.kind === "audio" && ready.provider.calls.length === 1 && ready.state.protections === 1);
+}
+
+section("production allocation refuses before wake");
+{
+  const closed = harness({ provider: fakeProvider({ runtimeReady: true }) });
+  const result = await realHandleVoicePreviewPanel({ ...PREVIEW }, closed.deps);
+  check("missing production allocation refuses preview", result.status === 503);
+  check("missing allocation makes zero broker, runtime, synthesis or reference reads",
+    closed.state.healthFetches.length === 0 && closed.provider.statusChecks.length === 0 &&
+    closed.provider.calls.length === 0 && closed.state.reads === 0);
+  const status = await realHandleVoicePreviewPanel({ op: "status" }, closed.deps);
+  check("status reports platform allocation blocker without any wake",
+    status.status === 503 && status.body.error === "voice_allocation_not_configured" && closed.state.healthFetches.length === 0);
+}
+
+console.log(`\n  ${passed} checks passed, ${failures.length} failed`);
+for (const failure of failures) console.log(`  FAIL  ${failure}`);
+process.exit(failures.length ? 1 : 0);
+
+// Fixture allocation isolates panel control flow, never real GPU authority.
+function handleVoicePreviewPanel(body, deps) {
+ return realHandleVoicePreviewPanel(body, Object.create(deps, {
+   allocation: {value:{ assertReady: async () => {} }} }));
+}

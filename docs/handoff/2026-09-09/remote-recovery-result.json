@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-09T05:57:38.170Z",
+  "method": "fresh empty bare repository fetched directly from GitHub, depth2, no local object reuse",
+  "main": "31833cdf122be561437c10edb7789d9c45eeb47d",
+  "history": "7a8ad90dd63fd30ea5a1a64bde4cf8dc016b3fb4",
+  "evidenceFiles": 55,
+  "evidenceBytes": 19811433,
+  "historicalShows": 33,
+  "negativeShows": 10,
+  "originalFixCommits": 3,
+  "result": "passed",
+  "scope": "handover recovery only; not product quality or release gate",
+  "providerCalls": 0,
+  "cloudComputeRuns": 0
+}

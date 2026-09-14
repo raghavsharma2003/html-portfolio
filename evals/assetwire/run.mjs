@@ -49,7 +49,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -70,7 +70,7 @@ execSync(
     `--external:react-dom/server --outfile=${BUNDLE} --log-level=error`,
   { stdio: "inherit", cwd: ROOT },
 );
-const M = await import(BUNDLE);
+const M = await import(pathToFileURL(BUNDLE).href);
 const { createElement: h, renderToStaticMarkup: render } = M;
 
 /** Drive the components with a pinned answer to the media query. */

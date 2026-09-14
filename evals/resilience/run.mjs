@@ -35,7 +35,7 @@
 
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -92,9 +92,9 @@ const {
   SAME_KEY_RETRIES,
   BACKOFF_MIN_MS,
   BACKOFF_MAX_MS,
-} = await import(join(ROOT, "api", "_lanes.js"));
-const { walkKeys, poolSize } = await import(join(ROOT, "api", "_gkeys.js"));
-const { normalizeDocs, extractPdfText } = await import(join(ROOT, "api", "_docs.js"));
+} = await import(pathToFileURL(join(ROOT, "api", "_lanes.js")).href);
+const { walkKeys, poolSize } = await import(pathToFileURL(join(ROOT, "api", "_gkeys.js")).href);
+const { normalizeDocs, extractPdfText } = await import(pathToFileURL(join(ROOT, "api", "_docs.js")).href);
 
 let pass = 0;
 let fail = 0;
@@ -354,6 +354,32 @@ ok(
   "every lane appears in both orders — an order is a permutation, not a subset",
   [...LANE_ORDER_TEXT].sort().join() === [...LANE_ORDER_ATTACHMENT].sort().join(),
 );
+// WS-COST. The paid Google lane's whole safety property is "off by default",
+// and the only way to state that as a fact rather than a hope is IDENTITY: with
+// the flag unset `laneOrder` must hand back the very same array object it
+// handed back before the lane existed, not an equal copy. A filtered copy would
+// pass a deep-equality check today and start differing the first time someone
+// edits the filter.
+ok(
+  "paid lane OFF by default — laneOrder returns the ORIGINAL constant, by identity",
+  laneOrder({ hasAttachments: false }) === LANE_ORDER_TEXT &&
+    laneOrder({ hasAttachments: true }) === LANE_ORDER_ATTACHMENT,
+);
+ok(
+  "explicit paidLane:false is the same as omitting it",
+  laneOrder({ hasAttachments: false, paidLane: false }) === LANE_ORDER_TEXT,
+);
+ok(
+  "paid lane ON sits BELOW the free pool and ABOVE openrouter",
+  laneOrder({ hasAttachments: false, paidLane: true }).join(">") ===
+    "gemini-free>gemini-paid>openrouter>azure",
+  laneOrder({ hasAttachments: false, paidLane: true }).join(">"),
+);
+ok(
+  "paid lane ON keeps azure FIRST for attachments (the owner's directive is not a casualty of a cost flag)",
+  laneOrder({ hasAttachments: true, paidLane: true })[0] === "azure",
+  laneOrder({ hasAttachments: true, paidLane: true }).join(">"),
+);
 
 // ══════════════════════════════════════════════════════════════════════════
 section("── (f) the payload contract ──");
@@ -440,7 +466,7 @@ section("── (d)+(e) the whole ladder, through the real handler ──");
   // The real api/chat.js handler, with `globalThis.fetch` replaced. Nothing
   // here touches the network: an unmatched URL is a hard failure, so a lane
   // reaching an unexpected host cannot pass quietly.
-  const chat = await import(join(ROOT, "api", "chat.js"));
+  const chat = await import(pathToFileURL(join(ROOT, "api", "chat.js")).href);
   const handler = chat.default;
 
   const realFetch = globalThis.fetch;
@@ -519,6 +545,20 @@ section("── (d)+(e) the whole ladder, through the real handler ──");
     );
     ok("(d) no key or key prefix appears anywhere in the trace",
       !/AIza|sk-or-|api[-_]?key["']?\s*[:=]/i.test(JSON.stringify(json?.trace ?? {})));
+    // WS-COST C, stated where it can be seen rather than in a comment: with the
+    // paid lane off — the default this process runs under — the cost path is
+    // not merely unused, it is UNREACHABLE. No cache object, no native surface,
+    // no second wire format. This is the byte-identical guarantee as an
+    // assertion on the URLs actually dialled.
+    ok(
+      "(d) paid lane off → no cachedContents object is created",
+      !s.some((x) => /cachedContents/.test(x.url)),
+    );
+    ok(
+      "(d) paid lane off → the native generate surface is never dialled",
+      !s.some((x) => /:generateContent|:streamGenerateContent/.test(x.url)),
+      s.map((x) => x.url.replace(/^https:\/\//, "").slice(0, 48)).join(" "),
+    );
   }
 
   // The headline case: ONE 502, everything else healthy. This is the exact
@@ -646,7 +686,7 @@ section("── (e) the canned pair never repeats ──");
       `--outfile=${bundle} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
     { stdio: "inherit", cwd: ROOT },
   );
-  const B = await import(bundle);
+  const B = await import(pathToFileURL(bundle).href);
 
   for (const [modeName, pool] of [["chat", B.OOPS_CHAT], ["call", B.OOPS_CALL]]) {
     ok(`${modeName}: more than three variants exist to draw from`, pool.length >= 5, `${pool.length} variants`);
@@ -706,7 +746,7 @@ section("── the batch upload (WS-COMPOSER handoff) ──");
   // storage API mocked. Five pictures used to cost five round trips because the
   // batch shape had no `data` and fell into `{error:"empty"}`; the client's
   // fallback made that WORK, which is why nothing failed and nothing was fast.
-  const mem = await import(join(ROOT, "api", "memory.js"));
+  const mem = await import(pathToFileURL(join(ROOT, "api", "memory.js")).href);
   const realFetch2 = globalThis.fetch;
   let puts = [];
   let deletes = [];
@@ -814,7 +854,7 @@ section("── the history path: five pictures must still be five pictures ─�
       `--outfile=${b2} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
     { stdio: "inherit", cwd: ROOT },
   );
-  const T = await import(b2);
+  const T = await import(pathToFileURL(b2).href);
   const imgs5 = ["u1", "u2", "u3", "u4", "u5"];
   const countParts = (turns, type) =>
     turns.reduce(
@@ -914,6 +954,41 @@ section("── the source itself: no caller may fold 5xx again ──");
     offenders.length === 0,
     offenders.length ? `folds 5xx into deterministic: ${offenders.join(", ")}` : "chat.js, live-token.js, speech.js, memory.js",
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+section("── WS-COST C: the explicit-cache path, in its own process ──");
+{
+  // api/chat.js resolves PAID_LANE, GEMINI_PAID_KEY and PAID_CACHE at MODULE
+  // LOAD, which is what makes "off by default" a property of the deploy rather
+  // than a branch. THIS process has the lane off and every assertion above
+  // gates that default; the sub-battery gets its own process with the lane on,
+  // and gates the ladder inside it. Two processes because one cannot hold both
+  // truths — not because the code has two modes.
+  for (const [label, argv] of [
+    ["paid lane ON", []],
+    ["PAID_CACHE opt-out", ["--cache-off"]],
+  ]) {
+    try {
+      const out = execSync(
+        `node ${JSON.stringify(join(HERE, "paid-cache.mjs"))}${argv.length ? ` ${argv.join(" ")}` : ""}`,
+        { cwd: ROOT, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
+      );
+      process.stdout.write(out.replace(/^RESULT.*$/m, "").trimEnd() + "\n");
+      const m = /RESULT (\d+) passed, (\d+) failed/.exec(out);
+      if (!m) {
+        ok(`${label}: the sub-battery reported a result`, false, "no RESULT line");
+      } else {
+        pass += Number(m[1]);
+        fail += Number(m[2]);
+        if (Number(m[2])) failures.push(`${label}: ${m[2]} sub-battery assertions`);
+        ok(`${label}: ${m[1]} assertions ran in a process with the flag set at load`, Number(m[2]) === 0);
+      }
+    } catch (e) {
+      process.stdout.write(`${e.stdout ?? ""}${e.stderr ?? ""}`);
+      ok(`${label}: the sub-battery ran`, false, String(e.message).slice(0, 120));
+    }
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

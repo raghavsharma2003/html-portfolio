@@ -36,7 +36,7 @@
 // port. It is in version control because `dead-writers` does not stop being
 // true for evals.
 
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { execSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -85,7 +85,7 @@ const EARLY_SLACK_MS = 120;
 /** How often the page is asked where the game is. Bounds the reading error. */
 const POLL_MS = 25;
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("movevoice-browser");
 
 const BASE_STATE = {
   onboarded: true,

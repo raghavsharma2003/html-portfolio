@@ -1,0 +1,46 @@
+/* Expert workspace extension. Existing warm Vyakti identity, clear task hierarchy. */
+.vx-room-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.vx-conversation-switch { display: flex; justify-content: center; gap: 6px; margin: 8px auto 20px; }
+.vx-conversation-switch button { min-height: 44px; border: 0; border-radius: 10px; padding: 10px 18px; background: transparent; color: #4b5b53; font: inherit; cursor: pointer; }
+.vx-conversation-switch button[aria-pressed="true"] { background: #e6ece7; color: #173e32; }
+.expert-conversation { --expert-line: #d4dcd4; --expert-ink: #253d31; width: min(100%, 760px); margin-inline: auto; text-align: left; color: var(--expert-ink); padding-bottom: 24px; }
+.expert-conversation__status { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--expert-line); }
+/* WS-R161: the text-ready apprentice beacon — a quiet status line, the same
+   register `.expert-conversation__audio-note` already uses one screen over. */
+.expert-conversation__apprentice-notice { margin: 10px 0 0; font-size: 13px; color: var(--ink-soft, #515c57); }
+.expert-conversation__readiness, .expert-conversation__empty { padding: 28px 4px; }
+.expert-conversation h2 { margin: 0 0 12px; font-size: 24px; font-weight: 500; letter-spacing: -.025em; }
+.expert-conversation p { font-size: 15px; line-height: 1.65; max-width: 68ch; }
+.expert-conversation button { font: inherit; min-height: 44px; border: 1px solid var(--expert-line); padding: 10px 16px; border-radius: 10px; color: var(--expert-ink); background: transparent; cursor: pointer; }
+.expert-conversation button:hover:not(:disabled) { background: #e8eee8; }
+.expert-conversation button:disabled { opacity: .5; cursor: not-allowed; }
+.expert-conversation__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.expert-conversation__thread { max-height: 48svh; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #94a398 transparent; scrollbar-width: thin; }
+.expert-exchange { padding-block: 20px; border-bottom: 1px solid var(--expert-line); }
+.expert-exchange__question { margin-left: 12%; padding: 14px 18px; border-radius: 12px; background: #e9eee7; }
+.expert-exchange__answer { padding: 24px 4px 0; }
+.expert-exchange span { font-size: 12px; color: #506256; }
+.expert-exchange p { margin-block: 7px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.expert-exchange .expert-conversation__audio-note { font-size: 14px; line-height: 1.5; color: var(--ink-soft, #515c57); }
+.expert-conversation__working { padding: 20px 4px; }
+.expert-conversation__error { padding: 14px 0; color: #a12b23; }
+.expert-conversation__composer { border: 1px solid var(--expert-line); border-radius: 14px; padding: 14px; margin-top: 18px; background: #fff; }
+.expert-conversation__composer label { display: block; font-size: 13px; margin-bottom: 8px; }
+.expert-conversation__composer textarea { resize: vertical; min-height: 64px; max-height: 180px; width: 100%; box-sizing: border-box; border: 0; background: transparent; color: var(--expert-ink); font: inherit; font-size: 16px; line-height: 1.5; caret-color: #173e32; }
+.expert-conversation__composer textarea::placeholder { color: #617064; }
+.expert-conversation__composer > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.expert-conversation__composer span { font-size: 12px; color: #546257; }
+.expert-conversation__composer button { background: #173e32; color: #fff; border: 0; min-width: 84px; }
+.expert-conversation__composer button:hover:not(:disabled) { background: #24573f; }
+.expert-conversation :focus-visible, .vx-conversation-switch button:focus-visible { outline: 2px solid #416f57; outline-offset: 4px; }
+.expert-conversation ::selection { background: #c6d9c6; color: #132e21; }
+.vx-expert-share { max-width: 860px; width: 100%; margin-inline: auto; text-align: left; padding-bottom: 30px; }
+.vx-expert-share > section { margin-top: 28px; }
+.vx-expert-share h2 { font-size: 22px; }
+.vx-expert-share p { font-size: 15px; line-height: 1.6; }
+@media (max-width: 800px) {
+  .expert-conversation__status { flex-wrap: wrap; gap: 6px; }
+  .vx-conversation-switch button { padding-inline: 14px; }
+  .expert-conversation__thread { max-height: 45svh; }
+}
+@media (prefers-reduced-motion: reduce) { .expert-conversation * { scroll-behavior: auto; transition: none; } }

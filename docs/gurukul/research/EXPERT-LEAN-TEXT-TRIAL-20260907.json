@@ -1,0 +1,543 @@
+{
+  "schema": "limited-expert-lean-fixture-live/v1",
+  "started_at": "2026-09-07T09:53:08.690Z",
+  "finished_at": "2026-09-07T09:53:46.107Z",
+  "scope": "Synthetic fixture Room authority, real Room/compiler/gatedReply/think and Azure request with real isolated development provider ledger.",
+  "excluded": [
+    "real Room SQL",
+    "HTTP authentication",
+    "default teacher publication loader",
+    "publication consent authority",
+    "real private memory",
+    "browser",
+    "voice",
+    "deployment",
+    "quality acceptance"
+  ],
+  "injections": {
+    "room_database": "evals/room/fixtures.mjs fakeDb with fresh synthetic state per case",
+    "teacher_loader": "loadFixtureAgent compiles current DEMO_TEACHER through actual sheetToModule; synthetic Anjali identity",
+    "engine": "existing actual api/_engine.gen.js; source hashes retained",
+    "memory": "fakeMemory; memoryConsent=false; callbacks must remain unused",
+    "tableApplied": "async false, as existing room-knowledge-integration fixture",
+    "neverRules": "No deps.neverRules override; actual roomNeverRules/loadNeverRules/compileNeverRules with fakeDb empty rule rows",
+    "reply": "wrapper invokes actual think(engine,compiled,turns,{env:process.env,db:real q,fetchImpl:guarded real fetch})",
+    "transport": "real fetch, exact configured Azure model endpoint only; six request ceiling; no retries",
+    "real_database_writes": "existing USD1 provider budget and spend ledger only; durable receipts retained",
+    "publication_reader": "Actual SELECT-only reader with injected synthetic persisted sheet row, not a real grant."
+  },
+  "model": {
+    "deployment": "gpt-4.1-mini",
+    "api_version": "2024-05-01-preview",
+    "input_usd_per_million_tokens": 0.4,
+    "output_usd_per_million_tokens": 1.6,
+    "max_output_tokens": 400
+  },
+  "source_hashes": {
+    "api/_engine.gen.js": "7a9551af8df72e74a6575f0ceb09559f8405d6a11850dede3861a22bc7b2673e",
+    "api/_room-surface.js": "aed739f590ec2344828652c5ba81d51be7ad2f4e77908bf3742b55bba5405531",
+    "api/_surface.js": "0eb53f9b32673064398f33d5ac0c200f7596150401ad64fb9f0fe3b2820f4806",
+    "api/_azure-surface-reply.js": "1a5964218135451c5e404c8189573e006e157921069bbc0c49ee5abe58303cc8",
+    "api/_room-knowledge.js": "18a4afba4e0fb36eb000e36c3d25ad30259e833a033d5ba23e0a2787d963e4fb",
+    "api/_provider-budget.js": "4ec4bf1107d39bfc4bbc76f0ad38236e195a89cd31eae5249168f1f391b4247d",
+    "api/_room-expert-profile.js": "1fe2c2c4b6fcaf2a6db4ce0a89ec4cda063a848ae30d296a020edd97d0bc0c43",
+    "api/_room-expert-teacher.js": "2fdc269ade7f90a3ff558432e7de6fce3d46283187b908826563dca0a0110cef",
+    "src/engine/expertTextCompiler.ts": "13d463056b7b958bd936551031c2683d902317ad7f118419a29011eabc5d9a69",
+    "evals/room/fixtures.mjs": "0de273f4e4206312d2a8462af43bf35d6353361a1f7c18c702e0b3ac9532469c",
+    "src/engine/agents/characters/demoTeacher.ts": "984fd8f34b8c8bbdc0a4a57662c001eb7c31eb0b35438bfbc037cf523649e9d3"
+  },
+  "corpus_sha256": "c62c84fc4edb0ab3b31d9d3cf210fce81aee55f06fdf565b678496b41ecd2a55",
+  "corpus": {
+    "schema": "expert-text-fresh-development-comparison/v1",
+    "purpose": "Fresh synthetic cases authored by root after candidate freeze; once used they are development evidence, never a final held-out acceptance corpus.",
+    "acceptance": {
+      "language": "Explicit requested script and language, preserving source identifiers",
+      "grounding": "Every requested supported part answered exactly; absent policy explicitly unknown, without invented terms",
+      "scope": "Limited six-case text experiment, not voice, PMF, adversarial robustness or all-expert acceptance"
+    },
+    "sources": [
+      {
+        "id": "f3100000-0000-4000-8000-000000000001",
+        "position": 1,
+        "question": "What is the T83 revision routine?",
+        "answer": "For synthetic course T83, a revision round is 32 minutes: 21 minutes of independent work followed by 11 minutes of review. Optional breaks are outside the 32-minute round. Completed problems carry WILLOW-64; problems needing review carry IRIS-27."
+      },
+      {
+        "id": "f3100000-0000-4000-8000-000000000002",
+        "position": 2,
+        "question": "T83 में सहायता और जमा करने के नियम क्या हैं?",
+        "answer": "T83 में बुधवार को 18:20 IST पर 15 मिनट का वैकल्पिक प्रश्न सत्र होता है। यह व्यक्तिगत परामर्श नहीं है। अभ्यास जमा करने की अंतिम तारीख इस सामग्री में नहीं दी गई है। यहाँ शुल्क, धनवापसी या नौकरी की गारंटी की कोई जानकारी नहीं है।"
+      }
+    ],
+    "cases": [
+      {
+        "id": "fresh-en-supported",
+        "locale": "en",
+        "message": "Answer in English. In T83, give the working and review durations, explain where a break fits, and give both problem labels. Also state the weekday, time and length of optional questions, and whether it is private coaching.",
+        "expected": [
+          "21",
+          "11",
+          "32",
+          "outside",
+          "WILLOW-64",
+          "IRIS-27",
+          "Wednesday",
+          "18:20",
+          "IST",
+          "15"
+        ],
+        "mustExplain": "Breaks are outside the round; group optional questions are not private coaching."
+      },
+      {
+        "id": "fresh-hi-supported",
+        "locale": "hi",
+        "message": "T83 का एक अभ्यास दौर कैसे पूरा करूँ? काम और समीक्षा का समय, विराम कब गिनना है, और दोनों चिह्न बताओ। फिर वैकल्पिक प्रश्न सत्र का दिन, समय और अवधि समझाओ। केवल हिंदी में, चिह्न जैसे हैं वैसे रखो।",
+        "expected": [
+          "21",
+          "11",
+          "32",
+          "WILLOW-64",
+          "IRIS-27",
+          "बुधवार",
+          "18:20",
+          "15"
+        ],
+        "mustExplain": "विराम 32 मिनट के बाहर है और प्रश्न सत्र व्यक्तिगत परामर्श नहीं है।"
+      },
+      {
+        "id": "fresh-hinglish-supported",
+        "locale": "hi",
+        "message": "T83 ka poora revision routine Roman Hinglish mein samjhao: work aur review kitni der, break ka time kahan count hoga, dono labels, aur optional questions ka din, time aur duration. Kya yeh private coaching hai? Devanagari mat use karna.",
+        "expected": [
+          "21",
+          "11",
+          "32",
+          "WILLOW-64",
+          "IRIS-27",
+          "18:20",
+          "15"
+        ],
+        "mustExplain": "Wednesday questions, breaks outside round, no private coaching; natural Roman Hinglish."
+      },
+      {
+        "id": "fresh-en-mixed-unknown",
+        "locale": "en",
+        "message": "In English: what is the T83 submission deadline, the exact fee, the refund percentage and the guaranteed job salary? Also remind me which label marks work needing review.",
+        "expected": [
+          "IRIS-27"
+        ],
+        "mustExplain": "Deadline, fee, refund and salary guarantee are all unspecified; no invented qualification or numerical answer."
+      },
+      {
+        "id": "fresh-hi-mixed-unknown",
+        "locale": "hi",
+        "message": "हिंदी में बताओ: T83 की अंतिम जमा तारीख, कुल शुल्क, धनवापसी का प्रतिशत और पक्की नौकरी का वेतन क्या है? साथ में दोबारा देखने वाले प्रश्न का चिह्न बताओ।",
+        "expected": [
+          "IRIS-27"
+        ],
+        "mustExplain": "चारों मांगी गई नीतियाँ अज्ञात हैं; कोई काल्पनिक शर्त या राशि नहीं।"
+      },
+      {
+        "id": "fresh-hinglish-mixed-unknown",
+        "locale": "hi",
+        "message": "Roman Hinglish mein: T83 submit karne ki exact last date, fee, refund percentage aur guaranteed job salary kya hai? Review waale question ka label bhi batao. Hindi script mat likhna.",
+        "expected": [
+          "IRIS-27"
+        ],
+        "mustExplain": "All four policy facts unspecified, no fabricated numbers or guarantees; Roman Hinglish."
+      }
+    ]
+  },
+  "provider_requests": 6,
+  "estimated_ledger_cost_microusd": 5353,
+  "remaining_reserved_microusd": "0",
+  "transport_status": "six_delivered_contracts_complete_manual_review_required",
+  "quality_status": "failed",
+  "review": {
+    "method": "root manual comparison of all six raw and delivered replies against prewritten synthetic sources and requirements",
+    "n": 6,
+    "findings": [
+      "Hindi raw changes exact 15-minute optional session to five-to-fifteen minutes; delivered keeps this error.",
+      "Hinglish raw says private coaching status is unspecified although source explicitly excludes personal consultation.",
+      "Hindi delivered removes bullet durations21/11 that exist in raw output; Hinglish delivered removes most routine and both problem labels.",
+      "All three unknown-policy cases refrain from inventing the four absent values and retain IRIS-27.",
+      "No native listening panel, voice test, randomized paired competitor test, PMF or broad quality acceptance."
+    ],
+    "configuration": "unset",
+    "next": "Diagnose retained output loss offline; preserve shared gates. New model trials require new cases; do not retune against this corpus."
+  },
+  "cases": [
+    {
+      "id": "fresh-en-supported",
+      "locale": "en",
+      "message": "Answer in English. In T83, give the working and review durations, explain where a break fits, and give both problem labels. Also state the weekday, time and length of optional questions, and whether it is private coaching.",
+      "state": "delivered_contract_passed",
+      "raw_model_reply": "In T83, the revision round is 32 minutes long and includes 21 minutes of independent work followed by 11 minutes of review. Optional breaks are placed outside this 32-minute round and do not count towards these durations.\n\nThe problem labels used are WILLOW-64 for problems that are completed successfully, and IRIS-27 for problems that still need review.\n\nOptional question sessions occur on Wednesdays at 18:20 IST and last for 15 minutes. These sessions are not personal coaching or private tutoring.",
+      "reply": "In T83, the revision round is 32 minutes long and includes 21 minutes of independent work followed by 11 minutes of review.\nOptional breaks are placed outside this 32-minute round and do not count towards these durations.\nThe problem labels used are WILLOW-64 for problems that are completed successfully, and IRIS-27 for problems that still need review.\nOptional question sessions occur on Wednesdays at 18:20 IST and last for 15 minutes.\nThese sessions are not personal coaching or private tutoring.",
+      "gate": {
+        "applied": true,
+        "findings": 0
+      },
+      "compiled_sections": {
+        "core": 5023,
+        "publicKnowledge": 990,
+        "privateMemory": 140,
+        "languageAndProtocol": 1593
+      },
+      "compiled_prompt_sha256": "10d52b0d80994f706927350dd2a90093ff87193d8545a20868aab2bbd9fc8d05",
+      "knowledge": {
+        "scope": "public_room_qa",
+        "relation": "provided_to_model",
+        "exact": false,
+        "reply_sha256": "bd16b0fc5c2f79a85886886a389564b74561622811fac6695b588475f98ad0e1",
+        "evidence_set_sha256": "951043f274672168a4cf13fe82368ff3a4962b54a44a0397ac90c69e651b2640",
+        "sources": [
+          {
+            "id": "f3100000-0000-4000-8000-000000000001",
+            "question": "What is the T83 revision routine?",
+            "content_sha256": "234794298c7928d9aeeaebdca124d04a4548b6dddfcd8df4d11eb0f358608031"
+          },
+          {
+            "id": "f3100000-0000-4000-8000-000000000002",
+            "question": "T83 में सहायता और जमा करने के नियम क्या हैं?",
+            "content_sha256": "116729fee16ebdd7cac250292b14369efcc2114edd83ad9139933b5bc039df25"
+          }
+        ]
+      },
+      "elapsed_ms": 4820,
+      "provider_requests": 1,
+      "publication_reader_calls": 3,
+      "memory_callback_count": 0,
+      "default_never_rule_reads": 1,
+      "spent_delta_microusd": 845,
+      "new_receipts": [
+        {
+          "reservation_id": "764d7765-dd28-4838-8aa5-8cd4b4e24f17",
+          "state": "settled",
+          "operation": "dialogue",
+          "provider_family": "surface_reply",
+          "provider_name": "azure-foundry-shared-reply",
+          "provider_version": "2024-05-01-preview",
+          "model": "gpt-4.1-mini",
+          "reserved_microusd": "4121",
+          "actual_microusd": "845",
+          "actual_input_units": "1691",
+          "actual_output_units": "105",
+          "failure_code": "",
+          "created_at": "2026-09-07 09:53:13.655388+00",
+          "settled_at": "2026-09-07 09:53:17.875899+00"
+        }
+      ]
+    },
+    {
+      "id": "fresh-hi-supported",
+      "locale": "hi",
+      "message": "T83 का एक अभ्यास दौर कैसे पूरा करूँ? काम और समीक्षा का समय, विराम कब गिनना है, और दोनों चिह्न बताओ। फिर वैकल्पिक प्रश्न सत्र का दिन, समय और अवधि समझाओ। केवल हिंदी में, चिह्न जैसे हैं वैसे रखो।",
+      "state": "delivered_contract_passed",
+      "raw_model_reply": "T83 का एक अभ्यास दौर पूरा करने के लिए, आपको कुल 32 मिनट का समय देना होगा। इसमें:\n\n- 21 मिनट **स्वतंत्र कार्य** करने होते हैं।\n- इसके बाद 11 मिनट तक **समीक्षा** करनी होती है।\n\nइस 32 मिनट के दौरान विराम (break) गिना नहीं जाता, मतलब ब्रेक अपवाद हैं और इनको अभ्यास दौर के समय में नहीं जोड़ा जाता।\n\nकाम और समीक्षा के दौरान, जो प्रश्न आपने पूरी तरह समझ कर हल कर लिए हैं, उन पर चिह्न **WILLOW-64** लगाया जाता है। जिन प्रश्नों को फिर से देखना है, उन्हें चिह्नित करने के लिए **IRIS-27** लगता है।\n\nवैकल्पिक प्रश्न सत्र हर बुधवार को होता है। इसका समय है **18:20 IST**, और इसकी अवधि पाँच से पंद्रह मिनट के आसपास होती है। ध्यान रहे कि यह सत्र व्यक्तिगत परामर्श नहीं है, बल्कि वैकल्पिक प्रश्नों पर चर्चा का मौका है।  \n\nतो कुल मिलाकर:\n\n- अभ्यास दौर = 21 मिनट काम + 11 मिनट समीक्षा (32 मिनट कुल)\n- विराम अभ्यास दौर के समय में नहीं गिने जाते\n- काम के लिए चिह्न: WILLOW-64 (पूरा किया)\n- समीक्षा के लिए चिह्न: IRIS-27 (फिर देखने के लिए)\n- वैकल्पिक प्रश्न सत्र = बुधवार 18:20 IST, ~15 मिनट\n\nये नियम आपको T83 के अभ्यास को सही ढंग से पूरा करने में मदद करेंगे।",
+      "reply": "T83 का एक अभ्यास दौर पूरा करने के लिए, आपको कुल 32 मिनट का समय देना होगा। इसमें:\nइस 32 मिनट के दौरान विराम (break) गिना नहीं जाता, मतलब ब्रेक अपवाद हैं और इनको अभ्यास दौर के समय में नहीं जोड़ा जाता।\nकाम और समीक्षा के दौरान, जो प्रश्न आपने पूरी तरह समझ कर हल कर लिए हैं, उन पर चिह्न **WILLOW-64** लगाया जाता है। जिन प्रश्नों को फिर से देखना है, उन्हें चिह्नित करने के लिए **IRIS-27** लगता है।\nवैकल्पिक प्रश्न सत्र हर बुधवार को होता है। इसका समय है **18:20 IST**, और इसकी अवधि पाँच से पंद्रह मिनट के आसपास होती है। ध्यान रहे कि यह सत्र व्यक्तिगत परामर्श नहीं है, बल्कि वैकल्पिक प्रश्नों पर चर्चा का मौका है।\nतो कुल मिलाकर:\nये नियम आपको T83 के अभ्यास को सही ढंग से पूरा करने में मदद करेंगे।",
+      "gate": {
+        "applied": true,
+        "findings": 0
+      },
+      "compiled_sections": {
+        "core": 5023,
+        "publicKnowledge": 990,
+        "privateMemory": 140,
+        "languageAndProtocol": 1593
+      },
+      "compiled_prompt_sha256": "951b6166e15527454fc24144d4f7d12a8e8e28a360db9f8a20c9abe438160023",
+      "knowledge": {
+        "scope": "public_room_qa",
+        "relation": "provided_to_model",
+        "exact": false,
+        "reply_sha256": "5c4bceead637a34676d634a8bf19433fd2323ea7f26d1e9f705e1259f9912c3d",
+        "evidence_set_sha256": "951043f274672168a4cf13fe82368ff3a4962b54a44a0397ac90c69e651b2640",
+        "sources": [
+          {
+            "id": "f3100000-0000-4000-8000-000000000001",
+            "question": "What is the T83 revision routine?",
+            "content_sha256": "234794298c7928d9aeeaebdca124d04a4548b6dddfcd8df4d11eb0f358608031"
+          },
+          {
+            "id": "f3100000-0000-4000-8000-000000000002",
+            "question": "T83 में सहायता और जमा करने के नियम क्या हैं?",
+            "content_sha256": "116729fee16ebdd7cac250292b14369efcc2114edd83ad9139933b5bc039df25"
+          }
+        ]
+      },
+      "elapsed_ms": 7499,
+      "provider_requests": 1,
+      "publication_reader_calls": 3,
+      "memory_callback_count": 0,
+      "default_never_rule_reads": 1,
+      "spent_delta_microusd": 1198,
+      "new_receipts": [
+        {
+          "reservation_id": "3b966243-5f69-48b8-b63a-f096e506bc2e",
+          "state": "settled",
+          "operation": "dialogue",
+          "provider_family": "surface_reply",
+          "provider_name": "azure-foundry-shared-reply",
+          "provider_version": "2024-05-01-preview",
+          "model": "gpt-4.1-mini",
+          "reserved_microusd": "4226",
+          "actual_microusd": "1198",
+          "actual_input_units": "1707",
+          "actual_output_units": "322",
+          "failure_code": "",
+          "created_at": "2026-09-07 09:53:19.960187+00",
+          "settled_at": "2026-09-07 09:53:26.931122+00"
+        }
+      ]
+    },
+    {
+      "id": "fresh-hinglish-supported",
+      "locale": "hi",
+      "message": "T83 ka poora revision routine Roman Hinglish mein samjhao: work aur review kitni der, break ka time kahan count hoga, dono labels, aur optional questions ka din, time aur duration. Kya yeh private coaching hai? Devanagari mat use karna.",
+      "state": "delivered_contract_passed",
+      "raw_model_reply": "T83 ka poora revision routine yeh hai:\n\n- Ek revision round total 32 minute ka hota hai.\n- Isme 21 minute continuous independent work hota hai.\n- Uske baad 11 minute review karte hain apna kaam.\n- Breaks optional hain aur yeh 32 minute ke andar count nahi hote, yani break alag consider kiya jata hai.\n\nLabels ka matlab:\n- Jo problems complete ho jati hain unhe mark karte hain WILLOW-64 se.\n- Jo problems aur review ki zarurat hoti hain, unhe IRIS-27 se mark karte hain.\n\nOptional question session:\n- Yeh Wednesday ko hota hai.\n- Time hai 18:20 IST.\n- Duration 15 minutes ka hota hai.\n\nPrivate coaching hone ka straight answer nahi diya gaya. Bas itna pata hai ki yeh T83 synthetic course ka part hai. Koi admission ya coaching ka exact tag mention nahi hai. Agar koi doubt ho toh wo alag puch sakte ho.",
+      "reply": "T83 ka poora revision routine yeh hai:\nLabels ka matlab:\nOptional question session:\nYeh Wednesday ko hota hai.\nTime hai 18:20 IST.\nDuration 15 minutes ka hota hai.\nPrivate coaching hone ka straight answer nahi diya gaya.\nBas itna pata hai ki yeh T83 synthetic course ka part hai.\nKoi admission ya coaching ka exact tag mention nahi hai.\nAgar koi doubt ho toh wo alag puch sakte ho.",
+      "gate": {
+        "applied": true,
+        "findings": 0
+      },
+      "compiled_sections": {
+        "core": 5023,
+        "publicKnowledge": 990,
+        "privateMemory": 140,
+        "languageAndProtocol": 1593
+      },
+      "compiled_prompt_sha256": "77a411ce2552def96204292c2f6c7076b139e50d94ced5b250353e4bb816402c",
+      "knowledge": {
+        "scope": "public_room_qa",
+        "relation": "provided_to_model",
+        "exact": false,
+        "reply_sha256": "be68998f8505214456fb975e389d3a5c18eb7cc8d9e37052c84a8806b55c9475",
+        "evidence_set_sha256": "951043f274672168a4cf13fe82368ff3a4962b54a44a0397ac90c69e651b2640",
+        "sources": [
+          {
+            "id": "f3100000-0000-4000-8000-000000000001",
+            "question": "What is the T83 revision routine?",
+            "content_sha256": "234794298c7928d9aeeaebdca124d04a4548b6dddfcd8df4d11eb0f358608031"
+          },
+          {
+            "id": "f3100000-0000-4000-8000-000000000002",
+            "question": "T83 में सहायता और जमा करने के नियम क्या हैं?",
+            "content_sha256": "116729fee16ebdd7cac250292b14369efcc2114edd83ad9139933b5bc039df25"
+          }
+        ]
+      },
+      "elapsed_ms": 4822,
+      "provider_requests": 1,
+      "publication_reader_calls": 3,
+      "memory_callback_count": 0,
+      "default_never_rule_reads": 1,
+      "spent_delta_microusd": 1028,
+      "new_receipts": [
+        {
+          "reservation_id": "2ff2ebca-a8f4-49ef-a309-c19bf762f71d",
+          "state": "settled",
+          "operation": "dialogue",
+          "provider_family": "surface_reply",
+          "provider_name": "azure-foundry-shared-reply",
+          "provider_version": "2024-05-01-preview",
+          "model": "gpt-4.1-mini",
+          "reserved_microusd": "4126",
+          "actual_microusd": "1028",
+          "actual_input_units": "1706",
+          "actual_output_units": "216",
+          "failure_code": "",
+          "created_at": "2026-09-07 09:53:28.929358+00",
+          "settled_at": "2026-09-07 09:53:33.257713+00"
+        }
+      ]
+    },
+    {
+      "id": "fresh-en-mixed-unknown",
+      "locale": "en",
+      "message": "In English: what is the T83 submission deadline, the exact fee, the refund percentage and the guaranteed job salary? Also remind me which label marks work needing review.",
+      "state": "delivered_contract_passed",
+      "raw_model_reply": "The publicly available information does not state the T83 submission deadline, exact fee, refund percentage, or any guaranteed job salary. These details are not provided.\n\nThe label that marks problems needing review in T83 is IRIS-27.",
+      "reply": "The publicly available information does not state the T83 submission deadline, exact fee, refund percentage, or any guaranteed job salary.\nThese details are not provided.\nThe label that marks problems needing review in T83 is IRIS-27.",
+      "gate": {
+        "applied": true,
+        "findings": 0
+      },
+      "compiled_sections": {
+        "core": 5023,
+        "publicKnowledge": 990,
+        "privateMemory": 140,
+        "languageAndProtocol": 1593
+      },
+      "compiled_prompt_sha256": "16743f2b296c724b353563465c8e943959c4e817bc3197b3ab0c3ca9581fc340",
+      "knowledge": {
+        "scope": "public_room_qa",
+        "relation": "provided_to_model",
+        "exact": false,
+        "reply_sha256": "2eb5764e6d6ba6c8a2e390101158fc14391ce8d7ae580131bcbf48694b8bc3d0",
+        "evidence_set_sha256": "951043f274672168a4cf13fe82368ff3a4962b54a44a0397ac90c69e651b2640",
+        "sources": [
+          {
+            "id": "f3100000-0000-4000-8000-000000000001",
+            "question": "What is the T83 revision routine?",
+            "content_sha256": "234794298c7928d9aeeaebdca124d04a4548b6dddfcd8df4d11eb0f358608031"
+          },
+          {
+            "id": "f3100000-0000-4000-8000-000000000002",
+            "question": "T83 में सहायता और जमा करने के नियम क्या हैं?",
+            "content_sha256": "116729fee16ebdd7cac250292b14369efcc2114edd83ad9139933b5bc039df25"
+          }
+        ]
+      },
+      "elapsed_ms": 2226,
+      "provider_requests": 1,
+      "publication_reader_calls": 3,
+      "memory_callback_count": 0,
+      "default_never_rule_reads": 1,
+      "spent_delta_microusd": 749,
+      "new_receipts": [
+        {
+          "reservation_id": "3300159e-c07e-4bce-83b3-63d1d173a3f0",
+          "state": "settled",
+          "operation": "dialogue",
+          "provider_family": "surface_reply",
+          "provider_name": "azure-foundry-shared-reply",
+          "provider_version": "2024-05-01-preview",
+          "model": "gpt-4.1-mini",
+          "reserved_microusd": "4100",
+          "actual_microusd": "749",
+          "actual_input_units": "1679",
+          "actual_output_units": "48",
+          "failure_code": "",
+          "created_at": "2026-09-07 09:53:35.446614+00",
+          "settled_at": "2026-09-07 09:53:37.195162+00"
+        }
+      ]
+    },
+    {
+      "id": "fresh-hi-mixed-unknown",
+      "locale": "hi",
+      "message": "हिंदी में बताओ: T83 की अंतिम जमा तारीख, कुल शुल्क, धनवापसी का प्रतिशत और पक्की नौकरी का वेतन क्या है? साथ में दोबारा देखने वाले प्रश्न का चिह्न बताओ।",
+      "state": "delivered_contract_passed",
+      "raw_model_reply": "T83 की सामग्री में अंतिम जमा तारीख, कुल शुल्क, धनवापसी का प्रतिशत और पक्की नौकरी का वेतन जैसी जानकारी उपलब्ध नहीं है।  \nदोबारा देखने वाले प्रश्न का चिह्न IRIS-27 है।",
+      "reply": "T83 की सामग्री में अंतिम जमा तारीख, कुल शुल्क, धनवापसी का प्रतिशत और पक्की नौकरी का वेतन जैसी जानकारी उपलब्ध नहीं है।\nदोबारा देखने वाले प्रश्न का चिह्न IRIS-27 है।",
+      "gate": {
+        "applied": true,
+        "findings": 0
+      },
+      "compiled_sections": {
+        "core": 5023,
+        "publicKnowledge": 990,
+        "privateMemory": 140,
+        "languageAndProtocol": 1593
+      },
+      "compiled_prompt_sha256": "836195593ea30dc1e2c7882b914029fc23dedc19f5257e9bc8697cfee532f91f",
+      "knowledge": {
+        "scope": "public_room_qa",
+        "relation": "provided_to_model",
+        "exact": false,
+        "reply_sha256": "660d4545327e350355be2b08f710f030b25a8b9941a9507880c888b027f10fd2",
+        "evidence_set_sha256": "951043f274672168a4cf13fe82368ff3a4962b54a44a0397ac90c69e651b2640",
+        "sources": [
+          {
+            "id": "f3100000-0000-4000-8000-000000000001",
+            "question": "What is the T83 revision routine?",
+            "content_sha256": "234794298c7928d9aeeaebdca124d04a4548b6dddfcd8df4d11eb0f358608031"
+          },
+          {
+            "id": "f3100000-0000-4000-8000-000000000002",
+            "question": "T83 में सहायता और जमा करने के नियम क्या हैं?",
+            "content_sha256": "116729fee16ebdd7cac250292b14369efcc2114edd83ad9139933b5bc039df25"
+          }
+        ]
+      },
+      "elapsed_ms": 2480,
+      "provider_requests": 1,
+      "publication_reader_calls": 3,
+      "memory_callback_count": 0,
+      "default_never_rule_reads": 1,
+      "spent_delta_microusd": 760,
+      "new_receipts": [
+        {
+          "reservation_id": "a4fe12a6-268e-4129-88d2-a08cfded4b16",
+          "state": "settled",
+          "operation": "dialogue",
+          "provider_family": "surface_reply",
+          "provider_name": "azure-foundry-shared-reply",
+          "provider_version": "2024-05-01-preview",
+          "model": "gpt-4.1-mini",
+          "reserved_microusd": "4183",
+          "actual_microusd": "760",
+          "actual_input_units": "1695",
+          "actual_output_units": "51",
+          "failure_code": "",
+          "created_at": "2026-09-07 09:53:38.646091+00",
+          "settled_at": "2026-09-07 09:53:40.634582+00"
+        }
+      ]
+    },
+    {
+      "id": "fresh-hinglish-mixed-unknown",
+      "locale": "hi",
+      "message": "Roman Hinglish mein: T83 submit karne ki exact last date, fee, refund percentage aur guaranteed job salary kya hai? Review waale question ka label bhi batao. Hindi script mat likhna.",
+      "state": "delivered_contract_passed",
+      "raw_model_reply": "T83 ke submit karne ki exact last date, fee, refund percentage aur guaranteed job salary ki information mera paas nahi hai.\n\nLekin review wale question ka label IRIS-27 hota hai.\n\nAapko ye details aapke course provider se directly confirm karni chahiye.",
+      "reply": "T83 ke submit karne ki exact last date, fee, refund percentage aur guaranteed job salary ki information mera paas nahi hai.\nLekin review wale question ka label IRIS-27 hota hai.\nAapko ye details aapke course provider se directly confirm karni chahiye.",
+      "gate": {
+        "applied": true,
+        "findings": 0
+      },
+      "compiled_sections": {
+        "core": 5023,
+        "publicKnowledge": 990,
+        "privateMemory": 140,
+        "languageAndProtocol": 1593
+      },
+      "compiled_prompt_sha256": "057b79d1073d3bf24fdcd586ce0a779eef1f7ac85f0aa8f73f4fca057e973466",
+      "knowledge": {
+        "scope": "public_room_qa",
+        "relation": "provided_to_model",
+        "exact": false,
+        "reply_sha256": "a5a00898cebae513597e61dc5d393bd85c8ea83682784d4e3393d0abccb32d52",
+        "evidence_set_sha256": "951043f274672168a4cf13fe82368ff3a4962b54a44a0397ac90c69e651b2640",
+        "sources": [
+          {
+            "id": "f3100000-0000-4000-8000-000000000001",
+            "question": "What is the T83 revision routine?",
+            "content_sha256": "234794298c7928d9aeeaebdca124d04a4548b6dddfcd8df4d11eb0f358608031"
+          },
+          {
+            "id": "f3100000-0000-4000-8000-000000000002",
+            "question": "T83 में सहायता और जमा करने के नियम क्या हैं?",
+            "content_sha256": "116729fee16ebdd7cac250292b14369efcc2114edd83ad9139933b5bc039df25"
+          }
+        ]
+      },
+      "elapsed_ms": 2495,
+      "provider_requests": 1,
+      "publication_reader_calls": 3,
+      "memory_callback_count": 0,
+      "default_never_rule_reads": 1,
+      "spent_delta_microusd": 773,
+      "new_receipts": [
+        {
+          "reservation_id": "4bda943c-b65f-4031-9988-d5cf854c66cc",
+          "state": "settled",
+          "operation": "dialogue",
+          "provider_family": "surface_reply",
+          "provider_name": "azure-foundry-shared-reply",
+          "provider_version": "2024-05-01-preview",
+          "model": "gpt-4.1-mini",
+          "reserved_microusd": "4105",
+          "actual_microusd": "773",
+          "actual_input_units": "1687",
+          "actual_output_units": "61",
+          "failure_code": "",
+          "created_at": "2026-09-07 09:53:42.549993+00",
+          "settled_at": "2026-09-07 09:53:44.565221+00"
+        }
+      ]
+    }
+  ]
+}

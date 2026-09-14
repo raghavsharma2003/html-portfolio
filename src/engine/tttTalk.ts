@@ -378,6 +378,23 @@ export function tttRecord(game: Game, herMark: Mark, endedEarly = false): string
 }
 
 /**
+ * The machine-derived state line — ttt's `chessGameState`. Read off
+ * `game.status`, which is `board.ts`'s own reading of the nine squares, and
+ * never off a fact row. Same two shapes: live, or an ending that names its
+ * winner or says there is none.
+ */
+export function tttGameState(game: Game, herMark: Mark, endedEarly = false): string {
+  const st = game?.status;
+  const marks = game?.played?.length ?? 0;
+  if (st?.over) {
+    if (st.result === "win") return `${st.winner === herMark ? "she" : "he"} won, three in a row`;
+    return "the game ended in a draw, the board filled up, nobody won";
+  }
+  if (endedEarly) return `the game ended early after ${marks} marks, no result, nobody won`;
+  return `in progress, ${marks} marks played`;
+}
+
+/**
  * The whole activity, for the tail block at connect — ttt's `chessActivity`.
  *
  * Short by construction. A person sitting down mid-game knows roughly where
@@ -485,6 +502,13 @@ export function tttActivity(
     facts: facts.filter((f) => f.split(/\s+/).length <= MAX_FACT_WORDS),
     nameable,
     record: tttRecord(game, herMark, endedEarly),
+    // BOARD TRUTH, machine-derived — parity with chess's own, and here for the
+    // same reason it is there: `activity.ts`'s `STATE_LAW` is a fence about a
+    // line, so a board that does not emit the line has no fence. A ttt game
+    // cannot be checkmated, but it can absolutely be declared won mid-board,
+    // and `dead-writers` is the law that says a seam ttt merely "supports"
+    // is a seam ttt does not have.
+    state: tttGameState(game, herMark, endedEarly),
     waitingOnHer: !game.status.over && game.status.turn === herMark,
     // Same contract chessActivity honours: without this, a finished-but-
     // unclosed ttt game rendered "RIGHT NOW YOU TWO ARE IN THE MIDDLE OF"

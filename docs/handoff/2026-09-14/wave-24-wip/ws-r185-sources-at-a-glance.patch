@@ -1,0 +1,1444 @@
+diff --git a/api/_replica-source-erasure.js b/api/_replica-source-erasure.js
+index c39c77e..2c40f8e 100644
+--- a/api/_replica-source-erasure.js
++++ b/api/_replica-source-erasure.js
+@@ -1,5 +1,5 @@
+ import { randomBytes } from "node:crypto";
+-import { REPLICA_POLICY_VERSION } from "./_replica.js";
++import { REPLICA_POLICY_VERSION, replicaId } from "./_replica.js";
+ import { sha256Hex } from "./_replica-processing/contracts.js";
+ import { deleteReplicaSourceObjects, replicaStorageBucketDescriptor } from "./_replica-storage.js";
+ import { primarySelectionQuery } from "./_replica-primary-selection.js";
+@@ -34,6 +34,59 @@ function objectPaths(row) {
+     left.storageBucket.localeCompare(right.storageBucket) || left.objectPath.localeCompare(right.objectPath)));
+ }
+ 
++// WS-R185. THE "WHAT GOES WITH IT" READ, before the tap. It answers the exact
++// question `markOwnedSourceDeleting` above is about to act on, from the same
++// tables `completeSourceErasure` eventually settles: a claim CITING ONLY THIS
++// SOURCE (`cardinality(source_ids)=1`) has no other evidence to fall back on,
++// so removing this source is the one thing that actually erases it, not just
++// invalidates one of several citations. A claim with other citations still
++// gets superseded by `markOwnedSourceDeleting` (it invalidates every claim
++// naming this source, not only the singly-cited ones — see that function's
++// own `invalidated` CTE), but it is not what removing THIS source, alone,
++// takes away, so it is deliberately not counted here. Read-only: it changes
++// nothing, so a studio can show this preview on every render of a Remove
++// control without cost.
++//
++// Three negative controls this function must answer honestly, not just not
++// crash on: a stranger's bearer never reaches this function at all (the door
++// requires an owner session first); another owner's source id, and a source
++// already `deleting`, both resolve to `null` here — the same "not found"
++// answer a client cannot use to enumerate someone else's sources or replay a
++// stale receipt.
++export async function ownedSourceRemovalPreview(db, ownerUserId, id, source) {
++  const rid = replicaId(id);
++  const sid = replicaId(source);
++  const rows = await db(
++    `select s.source_id, s.kind, s.duration_ms,
++            exists (
++              select 1 from vy_replica_voice_reference vr
++               where vr.replica_id = s.replica_id and vr.owner_user_id = s.owner_user_id
++                 and vr.source_id = s.source_id
++            ) is_primary_voice,
++            coalesce((
++              select count(*) from vy_replica_claim c
++               where c.replica_id = s.replica_id and c.owner_user_id = s.owner_user_id
++                 and s.source_id = any(c.source_ids) and cardinality(c.source_ids) = 1
++                 and c.status in ('proposed', 'approved')
++            ), 0) claims_only_here
++       from vy_replica_source s
++      where s.replica_id = $1::uuid and s.owner_user_id = $2::uuid and s.source_id = $3::uuid
++        and s.state <> 'deleting'
++      limit 1`,
++    [rid, ownerUserId, sid],
++  );
++  const row = rows[0];
++  if (!row) return null;
++  const durationMs = row.duration_ms == null ? null : Number(row.duration_ms);
++  const isMedia = row.kind === "audio" || row.kind === "video";
++  return Object.freeze({
++    source_id: row.source_id,
++    claims_only_here: Number(row.claims_only_here) || 0,
++    voice_seconds: isMedia && durationMs != null ? Math.round(durationMs / 1000) : 0,
++    is_primary_voice: Boolean(row.is_primary_voice),
++  });
++}
++
+ export async function markAbandonedPendingSourceUploads(db, options = {}) {
+   const staleAfterMs = Math.max(MIN_PENDING_UPLOAD_STALE_MS, Math.min(MAX_PENDING_UPLOAD_STALE_MS,
+     Number(options.staleAfterMs || DEFAULT_PENDING_UPLOAD_STALE_MS)));
+diff --git a/api/_replica-source.js b/api/_replica-source.js
+index 6d12fbc..d249a50 100644
+--- a/api/_replica-source.js
++++ b/api/_replica-source.js
+@@ -378,6 +378,94 @@ export async function listOwnedSources(db, ownerUserId, id) {
+   return rows.map(clientSource);
+ }
+ 
++// WS-R185. SOURCES AT A GLANCE — one owner-only read that answers "what did I
++// give it, and where from?" across every panel that can create a source: the
++// recorder and Add more's voice/interview capture (`purpose='memory'`), the
++// Context Locker's files and links (`purpose='context_item'`, joined to
++// `vy_context_item` for the name the owner actually gave it — never the
++// object_path, which `privateObjectPath` never even hands back here), and a
++// Mirror Call's audio turns or a stand-alone interview recording (both read
++// as "call"). `identity_document`, `identity_challenge`, `correction` and
++// `comparison_reference` sources are deliberately excluded: none of them is
++// something the owner thinks of as "context they gave it" and none is a row
++// this screen's "Remove" flow can act on the way this file's Remove acts on
++// everything else. A YouTube channel watch (`vy_channel_watch`) is EXCLUDED
++// too, and for a different reason: it never creates a `vy_replica_source`
++// row at all — content lands as a delta on a `vy_teacher_sheet` field, not a
++// citable claim — so there is no "single-source erasure" for this screen's
++// Remove to call on it. See context/decisions.md#ws-r185-sources-at-a-glance
++// and context/rejected.md#ws-r185-channel-watch-excluded-from-sources-list.
++// A source in `state='deleting'` is excluded outright: Remove already
++// happened for it, and a list titled "what did I give it" that kept
++// showing a row the owner just removed would be exactly the
++// `plausible-return-hides-a-dead-pipeline` failure this list exists to
++// avoid — the owner tapped Remove and the screen quietly kept lying.
++function clientSourceOverviewKind(row) {
++  if (row.capture_mode === "derived" || row.purpose === "interview") return "call";
++  if (row.purpose === "context_item") return row.item_kind === "link" ? "link" : "file";
++  return row.kind === "audio" || row.kind === "video" ? "recording" : "file";
++}
++
++/** COUNT-SHAPED, NEVER A CLAIM'S TEXT. `display_name` is the owner's own file
++ *  name or link, taken from `vy_context_item.source_name`/`source_url` — the
++ *  ONLY place a source's original name is ever retained (`createPendingSource`
++ *  writes `filename_retained:false` into every `vy_replica_source.provenance`
++ *  on purpose). A recording or a call carries no such name, so it comes back
++ *  empty and the client renders the kind label plus the date instead of
++ *  guessing a name that was never given. */
++export function clientSourceOverview(row) {
++  const durationMs = row.duration_ms == null ? null : Number(row.duration_ms);
++  const isMedia = row.kind === "audio" || row.kind === "video";
++  return {
++    source_id: row.source_id,
++    kind: clientSourceOverviewKind(row),
++    item_id: row.item_id || null,
++    display_name: row.purpose === "context_item"
++      ? String(row.source_name || row.source_url || "").slice(0, 200)
++      : "",
++    state: row.state,
++    contains_third_parties: Boolean(row.contains_third_parties),
++    rejection_code: row.rejection_code || "",
++    yielded: {
++      claims_accepted: Number(row.claims_accepted) || 0,
++      facts_drafted: Number(row.claims_proposed) || 0,
++      voice_seconds: isMedia && durationMs != null ? Math.round(durationMs / 1000) : 0,
++    },
++    created_at: row.created_at,
++  };
++}
++
++/** One list, every panel. The claim counts are read live from
++ *  `vy_replica_claim` (the table the person model already reviews from) rather
++ *  than duplicated anywhere, so this screen and PersonModelStudio can never
++ *  disagree about how many claims a source produced. */
++export async function listOwnedSourcesOverview(db, ownerUserId, id) {
++  const rid = replicaId(id);
++  const rows = await db(
++    `select s.source_id, s.kind, s.capture_mode, s.purpose, s.state, s.contains_third_parties,
++            s.rejection_code, s.duration_ms, s.created_at,
++            ci.item_id, ci.kind as item_kind, ci.source_name, ci.source_url,
++            coalesce(yc.claims_accepted, 0) claims_accepted,
++            coalesce(yc.claims_proposed, 0) claims_proposed
++       from vy_replica_source s
++       left join vy_context_item ci
++         on ci.source_id = s.source_id and ci.replica_id = s.replica_id and ci.owner_user_id = s.owner_user_id
++       left join lateral (
++         select count(*) filter (where c.status = 'approved') claims_accepted,
++                count(*) filter (where c.status = 'proposed') claims_proposed
++           from vy_replica_claim c
++          where c.replica_id = s.replica_id and c.owner_user_id = s.owner_user_id
++            and s.source_id = any(c.source_ids)
++       ) yc on true
++      where s.replica_id = $1::uuid and s.owner_user_id = $2::uuid and s.state <> 'deleting'
++        and (s.purpose in ('memory', 'context_item', 'interview')
++          or (s.capture_mode = 'derived' and s.provenance->>'purpose' = 'mirror_window'))
++      order by s.created_at desc limit 200`,
++    [rid, ownerUserId],
++  );
++  return rows.map(clientSourceOverview);
++}
++
+ export async function setOwnedPrimaryVoiceSource(db, ownerUserId, id, source) {
+   const rid = replicaId(id);
+   const sid = replicaId(source);
+diff --git a/api/replica-source.js b/api/replica-source.js
+index 49224da..62c1356 100644
+--- a/api/replica-source.js
++++ b/api/replica-source.js
+@@ -8,12 +8,14 @@ import {
+   getOwnedSourceByUploadIntent,
+   getPendingSource,
+   listOwnedSources,
++  listOwnedSourcesOverview,
+   finalizeOwnedSource,
+   markOwnedSourceDeleting,
+   reserveOwnedSourceUploadAuthorization,
+   setOwnedPrimaryVoiceSource,
+   clientSource,
+ } from "./_replica-source.js";
++import { ownedSourceRemovalPreview } from "./_replica-source-erasure.js";
+ import {
+   ReplicaStorageError,
+   ensurePrivateReplicaBucket,
+@@ -201,6 +203,19 @@ export function createReplicaSourceHandler(options={}) {
+     if (body.op === "list") {
+       return res.status(200).json({ sources: await listOwnedSources(q, user.id, body.replica_id) });
+     }
++    // WS-R185. Sources at a glance: one list across every panel that can
++    // create a source, for the owner-only screen that ties them together.
++    if (body.op === "overview") {
++      return res.status(200).json({ sources: await listOwnedSourcesOverview(q, user.id, body.replica_id) });
++    }
++    // The "what goes with it" read Remove shows BEFORE the tap. `null` is the
++    // same "not found" answer `getOwnedSource` uses elsewhere in this file —
++    // not yours, never existed, or already gone are one indistinguishable case.
++    if (body.op === "removal_preview") {
++      const preview = await ownedSourceRemovalPreview(q, user.id, body.replica_id, body.source_id);
++      if (!preview) return res.status(404).json({ error: "source_not_found" });
++      return res.status(200).json({ preview });
++    }
+     if (body.op === "set_primary_voice") {
+       const source = await setOwnedPrimaryVoiceSource(q, user.id, body.replica_id, body.source_id);
+       if (!source) return res.status(409).json({ error: "primary_voice_source_ineligible" });
+diff --git a/evals/rehearsal/personal.mjs b/evals/rehearsal/personal.mjs
+index 2ca1def..4af817c 100644
+--- a/evals/rehearsal/personal.mjs
++++ b/evals/rehearsal/personal.mjs
+@@ -463,6 +463,72 @@ function personalPatterns(state, sql, params, has) {
+     return (state.personalSources || []).filter((s) => s.replica_id === rid && s.owner_user_id === ownerUserId)
+       .map((s) => ({ ...s, duration_ms: s.duration_ms }));
+   }
++  // WS-R185. api/_replica-source.js's listOwnedSourcesOverview: one list
++  // across the recorder ('memory'), Describe me/the Context Locker
++  // ('context_item') and a stand-alone interview recording ('interview'),
++  // joined here the same way the real query joins them, with ONE deliberate
++  // simplification: the base fixture's own `insert into vy_context_item`
++  // pattern (evals/room-doors/fixtures.mjs) destructures only 20 of the real
++  // statement's 22 params and never captures `source_id`, so a context item
++  // is matched to its source by replica/owner alone rather than by id —
++  // safe because this walk never has more than one open context item at a
++  // time. A Mirror Call's derived audio ("call") is not modeled by this
++  // fixture at all (no walk in this file reaches one), so the real
++  // predicate's derived/mirror_window branch is left unmatched here rather
++  // than half-reproduced.
++  if (has("claims_accepted") && has("claims_proposed") && has("left join vy_context_item")) {
++    const [rid, ownerUserId] = params.map(String);
++    const item = (state.contextItems || []).find((i) => i.replica_id === rid && i.owner_user_id === ownerUserId);
++    const claims = (state.personClaims || []).filter((c) => c.replica_id === rid && c.owner_user_id === ownerUserId);
++    return (state.personalSources || [])
++      .filter((s) => s.replica_id === rid && s.owner_user_id === ownerUserId && s.state !== "deleting")
++      .filter((s) => ["memory", "context_item", "interview"].includes(s.purpose))
++      .map((s) => {
++        const cited = claims.filter((c) => Array.isArray(c.source_ids) && c.source_ids.includes(s.source_id));
++        const linked = s.purpose === "context_item" ? item : null;
++        return {
++          source_id: s.source_id, kind: s.kind, capture_mode: s.capture_mode, purpose: s.purpose,
++          state: s.state, contains_third_parties: s.contains_third_parties, rejection_code: s.rejection_code || "",
++          duration_ms: s.duration_ms ?? null, created_at: s.created_at,
++          item_id: linked ? linked.item_id : null, item_kind: linked ? linked.kind : null,
++          source_name: linked ? linked.source_name : null, source_url: linked ? linked.source_url : null,
++          claims_accepted: cited.filter((c) => c.status === "approved").length,
++          claims_proposed: cited.filter((c) => c.status === "proposed").length,
++        };
++      });
++  }
++  // WS-R185. api/_replica-source-erasure.js's ownedSourceRemovalPreview —
++  // the "what goes with it" read Remove shows before the tap.
++  if (has("claims_only_here")) {
++    const [rid, ownerUserId, sourceId] = params.map(String);
++    const row = (state.personalSources || []).find((s) => s.replica_id === rid && s.owner_user_id === ownerUserId
++      && s.source_id === sourceId && s.state !== "deleting");
++    if (!row) return [];
++    const claims = (state.personClaims || []).filter((c) => c.replica_id === rid && c.owner_user_id === ownerUserId
++      && Array.isArray(c.source_ids) && c.source_ids.length === 1 && c.source_ids[0] === sourceId
++      && ["proposed", "approved"].includes(c.status));
++    return [{
++      source_id: row.source_id, kind: row.kind, duration_ms: row.duration_ms ?? null,
++      is_primary_voice: row.voice_role === "primary", claims_only_here: claims.length,
++    }];
++  }
++  // WS-R185. api/_context-locker.js's CONTEXT_ITEM_REMOVE_SQL (`DELETE
++  // /api/context-items`), exercised for real by this walk's own "removing
++  // the file drops it" step. This fixture models only what the Sources
++  // step's own assertions read — the item disappearing and its source
++  // moving to `deleting` — never the statement's teacher-sheet-delta or
++  // evidence bookkeeping, the same "not reproduced here" discipline this
++  // file's own claim-review handler already documents for a sibling CTE.
++  if (has("scrubbed_run") && has("delete from vy_context_item i")) {
++    const [itemId, rid, ownerUserId] = params.map(String);
++    const item = (state.contextItems || []).find((i) => i.item_id === itemId && i.replica_id === rid && i.owner_user_id === ownerUserId);
++    if (!item) return [];
++    state.contextItems = state.contextItems.filter((i) => i !== item);
++    const source = (state.personalSources || []).find((s) => s.replica_id === rid && s.owner_user_id === ownerUserId
++      && s.purpose === "context_item" && s.state !== "deleting");
++    if (source) source.state = "deleting";
++    return [{ item_id: itemId, source_id: source ? source.source_id : null, provenance_conflict: false }];
++  }
+   if (has("from vy_replica_voice_genome g") && has("g.replica_id=$1::uuid and r.owner_user_id=$2::uuid")) {
+     const [rid, ownerUserId] = params.map(String);
+     const replica = state.replicas.find((r) => r.replica_id === rid && r.owner_user_id === ownerUserId);
+@@ -1059,12 +1125,74 @@ async function main() {
+     ok("record: the real finalize landed on a stageable state (never left pending_upload)", (state.personalSources || []).some((s) => s.replica_id === rid && s.state !== "pending_upload"));
+     ok("record: a real voice-build intent was requested", (state.voiceBuildIntents || []).some((i) => i.replica_id === rid));
+ 
+-    // ── THE WAIT — real /api/replica-review polling, a real phase before
+-    //    ready, no percentage anywhere in this response shape. ────────────
+-    tStep = Date.now();
+     const token = await page.evaluate(() => {
+       try { return JSON.parse(localStorage.getItem("meera.state.v1") || "{}")?.auth?.accessToken || ""; } catch { return ""; }
+     });
++
++    // ── SOURCES AT A GLANCE (WS-R185) — after the recording and one file
++    //    (Describe me, above), Sources lists two entries with the right
++    //    kinds and states; removing the file drops it and its claims
++    //    count; the recording stays. Driven through the real doors with
++    //    `fetch`, the same style this walk's own Evolve/Deploy/Memory
++    //    steps already use for an API-level real-door proof. ─────────────
++    tStep = Date.now();
++    const sourcesCall = (op, extra = {}) => fetch(`${url}/api/replica-source`, {
++      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
++      body: JSON.stringify({ op, replica_id: rid, ...extra }),
++    });
++    const overviewBefore = await (await sourcesCall("overview")).json();
++    const sourcesBefore = overviewBefore.sources || [];
++    ok("Sources: two entries after the recording and one file", sourcesBefore.length === 2,
++      `kinds=${JSON.stringify(sourcesBefore.map((s) => s.kind))}`);
++    const fileEntry = sourcesBefore.find((s) => s.kind === "file");
++    const recordingEntry = sourcesBefore.find((s) => s.kind === "recording");
++    ok("Sources: the right kinds are present (one file, one recording)", Boolean(fileEntry) && Boolean(recordingEntry));
++    ok("Sources: every entry carries a real state and never a storage path",
++      sourcesBefore.every((s) => typeof s.state === "string" && s.state.length > 0 && !JSON.stringify(s).includes("owners/")));
++    ok("Sources: what it yielded is count-shaped, never a claim's text",
++      sourcesBefore.every((s) => Number.isInteger(s.yielded?.claims_accepted) && Number.isInteger(s.yielded?.facts_drafted) && Number.isInteger(s.yielded?.voice_seconds)));
++
++    // The "what goes with it" read, BEFORE the tap.
++    const previewResponse = await sourcesCall("removal_preview", { source_id: fileEntry.source_id });
++    const previewBody = await previewResponse.json();
++    ok("Sources: the removal preview answers before the tap", previewResponse.status === 200 && Number.isInteger(previewBody.preview?.claims_only_here));
++
++    // NEGATIVE CONTROL 1: a stranger's bearer never reaches an owner's own
++    // preview.
++    const strangerResponse = await fetch(`${url}/api/replica-source`, {
++      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer not-a-real-rehearsal-token" },
++      body: JSON.stringify({ op: "removal_preview", replica_id: rid, source_id: fileEntry.source_id }),
++    });
++    ok("NEGATIVE CONTROL — a stranger's bearer is refused, not answered", strangerResponse.status === 401);
++
++    // NEGATIVE CONTROL 2: an unknown/another owner's source id answers the
++    // same "not found" a real cross-owner id would, never a leak.
++    const unknownSourceResponse = await sourcesCall("removal_preview", { source_id: randomUUID() });
++    ok("NEGATIVE CONTROL — another owner's/unknown source id answers 404, never a leak", unknownSourceResponse.status === 404);
++
++    // Remove the file through the EXISTING single-source erasure — the same
++    // `DELETE /api/context-items` door Describe me's own item already uses.
++    const removeResponse = await fetch(`${url}/api/context-items`, {
++      method: "DELETE", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
++      body: JSON.stringify({ replica_id: rid, item_id: fileEntry.item_id }),
++    });
++    const removeBody = await removeResponse.json();
++    ok("Sources: Remove calls the existing single-source erasure and returns its receipt", removeResponse.status === 200 && removeBody.removed === true);
++
++    const overviewAfter = await (await sourcesCall("overview")).json();
++    const sourcesAfter = overviewAfter.sources || [];
++    ok("Sources: removing the file drops it", sourcesAfter.length === 1 && !sourcesAfter.some((s) => s.source_id === fileEntry.source_id));
++    ok("Sources: the recording stays", sourcesAfter.some((s) => s.source_id === recordingEntry.source_id));
++
++    // NEGATIVE CONTROL 3: a source already erased answers the same "not
++    // found" as before, never a stale receipt.
++    const erasedResponse = await sourcesCall("removal_preview", { source_id: fileEntry.source_id });
++    ok("NEGATIVE CONTROL — a source already erased answers 404, not a stale receipt", erasedResponse.status === 404);
++    timings.sourcesGlanceMs = Date.now() - tStep;
++
++    // ── THE WAIT — real /api/replica-review polling, a real phase before
++    //    ready, no percentage anywhere in this response shape. ────────────
++    tStep = Date.now();
+     const first = await reviewStatus(url, token, rid);
+     ok("the wait: the first real status poll shows a real phase, not yet ready", first.status === 200 && !(first.body.review?.voice_genomes || []).length, `sources=${JSON.stringify((first.body.review?.sources || []).map((s) => s.state))}`);
+     const second = await reviewStatus(url, token, rid);
+diff --git a/evals/run.mjs b/evals/run.mjs
+index 7befd80..ce41da4 100644
+--- a/evals/run.mjs
++++ b/evals/run.mjs
+@@ -3495,6 +3495,29 @@ const suites = {
+   // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
+   // real source on every run, the same as `person-sheet` above.
+   "person-sheet-draft": "person-sheet-draft/run.mjs",
++  // WS-R185. Sources at a glance: the owner-only read joining every panel
++  // that can create a source (the recorder's `memory`, the Context Locker's
++  // `context_item`, a Mirror Call's derived audio or a stand-alone
++  // `interview`) into one list, and the "what goes with it" read Remove
++  // shows before the tap. Drives the REAL decision modules
++  // (`api/_replica-source.js#listOwnedSourcesOverview`, `api/_replica-
++  // source-erasure.js#ownedSourceRemovalPreview`) with a fake db, plus
++  // `stripComments`-gated static scans proving the door
++  // (`api/replica-source.js`) wires both to the real functions and the
++  // client (`src/studio/sourcesApi.ts`) sends Remove through the EXISTING
++  // single-source erasure each kind's own panel already uses, never a third
++  // erasure path. NEGATIVE CONTROLS: a malformed replica/source id is
++  // refused before any query runs; another owner's/an already-erased source
++  // id answers the same "not found" (null) rather than a row; a mutated
++  // English-only key is caught by the EN/HI key-parity check. The end-to-end
++  // proof through the real HTTP door and the real fixture db — "after the
++  // recording and one file, Sources lists two entries with the right kinds
++  // and states; removing the file drops it and its claims count; the
++  // recording stays" — is `evals/rehearsal/personal.mjs`'s own new step,
++  // gated separately (`rehearsal-personal` in this registry).
++  //
++  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
++  "sources-studio": "sources-studio/run.mjs",
+ };
+ 
+ const argv = process.argv.slice(2);
+diff --git a/evals/sources-studio/run.mjs b/evals/sources-studio/run.mjs
+new file mode 100644
+index 0000000..be980b4
+--- /dev/null
++++ b/evals/sources-studio/run.mjs
+@@ -0,0 +1,221 @@
++// WS-R185. SOURCES AT A GLANCE — the offline battery.
++//
++// One owner-only read (`api/_replica-source.js#listOwnedSourcesOverview`)
++// across every panel that can create a source, one "what goes with it" read
++// before the tap (`api/_replica-source-erasure.js#ownedSourceRemovalPreview`),
++// and the door (`api/replica-source.js`) and client dispatch
++// (`src/studio/sourcesApi.ts`) that wire them to the screen.
++//
++// Sections 1-2 drive the REAL decision modules with a fake `db`, the house
++// shape `evals/source-storage-writer/run.mjs` and `evals/primary-voice-
++// source/run.mjs` already use (`dead-writers`: the database is absent in
++// this environment, so a test that lived only against the HTTP door would
++// be a test nothing could ever run). Sections 3-4 are static, `stripComments`-
++// gated scans of `api/replica-source.js` and `src/studio/sourcesApi.ts` —
++// proving the door and the client dispatch wire to the real functions,
++// without importing the door itself, which resolves `./_db.js` to the real,
++// secrets-only `api/_config.js` at module load time (absent in this
++// environment; `evals/rehearsal/personal.mjs`'s own `loader.mjs` redirect is
++// the harness that exercises the door end to end, and that walk gained a
++// "Sources" step in this same commit).
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++import { dirname, join } from "node:path";
++import { fileURLToPath } from "node:url";
++import { stripComments } from "../lib/source-scan.mjs";
++import {
++  clientSourceOverview,
++  listOwnedSourcesOverview,
++} from "../../api/_replica-source.js";
++import { ownedSourceRemovalPreview } from "../../api/_replica-source-erasure.js";
++
++const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
++const read = (path) => readFileSync(join(ROOT, path), "utf8");
++
++const RID = "11111111-1111-4111-8111-111111111111";
++const OWNER = "22222222-2222-4222-8222-222222222222";
++const SID = "33333333-3333-4333-8333-333333333333";
++
++let checks = 0;
++function ok(name, condition, detail) {
++  assert.ok(condition, detail ? `${name} — ${detail}` : name);
++  console.log(`ok ${++checks} - ${name}`);
++}
++
++// ── 1. clientSourceOverview: the kind derivation and display_name rules ───
++
++ok("a memory-purpose audio source reads as a recording, with no name given",
++  clientSourceOverview({
++    source_id: SID, kind: "audio", capture_mode: "upload", purpose: "memory", state: "ready",
++    contains_third_parties: false, rejection_code: "", duration_ms: 30_000, created_at: "2026-09-14T00:00:00Z",
++    item_id: null, item_kind: null, source_name: null, source_url: null, claims_accepted: 0, claims_proposed: 0,
++  }).kind === "recording"
++  && clientSourceOverview({
++    source_id: SID, kind: "audio", capture_mode: "upload", purpose: "memory", state: "ready",
++    contains_third_parties: false, rejection_code: "", duration_ms: 30_000, created_at: "2026-09-14T00:00:00Z",
++    item_id: null, item_kind: null, source_name: null, source_url: null, claims_accepted: 0, claims_proposed: 0,
++  }).display_name === "");
++
++ok("a context_item file reads as file, named from vy_context_item.source_name, never the object_path",
++  clientSourceOverview({
++    source_id: SID, kind: "text", capture_mode: "upload", purpose: "context_item", state: "ready",
++    contains_third_parties: false, rejection_code: "", duration_ms: null, created_at: "2026-09-14T00:00:00Z",
++    item_id: "item-1", item_kind: "file", source_name: "notes.txt", source_url: "",
++    claims_accepted: 0, claims_proposed: 0,
++  }).display_name === "notes.txt");
++
++ok("a context_item link reads as link, named from vy_context_item.source_url",
++  clientSourceOverview({
++    source_id: SID, kind: "text", capture_mode: "upload", purpose: "context_item", state: "extracted",
++    contains_third_parties: false, rejection_code: "", duration_ms: null, created_at: "2026-09-14T00:00:00Z",
++    item_id: "item-2", item_kind: "link", source_name: "", source_url: "https://example.com/a",
++    claims_accepted: 0, claims_proposed: 0,
++  }).kind === "link");
++
++ok("derived audio (a Mirror Call turn) reads as call",
++  clientSourceOverview({
++    source_id: SID, kind: "audio", capture_mode: "derived", purpose: "memory", state: "quarantined",
++    contains_third_parties: false, rejection_code: "", duration_ms: 4_000, created_at: "2026-09-14T00:00:00Z",
++    item_id: null, item_kind: null, source_name: null, source_url: null, claims_accepted: 0, claims_proposed: 0,
++  }).kind === "call");
++
++ok("a stand-alone interview recording reads as call",
++  clientSourceOverview({
++    source_id: SID, kind: "video", capture_mode: "upload", purpose: "interview", state: "ready",
++    contains_third_parties: false, rejection_code: "", duration_ms: 120_000, created_at: "2026-09-14T00:00:00Z",
++    item_id: null, item_kind: null, source_name: null, source_url: null, claims_accepted: 0, claims_proposed: 0,
++  }).kind === "call");
++
++const yielded = clientSourceOverview({
++  source_id: SID, kind: "audio", capture_mode: "upload", purpose: "memory", state: "ready",
++  contains_third_parties: false, rejection_code: "", duration_ms: 90_500, created_at: "2026-09-14T00:00:00Z",
++  item_id: null, item_kind: null, source_name: null, source_url: null, claims_accepted: 3, claims_proposed: 2,
++}).yielded;
++ok("what it yielded is count-shaped only: claims_accepted, facts_drafted, voice_seconds",
++  yielded.claims_accepted === 3 && yielded.facts_drafted === 2 && yielded.voice_seconds === 91
++  && Object.keys(yielded).length === 3);
++
++ok("a non-media source never reports voice_seconds even with a stray duration_ms",
++  clientSourceOverview({
++    source_id: SID, kind: "text", capture_mode: "upload", purpose: "context_item", state: "ready",
++    contains_third_parties: false, rejection_code: "", duration_ms: 5_000, created_at: "2026-09-14T00:00:00Z",
++    item_id: "item-3", item_kind: "file", source_name: "a.txt", source_url: "", claims_accepted: 0, claims_proposed: 0,
++  }).yielded.voice_seconds === 0);
++
++// ── 2. listOwnedSourcesOverview / ownedSourceRemovalPreview: real SQL, fake db ──
++
++{
++  let sql = "", params = null;
++  const db = async (q, p) => { sql = q; params = p; return [{
++    source_id: SID, kind: "audio", capture_mode: "upload", purpose: "memory", state: "ready",
++    contains_third_parties: false, rejection_code: "", duration_ms: 12_000, created_at: "2026-09-14T00:00:00Z",
++    item_id: null, item_kind: null, source_name: null, source_url: null, claims_accepted: 1, claims_proposed: 0,
++  }]; };
++  const rows = await listOwnedSourcesOverview(db, OWNER, RID);
++  ok("listOwnedSourcesOverview scopes the read to the exact owner and replica",
++    JSON.stringify(params) === JSON.stringify([RID, OWNER]));
++  ok("listOwnedSourcesOverview joins vy_context_item for the owner's own name, never the object_path",
++    /left join vy_context_item/.test(sql) && !/object_path/.test(sql));
++  ok("listOwnedSourcesOverview reads claim counts live from vy_replica_claim, never a duplicated cache",
++    /vy_replica_claim c/.test(sql) && /claims_accepted/.test(sql) && /claims_proposed/.test(sql));
++  ok("listOwnedSourcesOverview excludes a source Remove already erased (state='deleting')",
++    /s\.state\s*<>\s*'deleting'/.test(sql));
++  ok("listOwnedSourcesOverview never names comparison_reference, identity_document or identity_challenge",
++    !/comparison_reference/.test(sql) && !/identity_document/.test(sql) && !/identity_challenge/.test(sql));
++  ok("the mapped row carries a real state and a count-shaped yield", rows[0].state === "ready" && rows[0].yielded.claims_accepted === 1);
++}
++
++// NEGATIVE CONTROL: a malformed replica_id is refused before any query runs.
++await assert.rejects(() => listOwnedSourcesOverview(async () => [], OWNER, "not-a-uuid"), /valid replica_id required/);
++console.log(`ok ${++checks} - NEGATIVE CONTROL — listOwnedSourcesOverview rejects a malformed replica_id`);
++
++{
++  let sql = "", params = null;
++  const db = async (q, p) => { sql = q; params = p; return [{
++    source_id: SID, kind: "audio", duration_ms: 8_000, is_primary_voice: true, claims_only_here: 2,
++  }]; };
++  const preview = await ownedSourceRemovalPreview(db, OWNER, RID, SID);
++  ok("ownedSourceRemovalPreview scopes to owner, replica AND the exact source",
++    JSON.stringify(params) === JSON.stringify([RID, OWNER, SID]));
++  ok("ownedSourceRemovalPreview counts only claims with NO OTHER citation (cardinality(source_ids)=1)",
++    /cardinality\(c\.source_ids\)\s*=\s*1/.test(sql));
++  ok("ownedSourceRemovalPreview excludes a source already in state='deleting'", /s\.state\s*<>\s*'deleting'/.test(sql));
++  ok("the preview reports what removing this source actually takes away",
++    preview.claims_only_here === 2 && preview.voice_seconds === 8 && preview.is_primary_voice === true);
++}
++
++// NEGATIVE CONTROL (source-storage-writer/primary-voice-source's own class):
++// another owner's source id, and a source already erased, both answer null —
++// the same "not found" a stranger's bearer gets from the door, never a leak.
++{
++  const empty = async () => [];
++  const anotherOwnersSource = await ownedSourceRemovalPreview(empty, OWNER, RID, SID);
++  ok("NEGATIVE CONTROL — another owner's/unknown source id answers null, never a row", anotherOwnersSource === null);
++}
++await assert.rejects(() => ownedSourceRemovalPreview(async () => [], OWNER, RID, "not-a-uuid"));
++console.log(`ok ${++checks} - NEGATIVE CONTROL — ownedSourceRemovalPreview rejects a malformed source id`);
++
++// ── 3. The door wiring — static, stripComments-gated (no `./_db.js` import) ──
++
++const door = stripComments(read("api/replica-source.js"));
++ok('api/replica-source.js wires op:"overview" to listOwnedSourcesOverview',
++  /op\s*===\s*"overview"[\s\S]{0,200}listOwnedSourcesOverview/.test(door));
++ok('api/replica-source.js wires op:"removal_preview" to ownedSourceRemovalPreview and answers 404 on null',
++  /op\s*===\s*"removal_preview"[\s\S]{0,400}ownedSourceRemovalPreview[\s\S]{0,200}404/.test(door));
++ok("api/replica-source.js imports both new functions from the REAL decision modules, not a local reimplementation",
++  /import\s*\{[^}]*listOwnedSourcesOverview[^}]*\}\s*from\s*"\.\/_replica-source\.js"/.test(door)
++  && /import\s*\{\s*ownedSourceRemovalPreview\s*\}\s*from\s*"\.\/_replica-source-erasure\.js"/.test(door));
++
++// ── 4. The client dispatch — Remove calls the EXISTING single-source erasure ──
++
++const clientApi = stripComments(read("src/studio/sourcesApi.ts"));
++ok("sourcesApi.ts routes a Context Locker item's Remove through the EXISTING removeContextItem door",
++  /if\s*\(\s*source\.item_id\s*\)\s*\{[\s\S]{0,120}removeContextItem/.test(clientApi));
++ok("sourcesApi.ts routes every other kind's Remove through the EXISTING deleteSource door, and builds no third erasure of its own",
++  /await\s+deleteSource\(/.test(clientApi) && !/op:\s*"delete"/.test(clientApi));
++ok("sourcesApi.ts imports both erasure calls from the panels that already own them, not a reimplementation",
++  /import\s*\{\s*removeContextItem\s*\}\s*from\s*"\.\/contextLockerApi"/.test(clientApi)
++  && /import\s*\{\s*deleteSource\s*\}\s*from\s*"\.\/enrollmentApi"/.test(clientApi));
++
++// ── 5. Both locales carry the SAME closed block, key for key ──────────────
++
++const en = stripComments(read("src/studio/copy.ts"));
++const hi = stripComments(read("src/studio/hiCopy.ts"));
++ok("copy.ts declares the sourcesStudio section", /sourcesStudio:\s*SourcesStudioCopy;/.test(en));
++ok("copy.ts's EN table and hiCopy.ts's HI table both carry a sourcesStudio block",
++  /const EN_SOURCES_STUDIO:\s*SourcesStudioCopy\s*=/.test(en) && /const HI_SOURCES_STUDIO:\s*SourcesStudioCopy\s*=/.test(hi));
++ok("both tables are wired into their exported StudioCopy object (never orphaned)",
++  /sourcesStudio:\s*EN_SOURCES_STUDIO,/.test(en) && /sourcesStudio:\s*HI_SOURCES_STUDIO,/.test(hi));
++
++function objectKeys(source, constName) {
++  const match = source.match(new RegExp(`const ${constName}[^=]*=\\s*\\{([\\s\\S]*?)\\n\\};`));
++  assert.ok(match, `${constName} not found`);
++  const keys = [...match[1].matchAll(/^\s*([a-zA-Z_][a-zA-Z0-9_]*):/gm)].map((m) => m[1]);
++  assert.ok(keys.length > 5, `${constName} read suspiciously few keys (${keys.length})`);
++  return keys.sort();
++}
++const enKeys = objectKeys(en, "EN_SOURCES_STUDIO");
++const hiKeys = objectKeys(hi, "HI_SOURCES_STUDIO");
++ok("the EN and HI sourcesStudio blocks declare the exact same top-level keys",
++  JSON.stringify(enKeys) === JSON.stringify(hiKeys), `en=${JSON.stringify(enKeys)} hi=${JSON.stringify(hiKeys)}`);
++
++// NEGATIVE CONTROL: the key-parity check above actually catches a real
++// mismatch, not just a coincidence of always agreeing.
++{
++  const mutated = en.replace("const EN_SOURCES_STUDIO: SourcesStudioCopy = {", "const EN_SOURCES_STUDIO: SourcesStudioCopy = {\n  ghostKeyNoHindiEquivalent: \"x\",");
++  const mutatedKeys = objectKeys(mutated, "EN_SOURCES_STUDIO");
++  ok("NEGATIVE CONTROL — a key present in EN alone is caught by the parity check",
++    JSON.stringify(mutatedKeys) !== JSON.stringify(hiKeys) && mutatedKeys.includes("ghostKeyNoHindiEquivalent"));
++}
++
++// ── 6. The Rooms vocabulary rule holds for every new string this workstream wrote ──
++// scripts/check-copy.mjs is the real gate; this is a fast, local restatement
++// over exactly the two blocks this workstream added, so a regression is
++// caught here before the full gate runs.
++const BANNED = /\b(clone|replica|model|fine-tune|fine-tuning|train|training|weights|embedding|LoRA|genome)\b/i;
++for (const [name, text] of [["EN_SOURCES_STUDIO", en.slice(en.indexOf("const EN_SOURCES_STUDIO"), en.indexOf("const EN_STUDIO_COPY"))],
++  ["HI_SOURCES_STUDIO", hi.slice(hi.indexOf("const HI_SOURCES_STUDIO"), hi.indexOf("export const HI_STUDIO_COPY"))]]) {
++  ok(`${name} names no banned Rooms-vocabulary word`, !BANNED.test(text));
++}
++
++console.log(`\n${checks} sources-studio checks passed`);
+diff --git a/scripts/check-accessibility.mjs b/scripts/check-accessibility.mjs
+index 9fcbc86..f509774 100644
+--- a/scripts/check-accessibility.mjs
++++ b/scripts/check-accessibility.mjs
+@@ -101,6 +101,15 @@ const TARGETS = [
+     screens: ["humanos"],
+     mounted: ".humanos-studio",
+   },
++  // WS-R185. Sources at a glance -- `check-layout.mjs`'s own `studio:sources`
++  // target for why this deep link exists (`enrichView=sources`, additive).
++  {
++    name: "studio:sources",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=enrich&enrichView=sources",
++    screens: ["sources"],
++    mounted: ".sources-studio",
++  },
+   // WS-R152. Deploy for a personal AI -- `check-layout.mjs`'s own
+   // `studio:deploy`/`studio-hi:deploy` targets, the same fixture and query
+   // shapes reused verbatim (this file's own header rule). `RoomStudio` (the
+diff --git a/scripts/check-layout.mjs b/scripts/check-layout.mjs
+index c3a68d3..a15eb76 100644
+--- a/scripts/check-layout.mjs
++++ b/scripts/check-layout.mjs
+@@ -194,6 +194,18 @@ const TARGETS = [
+     steps: ["humanos"], mounted: ".humanos-studio",
+     panels: ".humanos-card", minPanels: 3,
+   },
++  // WS-R185. Sources at a glance: one list across every panel that can
++  // create a source. `enrichView=sources` (CloneExperience.tsx's own new
++  // deep link, additive — the same pattern `studio:humanos` above already
++  // established) reaches the screen straight past the "Add more" menu.
++  // `voice-ready`'s own `/api/replica-source` fixture seeds exactly one
++  // ready audio source, so `minPanels: 1`.
++  {
++    name: "studio:sources", fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=enrich&enrichView=sources",
++    steps: ["sources"], mounted: ".sources-studio",
++    panels: ".sources-row", minPanels: 1,
++  },
+   // WS-R152. Deploy for a personal AI: `src/studio/DeployStudio.tsx` (the
+   // personal studio's own Deploy screen, `ExpertSharePanel`'s own export
+   // name, mounted at `?view=share`) plus the REAL `RoomStudio` it mounts
+diff --git a/src/studio/CloneExperience.tsx b/src/studio/CloneExperience.tsx
+index fda0817..73581bb 100644
+--- a/src/studio/CloneExperience.tsx
++++ b/src/studio/CloneExperience.tsx
+@@ -54,6 +54,9 @@ const PrivateTextRehearsal = lazy(() => import("./PrivateTextRehearsal"));
+ // full-screen editor panel on this menu is — it is not the enrich menu
+ // itself, which must stay light.
+ const HumanOsStudio = lazy(() => import("./HumanOsStudio"));
++// WS-R185: Sources at a glance. Lazy for the same reason every other
++// full-screen "Add more" panel on this menu is.
++const SourcesStudio = lazy(() => import("./SourcesStudio"));
+ const ListeningTest = lazy(() => import("./ListeningTest"));
+ 
+ type ListeningLoadState = "idle" | "loading" | "ready" | "unavailable" | "error";
+@@ -108,7 +111,7 @@ function storeVoiceSaga(replicaId: string, saga: VoiceCreationSaga | null) {
+ 
+ type MainRoom = "voice" | "enrich" | "evolve" | "call" | "share" | "rehearsal" | "emotionos";
+ // WS-R151: "humanos" is HumanOS, the person sheet screen (`HumanOsStudio.tsx`).
+-type EnrichView = "menu" | "files" | "video" | "describe" | "humanos";
++type EnrichView = "menu" | "files" | "video" | "describe" | "humanos" | "sources";
+ type CaptureState = "idle" | "requesting" | "recording" | "review";
+ type UploadState = {
+   phase: "hash" | "authorize" | "upload" | "verify" | "select" | "failed";
+@@ -787,10 +790,11 @@ export default function CloneExperience(props: CloneExperienceProps) {
+   // `studio:humanos` target — no earlier enrich subview (describe/files/
+   // video) has a deep link either, so this is additive, never a behavior
+   // change for any URL that does not set it (every one of them still opens
+-  // on "menu", unchanged).
++  // on "menu", unchanged). WS-R185 adds `sources` the same way, for that
++  // gate's own `studio:sources` target.
+   const [enrichView, setEnrichView] = useState<EnrichView>(() => {
+     const requested = new URLSearchParams(window.location.search).get("enrichView");
+-    return requested === "humanos" ? "humanos" : "menu";
++    return requested === "humanos" ? "humanos" : requested === "sources" ? "sources" : "menu";
+   });
+   const [showListeningTest, setShowListeningTest] = useState(
+     () => new URLSearchParams(window.location.search).get("listening") === "1",
+@@ -1435,14 +1439,14 @@ export default function CloneExperience(props: CloneExperienceProps) {
+                 )
+               ) : meetView === "conversation" ? <Suspense fallback={<p role="status">{copy.rooms.voice.openingConversation}</p>}><ExpertConversation key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} runtimeStatus={runtimeStatus} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} /></Suspense> : <VoicePreviewPanel token={accessToken} replicaId={selected.replica_id} wizardInput={wizardInput} onAuthError={onAuthError} testEnvironment onManageSources={() => chooseRoom("enrich")} />}</section>}
+               {room === "share" && <section className="vx-room__panel vx-room__scroll">{!voiceWorkspaceReady && !textReady && <button type="button" className="vx-back" onClick={() => chooseRoom("enrich")}>{copy.rooms.share.backToKnowledge}</button>}<Suspense fallback={<p role="status">{copy.rooms.share.openingSharing}</p>}><ExpertSharePanel key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} voiceWorkspaceReady={voiceWorkspaceReady} textReady={textReady} /></Suspense></section>}
+-              {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.backToVoice}</button>}<div className="vx-stage-title"><h1 id="knowledge-menu-title">{copy.rooms.enrich.heading}</h1><p>{copy.rooms.enrich.body}</p></div><div className="vx-enrich-menu">{!voiceWorkspaceReady && <button type="button" onClick={() => chooseRoom("share")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.shareKnowledgeTitle}</strong><small>{copy.rooms.enrich.shareKnowledgeNote}</small></span><Icon name="chevron" /></button>}<button type="button" onClick={() => chooseRoom("rehearsal")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.testDraftTitle}</strong><small>{copy.rooms.enrich.testDraftNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("describe")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.describeMeTitle}</strong><small>{copy.rooms.enrich.describeMeNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("humanos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.whoYouAreTitle}</strong><small>{copy.rooms.enrich.whoYouAreNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("files")}><Icon name="add" /><span><strong>{copy.rooms.enrich.filesTitle}</strong><small>{copy.rooms.enrich.filesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("video")}><Icon name="voice" /><span><strong>{copy.rooms.enrich.videoTitle}</strong><small>{copy.rooms.enrich.videoNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}><Icon name="voice" /><span><strong>{copy.rooms.enrich.improveVoiceTitle}</strong><small>{copy.rooms.enrich.improveVoiceNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => chooseRoom("emotionos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.vibeTitle}</strong><small>{copy.rooms.enrich.vibeNote}</small></span><Icon name="chevron" /></button></div></> : <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>{copy.rooms.enrich.backToChoices}</button>{!voiceWorkspaceReady && <button className="vx-text-button" type="button" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.recordInstead}</button>}{enrichView === "files" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-text-button" onClick={() => chooseRoom("share")}>{copy.rooms.enrich.reviewTextSharing}</button>}{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
++              {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.backToVoice}</button>}<div className="vx-stage-title"><h1 id="knowledge-menu-title">{copy.rooms.enrich.heading}</h1><p>{copy.rooms.enrich.body}</p></div><div className="vx-enrich-menu">{!voiceWorkspaceReady && <button type="button" onClick={() => chooseRoom("share")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.shareKnowledgeTitle}</strong><small>{copy.rooms.enrich.shareKnowledgeNote}</small></span><Icon name="chevron" /></button>}<button type="button" onClick={() => chooseRoom("rehearsal")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.testDraftTitle}</strong><small>{copy.rooms.enrich.testDraftNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("describe")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.describeMeTitle}</strong><small>{copy.rooms.enrich.describeMeNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("humanos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.whoYouAreTitle}</strong><small>{copy.rooms.enrich.whoYouAreNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("sources")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.sourcesTitle}</strong><small>{copy.rooms.enrich.sourcesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("files")}><Icon name="add" /><span><strong>{copy.rooms.enrich.filesTitle}</strong><small>{copy.rooms.enrich.filesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("video")}><Icon name="voice" /><span><strong>{copy.rooms.enrich.videoTitle}</strong><small>{copy.rooms.enrich.videoNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}><Icon name="voice" /><span><strong>{copy.rooms.enrich.improveVoiceTitle}</strong><small>{copy.rooms.enrich.improveVoiceNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => chooseRoom("emotionos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.vibeTitle}</strong><small>{copy.rooms.enrich.vibeNote}</small></span><Icon name="chevron" /></button></div></> : <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>{copy.rooms.enrich.backToChoices}</button>{!voiceWorkspaceReady && <button className="vx-text-button" type="button" onClick={() => chooseRoom("voice")}>{copy.rooms.enrich.recordInstead}</button>}{enrichView === "files" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-text-button" onClick={() => chooseRoom("share")}>{copy.rooms.enrich.reviewTextSharing}</button>}{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
+                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || source.replicaId !== selected.replica_id || !isPrivateTextId(source.itemId) || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== source.replicaId) return;
+                   chooseRoom("evolve");
+                 }} testSourceLabel={feedCopy.test} onTestSource={savedRehearsal ? undefined : source => {
+                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || source.replicaId !== selected.replica_id || !isPrivateTextId(source.itemId) || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== source.replicaId) return;
+                   rehearsalReturn.current = { identity, token: accessToken, replicaId: source.replicaId, draft: { question: rehearsalReturn.current?.draft.question || "", sheetId: rehearsalReturn.current?.draft.sheetId || "", contextItemId: source.itemId } };
+                   chooseRoom("rehearsal");
+-                }} /></> : null}{enrichView === "video" ? <VideoEnrollPanel token={accessToken} replicaId={selected.replica_id} onUseFileUpload={() => { setReplacePrimary(true); chooseRoom("voice"); }} /> : null}{enrichView === "describe" ? <DescribeMe token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} onSaved={onContextCount} /> : null}{enrichView === "humanos" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingWhoYouAre}</p>}><HumanOsStudio token={accessToken} replica={selected} onAuthError={onAuthError} /></Suspense> : null}</>}</section>}
++                }} /></> : null}{enrichView === "video" ? <VideoEnrollPanel token={accessToken} replicaId={selected.replica_id} onUseFileUpload={() => { setReplacePrimary(true); chooseRoom("voice"); }} /> : null}{enrichView === "describe" ? <DescribeMe token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} onSaved={onContextCount} /> : null}{enrichView === "humanos" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingWhoYouAre}</p>}><HumanOsStudio token={accessToken} replica={selected} onAuthError={onAuthError} /></Suspense> : null}{enrichView === "sources" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingSources}</p>}><SourcesStudio token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} /></Suspense> : null}</>}</section>}
+               {room === "evolve" && <section className="vx-room__panel vx-room__scroll"><div className="vx-stage-title"><h1>{copy.rooms.evolve.heading}</h1><p>{copy.rooms.evolve.body}</p></div><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.evolve.openingHistory}</p>}><PersonModelStudio token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} /></Suspense></section>}
+               {room === "emotionos" && <section className="vx-room__panel vx-room__scroll"><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.emotionos.openingVibe}</p>}><EmotionOsStudio token={accessToken} replicaId={selected.replica_id} replica={selected as { locale?: unknown }} onAuthError={onAuthError} onBack={() => chooseRoom("enrich")} /></Suspense></section>}
+               {room === "call" && <section className="vx-room__panel vx-room__scroll"><div className="vx-stage-title"><h1>{copy.rooms.call.headingTemplate.replace("{name}", selected.display_name)}</h1><p>{copy.rooms.call.body}</p></div><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.call.openingCallRoom}</p>}><MirrorCallStudio token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} /></Suspense></section>}
+diff --git a/src/studio/SourcesStudio.tsx b/src/studio/SourcesStudio.tsx
+new file mode 100644
+index 0000000..03caf50
+--- /dev/null
++++ b/src/studio/SourcesStudio.tsx
+@@ -0,0 +1,218 @@
++// SourcesStudio.tsx — WS-R185. Sources at a glance.
++//
++// The recorder, the Context Locker (files and links) and a Mirror Call each
++// land what the owner gives them in a different panel, under a different
++// word. This screen is the one list that ties them together: what it is,
++// what state it is in (in plain words, never a raw code), and what it
++// yielded — as counts, never a claim's own text. It replaces none of those
++// panels; "Add more" and HumanOS still reach them directly.
++//
++// "Remove" shows what goes with a source BEFORE the tap (`loadSourceRemoval
++// Preview`, reading the exact tables the removal will act on), and calls the
++// SAME existing single-source erasure that source's own panel already uses
++// (`removeSourceGlanceEntry`) — this screen adds no new erasure path.
++import { useCallback, useEffect, useRef, useState } from "react";
++import "./sources-studio.css";
++import { ReplicaApiError } from "./replicaApi";
++import {
++  loadSourcesGlance,
++  loadSourceRemovalPreview,
++  removeSourceGlanceEntry,
++  type SourceGlance,
++  type SourceRemovalPreview,
++} from "./sourcesApi";
++import { useStudioLocale } from "./localeContext";
++import type { SourcesStudioCopy } from "./copy";
++
++type SourcesStudioProps = {
++  token: string;
++  replicaId: string;
++  onAuthError: (cause: unknown) => void;
++};
++
++function stateLabel(copy: SourcesStudioCopy, source: SourceGlance): string {
++  if (source.state === "quarantined" && source.contains_third_parties) return copy.stateLabels.quarantined_third_parties;
++  const known = copy.stateLabels[source.state as keyof SourcesStudioCopy["stateLabels"]];
++  return known || source.state.replaceAll("_", " ");
++}
++
++function displayName(copy: SourcesStudioCopy, source: SourceGlance, dateFormat: Intl.DateTimeFormat): string {
++  if (source.display_name) return source.display_name;
++  const date = source.created_at ? dateFormat.format(new Date(source.created_at)) : "";
++  return copy.unnamedLabelTemplate.replace("{kind}", copy.kindLabels[source.kind]).replace("{date}", date);
++}
++
++function SourceRow({ source, copy, dateFormat, onRemove, busy }: {
++  source: SourceGlance;
++  copy: SourcesStudioCopy;
++  dateFormat: Intl.DateTimeFormat;
++  onRemove: (source: SourceGlance) => void;
++  busy: boolean;
++}) {
++  const { claims_accepted, facts_drafted, voice_seconds } = source.yielded;
++  return (
++    <article className="sources-row" data-state={source.state}>
++      <div className="sources-row-head">
++        <span className="sources-row-kind">{copy.kindLabels[source.kind]}</span>
++        <strong className="sources-row-name">{displayName(copy, source, dateFormat)}</strong>
++      </div>
++      <p className="sources-row-state">{stateLabel(copy, source)}</p>
++      {(claims_accepted > 0 || facts_drafted > 0 || voice_seconds > 0) && (
++        <ul className="sources-row-yield" aria-label={copy.title}>
++          {claims_accepted > 0 && <li>{copy.claimsAcceptedTemplate.replace("{n}", String(claims_accepted))}</li>}
++          {facts_drafted > 0 && <li>{copy.factsDraftedTemplate.replace("{n}", String(facts_drafted))}</li>}
++          {voice_seconds > 0 && <li>{copy.voiceSecondsTemplate.replace("{n}", String(voice_seconds))}</li>}
++        </ul>
++      )}
++      <button type="button" className="sources-row-remove" disabled={busy} onClick={() => onRemove(source)}>
++        {busy ? copy.removing : copy.removeButton}
++      </button>
++    </article>
++  );
++}
++
++function RemoveConfirm({ source, copy, preview, previewError, onCancel, onConfirm, busy }: {
++  source: SourceGlance;
++  copy: SourcesStudioCopy;
++  preview: SourceRemovalPreview | null;
++  previewError: string;
++  onCancel: () => void;
++  onConfirm: () => void;
++  busy: boolean;
++}) {
++  return (
++    <div className="sources-confirm-backdrop" role="presentation" onClick={onCancel}>
++      <div className="sources-confirm" role="alertdialog" aria-labelledby="sources-confirm-title" aria-describedby="sources-confirm-body" onClick={(event) => event.stopPropagation()}>
++        <h2 id="sources-confirm-title">{copy.confirmTitle}</h2>
++        <p className="sources-confirm-target">{copy.kindLabels[source.kind]}{source.display_name ? `: ${source.display_name}` : ""}</p>
++        <div id="sources-confirm-body">
++          {!preview && !previewError ? (
++            <p role="status">{copy.confirmLoadingPreview}</p>
++          ) : previewError ? (
++            <p role="alert">{previewError}</p>
++          ) : (
++            <ul>
++              {preview!.claims_only_here > 0 && <li>{copy.confirmClaimsTemplate.replace("{n}", String(preview!.claims_only_here))}</li>}
++              {preview!.voice_seconds > 0 && <li>{copy.confirmVoiceTemplate.replace("{n}", String(preview!.voice_seconds))}</li>}
++              {preview!.claims_only_here === 0 && preview!.voice_seconds === 0 && <li>{copy.confirmNothingElse}</li>}
++              {preview!.is_primary_voice && <li>{copy.confirmPrimaryVoiceWarning}</li>}
++            </ul>
++          )}
++        </div>
++        <div className="sources-confirm-actions">
++          <button type="button" onClick={onCancel} disabled={busy}>{copy.confirmCancel}</button>
++          <button type="button" className="sources-confirm-remove" onClick={onConfirm} disabled={busy || (!preview && !previewError)}>
++            {busy ? copy.removing : copy.confirmRemove}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
++
++export default function SourcesStudio(props: SourcesStudioProps) {
++  return <ScopedSourcesStudio key={`${props.replicaId}:${props.token}`} {...props} />;
++}
++
++function ScopedSourcesStudio({ token, replicaId, onAuthError }: SourcesStudioProps) {
++  const { locale, t } = useStudioLocale();
++  const copy = t.sourcesStudio;
++  const mounted = useRef(false);
++  const revision = useRef(0);
++  useEffect(() => {
++    mounted.current = true;
++    return () => { mounted.current = false; revision.current++; };
++  }, []);
++
++  const [sources, setSources] = useState<SourceGlance[] | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState("");
++  const [target, setTarget] = useState<SourceGlance | null>(null);
++  const [preview, setPreview] = useState<SourceRemovalPreview | null>(null);
++  const [previewError, setPreviewError] = useState("");
++  const [busy, setBusy] = useState("");
++
++  const load = useCallback(async () => {
++    const mine = ++revision.current;
++    setLoading(true);
++    setError("");
++    try {
++      const result = await loadSourcesGlance(token, replicaId);
++      if (!mounted.current || mine !== revision.current) return;
++      setSources(result);
++    } catch (cause) {
++      if (!mounted.current || mine !== revision.current) return;
++      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
++      setError(cause instanceof Error ? cause.message : copy.errorLoadFailed);
++    } finally {
++      if (mounted.current && mine === revision.current) setLoading(false);
++    }
++  }, [token, replicaId, onAuthError, copy.errorLoadFailed]);
++
++  useEffect(() => { void load(); }, [load]);
++
++  async function openConfirm(source: SourceGlance) {
++    setTarget(source);
++    setPreview(null);
++    setPreviewError("");
++    try {
++      const result = await loadSourceRemovalPreview(token, replicaId, source.source_id);
++      if (!mounted.current) return;
++      setPreview(result);
++    } catch (cause) {
++      if (!mounted.current) return;
++      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
++      setPreviewError(cause instanceof Error ? cause.message : copy.errorPreviewFailed);
++    }
++  }
++
++  async function confirmRemove() {
++    if (!target || busy) return;
++    setBusy(target.source_id);
++    try {
++      await removeSourceGlanceEntry(token, replicaId, target);
++      if (!mounted.current) return;
++      setTarget(null);
++      setPreview(null);
++      await load();
++    } catch (cause) {
++      if (!mounted.current) return;
++      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
++      setPreviewError(cause instanceof Error ? cause.message : copy.errorRemoveFailed);
++    } finally {
++      if (mounted.current) setBusy("");
++    }
++  }
++
++  const dateFormat = new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", { dateStyle: "medium" });
++
++  return (
++    <section id="sources-studio" className="sources-studio" aria-labelledby="sources-studio-title">
++      <p className="eyebrow">{copy.eyebrow}</p>
++      <h2 id="sources-studio-title">{copy.title}</h2>
++      <p>{copy.intro}</p>
++      {loading ? (
++        <p role="status">{copy.loading}</p>
++      ) : error ? (
++        <div className="sources-error" role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>{copy.retry}</button></div>
++      ) : sources && sources.length ? (
++        <div className="sources-list">
++          {sources.map((source) => (
++            <SourceRow key={source.source_id} source={source} copy={copy} dateFormat={dateFormat}
++              onRemove={(item) => void openConfirm(item)} busy={busy === source.source_id} />
++          ))}
++        </div>
++      ) : (
++        <div className="sources-empty">
++          <strong>{copy.emptyHeadline}</strong>
++          <p>{copy.emptyNote}</p>
++        </div>
++      )}
++      {target ? (
++        <RemoveConfirm source={target} copy={copy} preview={preview} previewError={previewError}
++          onCancel={() => { setTarget(null); setPreview(null); setPreviewError(""); }}
++          onConfirm={() => void confirmRemove()} busy={busy === target.source_id} />
++      ) : null}
++    </section>
++  );
++}
+diff --git a/src/studio/copy.ts b/src/studio/copy.ts
+index ca6af34..a5eb365 100644
+--- a/src/studio/copy.ts
++++ b/src/studio/copy.ts
+@@ -970,6 +970,10 @@ export interface CloneExperienceShellCopy {
+       recordInstead: string;
+       reviewTextSharing: string;
+       openingWhoYouAre: string;
++      // WS-R185.
++      sourcesTitle: string;
++      sourcesNote: string;
++      openingSources: string;
+     };
+     evolve: { heading: string; body: string; openingHistory: string };
+     emotionos: { openingVibe: string };
+@@ -995,6 +999,54 @@ export interface FirstFiveMinutesCopy {
+   stepDoneLabel: string;
+ }
+ 
++// WS-R185 (wave twenty-four): Sources at a glance. One list across every
++// panel that can create a source (the recorder, the Context Locker's files
++// and links, a Mirror Call), each in the existing state vocabulary rendered
++// as plain words here — never a raw code — and what it yielded as counts,
++// never a claim's own text. Its own closed block, appended per this wave's
++// own merge rule for this file (a new section is a new block at the end,
++// never folded into an existing one).
++export interface SourcesStudioCopy {
++  eyebrow: string;
++  title: string;
++  intro: string;
++  loading: string;
++  retry: string;
++  errorLoadFailed: string;
++  emptyHeadline: string;
++  emptyNote: string;
++  kindLabels: Record<"recording" | "file" | "link" | "call", string>;
++  /** The fallback name for a source with no `display_name` of its own (a
++   *  recording or a call never carries one) — "{kind} · {date}". */
++  unnamedLabelTemplate: string;
++  stateLabels: Record<
++    | "pending_upload"
++    | "quarantined"
++    | "quarantined_third_parties"
++    | "processing"
++    | "ready"
++    | "rejected"
++    | "deleting",
++    string
++  >;
++  claimsAcceptedTemplate: string;
++  factsDraftedTemplate: string;
++  voiceSecondsTemplate: string;
++  removeButton: string;
++  removing: string;
++  confirmTitle: string;
++  confirmLoadingPreview: string;
++  confirmClaimsTemplate: string;
++  confirmVoiceTemplate: string;
++  confirmNothingElse: string;
++  confirmPrimaryVoiceWarning: string;
++  confirmCancel: string;
++  confirmRemove: string;
++  removed: string;
++  errorRemoveFailed: string;
++  errorPreviewFailed: string;
++}
++
+ export interface StudioCopy {
+   personalAuth: PersonalAuthCopy;
+   expertSharePanel: ExpertSharePanelCopy;
+@@ -1008,6 +1060,7 @@ export interface StudioCopy {
+   mirrorCallStudio: MirrorCallStudioCopy;
+   cloneExperienceShell: CloneExperienceShellCopy;
+   firstFiveMinutes: FirstFiveMinutesCopy;
++  sourcesStudio: SourcesStudioCopy;
+ }
+ 
+ const EN_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+@@ -2011,6 +2064,10 @@ const EN_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
+       recordInstead: "Record my voice instead",
+       reviewTextSharing: "Review text sharing",
+       openingWhoYouAre: "Opening who you are",
++      // WS-R185.
++      sourcesTitle: "Sources",
++      sourcesNote: "What it knows, and what you gave it",
++      openingSources: "Opening your sources",
+     },
+     evolve: { heading: "Choose what becomes you.", body: "Nothing changes the clone until you accept the cited proposal.", openingHistory: "Opening your evolution history" },
+     emotionos: { openingVibe: "Opening your vibe" },
+@@ -2028,6 +2085,50 @@ const EN_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+   stepDoneLabel: "Done",
+ };
+ 
++// WS-R185's own closed block, EN half.
++const EN_SOURCES_STUDIO: SourcesStudioCopy = {
++  eyebrow: "What it knows, and from where",
++  title: "Sources",
++  intro: "Every recording, file, link and call you have given it, in one list. Nothing here changes what it says until you review it.",
++  loading: "Loading your sources.",
++  retry: "Try again",
++  errorLoadFailed: "Could not load your sources.",
++  emptyHeadline: "Nothing here yet.",
++  emptyNote: "Record your voice or add a file to start.",
++  kindLabels: {
++    recording: "Recording",
++    file: "File",
++    link: "Link",
++    call: "Call",
++  },
++  unnamedLabelTemplate: "{kind} from {date}",
++  stateLabels: {
++    pending_upload: "Still uploading",
++    quarantined: "Being checked",
++    quarantined_third_parties: "On hold: mentions other people",
++    processing: "Still processing",
++    ready: "Ready",
++    rejected: "Could not be read",
++    deleting: "Removing",
++  },
++  claimsAcceptedTemplate: "{n} claims accepted",
++  factsDraftedTemplate: "{n} still waiting on your review",
++  voiceSecondsTemplate: "{n}s of voice",
++  removeButton: "Remove",
++  removing: "Removing.",
++  confirmTitle: "Remove this?",
++  confirmLoadingPreview: "Checking what depends on this.",
++  confirmClaimsTemplate: "{n} claims that have no other source will go with it.",
++  confirmVoiceTemplate: "{n}s of your voice recording will go with it.",
++  confirmNothingElse: "Nothing else depends on this.",
++  confirmPrimaryVoiceWarning: "This is the voice sample it currently uses. Removing it means choosing another.",
++  confirmCancel: "Keep it",
++  confirmRemove: "Remove it",
++  removed: "Removed.",
++  errorRemoveFailed: "Could not remove this.",
++  errorPreviewFailed: "Could not check what depends on this.",
++};
++
+ const EN_STUDIO_COPY: StudioCopy = {
+   personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
+   expertSharePanel: EN_EXPERT_SHARE_PANEL,
+@@ -2041,6 +2142,7 @@ const EN_STUDIO_COPY: StudioCopy = {
+   mirrorCallStudio: EN_MIRROR_CALL_STUDIO,
+   cloneExperienceShell: EN_CLONE_EXPERIENCE_SHELL,
+   firstFiveMinutes: EN_FIRST_FIVE_MINUTES,
++  sourcesStudio: EN_SOURCES_STUDIO,
+ };
+ 
+ // The Hindi table is its own chunk (WS-R71's shape). `STUDIO_COPY_TABLE.hi`
+diff --git a/src/studio/hiCopy.ts b/src/studio/hiCopy.ts
+index 79df73f..02eebc3 100644
+--- a/src/studio/hiCopy.ts
++++ b/src/studio/hiCopy.ts
+@@ -6,7 +6,7 @@
+ // already-reviewed wording wherever this file's English matches it, adapting
+ // only where this screen's own English differs (the nearline nearline-busy
+ // states this file's English adds, and one extra extraction blocker key).
+-import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
++import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, SourcesStudioCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
+ 
+ const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+   title: "अपने AI को एक ठिकाना दें।",
+@@ -1017,6 +1017,10 @@ const HI_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
+       recordInstead: "इसके बजाय मेरी आवाज़ रिकॉर्ड करें",
+       reviewTextSharing: "टेक्स्ट शेयरिंग की समीक्षा करें",
+       openingWhoYouAre: "आप कौन हैं खुल रहा है",
++      // WS-R185.
++      sourcesTitle: "सोर्स",
++      sourcesNote: "यह क्या जानता है, और आपने क्या दिया",
++      openingSources: "आपके सोर्स खुल रहे हैं",
+     },
+     evolve: { heading: "चुनें कि आप क्या बनते हैं।", body: "जब तक आप उद्धृत सुझाव स्वीकार न करें, AI नहीं बदलता।", openingHistory: "आपका विकास इतिहास खुल रहा है" },
+     emotionos: { openingVibe: "आपका अंदाज़ खुल रहा है" },
+@@ -1036,6 +1040,50 @@ const HI_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+   stepDoneLabel: "हो गया",
+ };
+ 
++// WS-R185's own closed block, HI half.
++const HI_SOURCES_STUDIO: SourcesStudioCopy = {
++  eyebrow: "यह क्या जानता है, और कहाँ से",
++  title: "सोर्स",
++  intro: "हर रिकॉर्डिंग, फ़ाइल, लिंक और कॉल जो आपने इसे दी है, एक ही सूची में। जब तक आप समीक्षा न करें, यहाँ कुछ भी इसके जवाब नहीं बदलता।",
++  loading: "आपके सोर्स लोड हो रहे हैं।",
++  retry: "फिर कोशिश करें",
++  errorLoadFailed: "आपके सोर्स लोड नहीं हो सके।",
++  emptyHeadline: "अभी तक कुछ नहीं है।",
++  emptyNote: "शुरू करने के लिए अपनी आवाज़ रिकॉर्ड करें या कोई फ़ाइल जोड़ें।",
++  kindLabels: {
++    recording: "रिकॉर्डिंग",
++    file: "फ़ाइल",
++    link: "लिंक",
++    call: "कॉल",
++  },
++  unnamedLabelTemplate: "{date} की {kind}",
++  stateLabels: {
++    pending_upload: "अभी अपलोड हो रहा है",
++    quarantined: "जाँच हो रही है",
++    quarantined_third_parties: "रोका गया: इसमें अन्य लोगों का ज़िक्र है",
++    processing: "अभी प्रोसेस हो रहा है",
++    ready: "तैयार",
++    rejected: "पढ़ा नहीं जा सका",
++    deleting: "हटाया जा रहा है",
++  },
++  claimsAcceptedTemplate: "{n} दावे स्वीकार किए गए",
++  factsDraftedTemplate: "{n} अभी आपकी समीक्षा का इंतज़ार कर रहे हैं",
++  voiceSecondsTemplate: "आवाज़ के {n} सेकंड",
++  removeButton: "हटाएं",
++  removing: "हटाया जा रहा है।",
++  confirmTitle: "इसे हटाएं?",
++  confirmLoadingPreview: "जाँच हो रही है कि इस पर क्या निर्भर है।",
++  confirmClaimsTemplate: "{n} दावे जिनका कोई और सोर्स नहीं है, इसके साथ चले जाएंगे।",
++  confirmVoiceTemplate: "आपकी आवाज़ की रिकॉर्डिंग के {n} सेकंड इसके साथ चले जाएंगे।",
++  confirmNothingElse: "इस पर कुछ और निर्भर नहीं है।",
++  confirmPrimaryVoiceWarning: "यह वह आवाज़ का नमूना है जो यह अभी इस्तेमाल करता है। इसे हटाने का मतलब है दूसरा चुनना।",
++  confirmCancel: "रहने दें",
++  confirmRemove: "इसे हटाएं",
++  removed: "हटा दिया गया।",
++  errorRemoveFailed: "इसे हटाया नहीं जा सका।",
++  errorPreviewFailed: "यह जाँचा नहीं जा सका कि इस पर क्या निर्भर है।",
++};
++
+ // `personalAuth` is deliberately absent here: `copy.ts#loadStudioCopy`
+ // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
+ // Hindi loader, so this file owns only the sections named above.
+@@ -1051,4 +1099,5 @@ export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
+   mirrorCallStudio: HI_MIRROR_CALL_STUDIO,
+   cloneExperienceShell: HI_CLONE_EXPERIENCE_SHELL,
+   firstFiveMinutes: HI_FIRST_FIVE_MINUTES,
++  sourcesStudio: HI_SOURCES_STUDIO,
+ };
+diff --git a/src/studio/layoutFixture.tsx b/src/studio/layoutFixture.tsx
+index b3925eb..c0fd624 100644
+--- a/src/studio/layoutFixture.tsx
++++ b/src/studio/layoutFixture.tsx
+@@ -498,6 +498,29 @@ function installStubFetch() {
+       }
+       const op = String(payload.op || "");
+       if (op === "list") return reply({ sources: fixtureSources });
++      // WS-R185. Sources at a glance's own two reads, over the SAME
++      // `fixtureSources` array every other op here already shares.
++      if (op === "overview") {
++        return reply({ sources: fixtureSources.map((item) => ({
++          source_id: item.source_id,
++          kind: item.kind === "audio" || item.kind === "video" ? "recording" : "file",
++          item_id: null,
++          display_name: "",
++          state: item.state,
++          contains_third_parties: item.contains_third_parties,
++          rejection_code: item.rejection_code || "",
++          yielded: { claims_accepted: 0, facts_drafted: 0, voice_seconds: 0 },
++          created_at: item.created_at,
++        })) });
++      }
++      if (op === "removal_preview") {
++        const found = fixtureSources.find((item) => item.source_id === payload.source_id);
++        if (!found) return reply({ error: "source_not_found" }, 404);
++        return reply({ preview: {
++          source_id: found.source_id, claims_only_here: 0, voice_seconds: 0,
++          is_primary_voice: found.voice_role === "primary",
++        } });
++      }
+       if (op === "create_upload") {
+         sourceSequence += 1;
+         const now = new Date().toISOString();
+diff --git a/src/studio/sources-studio.css b/src/studio/sources-studio.css
+new file mode 100644
+index 0000000..bfc8c4f
+--- /dev/null
++++ b/src/studio/sources-studio.css
+@@ -0,0 +1,149 @@
++/* Sources at a glance — WS-R185. Mobile-first (390px), desktop at 768px+.
++ * Tokens from design/tokens.css and studio.css's own palette; no new colour
++ * or radius scale introduced. */
++@layer components {
++  .sources-studio {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-block, 24px);
++    max-width: 720px;
++  }
++
++  .sources-list {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-item, 16px);
++  }
++
++  .sources-row {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-tight, 8px);
++    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
++    border-radius: var(--radius-card, 16px);
++    padding: var(--space-item, 16px);
++  }
++  .sources-row[data-state="rejected"] { border-color: var(--danger-line, rgba(179, 38, 30, 0.35)); }
++  .sources-row[data-state="deleting"] { opacity: 0.6; }
++
++  .sources-row-head {
++    display: flex;
++    align-items: baseline;
++    gap: var(--space-tight, 8px);
++    flex-wrap: wrap;
++  }
++  .sources-row-kind {
++    font-size: var(--text-small, 12px);
++    text-transform: uppercase;
++    letter-spacing: 0.04em;
++    color: var(--ink-soft, #52564e);
++  }
++  .sources-row-name {
++    font-size: var(--text-body, 14px);
++    color: var(--ink, #171915);
++    word-break: break-word;
++  }
++  .sources-row-state {
++    margin: 0;
++    font-size: var(--text-small, 12px);
++    color: var(--ink-soft, #52564e);
++  }
++
++  .sources-row-yield {
++    margin: 0;
++    padding: 0;
++    list-style: none;
++    display: flex;
++    flex-wrap: wrap;
++    gap: var(--space-tight, 8px);
++  }
++  .sources-row-yield li {
++    font-size: var(--text-small, 12px);
++    background: var(--surface-raised, rgba(28, 32, 26, 0.05));
++    border-radius: var(--radius-pill, 999px);
++    padding: 4px 10px;
++    color: var(--ink-soft, #52564e);
++  }
++
++  .sources-row-remove {
++    align-self: flex-start;
++    min-height: 40px;
++    padding: 8px 16px;
++    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
++    border-radius: var(--radius-pill, 999px);
++    background: none;
++    color: var(--ink, #171915);
++    font-size: var(--text-body, 14px);
++    cursor: pointer;
++  }
++  .sources-row-remove:hover:not(:disabled) { border-color: var(--line-strong, rgba(28, 32, 26, 0.22)); }
++  .sources-row-remove:disabled { opacity: 0.6; cursor: default; }
++
++  .sources-empty {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-tight, 8px);
++    padding: var(--space-block, 24px);
++    border: 1px dashed var(--line, rgba(28, 32, 26, 0.12));
++    border-radius: var(--radius-card, 16px);
++    color: var(--ink-soft, #52564e);
++  }
++
++  .sources-error {
++    display: flex;
++    align-items: center;
++    gap: var(--space-item, 16px);
++    color: var(--danger, #b3261e);
++  }
++
++  .sources-confirm-backdrop {
++    position: fixed;
++    inset: 0;
++    background: rgba(15, 17, 14, 0.45);
++    display: flex;
++    align-items: flex-end;
++    justify-content: center;
++    padding: var(--space-item, 16px);
++    z-index: 40;
++  }
++  @media (min-width: 768px) {
++    .sources-confirm-backdrop { align-items: center; }
++  }
++
++  .sources-confirm {
++    width: 100%;
++    max-width: 420px;
++    background: var(--surface, #fdfcf8);
++    border-radius: var(--radius-card, 16px);
++    padding: var(--space-block, 24px);
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-item, 16px);
++  }
++  .sources-confirm h2 { margin: 0; font-size: var(--text-title, 18px); color: var(--ink, #171915); }
++  .sources-confirm-target { margin: 0; font-size: var(--text-small, 12px); color: var(--ink-soft, #52564e); word-break: break-word; }
++  .sources-confirm ul { margin: 0; padding-left: 1.2em; color: var(--ink-soft, #52564e); font-size: var(--text-body, 14px); }
++  .sources-confirm p { margin: 0; color: var(--ink-soft, #52564e); font-size: var(--text-body, 14px); }
++
++  .sources-confirm-actions {
++    display: flex;
++    gap: var(--space-tight, 8px);
++    justify-content: flex-end;
++    flex-wrap: wrap;
++  }
++  .sources-confirm-actions button {
++    min-height: 44px;
++    padding: 8px 18px;
++    border-radius: var(--radius-pill, 999px);
++    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
++    background: none;
++    font-size: var(--text-body, 14px);
++    cursor: pointer;
++  }
++  .sources-confirm-remove {
++    background: var(--danger, #b3261e);
++    border-color: var(--danger, #b3261e);
++    color: #fff;
++  }
++  .sources-confirm-actions button:disabled { opacity: 0.6; cursor: default; }
++}
+diff --git a/src/studio/sourcesApi.ts b/src/studio/sourcesApi.ts
+new file mode 100644
+index 0000000..defc62d
+--- /dev/null
++++ b/src/studio/sourcesApi.ts
+@@ -0,0 +1,74 @@
++// sourcesApi.ts — WS-R185. fetch wrapper for the Sources at a glance screen,
++// following the existing *Api.ts pattern (see contextLockerApi.ts,
++// enrollmentApi.ts). Two owner-only reads, plus the dispatch that sends
++// "Remove" to whichever EXISTING single-source erasure a source's kind
++// already uses — this file adds no new erasure of its own.
++import { replicaRequest } from "./replicaApi";
++import { removeContextItem } from "./contextLockerApi";
++import { deleteSource } from "./enrollmentApi";
++
++export type SourceGlanceKind = "recording" | "file" | "link" | "call";
++
++export interface SourceYield {
++  claims_accepted: number;
++  facts_drafted: number;
++  voice_seconds: number;
++}
++
++export interface SourceGlance {
++  source_id: string;
++  kind: SourceGlanceKind;
++  /** Present only for a file/link that lives in the Context Locker — the
++   *  handle "Remove" needs to call the existing `DELETE /api/context-items`
++   *  door instead of `POST /api/replica-source {op:"delete"}`. */
++  item_id: string | null;
++  /** The owner's own file name or link, or empty when none was ever given
++   *  (a recording or a call names no file at all). Never a storage path. */
++  display_name: string;
++  state: string;
++  contains_third_parties: boolean;
++  rejection_code: string;
++  yielded: SourceYield;
++  created_at: string | null;
++}
++
++export interface SourceRemovalPreview {
++  source_id: string;
++  /** Claims with no other citation — removing this source is the one thing
++   *  that actually erases them, not merely one of several citations. */
++  claims_only_here: number;
++  voice_seconds: number;
++  is_primary_voice: boolean;
++}
++
++export async function loadSourcesGlance(token: string, replicaId: string, signal?: AbortSignal): Promise<SourceGlance[]> {
++  const data = await replicaRequest<{ sources: SourceGlance[] }>(token, "/api/replica-source", {
++    method: "POST",
++    body: JSON.stringify({ op: "overview", replica_id: replicaId }),
++    signal,
++  });
++  return Array.isArray(data.sources) ? data.sources : [];
++}
++
++export async function loadSourceRemovalPreview(token: string, replicaId: string, sourceId: string, signal?: AbortSignal): Promise<SourceRemovalPreview> {
++  const data = await replicaRequest<{ preview: SourceRemovalPreview }>(token, "/api/replica-source", {
++    method: "POST",
++    body: JSON.stringify({ op: "removal_preview", replica_id: replicaId, source_id: sourceId }),
++    signal,
++  });
++  return data.preview;
++}
++
++/** "Remove" calls the SAME door the source's own owning panel already uses —
++ *  a Context Locker file/link through `removeContextItem` (which also
++ *  retracts the item and its still-undecided proposal), everything else
++ *  through `POST /api/replica-source {op:"delete"}` (`markOwnedSourceDeleting`
++ *  — the recorder's and a call's own single-source erasure). This file adds
++ *  no third erasure path of its own. */
++export async function removeSourceGlanceEntry(token: string, replicaId: string, source: SourceGlance): Promise<void> {
++  if (source.item_id) {
++    await removeContextItem(token, replicaId, source.item_id);
++    return;
++  }
++  await deleteSource(token, replicaId, source.source_id);
++}

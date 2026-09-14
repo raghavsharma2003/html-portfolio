@@ -64,8 +64,10 @@ export async function openOrExtendEpisode(person, device, channel, { gapMs = GAP
   if (channel === "chat" || channel === "call") {
     const bounds = await q(
       `select min(id) as lo, max(id) as hi, min(at) as lo_at from meera_log
-        where device_id = $1 and channel = $2 and at >= now() - ($3 || ' milliseconds')::interval`,
-      [device, channel, String(gapMs)],
+        where device_id = $1 and channel = $2
+          and agent_id = ($4)::uuid
+          and at >= now() - ($3 || ' milliseconds')::interval`,
+      [device, channel, String(gapMs), agentId],
     ).catch(() => []);
     if (bounds[0]?.hi != null) {
       logFrom = bounds[0].lo;

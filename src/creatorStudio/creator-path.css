@@ -1,0 +1,95 @@
+/* creator-path.css — WS-R65. The Feed tab's own path card.
+ *
+ * Tokens only (`design/tokens.css`), the same palette `studio-shell.css`
+ * already uses (`--state-done`/`--state-running`/`--state-waiting`), so
+ * "done"/"now"/"later" reads in the same colours this product already
+ * spends everywhere else that means the same thing.
+ *
+ * CONTAINER-DRIVEN, NOT VIEWPORT-DRIVEN, `studio-shell.css`'s own reason:
+ * this card sits inside `.studio-main`, narrower than the viewport once the
+ * replica rail shows, so `auto-fit`/`minmax` asks the container rather than
+ * a breakpoint that would be wrong the moment the rail is hidden.
+ *
+ * MOTION (DESIGN-LAW §2): press feedback on `:active` only, transform never
+ * layout, `prefers-reduced-motion` already handled by tokens.css's own root
+ * override.
+ */
+@layer components {
+  .creator-path {
+    display: grid;
+    gap: var(--space-item);
+    padding: var(--space-panel);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--paper);
+  }
+
+  .creator-path-steps {
+    display: grid;
+    gap: var(--space-hair);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .creator-path-step {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--space-tight);
+  }
+
+  /* The word IS the state (DESIGN-SYSTEM §5 rule 2: never a bare colour) —
+   * `.creator-path-state` below carries the label; this dot is decorative
+   * reinforcement only. */
+  .creator-path-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--line-strong);
+  }
+  .creator-path-step-done .creator-path-dot { background: var(--state-done); }
+  .creator-path-step-current .creator-path-dot { background: var(--state-waiting); }
+  .creator-path-step-ahead .creator-path-dot { background: var(--ink-faint); }
+
+  .creator-path-label {
+    font-size: var(--text-small);
+    color: var(--ink);
+  }
+  .creator-path-step-ahead .creator-path-label { color: var(--ink-soft); }
+
+  /* `studio-shell.css`'s own measured reason, restated here rather than
+   * relearned: `--state-waiting` measures under 4.5:1 on `--paper` at this
+   * text's size (`context/measurements.md#ws-r31-gate-results-2026-09-04`),
+   * so the WORD carries "now" (DESIGN-SYSTEM §5 rule 2) and the dot above is
+   * the only place that colour appears — text here stays `--ink`/
+   * `--ink-soft` at every state. */
+  .creator-path-state {
+    font-size: var(--text-micro);
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+  .creator-path-step-current .creator-path-state { color: var(--ink); font-weight: var(--weight-medium); }
+
+  .creator-path-current {
+    display: grid;
+    gap: var(--space-tight);
+    padding-top: var(--space-item);
+    border-top: var(--hairline) solid var(--line);
+  }
+
+  .creator-path-sentence {
+    margin: 0;
+    max-width: var(--measure);
+    color: var(--ink);
+    font-size: var(--text-small);
+    line-height: var(--leading-snug);
+  }
+
+  .creator-path-primary { justify-self: start; }
+
+  .creator-path-paused {
+    border-color: var(--state-waiting);
+  }
+}

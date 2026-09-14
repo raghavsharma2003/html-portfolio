@@ -1,0 +1,623 @@
+{
+  "diagnostic": "mirror-memory-frontier/v1",
+  "measuredAt": "2026-09-06T18:40:15.801Z",
+  "scenarios": 40,
+  "synthetic": true,
+  "providerCalls": 0,
+  "writes": 0,
+  "recallSourceSha256": "f627b05e5097f56c67534a91763a1bfa3d8cd51e871eec53f2a416bbcdeb3553",
+  "fixtureSha256": "e30a38c9d90c11a6a3eb899907ee024399431f88fa6de81b8421a90283444a5e",
+  "database": "vyakti_expert_integration_20260906",
+  "realSqlExecuted": true,
+  "method": "shipping-recall-select-over-schema-typed-read-only-PostgreSQL-CTE-fixtures",
+  "status": "KNOWN_RETRIEVAL_LIMITATION",
+  "boundaryFailures": 0,
+  "retrievalLimitations": 2,
+  "questionPassedToRecall": false,
+  "questionNote": "Current recall has no question parameter; query is evaluation metadata only.",
+  "notProven": [
+    "persisted writes",
+    "foreign-key integrity",
+    "RLS",
+    "authenticated API journey",
+    "provider answer correctness",
+    "human quality",
+    "production behavior"
+  ],
+  "results": [
+    {
+      "id": "crowding-0",
+      "inputFacts": 1,
+      "returnedIds": [
+        1
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "crowding-7",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "crowding-8",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "crowding-16",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-0",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-7",
+      "inputFacts": 8,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-8",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-16",
+      "inputFacts": 17,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-0",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-7",
+      "inputFacts": 8,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-8",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-16",
+      "inputFacts": 17,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-0",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-7",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-8",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-16",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-0",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-7",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-8",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-16",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-0",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-7",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-8",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-16",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-0",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-7",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-8",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-16",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-0",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-7",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-8",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-16",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-0",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-7",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-8",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-16",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-0",
+      "inputFacts": 2,
+      "returnedIds": [
+        1000
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-7",
+      "inputFacts": 9,
+      "returnedIds": [
+        1000,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-8",
+      "inputFacts": 10,
+      "returnedIds": [
+        1000,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-16",
+      "inputFacts": 18,
+      "returnedIds": [
+        1000,
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    }
+  ]
+}

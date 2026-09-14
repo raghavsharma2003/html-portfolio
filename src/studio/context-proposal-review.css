@@ -1,0 +1,14 @@
+.context-proposal-review { margin-block: 28px; padding-block: 24px; border-block: 1px solid #cbd7ce; color: #173e32; max-width: 70ch; overflow-wrap: anywhere; }
+.context-proposal-review h3 { margin: 0 0 12px; font: inherit; font-size: 22px; font-weight: 600; }
+.context-proposal-review p { margin: 0 0 12px; line-height: 1.5; font-size: 16px; }
+.context-proposal-review .context-proposal-source { font-weight: 600; }
+.context-proposal-list { list-style: none; padding: 0; margin: 24px 0; }
+.context-proposal-list > li + li { margin-top: 24px; padding-top: 24px; border-top: 1px solid #cbd7ce; }
+.context-proposal-review .context-proposal-kind { font-size: 14px; }
+.context-proposal-review .context-proposal-fragment { font-size: 20px; font-weight: 600; }
+.context-proposal-review blockquote { margin: 12px 0; padding-inline-start: 16px; border-inline-start: 1px solid #6b8173; }
+.context-proposal-review blockquote span { font-size: 14px; }
+.context-proposal-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.context-proposal-review :focus-visible { outline: 2px solid #173e32; outline-offset: 4px; }
+.context-proposal-review ::selection { background: #cbd7ce; color: #173e32; }
+@media (max-width: 480px) { .context-proposal-actions > button { width: 100%; min-height: 44px; } }

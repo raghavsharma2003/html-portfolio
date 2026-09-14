@@ -17,6 +17,7 @@ import { allow, ipOf } from "./_ratelimit.js";
 import { withGeminiKey, isQuota, isTransient, poolSize, poolHealth } from "./_gkeys.js";
 
 import { OPENROUTER_KEY } from "./_config.js";
+import { obs } from "./_obs.js";
 
 // ── WHERE TEXT STOPS BEING TEXT ─────────────────────────────────────────
 // The owner's report was "saying Dash dash in voice call". Nothing in this
@@ -274,6 +275,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "speech", 60)) return res.status(429).json({ error: "slow down" });
+  const t0 = Date.now(); // WS-OBS: request wall-clock for the summary row
 
   const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
   if (!key) return res.status(500).json({ error: "no key configured" });
@@ -377,6 +379,7 @@ export default async function handler(req, res) {
     // stale cooldown must never be the reason she goes silent") applies to
     // fuses too.
     const FREE_LONG_FRAME_MS = 15000;
+    let servedLabel = null; // WS-OBS: whose key actually spoke (label, never key)
     const streamFree = async (frameMs = FREE_FIRST_FRAME_MS, slowBudget = undefined) => {
       if (!poolSize()) return false;
       const got = await withGeminiKey(async (k) => {
@@ -493,6 +496,7 @@ export default async function handler(req, res) {
           freeAbort.signal.removeEventListener("abort", giveUp);
         }
       }, slowBudget);
+      if (got.value && got.label) servedLabel = got.label;
       return Boolean(got.value);
     };
 
@@ -615,6 +619,19 @@ export default async function handler(req, res) {
     // nothing further can reach the body — stop any generation still billing
     freeAbort.abort();
     paidAbort.abort();
+
+    // WS-OBS: one durable row per speech request — which lane spoke, under
+    // which pool state, how long, how many bytes. Awaited HERE because the
+    // serverless runtime freezes after the response ends, and this sits
+    // before every exit; labels/counters only, never text or audio.
+    await obs("speech", {
+      lane: winner || "none",
+      label: servedLabel,
+      pool: poolHealth(),
+      bytes: winner ? lanes[winner].held.reduce((a, b) => a + b.length, 0) : 0,
+      stream: !!wantStream,
+      ok: !!winner,
+    }, Date.now() - t0);
 
     if (!winner) {
       if (committed) return res.end(); // unreachable: committing sets a winner

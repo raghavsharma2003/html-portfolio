@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vyakti blind voice comparison</title>
+<style>
+
+  :root {
+    color-scheme: light;
+    --paper: #f5f0e6;
+    --paper-raised: #fffdf8;
+    --ink: #17231d;
+    --muted: #69746d;
+    --forest: #164f3c;
+    --forest-deep: #0e382b;
+    --line: #d8d2c5;
+    --focus: #c47b32;
+    --warn: #8a4f20;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  button, input, textarea { font: inherit; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--focus) 70%, transparent);
+    outline-offset: 2px;
+  }
+  main { width: min(760px, 100%); margin: 0 auto; padding: 28px 18px 88px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+  h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(27px, 5vw, 39px); line-height: 1.05; font-weight: 500; }
+  .eyebrow { margin: 0 0 5px; color: var(--forest); font-size: 12px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+  .progress { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .meter { height: 4px; border-radius: 999px; background: #ded8cb; overflow: hidden; margin: 0 0 24px; }
+  .meter > span { display: block; height: 100%; width: 0; background: var(--forest); transition: width 180ms ease; }
+  .card { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 18px; padding: clamp(18px, 4vw, 30px); box-shadow: 0 12px 38px rgba(43, 45, 36, .07); }
+  .lede { margin: 0 0 20px; color: #3f4b44; font-size: 17px; }
+  .quiet { color: var(--muted); font-size: 14px; }
+  .notice { margin: 18px 0 0; padding: 12px 14px; border-left: 3px solid var(--focus); background: #faf3e7; color: #5e4934; font-size: 14px; }
+  .language { display: inline-flex; margin-bottom: 12px; padding: 5px 9px; border-radius: 999px; background: #e4ede7; color: var(--forest-deep); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+  .prompt { margin: 0 0 20px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(20px, 4vw, 25px); line-height: 1.35; }
+  .audio-row, .actions, .choices { display: flex; flex-wrap: wrap; gap: 10px; }
+  button { min-height: 46px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 16px; background: #fff; color: var(--ink); cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--forest); }
+  button.primary { background: var(--forest); border-color: var(--forest); color: #fff; }
+  button.primary:hover:not(:disabled) { background: var(--forest-deep); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .audio-row button { flex: 1; min-width: 180px; }
+  .heard { margin: 9px 0 0; min-height: 21px; color: var(--forest); font-size: 13px; }
+  .axis { margin-top: 24px; }
+  .axis-title { display: block; margin-bottom: 8px; font-weight: 680; }
+  .scale { display: grid; grid-template-columns: repeat(5, minmax(44px, 1fr)); gap: 7px; }
+  .scale button { padding: 8px; }
+  .scale button[aria-pressed="true"], .choices button[aria-pressed="true"] { background: var(--forest); border-color: var(--forest); color: #fff; }
+  .ends { display: flex; justify-content: space-between; gap: 16px; margin-top: 6px; color: var(--muted); font-size: 11px; }
+  .ends span:last-child { text-align: right; }
+  .field-label { display: block; margin: 24px 0 8px; font-weight: 680; }
+  .choices button { flex: 1; min-width: 140px; }
+  textarea, input[type="text"] { width: 100%; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--ink); padding: 12px 13px; }
+  textarea { min-height: 82px; resize: vertical; }
+  .actions { justify-content: space-between; margin-top: 28px; }
+  .attention { text-align: center; padding-block: 14px; }
+  .attention .audio-row { justify-content: center; margin: 22px 0; }
+  .attention .audio-row button { max-width: 280px; }
+  .save-state { margin-top: 12px; min-height: 20px; color: var(--muted); font-size: 12px; }
+  @media (max-width: 520px) {
+    main { padding: 20px 12px 70px; }
+    header { align-items: flex-start; }
+    .card { border-radius: 14px; }
+    .audio-row button, .choices button { width: 100%; min-width: 0; }
+    .ends { font-size: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .meter > span { transition: none; } }
+
+main{width:min(820px,100%);padding-bottom:40px}
+.intro{margin-bottom:18px}.intro .lede{margin-bottom:8px}.intro .notice{margin-top:8px}
+.reference{margin:0 0 20px;border:1px solid var(--line);border-radius:12px;background:var(--paper-raised)}
+.reference summary{min-height:48px;padding:12px 16px;font-weight:700;cursor:pointer;display:flex;align-items:center}
+.reference-body{padding:0 16px 16px}.reference audio{width:100%;margin:0 0 8px}
+.pair-progress{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:8px;font-size:14px;font-weight:700}
+progress{width:100%;height:7px;margin:0 0 18px;accent-color:var(--forest)}
+.pair-card{padding:clamp(18px,4vw,28px)}.pair-card h2{margin:0 0 6px;font-size:22px}.prompt{margin-bottom:12px}.critical{margin:0 0 20px;line-height:1.5}
+.clips{display:grid;grid-template-columns:1fr 1fr;gap:14px}.clip{min-width:0;border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
+.clip h3{margin:0 0 8px;font-size:18px}.clip audio{display:block;width:100%;margin:0}
+label{display:block}select{width:100%;min-height:46px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:#fff;color:var(--ink);font:inherit}
+.preference{margin-top:20px}.preference>label{font-weight:700}.preference select{margin-top:7px;font-weight:400}
+.details{margin-top:18px;border-top:1px solid var(--line);padding-top:4px}.details>summary{min-height:48px;display:flex;align-items:center;font-weight:700;cursor:pointer}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.detail-clip{min-width:0}.detail-clip h3{margin:10px 0 4px;font-size:16px}
+.detail-clip label{margin:10px 0}.detail-clip textarea{min-height:72px}
+.pair-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}.pair-actions .save{grid-column:1/-1}
+.pair-actions button{width:100%}.pair-actions button:disabled{visibility:hidden}
+.save-status{min-height:22px;margin:8px 0 0;text-align:center}
+@media(max-width:650px){.clips,.detail-grid{grid-template-columns:1fr}.pair-card{border-radius:14px}.intro .notice{padding:10px 12px}}
+</style>
+</head>
+<body>
+<main>
+  <header class="intro"><div><p class="eyebrow">Vyakti voice check</p><h1>Listen and compare</h1></div></header>
+  <p class="lede">Compare one A/B pair at a time. A and B stay blind, and ties are welcome.</p>
+  <details class="reference"><summary>Stock reference and test limits</summary><div class="reference-body"><audio controls preload="metadata" src="reference.wav"></audio><p class="notice">The reference is a synthetic stock voice. Judge clarity, naturalness and accent. This does not test whether the voice sounds like its human owner. Each text was generated once per system.</p><p class="quiet">Full stock reference. Generated clips also include a spoken AI disclosure.</p><p id="counts" class="quiet"></p></div></details>
+  <div class="pair-progress"><span id="pair-count"></span><span id="rating-state" class="quiet"></span></div>
+  <progress id="progress" max="6" value="1"></progress>
+  <div id="pair"></div>
+  <div class="pair-actions" aria-label="Pair navigation"><button id="back" type="button">Back</button><button id="next" type="button" class="primary">Next</button><button id="save" type="button" class="save">Download my ratings</button></div>
+  <p id="save-status" role="status" class="quiet save-status">Ratings stay in this browser. Download them when finished.</p>
+</main>
+<script>
+const pack={"contract":"stock106-blind-listening/v1","id":"be42f4ad714b1e66366d3844","reference":"reference.wav","pairs":[{"id":"hi-pendulum-negation","text":"सरल लोलक के छोटे दोलनों में आवर्तकाल उसकी लंबाई और गुरुत्वीय त्वरण पर निर्भर करता है। द्रव्यमान बढ़ाने से आवर्तकाल नहीं बढ़ता।","language":"Hindi","criticalUnits":["छोटे दोलनों","लंबाई","गुरुत्वीय त्वरण","द्रव्यमान","नहीं बढ़ता"],"clips":[{"id":"eec6139a036b641d5a92aae0","label":"A","status":"ready","src":"audio/eec6139a036b641d5a92aae0.wav"},{"id":"c46c21f293cfd638d6a3da20","label":"B","status":"ready","src":"audio/c46c21f293cfd638d6a3da20.wav"}]},{"id":"hi-current-condition","text":"यदि प्रतिरोध 4 ओम और विभवांतर 12 वोल्ट हो, तो धारा 3 ऐम्पियर होगी। यह निष्कर्ष तभी लागू है जब तापमान स्थिर रहे।","language":"Hindi","criticalUnits":["4 ओम","12 वोल्ट","3 ऐम्पियर","तापमान स्थिर"],"clips":[{"id":"dfaaa471415ba6b714f08bee","label":"A","status":"ready","src":"audio/dfaaa471415ba6b714f08bee.wav"},{"id":"95ddd1609fcba459a08fe6d4","label":"B","status":"ready","src":"audio/95ddd1609fcba459a08fe6d4.wav"}]},{"id":"hinglish-sign-correction","text":"पहले units जाँचो, फिर calculation करो। Negative sign हटाने से answer का अर्थ बदल सकता है।","language":"Hinglish","criticalUnits":["units","calculation","Negative sign","answer","बदल सकता है"],"clips":[{"id":"68f71ce5d4dfab70cbbbc8da","label":"A","status":"ready","src":"audio/68f71ce5d4dfab70cbbbc8da.wav"},{"id":"b71cf50c79fc2bd6be2e2ae7","label":"B","status":"ready","src":"audio/b71cf50c79fc2bd6be2e2ae7.wav"}]},{"id":"hinglish-length-ratio","text":"द्रव्यमान constant रखो और length को चार गुना करो। Small-angle approximation में time period दो गुना होगा, चार गुना नहीं।","language":"Hinglish","criticalUnits":["constant","length","चार गुना करो","Small-angle approximation","time period","दो गुना","चार गुना नहीं"],"clips":[{"id":"cf0f38010cdfc8e891f96a13","label":"A","status":"ready","src":"audio/cf0f38010cdfc8e891f96a13.wav"},{"id":"8cd1c2be9169b69250d45011","label":"B","status":"ready","src":"audio/8cd1c2be9169b69250d45011.wav"}]},{"id":"en-pendulum-negation","text":"An ideal simple pendulum swings more slowly when its length increases. Doubling its mass does not double its period.","language":"English","criticalUnits":["ideal simple pendulum","length increases","mass","does not double"],"clips":[{"id":"97a4340a36c1b1aec7c462e0","label":"A","status":"ready","src":"audio/97a4340a36c1b1aec7c462e0.wav"},{"id":"566ae4b414f4890a02030e1a","label":"B","status":"ready","src":"audio/566ae4b414f4890a02030e1a.wav"}]},{"id":"en-names-current","text":"Asha and Pranav measured twelve volts across a four-ohm resistor in Pune. At constant temperature, the current is three amperes.","language":"English","criticalUnits":["Asha","Pranav","Pune","twelve volts","four-ohm","constant temperature","three amperes"],"clips":[{"id":"51040b82d3557b04cb492f7c","label":"A","status":"ready","src":"audio/51040b82d3557b04cb492f7c.wav"},{"id":"6d577fe65ecf736cbb5f0b96","label":"B","status":"ready","src":"audio/6d577fe65ecf736cbb5f0b96.wav"}]}],"counts":{"expected":12,"verified":12,"unavailable":0},"humanRatings":0,"automaticWinner":null};
+const answers={};let playbackErrors=new Set(),currentPair=0;
+try{Object.assign(answers,JSON.parse(localStorage.getItem('stock106:'+pack.id)||'{}'));}catch{}
+const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
+function persist(){try{localStorage.setItem('stock106:'+pack.id,JSON.stringify(answers));}catch{document.getElementById('save-status').textContent='Browser storage unavailable. Download your ratings before closing.';}}
+function counts(){document.getElementById('counts').textContent=`${pack.counts.verified} of ${pack.counts.expected} clips verified. ${pack.counts.unavailable} unavailable. ${playbackErrors.size} playback errors.`;}
+function select(key,title,choices,disabled=false){const label=el('label',title),s=el('select');s.setAttribute('aria-label',title);s.disabled=disabled;for(const [value,text]of [['','Choose after listening'],...choices]){const o=el('option',text);o.value=value;s.append(o);}s.value=answers[key]||'';s.onchange=()=>{answers[key]=s.value;persist();updateRatingState();};label.append(s);return label;}
+function detailFields(clip){const box=el('div');box.className='detail-clip';box.append(el('h3','Clip '+clip.label));for(const [axis,title]of [['naturalness','Naturalness'],['indian_accent','Accent fit for this language'],['pronunciation','Pronunciation and clarity']])box.append(select(clip.id+':'+axis,title,[[1,'1 · Poor'],[2,'2'],[3,'3'],[4,'4'],[5,'5 · Excellent']],clip.status!=='ready'));box.append(select(clip.id+':disclosure','Spoken AI disclosure',[['full','Full'],['partial','Partial or unclear'],['absent','Absent']],clip.status!=='ready'));const label=el('label','Words, numbers, negation or language switches that sounded wrong'),notes=el('textarea');notes.value=answers[clip.id+':notes']||'';notes.disabled=clip.status!=='ready';notes.oninput=()=>{answers[clip.id+':notes']=notes.value;persist();};label.append(notes);box.append(label);return box;}
+function updateRatingState(){const pair=pack.pairs[currentPair],rated=Boolean(answers[pair.id+':preference']);document.getElementById('rating-state').textContent=rated?'Choice saved':'Not rated yet';}
+function renderPair({focus=false}={}){const pair=pack.pairs[currentPair],section=el('section');section.className='card pair-card';const heading=el('h2',pair.language);heading.id='pair-heading';heading.tabIndex=-1;section.setAttribute('aria-labelledby',heading.id);section.append(heading);const prompt=el('p',pair.text);prompt.className='prompt';prompt.lang=pair.language==='English'?'en':'hi';section.append(prompt);const critical=el('p','Listen for: '+pair.criticalUnits.join(' · '));critical.className='critical quiet';section.append(critical);const clips=el('div');clips.className='clips';for(const clip of pair.clips){const col=el('div');col.className='clip';col.append(el('h3','Clip '+clip.label));if(clip.status==='ready'){const player=el('audio');player.controls=true;player.preload='metadata';player.src=clip.src;player.setAttribute('aria-label','Clip '+clip.label);player.onplay=()=>{document.querySelectorAll('audio').forEach(a=>{if(a!==player)a.pause();});};player.onended=()=>{answers[clip.id+':heardToEnd']=true;persist();};player.onerror=()=>{playbackErrors.add(clip.id);counts();};col.append(player);}else col.append(el('p','Output unavailable. Keep this failure in the comparison.'));clips.append(col);}section.append(clips);const preference=el('div');preference.className='preference';preference.append(select(pair.id+':preference','Which clip would you prefer for this text?',[['A','A'],['B','B'],['tie','Tie'],['cannot_judge','Cannot judge']],pair.clips.some(c=>c.status!=='ready')));section.append(preference);const details=el('details');details.className='details';details.append(el('summary','More detailed ratings'));const grid=el('div');grid.className='detail-grid';for(const clip of pair.clips)grid.append(detailFields(clip));details.append(grid);section.append(details);document.getElementById('pair').replaceChildren(section);document.getElementById('pair-count').textContent=`Pair ${currentPair+1} of ${pack.pairs.length}`;const progress=document.getElementById('progress');progress.max=pack.pairs.length;progress.value=currentPair+1;document.getElementById('back').disabled=currentPair===0;document.getElementById('next').textContent=currentPair===pack.pairs.length-1?'Review first pair':'Next';updateRatingState();counts();if(focus)heading.focus();}
+document.getElementById('back').onclick=()=>{if(currentPair===0)return;currentPair--;renderPair({focus:true});};
+document.getElementById('next').onclick=()=>{currentPair=currentPair===pack.pairs.length-1?0:currentPair+1;renderPair({focus:true});};
+document.querySelector('.reference audio').onplay=(event)=>{document.querySelectorAll('audio').forEach(a=>{if(a!==event.currentTarget)a.pause();});};
+document.getElementById('save').onclick=()=>{const result={contract:'stock106-human-listening-response/v1',packId:pack.id,at:new Date().toISOString(),counts:pack.counts,playbackErrors:[...playbackErrors],answers,automaticWinner:null,ownerLikenessAssessed:false};const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));const link=el('a');link.href=url;link.download='voice-ratings-'+pack.id+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);document.getElementById('save-status').textContent='Ratings downloaded. No winner was calculated.';};
+renderPair();
+</script>
+</body>
+</html>

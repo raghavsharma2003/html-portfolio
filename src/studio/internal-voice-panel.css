@@ -1,0 +1,76 @@
+.vx-room__voice .hear-voice.internal-voice-panel {
+  display: block;
+  min-height: auto;
+  overflow: visible;
+  padding: 0 10px 48px;
+}
+
+.vx-conversation-switch.internal-voice-tabs {
+  display: grid;
+  width: min(360px, calc(100% - 20px));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.vx-room__voice .hear-voice.internal-voice-panel > .section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
+  align-items: end;
+  gap: 12px 28px;
+  margin-bottom: 18px;
+}
+
+.internal-voice-panel__title {
+  display: grid;
+  gap: 5px;
+}
+
+.internal-voice-panel__title > * {
+  margin: 0;
+}
+
+.vx-room__voice .internal-voice-panel .hear-voice-body {
+  height: auto;
+  overflow: hidden;
+}
+
+.vx-room__voice .internal-voice-panel .hear-voice-compose,
+.vx-room__voice .internal-voice-panel .hear-voice-stage {
+  overflow: visible;
+}
+
+.internal-voice-panel__rating {
+  margin-top: 20px;
+  border: 1px solid var(--vx-line);
+  border-radius: 18px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.internal-voice-panel__rating > h3 {
+  margin: 0 0 6px;
+}
+
+.internal-voice-panel .hear-voice-stage-ready .hear-voice-message,
+.internal-voice-panel .hear-voice-stage-ready .hear-voice-request-details summary {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+@media (max-width: 720px) {
+  .vx-room__voice .hear-voice.internal-voice-panel {
+    padding: 0 10px 42px;
+  }
+
+  .vx-room__voice .hear-voice.internal-voice-panel > .section-heading {
+    grid-template-columns: 1fr;
+    margin-bottom: 14px;
+  }
+
+  .vx-room__voice .internal-voice-panel .hear-voice-body {
+    height: auto;
+    margin: 0;
+  }
+
+  .internal-voice-panel__rating {
+    padding: 16px;
+  }
+}

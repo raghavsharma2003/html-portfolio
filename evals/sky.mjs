@@ -18,17 +18,21 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, statSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
+const NPX_COMMAND = process.platform === "win32" ? process.execPath : "npx";
+const NPX_ARGS = process.platform === "win32"
+  ? [join(dirname(process.execPath), "node_modules/npm/bin/npx-cli.js")]
+  : [];
 
 const dir = mkdtempSync(join(tmpdir(), "skyeval-"));
 const out = join(dir, "sky.mjs");
 execFileSync(
-  "npx",
+  NPX_COMMAND,
   [
-    "esbuild",
+    ...NPX_ARGS, "esbuild",
     "src/engine/sky.ts",
     "--bundle",
     "--format=esm",
@@ -38,15 +42,15 @@ execFileSync(
   ],
   { cwd: ROOT, stdio: "inherit" },
 );
-const sky = await import(out);
+const sky = await import(pathToFileURL(out).href);
 // also bundle away.ts, because the consistency invariant below is a claim
 // about TWO files and asserting it against a copied-out constant would be
 // asserting it against nothing
 const outAway = join(dir, "away.mjs");
 execFileSync(
-  "npx",
+  NPX_COMMAND,
   [
-    "esbuild",
+    ...NPX_ARGS, "esbuild",
     "src/engine/away.ts",
     "--bundle",
     "--format=esm",
@@ -56,7 +60,7 @@ execFileSync(
   ],
   { cwd: ROOT, stdio: "inherit" },
 );
-const away = await import(outAway);
+const away = await import(pathToFileURL(outAway).href);
 
 const {
   SKY_STATES,
@@ -673,22 +677,22 @@ ok("night's midpoint is in the small hours", midpointOf("night") < 270, String(m
 {
   const outStory = join(dir, "story.mjs");
   execFileSync(
-    "npx",
-    ["esbuild", "src/engine/storyCatalog.ts", "--bundle", "--format=esm", "--platform=node",
+    NPX_COMMAND,
+    [...NPX_ARGS, "esbuild", "src/engine/storyCatalog.ts", "--bundle", "--format=esm", "--platform=node",
       `--outfile=${outStory}`, "--log-level=error"],
     { cwd: ROOT, stdio: "inherit" },
   );
-  const story = await import(outStory);
+  const story = await import(pathToFileURL(outStory).href);
   // timeline.ts too: the mirror's other half. Asserting the split point
   // against a constant copied into this file would assert nothing.
   const outTime = join(dir, "timeline.mjs");
   execFileSync(
-    "npx",
-    ["esbuild", "src/engine/timeline.ts", "--bundle", "--format=esm", "--platform=node",
+    NPX_COMMAND,
+    [...NPX_ARGS, "esbuild", "src/engine/timeline.ts", "--bundle", "--format=esm", "--platform=node",
       `--outfile=${outTime}`, "--log-level=error"],
     { cwd: ROOT, stdio: "inherit" },
   );
-  const timeline = await import(outTime);
+  const timeline = await import(pathToFileURL(outTime).href);
   const { existsSync } = await import("node:fs");
 
   // ── THE MIRROR AGREES WITH THE ORIGINALS ────────────────────────────────

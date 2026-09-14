@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-07",
+  "artifact": "private-dialogue-smoke-result-20260907.json",
+  "reviewer": "root assistant, direct source/output comparison; not a human panel",
+  "facts": {
+    "solving_is_23_minutes": true,
+    "review_is_13_minutes": true,
+    "solving_precedes_review": true,
+    "unsupported_additional_source_facts": false,
+    "one_sentence_english": true
+  },
+  "result": "passes this synthetic adapter/schema/accounting smoke and source relation check",
+  "limitations": [
+    "One request is not a quality benchmark or latency percentile.",
+    "No authenticated expert, activation, private memory, real owner data, identity or voice was exercised.",
+    "The main smoke artifact retains its original manual-review-pending state; this is the separate review receipt.",
+    "217 microUSD is measured token usage priced at verified retail rates, not an invoice or full service cost."
+  ]
+}
