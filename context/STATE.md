@@ -15,15 +15,14 @@ Never reset or edit the old dirty `Vyakti-platform` checkout. Its ignored
 stay outside Git and tool output. At most five independent workstreams; use
 Sol for bounded work and Astra for voice architecture/integration.
 
-**Release:** c4a26771 is the last pushed candidate. Both Node22/24 completed
-24/25 (run34835578719); only three Hindi-call labels failed contrast. Their
-source fix b5339990 is integrated through a50fbaf6, 3.33:1 -> 6.02:1,
-five focused accessibility pages pass. Android34835578675 passed the main
-eval registry then hit obsolete Meera-native watch harnesses. Their two
-workflow invocations are removed in31b087f8, integrated c9a1e34c; current
-native52/52 and workflow4/4 checks pass. No accepted full gate or product
-deployment yet. Next push is a repaired baseline for a **protected preview**.
-Do not run prepared main-merge/production-cutover helpers under this scope.
+**Release:** dc52ce10 passed25/25 on both Node22/24 and Android debug APK.
+It is deployed as protected preview dpl_7oQHS6ApjTvaUJLuiS7SkV9TGb9p:
+https://vyakti-replica-pn2fz2x07-raghav-carbonsettles-projects.vercel.app
+Exact source marker and head verified; actual landing and Studio sign-in render.
+No real email/session/model journey passed yet. Premium design69e0bd04 plus
+CSS focus-check repairf7147359, memory511784a0 and internal voice7b096951 are
+integrated after that baseline and need a new full gate/deployment. Do not use
+the old main-merge/production-cutover helpers under the current private scope.
 
 **Working configuration:** Vercel access and Azure sponsored subscription
 work. Terra conversation/correction, mini extraction, Azure storage and open
@@ -44,9 +43,12 @@ journeys, not real-model/user proof. Native decoder7/7 plus25sWebM/MP4 pass.
 
 **Azure worker:** one build cu3t succeeded. Immutable processing image
 `sha256:f824cfd367986eb5656998468e93054e96d9f711fe657723836521f1e89c5e6e`
-is verified; all61 packaged source files match c4a26771. Not activated.
+is verified and now active; all61 packaged source files match accepted dc52ce10.
+A separate live readback confirmed owned and unowned Job fields after HTTP202.
 Use reviewed `standalone25-processing-job-v3.py` only after accepted gates;
 no rebuild, explicit Job start or permanent GPU warming is currently needed.
+Memory consolidation still needs its five missing env names and a real scheduled
+caller for the private preview. Do not confuse the upload worker with memory.
 
 **Voice and design underway:** isolated `internal-owner-voice25` builds an
 explicit private owner-authorized lane reusing Azure Chatterbox and retained

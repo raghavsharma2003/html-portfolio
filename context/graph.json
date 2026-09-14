@@ -20265,6 +20265,24 @@
       "kind": "rejection",
       "title": "Green styling and the scanning YOU orb do not serve the product",
       "at": "context/rejected.md#wave25-green-everywhere-and-a-scanning-you-orb-are-not-premium"
+    },
+    {
+      "id": "wave25-private-preview-before-public-cutover",
+      "kind": "decision",
+      "title": "Private preview validates the real integration",
+      "at": "context/decisions.md#wave25-private-preview-before-public-cutover"
+    },
+    {
+      "id": "wave25-private-preview-worker-and-memory-parser-20260914",
+      "kind": "measurement",
+      "title": "Private preview, worker activation and memory SQL observed",
+      "at": "context/measurements.md#wave25-private-preview-worker-and-memory-parser-20260914"
+    },
+    {
+      "id": "wave25-default-voice-conditioning-and-code-only-memory",
+      "kind": "rejection",
+      "title": "Default conditioning and a code-only memory claim were insufficient",
+      "at": "context/rejected.md#wave25-default-voice-conditioning-and-code-only-memory"
     }
   ],
   "edges": [
@@ -34515,6 +34533,16 @@
       "src": "wave25-owner-prioritizes-private-internal-product",
       "rel": "constrains",
       "dst": "wave25-premium-journey-uses-pearl-silver-and-human-imagery"
+    },
+    {
+      "src": "wave25-private-preview-before-public-cutover",
+      "rel": "constrains",
+      "dst": "wave25-private-preview-worker-and-memory-parser-20260914"
+    },
+    {
+      "src": "wave25-default-voice-conditioning-and-code-only-memory",
+      "rel": "caused_by",
+      "dst": "wave25-private-preview-before-public-cutover"
     }
   ]
 }
