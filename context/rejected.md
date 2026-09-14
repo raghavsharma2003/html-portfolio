@@ -19102,3 +19102,8 @@ The initial assumption that the deployed CPU broker already implemented the curr
 ## wave25-unmatched-cfg-zero-is-not-baseline (2026-09-14)
 
 Initial internal runner used .5/.5/.8 and unknown/unverified language. Existing Hindi conditioning correctly mapped that unknown mode to effectiveCFG0, so it did not reproduce the owner's previously measured .2/.78/.6 identity-anchor clips. Reject treating that unmatched setup as a quality baseline. Recovered same-reference historical receipt supports source-transcript mixed mode, not exact-reference language verification; restrict reuse to that hash and preserve the evidence limitation. Initial new test used nonexistent outbound field effective_cfg_weight; actual provider wire field is cfg_weight and returned receipt field effectiveCfgWeight. Corrected the test against real implementation; actual wire/receipt both .78.
+
+
+## wave25-app-template-is-not-revision-template (2026-09-14)
+
+The previous controller assumed the app template and target revision template shared identical serialized fields; actual Azure metadata contradicts that assumption. App ephemeralStorage is empty-string vs revision missing; revisionSuffix empty-string vs null; cooldownPeriod and pollingInterval populated vs null. Runtime would refuse voice_app_revision_template_drift before synthesis despite correct inactive target. Do not erase these mutable differences through broad normalization. Bind both exact hashes explicitly; rebuilt CPU source is required before dispatch.

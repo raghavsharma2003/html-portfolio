@@ -18957,3 +18957,8 @@ After removing only the two obsolete workflow invocations, `node evals/vyakti-ap
 ## wave25-owner-anchor-effective-cfg-20260914 (2026-09-14)
 
 2026-09-14, n=38 Node tests, node --test services/internal-voice/runtime.test.mjs services/internal-voice/http.test.mjs: all passed. New control selects profile by exact historical reference hash, checks unchanged Hindi lesson text/style/seed41001, sends synthetic audio through the real Hindi provider and checks actual cfg_weight.78 plus receipt effectiveCfgWeight.78/source_transcript and source-scope warning. Wrong reference receives unknown/unverified/no inherited provenance. Test uses synthetic audio, not owner evidence. Retained objective-report binds8 reference/clip files; SHA256 verification passed8/8 without new scoring. Historical runner SHA4811f5483f282a6825234ec3e3b9bbed5db557bae8a9edd11c09e6707b8f7ec3 schedules hi-lesson seed41001; same-reference conditioning receipt SHA69fa728aed95d6c09c28ff40701827cc5d4c2f1f86ef8b612bb8233d44a5ec0a supplies mixed/source_transcript evidence. No cloud/model call.
+
+
+## wave25-exact-revision-template-controls-20260914 (2026-09-14)
+
+2026-09-14, n40 Node tests; node --test services/internal-voice/runtime.test.mjs services/internal-voice/http.test.mjs allpass. Two new controls prove distinct app-default and revision documents require separate hashes, app/revision drift still fails, invalid hash fails, and durable window cannot omit the configured revision hash. Root metadata receipt standalone25-hindi-template-diff-1789387046276967700.json reports revisionGET/list hash388256a983bf59e4192f460ee74c116faac52911a17ea1ca6e65f2ca6d4b4260 and app hash5f0b47de21bac3b86d6593bd6f5a86ab2087da9a96aced91cebca683b447e2c1. No GPU/model/cloud calls by this implementation.

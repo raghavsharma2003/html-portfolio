@@ -25356,3 +25356,8 @@ The owner explicitly prioritized real internal own-voice experiments over public
 ## wave25-reuse-recorded-owner-voice-anchor (2026-09-14)
 
 The internal owner explicitly requested a matched historical hi-lesson baseline before spending on the CPU build. For exact retained reference SHA52a4a5fa05b293de8f99e6529f3d69d94fd9f0cafdcf7ca39985b76eda70b30c, restore style exaggeration.2/CFG.78/temperature.6, seed41001 from the retained runner schedule, and mixed/source_transcript attribution supported by the Aug29 same-reference provider receipt. Persist the profile and nonsecret receipt/runner hashes in both attempt and output receipt. No exact-window language claim; transcript SHA is unavailable and not invented. Other reference hashes inherit no historical language evidence. Reverse if the historical reference/receipt attribution is disproved or measured owner comparison supports another explicit internal profile. Public defaults are untouched.
+
+
+## wave25-pin-app-and-revision-templates-separately (2026-09-14)
+
+Root read-only Azure metadata on2026-09-14 showed app and revision template documents differ in four explicit fields. Add optional revision_template_sha256 to the existing controller plan and stored-window binding. Check app template against template_sha256 and target revision against revision_template_sha256. Absence preserves the existing strict same-hash contract. No field normalization, defaults removal, image change or GPU start. Reverse if Azure returns identical documents again or another exact versioned representation supersedes this explicit binding.
