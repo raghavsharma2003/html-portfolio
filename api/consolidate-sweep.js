@@ -1,7 +1,9 @@
 import {
   ROOM_MEMORY_DISCOVERY_SQL,
+  OWNER_MEMORY_DISCOVERY_SQL,
 } from "./_room-memory-authority.js";
 import {assertRoomMemorySweepReady, roomMemoryPersonLimit, roomMemorySweepEnabled, runMeteredRoomMemoryConsolidation,
+  runMeteredOwnerMemoryConsolidation,
   ROOM_MEMORY_CLAIM_SQL, ROOM_MEMORY_RELEASE_SQL} from './_room-memory-consolidation.js';
 // Hourly consolidation sweep — Law E4 (docs/SPEC-AGENT-LAYER.md §5): "memory
 // that is not consolidated does not exist." Measured 2026-08-18: 40 of 41
@@ -479,7 +481,9 @@ export default async function handler(req, res) {
       ]);
     const roomCandidates = roomOnly
       ? await q(ROOM_MEMORY_DISCOVERY_SQL, [CANDIDATE_FETCH, MEERA_AGENT_ID]) : [];
-    const candidates = [...legacyCandidates.map(c=>({...c,agent_id:MEERA_AGENT_ID})), ...roomCandidates]
+    const ownerCandidates = roomOnly
+      ? (await q(OWNER_MEMORY_DISCOVERY_SQL, [CANDIDATE_FETCH])).map(c=>({...c,lane:'owner'})) : [];
+    const candidates = [...legacyCandidates.map(c=>({...c,agent_id:MEERA_AGENT_ID})), ...roomCandidates, ...ownerCandidates]
       .sort((a,b)=>new Date(a.oldest_pending_at)-new Date(b.oldest_pending_at))
       .slice(0,CANDIDATE_FETCH);
     const waitingOnUs = relationshipDiscovery.value
@@ -638,6 +642,14 @@ export default async function handler(req, res) {
         // facts and leaves every derived table empty, which renders as nothing
         // and reports as success.
         const before = spent();
+        if (roomOnly && c.lane === 'owner') {
+          const out = await runMeteredOwnerMemoryConsolidation(c, {queryFn:q,llm,runId});
+          const after = spent();
+          results.push({agent:candidateAgentId,person,lane:'owner',...out,
+            llm_calls:after.llm_calls-before.llm_calls,
+            tokens:after.tokens_in+after.tokens_out-before.tokens_in-before.tokens_out});
+          continue;
+        }
         if (roomOnly) {
           const out = await runMeteredRoomMemoryConsolidation(c, {queryFn:q,llm,runId});
           const after = spent();

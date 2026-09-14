@@ -3,8 +3,10 @@ import {isAzureOnlyServing} from './_model-serving-policy.js';
 import {canonicalJson, sha256Hex} from './_provenance/contracts.js';
 import {foundryBudgetConfig, reserveFoundrySpend, beginFoundrySpend, settleFoundrySpend,
   releaseFoundrySpendBeforeCall, markFoundrySpendUncertain} from './_provider-budget.js';
-import {ROOM_MEMORY_CONSOLIDATION_ENABLED, ROOM_MEMORY_BATCH_SQL, ROOM_MEMORY_MAX_OUTPUT_TOKENS,
-  ROOM_MEMORY_RESPONSE_FORMAT, runRoomMemoryConsolidation} from './_room-memory-authority.js';
+import {ROOM_MEMORY_CONSOLIDATION_ENABLED, ROOM_MEMORY_BATCH_SQL, ROOM_MEMORY_COMMIT_SQL,
+  ROOM_MEMORY_MAX_OUTPUT_TOKENS, ROOM_MEMORY_RESPONSE_FORMAT, runRoomMemoryConsolidation,
+  OWNER_MEMORY_BATCH_SQL, OWNER_MEMORY_COMMIT_SQL, OWNER_MEMORY_EXTRACTION_SYSTEM,
+  ownerMemoryAuthority} from './_room-memory-authority.js';
 
 export function roomMemorySweepEnabled(env = process.env) {
   return ROOM_MEMORY_CONSOLIDATION_ENABLED && env.CONSOLIDATE_SWEEP_MODE === 'room_only'
@@ -90,6 +92,11 @@ export const ROOM_MEMORY_CANCEL_ADMISSION_SQL = `update meera_consolidate_lease 
 function sourceBinding(rows) {
   return rows.map(r=>({id:String(r.id),content:r.content,follower_id:String(r.follower_id),
     memory_epoch:String(r.memory_epoch),agent_id:String(r.agent_id),person_id:String(r.person_id)}));
+}
+
+function ownerSourceBinding(rows) {
+  return rows.map(r=>({id:String(r.id),content:r.content,replica_id:String(r.replica_id),
+    agent_id:String(r.agent_id),person_id:String(r.person_id)}));
 }
 
 const RECLASSIFICATION_SNAPSHOT_KEYS=Object.freeze(['follower_id','memory_epoch','agent_id','person_id',
@@ -183,7 +190,10 @@ async function runMeteredRoomMemoryModel({candidate,queryFn,llm,runId,config,bud
 // also the explicit dev canary entrypoint; scheduled discovery has its own false
 // source flag. No transaction or row lock spans a provider call.
 export async function runMeteredRoomMemoryConsolidation(candidate,
-  {queryFn,llm,runId,env=process.env,fetchImpl=globalThis.fetch}={}) {
+  {queryFn,llm,runId,env=process.env,fetchImpl=globalThis.fetch,
+    batchSql=ROOM_MEMORY_BATCH_SQL,commitSql=ROOM_MEMORY_COMMIT_SQL,
+    batchParams=(c)=>[c.follower_id,c.agent_id,c.person_id],authorityOf,
+    sourceBindingFn=sourceBinding,extractionSystem,adapterVersion='room-memory/v1'}={}) {
   const config = strictRoomConsolidationConfig(env);
   const budget = foundryBudgetConfig(config.env);
   if (!runId || typeof queryFn !== 'function' || typeof llm !== 'function')
@@ -191,17 +201,30 @@ export async function runMeteredRoomMemoryConsolidation(candidate,
   let capturedRows;
   const scopedQuery = async(sql,params)=>{
     const rows=await queryFn(sql,params);
-    if(sql===ROOM_MEMORY_BATCH_SQL) capturedRows=rows;
+    if(sql===batchSql) capturedRows=rows;
     return rows;
   };
   return runRoomMemoryConsolidation(candidate,{queryFn:scopedQuery,env:config.env,
+    batchSql,commitSql,batchParams,...(authorityOf?{authorityOf}:{}),
+    ...(extractionSystem?{extractionSystem}:{}),
     model:async(messages,maxTokens,options)=>{
       return runMeteredRoomMemoryModel({candidate,queryFn,llm,runId,config,budget,fetchImpl,
-        sourceSnapshot:sourceBinding(capturedRows),
-        rereadSnapshot:async()=>sourceBinding(await queryFn(ROOM_MEMORY_BATCH_SQL,
-          [candidate.follower_id,candidate.agent_id,candidate.person_id])),
-        messages,maxTokens,responseFormat:options.responseFormat,adapterVersion:'room-memory/v1'});
+        sourceSnapshot:sourceBindingFn(capturedRows),
+        rereadSnapshot:async()=>sourceBindingFn(await queryFn(batchSql,batchParams(candidate))),
+        messages,maxTokens,responseFormat:options.responseFormat,adapterVersion});
     }});
+}
+
+// Owner Meet memory uses the same lease, reservation, exact-source reread,
+// usage settlement and release path as Room memory. Only its authority-bound
+// source and commit statements differ.
+export async function runMeteredOwnerMemoryConsolidation(candidate,
+  {queryFn,llm,runId,env=process.env,fetchImpl=globalThis.fetch}={}) {
+  return runMeteredRoomMemoryConsolidation(candidate,{queryFn,llm,runId,env,fetchImpl,
+    batchSql:OWNER_MEMORY_BATCH_SQL,commitSql:OWNER_MEMORY_COMMIT_SQL,
+    batchParams:(c)=>ownerMemoryAuthority(c),authorityOf:(_row,c)=>ownerMemoryAuthority(c),
+    sourceBindingFn:ownerSourceBinding,extractionSystem:OWNER_MEMORY_EXTRACTION_SYSTEM,
+    adapterVersion:'owner-memory/v1'});
 }
 
 // Reclassifies one active correction fact through the same bounded Room meter.

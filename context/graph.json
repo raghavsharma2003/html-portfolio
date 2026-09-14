@@ -20193,6 +20193,24 @@
       "kind": "measurement",
       "title": "Hindi Call labels clear contrast in the built phone and desktop page",
       "at": "context/measurements.md#wave25-hindi-call-label-contrast-20260914"
+    },
+    {
+      "id": "wave25-owner-text-memory-shares-room-meter",
+      "kind": "decision",
+      "title": "Owner text memory shares the Room meter and scheduled caller",
+      "at": "context/decisions.md#wave25-owner-text-memory-shares-room-meter"
+    },
+    {
+      "id": "wave25-owner-text-memory-focused-20260914",
+      "kind": "measurement",
+      "title": "Owner text memory passes focused isolation erasure and budget controls",
+      "at": "context/measurements.md#wave25-owner-text-memory-focused-20260914"
+    },
+    {
+      "id": "wave25-r182-preserved-patch-precedes-current-forget-requeue",
+      "kind": "rejection",
+      "title": "The preserved R182 patch predates current forget requeue behavior",
+      "at": "context/rejected.md#wave25-r182-preserved-patch-precedes-current-forget-requeue"
     }
   ],
   "edges": [
@@ -34393,6 +34411,21 @@
       "src": "wave25-mirror-availability-faint-ink-and-cross-studio-token",
       "rel": "constrains",
       "dst": "ws-r50-ink-faint-token-wide-recolour"
+    },
+    {
+      "src": "wave25-owner-text-memory-shares-room-meter",
+      "rel": "measured_by",
+      "dst": "wave25-owner-text-memory-focused-20260914"
+    },
+    {
+      "src": "wave25-r182-preserved-patch-precedes-current-forget-requeue",
+      "rel": "caused_by",
+      "dst": "wave25-owner-text-memory-shares-room-meter"
+    },
+    {
+      "src": "wave25-owner-text-memory-shares-room-meter",
+      "rel": "supersedes",
+      "dst": "ws-r167-owner-memory-consolidation-left-unmetered"
     }
   ]
 }

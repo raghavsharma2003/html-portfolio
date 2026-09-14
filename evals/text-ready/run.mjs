@@ -54,7 +54,11 @@ const {
   // scenario above) and the positive case §8 adds below.
   OWNER_PERSON_TALK_SHEET_SQL,
 } = dialogue;
-const { OWNER_MEMORY_RECALL_SQL } = authority;
+const {
+  OWNER_MEMORY_RECALL_SQL, OWNER_MEMORY_LOG_SQL, OWNER_MEMORY_BATCH_SQL,
+  OWNER_MEMORY_COMMIT_SQL, OWNER_MEMORY_DISCOVERY_SQL, ownerMeetDeviceId,
+  runOwnerMemoryConsolidation,
+} = authority;
 
 // ── a full-good RUNTIME_STATUS_SQL row, and small overrides per scenario ──
 const REPLICA_ID = "11111111-1111-4111-8111-111111111111";
@@ -105,6 +109,7 @@ const FAKE_VIBE = { vibe_id: "v1", replica_id: REPLICA_ID, owner_user_id: OWNER_
  *  issues always answer `[]` (never a fabricated relationship). */
 function fakeDb({ row, withProfile = true, withVibe = true, withMemory = false, facts = [], personTalkSheet = null } = {}) {
   const calls = [];
+  const logged = [];
   const db = async (sql, params) => {
     calls.push(sql);
     if (sql === RUNTIME_STATUS_SQL) return row ? [row] : [];
@@ -112,6 +117,7 @@ function fakeDb({ row, withProfile = true, withVibe = true, withMemory = false, 
     if (sql === OWNED_TEXT_PROFILE_SQL) return withProfile ? [{ version: 1, definition: JSON.stringify(PROFILE_DEFINITION) }] : [];
     if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return []; // no active/private VOICE capability in any scenario this suite drives
     if (sql === OWNER_MEMORY_RECALL_SQL) return withMemory ? facts : [];
+    if (sql === OWNER_MEMORY_LOG_SQL) { logged.push(params); return withMemory ? [{ id: "9100" }] : []; }
     if (/from vy_(?:rel_state|pattern|ritual|currency|phrase|kin)\b/.test(sql)) return [];
     // WS-R180: `null` (every scenario above this workstream) is the SAME
     // "no such row" shape every other absent-optional-row branch here
@@ -121,7 +127,7 @@ function fakeDb({ row, withProfile = true, withVibe = true, withMemory = false, 
     if (sql.includes("from vy_replica_vibe where replica_id=$1::uuid and owner_user_id=$2::uuid and superseded_at is null")) return withVibe ? [FAKE_VIBE] : [];
     throw new Error(`text-ready fixture: unmatched SQL statement (${sql.length} chars): ${sql.slice(0, 120)}`);
   };
-  return { db, calls };
+  return { db, calls, logged };
 }
 
 function fakeGenerator(replyText = "Namaste! I am still learning, but happy to talk.") {
@@ -239,7 +245,7 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
 //    relationship state reach the text-ready door's own compile ──────────
 {
   const factRow = { id: "9001", body: "switched to a morning schedule this month", kind: "user", name: "preference", created_at: new Date().toISOString(), communication: null };
-  const { db } = fakeDb({ row: statusRow({ agent_id: AGENT_ID }), withMemory: true, facts: [factRow] });
+  const { db, logged } = fakeDb({ row: statusRow({ agent_id: AGENT_ID }), withMemory: true, facts: [factRow] });
   const { generator, calls, lastPrompt } = fakeGenerator("Glad the morning schedule is working out.");
   const turn = await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Do you remember what I told you?" }, generator, null);
   ok("a text-ready turn with a minted agent and an extracted fact completes", calls() === 1 && typeof turn.reply === "string");
@@ -247,6 +253,10 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
     lastPrompt()?.messages?.[0]?.content?.includes(factRow.body));
   ok("the turn honestly reports has_memory:true", turn.has_memory === true);
   ok("has_continuity stays false (text-ready is stateless turn-to-turn, an unrelated, unchanged fact)", turn.has_continuity === false);
+  ok("a completed text-ready turn queues exactly its owner-authored message for consolidation",
+    logged.length === 1 && logged[0][0] === REPLICA_ID && logged[0][1] === OWNER_ID
+      && logged[0][2] === ownerMeetDeviceId(statusRow().subject_person_id)
+      && logged[0][3] === "Do you remember what I told you?");
 }
 
 // NEGATIVE CONTROL 4 — a text-ready replica with NO minted agent yet
@@ -350,6 +360,121 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
     ok("NEGATIVE CONTROL — a failed sheet read degrades to no policy, never a failed turn",
       typeof turn.reply === "string" && !prompt().messages[0].content.includes("REPLY LANGUAGE POLICY"));
   }
+}
+
+// WS-R182: one completed text-ready turn becomes a fact and reaches the next
+// stateless turn through the shipped owner-memory functions. Database and
+// extraction are local doubles; no provider or network is used.
+{
+  const personId = statusRow().subject_person_id;
+  const deviceId = ownerMeetDeviceId(personId);
+  const logs = [];
+  const foreignLogs = [
+    { id: "9198", content: "Sibling agent secret", at: new Date().toISOString(), device_id: deviceId,
+      replica_id: REPLICA_ID, agent_id: "66666666-6666-4666-8666-666666666666", person_id: personId, episode_id: null },
+    { id: "9199", content: "Sibling person secret", at: new Date().toISOString(), device_id: "77777777-7777-4777-8777-777777777777",
+      replica_id: REPLICA_ID, agent_id: AGENT_ID, person_id: "88888888-8888-4888-8888-888888888888", episode_id: null },
+  ];
+  const facts = [];
+  const forgotten = new Set();
+  let modelCalls = 0;
+  let personaMutations = 0;
+  const db = async (sql, params = []) => {
+    if (/\b(?:insert into|update|delete from)\s+vy_teacher_sheet\b/i.test(sql)) personaMutations++;
+    if (sql === RUNTIME_STATUS_SQL) return [statusRow({ agent_id: AGENT_ID })];
+    if (sql === TEXT_CAPABILITY_ENSURE_SQL) return [];
+    if (sql === OWNED_TEXT_PROFILE_SQL) return [{ version: 1, definition: JSON.stringify(PROFILE_DEFINITION) }];
+    if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return [];
+    if (sql === OWNER_MEMORY_RECALL_SQL) return facts.map((fact) => ({ ...fact }));
+    if (sql === OWNER_MEMORY_LOG_SQL) {
+      if (params[0] !== REPLICA_ID || params[1] !== OWNER_ID || params[2] !== deviceId) return [];
+      const record = { id: String(9200 + logs.length), content: params[3], at: new Date().toISOString(),
+        device_id: deviceId, replica_id: REPLICA_ID, agent_id: AGENT_ID, person_id: personId, episode_id: null };
+      logs.push(record);
+      return [{ id: record.id }];
+    }
+    if (sql === OWNER_MEMORY_BATCH_SQL) {
+      if (params[0] !== REPLICA_ID || params[1] !== OWNER_ID) return [];
+      return [...logs, ...foreignLogs].filter((record) => record.agent_id === AGENT_ID && record.person_id === personId
+        && record.episode_id === null
+        && ![...forgotten].some((term) => record.content.toLowerCase().includes(term.toLowerCase())));
+    }
+    if (sql === OWNER_MEMORY_COMMIT_SQL) {
+      const sources = JSON.parse(params[2]);
+      const proposals = JSON.parse(params[3]);
+      const current = [...logs, ...foreignLogs].filter((record) => sources.some((source) => source.id === record.id && source.content === record.content)
+        && record.agent_id === AGENT_ID && record.person_id === personId && record.episode_id === null
+        && ![...forgotten].some((term) => record.content.toLowerCase().includes(term.toLowerCase())));
+      if (current.length !== sources.length) return [];
+      const episode = String(9300 + facts.length);
+      for (const proposal of proposals) facts.push({ id: String(9400 + facts.length), body: proposal.quote,
+        kind: proposal.kind, name: proposal.name, provenance: "user_said",
+        communication: proposal.communication || null, created_at: new Date().toISOString(), citations: [episode] });
+      current.forEach((record) => { record.episode_id = episode; });
+      return [{ episode_id: episode, facts_written: proposals.length, observations_written: 0, sources_consumed: current.length }];
+    }
+    if (sql === OWNER_PERSON_TALK_SHEET_SQL) return [];
+    if (/from vy_(?:rel_state|pattern|ritual|currency|phrase|kin)\b/.test(sql)) return [];
+    if (sql.includes("from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid")) return [{ replica_id: params[0] }];
+    if (sql.includes("from vy_replica_vibe where replica_id=$1::uuid and owner_user_id=$2::uuid and superseded_at is null")) return [FAKE_VIBE];
+    throw new Error(`automatic text memory fixture: unmatched SQL (${sql.length} chars): ${sql.slice(0, 120)}`);
+  };
+
+  const firstGenerator = fakeGenerator("I will keep that in mind.");
+  const first = await generateOwnedTextDialogue(db, OWNER_ID,
+    { replica_id: REPLICA_ID, message: "My launch checklist lives in Notion." }, firstGenerator.generator, null);
+  ok("automatic memory: first text-ready turn completes without voice or session", first.session_id === null && first.can_voice === false);
+  ok("automatic memory: first completed turn persists one owner-only raw record", logs.length === 1 && logs[0].person_id === personId);
+  const unscopedPendingBefore = [...logs, ...foreignLogs]
+    .filter((record) => record.episode_id === null).length;
+
+  const env = { VYAKTI_MODEL_SERVING: "azure_only", AZURE_ENDPOINT: "https://fixture.services.ai.azure.com/openai/v1",
+    AZURE_API_KEY: "synthetic-offline-key" };
+  const consolidated = await runOwnerMemoryConsolidation({ replica_id: REPLICA_ID, owner_user_id: OWNER_ID }, {
+    queryFn: db, env,
+    model: async () => {
+      modelCalls++;
+      return JSON.stringify({ memories: [{ source_id: logs[0].id, kind: "user", name: "project",
+        quote: "My launch checklist lives in Notion.", communication: null }] });
+    },
+  });
+  ok("automatic memory: the shipped owner consolidator persists the fact", consolidated.facts_written === 1 && facts.length === 1);
+  ok("automatic memory: sibling agent and sibling person raw records remain untouched",
+    foreignLogs.every((record) => record.episode_id === null) && !facts.some((fact) => fact.body.includes("Sibling")));
+  ok("NEGATIVE CONTROL: an unscoped pending-row scan would have admitted all three dyads",
+    unscopedPendingBefore === 3 && [...logs, ...foreignLogs]
+      .filter((record) => record.episode_id === null).length === 2);
+
+  let secondPrompt = "";
+  const secondGenerator = fakeGenerator("Your launch checklist is in Notion.");
+  secondGenerator.generator.generate = async ({ prompt }) => {
+    secondPrompt = prompt.messages[0].content;
+    return { output: { reply: "Your launch checklist is in Notion.",
+      delivery: { mode: "grounded", pace: "natural", intensity: 0.4, language_hint: "", nonverbals: [] } } };
+  };
+  const second = await generateOwnedTextDialogue(db, OWNER_ID,
+    { replica_id: REPLICA_ID, message: "Where is my launch checklist?" }, secondGenerator.generator, null);
+  ok("automatic memory: the next stateless turn retrieves the persisted fact", second.session_id === null
+    && second.has_memory === true && secondPrompt.includes("My launch checklist lives in Notion."));
+  ok("automatic memory never rewrites the approved person sheet", personaMutations === 0);
+
+  forgotten.add("Notion");
+  facts.length = 0;
+  logs.forEach((record) => { record.episode_id = "already-consumed"; });
+  logs[0].episode_id = null;
+  const callsBeforeForget = modelCalls;
+  const afterForget = await runOwnerMemoryConsolidation({ replica_id: REPLICA_ID, owner_user_id: OWNER_ID }, {
+    queryFn: db, env, model: async () => { modelCalls++; return JSON.stringify({ memories: [] }); },
+  });
+  ok("automatic memory: forgotten source is suppressed before extraction and cannot resurrect",
+    afterForget.skipped === "no_authorized_sources" && modelCalls === callsBeforeForget && facts.length === 0);
+  ok("automatic memory SQL checks the same agent and person's suppression ledger before batch, commit and discovery",
+    [OWNER_MEMORY_BATCH_SQL, OWNER_MEMORY_COMMIT_SQL, OWNER_MEMORY_DISCOVERY_SQL].every((sql) =>
+      sql.includes("from meera_forget f") && sql.includes("f.agent_id=oa.agent_id")));
+  ok("automatic memory SQL keeps sibling agents, people and Room rows outside this dyad",
+    [OWNER_MEMORY_BATCH_SQL, OWNER_MEMORY_COMMIT_SQL, OWNER_MEMORY_DISCOVERY_SQL].every((sql) =>
+      sql.includes("l.agent_id=oa.agent_id") && sql.includes("l.room_memory_follower_id is null")
+        && sql.includes("l.speaker_person_id is null") && /d\.person_id=oa\.(?:person_id|subject_person_id)/.test(sql)));
 }
 
 console.log(`\n${pass} pass, ${fail} fail`);

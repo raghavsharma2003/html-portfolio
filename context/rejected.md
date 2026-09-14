@@ -19102,3 +19102,13 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** The selector uses personal Studio's `--ink-soft`, measured at 6.02:1 on the actual background. The canonical stylesheet and exact workspace partition changed together. The shared faint token, gate threshold, scenario and font size remain unchanged.
 
 **The rule.** A token name established in one studio is not automatically present in the other. Verify the custom property's computed value on the built target before treating a visually passing fallback or inherited color as a valid fix.
+
+## `wave25-r182-preserved-patch-precedes-current-forget-requeue`
+
+**Tried.** Applied the preserved WS-R182 patch from wave 24 directly to the current `dc52ce10` internal baseline.
+
+**What specifically broke.** Three-way apply could not reconcile any touched file. More importantly, the preserved patch predates the current partial-forget repair in `api/memory.js`, which can deliberately requeue surviving raw lineage. Its owner batch and commit queries did not consult `meera_forget`, so a forgotten phrase in a requeued source could be sent back to the provider and recreated as a fact. Restoring the old source wholesale would also overwrite current text-ready context-budget and Room leak-gate changes.
+
+**What replaced it.** The implementation was manually reconciled onto current source. The text-ready caller records only a validated owner turn; the current scheduled sweep discovers it; the established Room meter handles the paid call; and owner discovery, batch and commit each suppress forgotten content for every device mapped to the same person. Focused tests prove next-turn retrieval, no resurrection, sibling isolation, provider refusal and budget refusal.
+
+**The rule.** A preserved patch is evidence of intent, not current authority. Rebase its behavior against every later identity, erasure, context-budget and caller change, and keep a negative control for the later failure mode that made blind restoration unsafe.
