@@ -43,17 +43,16 @@ pass("strict shared reply with missing Azure config cannot use a foreign key");
 for (const requested of ["openrouter", "unknown"]) {
   const env = { ...strict, ...foreign, VYAKTI_REPLY_PROVIDER: requested };
   assert.equal(replyEngineCapability(env).available, false);
-  await assert.rejects(think(null, compiled, turns, { env, fetchImpl: noNetwork, db: noDb }),
-    { code: "model_serving_provider_denied" });
+  assert.equal(await think(null, compiled, turns, { env, fetchImpl: noNetwork, db: noDb }), "");
 }
 assert.equal(calls.length, 0);
-pass("explicit conflicting reply overrides refuse before any transport");
+pass("retired reply overrides cannot select a foreign provider or reach transport");
 
 const replyEnv = { ...strict, ...foreign,
-  AZURE_FOUNDRY_REPLY_ENDPOINT: "https://fixture.services.ai.azure.com/",
-  AZURE_FOUNDRY_REPLY_MODEL: "fixture-model", AZURE_FOUNDRY_REPLY_API_KEY: "fixture-not-a-real-key",
-  AZURE_REPLICA_APP_BUDGET_USD: "1", AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: "1",
-  AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS: "1" };
+  AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com/",
+  AZURE_FOUNDRY_DIALOGUE_MODEL: "fixture-model", AZURE_FOUNDRY_API_KEY: "fixture-not-a-real-key",
+  AZURE_REPLICA_APP_BUDGET_USD: "1", AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "1",
+  AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1" };
 // Test-only prices and ledger, never deployment configuration or accounting proof.
 function ledger() {
   let row;
@@ -87,9 +86,9 @@ pass("Azure reply failure does not retry through OpenRouter");
 calls = [];
 assert.equal(await think(null, compiled, turns, { env: foreign, db: noDb, fetchImpl: async (url) => {
   calls.push(String(url)); return chatResponse();
-} }), "Fixture answer");
-assert.deepEqual(calls, ["https://openrouter.ai/api/v1/chat/completions"]);
-pass("legacy shared reply remains explicitly testable outside Azure-only mode");
+} }), "");
+assert.deepEqual(calls, []);
+pass("Room never falls back to the legacy OpenRouter reply outside strict mode");
 
 const embeddingEnv = { ...strict, ...foreign, AZURE_ENDPOINT: "https://fixture.openai.azure.com/openai/v1",
   AZURE_API_KEY: "fixture-not-a-real-key" };

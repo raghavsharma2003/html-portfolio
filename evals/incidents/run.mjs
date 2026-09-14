@@ -837,16 +837,10 @@ const PROVIDER_CALLER_MAPPED = {
   // `deliverers.whatsappTemplate` (WS-R34, the sweep's template lane) are
   // the two production callers of `_room-whatsapp.js`'s two send functions.
   "_room-whatsapp.js": ["_room-whatsapp-chat.js", "_checkins.js"],
-  // The reply seam: `api/_surface.js#think()` is the actual fetch to the
-  // completion provider, shared with Meera's own non-Room surfaces
-  // (discord.js/tg.js/whatsapp.js) — Room-specific bookkeeping does not
-  // belong in a file neither product owns exclusively. `api/_room-surface.js
-  // #roomSay` (this workstream, every text reply on web/Telegram/WhatsApp)
-  // and `api/_checkins.js`'s own check-in delivery (this workstream) are
-  // the two Room-scoped callers that turn "nothing came back" into an
-  // incident.
-  "_surface.js": ["_room-surface.js", "_checkins.js"],
-  // Azure is the alternate transport behind the same think() caller seam.
+  // Azure is the only transport behind the shared Room reply seam.
+  // `api/_room-surface.js#roomSay` (every text reply on web/Telegram/WhatsApp)
+  // and `api/_checkins.js` are the Room-scoped callers that turn provider
+  // failure into an incident.
   "_azure-surface-reply.js": ["_room-surface.js", "_checkins.js"],
 };
 
@@ -1058,8 +1052,8 @@ const formerFetchPattern = /\.?fetch\(/;
 ok("NEGATIVE CONTROL: former discovery misses both actual injected transport shapes",
   !formerFetchPattern.test('fetchImpl(endpoint)') &&
   !formerFetchPattern.test('(options.fetchImpl || globalThis.fetch)(endpoint)'));
-ok("the real injected reply and embedding files remain discovered",
-  ["_surface.js", "_embed.js"].every((name) => DISCOVERED_REMOTE_FETCH_FILES.includes(name)));
+ok("the real injected reply and embedding transports remain discovered",
+  ["_azure-surface-reply.js", "_embed.js"].every((name) => DISCOVERED_REMOTE_FETCH_FILES.includes(name)));
 ok("generated browser script transports retain their original inventory coverage",
   Object.keys(EMBEDDED_PROVIDER_SCRIPTS).every((name) => DISCOVERED_REMOTE_FETCH_FILES.includes(name)));
 ok("named executable script literals are scanned while ordinary string examples are not",

@@ -130,7 +130,7 @@ await check('conversation exact 20000-unit content budget passes; one extra unit
   assert.equal(assertExpertConversation(tiny),40);
   assert.throws(()=>assertExpertConversation([...tiny,tiny[0]]),{code:'room_expert_conversation_invalid'});
   assert.equal(ROOM_RECALL_TURNS,30);assert.equal(ROOM_HISTORY_TURNS,30);
-  for(const file of ['_azure-surface-reply.js','_surface.js']) assert.ok(readFileSync(new URL('../api/'+file,import.meta.url),'utf8').includes('...turns.slice(-40)'));
+  assert.ok(readFileSync(new URL('../api/_azure-surface-reply.js',import.meta.url),'utf8').includes('...turns.slice(-40)'));
 });
 await check('remembering opt-in snapshots before current log and retains identical previous/current questions exactly twice',async()=>{
   for(const enabled of [true,false]){

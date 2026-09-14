@@ -21,10 +21,10 @@ const fake = {
   NEON_URL: 'postgresql://synthetic:PRIVATE_MARKER@db.invalid/synthetic',
   AZURE_FOUNDRY_ENDPOINT: 'https://synthetic-self-check.services.ai.azure.com',
   AZURE_FOUNDRY_API_KEY: 'PRIVATE_MARKER_synthetic_key',
-  AZURE_FOUNDRY_REPLY_MODEL: 'synthetic-model',
+  AZURE_FOUNDRY_DIALOGUE_MODEL: 'synthetic-model',
   AZURE_REPLICA_APP_BUDGET_USD: '1',
-  AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: '0.4',
-  AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS: '1.6',
+  AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: '0.4',
+  AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: '1.6',
 };
 function fakeDb() {
   const calls = [];
@@ -57,17 +57,19 @@ try {
     assert.ok(result.optional_absent.includes('OPENROUTER_KEY'));
     assert.equal(calls.length, 4, 'only existing DB checks; no provider SQL');
   });
-  await check('explicit reply provider alone gets same Azure classification', async () => {
+  await check('retired reply selection does not change Azure classification', async () => {
     const { result } = await run({ ...fake, VYAKTI_MODEL_SERVING: '', VYAKTI_REPLY_PROVIDER: 'azure_foundry' });
     assert.equal(result.ok, true);
   });
-  await check('effective reply overrides required; unused generic names remain optional', () => {
-    const env = { ...fake, AZURE_FOUNDRY_ENDPOINT: '', AZURE_FOUNDRY_API_KEY: '', AZURE_FOUNDRY_REPLY_ENDPOINT: fake.AZURE_FOUNDRY_ENDPOINT, AZURE_FOUNDRY_REPLY_API_KEY: fake.AZURE_FOUNDRY_API_KEY };
+  await check('Room uses the same required Foundry names as Meet', () => {
+    const env = { ...fake, AZURE_FOUNDRY_REPLY_ENDPOINT: fake.AZURE_FOUNDRY_ENDPOINT,
+      AZURE_FOUNDRY_REPLY_API_KEY: fake.AZURE_FOUNDRY_API_KEY, AZURE_FOUNDRY_REPLY_MODEL: 'retired-model' };
     const rows = current.envPresence(env);
-    assert.ok(rows.find(row => row.name === 'AZURE_FOUNDRY_REPLY_ENDPOINT')?.required);
-    assert.ok(rows.find(row => row.name === 'AZURE_FOUNDRY_REPLY_API_KEY')?.required);
-    assert.equal(rows.find(row => row.name === 'AZURE_FOUNDRY_ENDPOINT')?.required, false);
-    assert.equal(rows.find(row => row.name === 'AZURE_FOUNDRY_API_KEY')?.required, false);
+    assert.ok(rows.find(row => row.name === 'AZURE_FOUNDRY_ENDPOINT')?.required);
+    assert.ok(rows.find(row => row.name === 'AZURE_FOUNDRY_API_KEY')?.required);
+    assert.ok(rows.find(row => row.name === 'AZURE_FOUNDRY_DIALOGUE_MODEL')?.required);
+    assert.equal(rows.find(row => row.name === 'AZURE_FOUNDRY_REPLY_ENDPOINT')?.required, false);
+    assert.equal(rows.find(row => row.name === 'AZURE_FOUNDRY_REPLY_API_KEY')?.required, false);
     assert.equal(selfCheckServing(env).check.ok, true);
   });
   await check('required rows are unique and presence remains boolean only', () => {
@@ -81,13 +83,12 @@ try {
     ['endpoint absent', { AZURE_FOUNDRY_ENDPOINT: '' }, 'azure_reply_endpoint_required'],
     ['deceptive endpoint present', { AZURE_FOUNDRY_ENDPOINT: 'https://PRIVATE_MARKER.services.ai.azure.com.invalid' }, 'azure_reply_endpoint_invalid'],
     ['key absent', { AZURE_FOUNDRY_API_KEY: '' }, 'azure_reply_auth_required'],
-    ['model malformed', { AZURE_FOUNDRY_REPLY_MODEL: 'PRIVATE_MARKER/bad' }, 'azure_reply_model_required'],
-    ['reply rate absent despite generic rate', { AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: '', AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: '0.4' }, 'provider_input_rate_required'],
-    ['reply rate invalid', { AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS: 'PRIVATE_MARKER' }, 'provider_output_rate_required'],
+    ['model malformed', { AZURE_FOUNDRY_DIALOGUE_MODEL: 'PRIVATE_MARKER/bad' }, 'azure_reply_model_required'],
+    ['shared input rate absent', { AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: '' }, 'provider_input_rate_required'],
+    ['shared output rate invalid', { AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: 'PRIVATE_MARKER' }, 'provider_output_rate_required'],
     ['budget invalid', { AZURE_REPLICA_APP_BUDGET_USD: '-1' }, 'provider_budget_limit_required'],
     ['budget ID invalid', { AZURE_REPLICA_BUDGET_ID: 'PRIVATE_MARKER' }, 'provider_budget_id_invalid'],
     ['Neon whitespace only', { NEON_URL: ' ' }, 'neon_url_missing'],
-    ['conflicting external provider', { VYAKTI_REPLY_PROVIDER: 'openrouter', OPENROUTER_KEY: 'PRIVATE_MARKER' }, 'model_serving_provider_denied'],
   ];
   for (const [name, patch, code] of invalidCases) await check(`${name} produces named failure without values`, async () => {
     const { result } = await run({ ...fake, ...patch });
@@ -96,8 +97,8 @@ try {
     assert.ok(!result.failing_doors.includes('env: OPENROUTER_KEY missing'));
   });
   await check('missing actual required Azure names reach existing failing-door consumer', async () => {
-    const { result } = await run({ ...fake, AZURE_FOUNDRY_REPLY_MODEL: '' });
-    assert.ok(result.failing_doors.includes('env: AZURE_FOUNDRY_REPLY_MODEL missing'));
+    const { result } = await run({ ...fake, AZURE_FOUNDRY_DIALOGUE_MODEL: '' });
+    assert.ok(result.failing_doors.includes('env: AZURE_FOUNDRY_DIALOGUE_MODEL missing'));
     const writes = [];
     await current.recordSelfCheckIncidents(async (sql, params) => { writes.push({ sql, params }); return []; }, result);
     assert.equal(writes.length, result.failed);
@@ -109,23 +110,25 @@ try {
     const { result } = await run(fake, current, async () => { throw Error('PRIVATE_MARKER'); });
     assert.equal(result.ok, false); assert.deepEqual(result.failing_doors, ['db: select_1_failed']);
   });
-  await check('default legacy full result and env rows stay byte-equivalent', async () => {
-    for (const env of [{}, { NEON_URL: 'synthetic' }, { NEON_URL: 'synthetic', OPENROUTER_KEY: 'synthetic' }]) {
-      assert.deepEqual(current.envPresence(env), old.envPresence(env));
-      assert.deepEqual((await run(env)).result, (await run(env, old)).result);
+  await check('Azure readiness is unconditional and retired selectors cannot disable it', async () => {
+    for (const patch of [{}, { VYAKTI_MODEL_SERVING: '' }, { VYAKTI_MODEL_SERVING: 'openrouter' },
+      { VYAKTI_REPLY_PROVIDER: 'openrouter', OPENROUTER_KEY: 'synthetic' }]) {
+      const env = { ...fake, ...patch };
+      assert.equal(selfCheckServing(env).check.ok, true);
+      assert.equal((await run(env)).result.ok, true);
     }
   });
-  await check('legacy exported required/optional mirrors remain unchanged', () => {
+  await check('legacy exported lists stay available while serving requirements are Azure-only', () => {
     assert.deepEqual(current.REQUIRED_ENV, old.REQUIRED_ENV);
     assert.deepEqual(current.OPTIONAL_ENV, old.OPTIONAL_ENV);
-    assert.equal(selfCheckServing({}), null);
+    assert.equal(selfCheckServing({}).check.ok, false);
+    assert.ok(selfCheckServing({}).required.includes('AZURE_FOUNDRY_DIALOGUE_MODEL'));
   });
   await check('Azure reply success is not a claim that private auth/encryption/storage are configured', async () => {
     const { result } = await run(fake);
     assert.ok(result.optional_absent.includes('SUPABASE_URL'));
     assert.ok(result.optional_absent.includes('SUPABASE_KEY'));
     assert.equal(fake.PRIVATE_TEXT_REHEARSAL_KEK_B64, undefined);
-    assert.equal(fake.AZURE_FOUNDRY_DIALOGUE_MODEL, undefined);
     assert.equal(result.ok, true, 'scope is deployment checks plus shared reply config, not every private capability');
     assert.ok(!result.checks.some(row => /private.*ready|storage.*ready|auth.*ready/i.test(row.door)));
   });
@@ -133,7 +136,7 @@ try {
     const json = JSON.stringify(outputs);
     assert.ok(!json.includes('PRIVATE_MARKER'));
     assert.ok(!json.includes(fake.AZURE_FOUNDRY_ENDPOINT));
-    assert.ok(!json.includes(fake.AZURE_FOUNDRY_REPLY_MODEL));
+    assert.ok(!json.includes(fake.AZURE_FOUNDRY_DIALOGUE_MODEL));
     assert.equal(networkAttempts, 0);
   });
 } finally { globalThis.fetch = previousFetch; }

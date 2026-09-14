@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { azureSurfaceReply, azureSurfaceReplyConfig } from "../../api/_azure-surface-reply.js";
 import { replyEngineCapability } from "../../api/_reply-engine-capability.js";
+import { createProductionRoomReplyGenerator } from "../../api/_dialogue/registry.js";
 import { selfCheckServing } from "../../api/_self-check-serving.js";
 
 const env = { VYAKTI_REPLY_PROVIDER: "azure_foundry",
-  AZURE_FOUNDRY_REPLY_ENDPOINT: "https://fixture.services.ai.azure.com/",
-  AZURE_FOUNDRY_REPLY_MODEL: "gpt-4.1-mini", AZURE_FOUNDRY_REPLY_API_KEY: "fixture-not-a-real-key",
+  AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com/",
+  AZURE_FOUNDRY_DIALOGUE_MODEL: "gpt-4.1-mini", AZURE_FOUNDRY_API_KEY: "fixture-not-a-real-key",
   AZURE_REPLICA_APP_BUDGET_USD: "5",
-  AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: "0.4",
-  AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS: "1.6" };
+  AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.4",
+  AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1.6" };
 const compiled = { core: "Expert persona. Hindi allowed.", tail: "Private relationship memory." };
 const turns = [{ role: "user", content: "Explain my next step" }];
 let n = 0;
@@ -68,13 +69,13 @@ ok("bounded output has no foreign provider controls and redirects cannot carry t
 ok("usage is measured and price reservation is conservative", successful.calls.at(-1).p[3] === 20 &&
   successful.calls.at(-1).p[4] === 8 && successful.calls[1].p[10] >= successful.calls.at(-1).p[5]);
 for (const input of [
-  { ...env, AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: undefined },
-  { ...env, AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS: "0" },
+  { ...env, AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: undefined },
+  { ...env, AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "0" },
   { ...env, AZURE_REPLICA_APP_BUDGET_USD: undefined },
-  { ...env, AZURE_FOUNDRY_REPLY_ENDPOINT: "https://fixture.services.ai.azure.com.evil.test" },
-  { ...env, AZURE_FOUNDRY_REPLY_ENDPOINT: "https://fixture.services.ai.azure.com/?key=x" },
-  { ...env, AZURE_FOUNDRY_REPLY_ENDPOINT: "http://fixture.services.ai.azure.com/" },
-  { ...env, AZURE_FOUNDRY_REPLY_MODEL: "" },
+  { ...env, AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com.evil.test" },
+  { ...env, AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com/?key=x" },
+  { ...env, AZURE_FOUNDRY_ENDPOINT: "http://fixture.services.ai.azure.com/" },
+  { ...env, AZURE_FOUNDRY_DIALOGUE_MODEL: "" },
 ]) {
   let dispatched = false;
   await assert.rejects(azureSurfaceReply({ compiled, turns, env: input,
@@ -105,25 +106,27 @@ const aborted = ledger();
 await assert.rejects(azureSurfaceReply({ compiled, turns, env, db: aborted.db,
   signal: AbortSignal.abort(), fetchImpl: async () => assert.fail("aborted request fetched") }));
 ok("a known pre-dispatch abort releases its reservation", aborted.calls.at(-1).sql.includes("with released as"));
-ok("provider selection preserves OpenRouter by default and refuses unknown switches",
-  replyEngineCapability({ OPENROUTER_KEY: "present" }).available &&
-  !replyEngineCapability({ VYAKTI_REPLY_PROVIDER: "unknown", OPENROUTER_KEY: "present" }).available &&
-  replyEngineCapability(env).available);
+ok("Room readiness requires the Meet Azure registry even when an OpenRouter key is present",
+  !replyEngineCapability({ OPENROUTER_KEY: "present" }).available &&
+  !replyEngineCapability({ VYAKTI_REPLY_PROVIDER: "openrouter", OPENROUTER_KEY: "present" }).available &&
+  replyEngineCapability(env).available && createProductionRoomReplyGenerator({ env }).model === "gpt-4.1-mini");
 const source = readFileSync(new URL("../../api/_surface.js", import.meta.url), "utf8");
 ok("the Azure adapter plugs into the existing shared brain, leaving the gate in place",
-  source.includes('resolveReplyServingProvider(env)') && source.includes('provider === "azure_foundry"') &&
-  source.includes("azureSurfaceReply({ compiled, turns, db: options.db || q, env,") && source.includes("export async function gatedReply"));
+  source.includes("createProductionRoomReplyGenerator({") && !source.includes("openrouter.ai") &&
+  source.includes("export async function gatedReply"));
 ok("configured models never silently inherit a different lane's rates", (() => {
-  assert.throws(() => azureSurfaceReplyConfig({ ...env, AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: undefined,
-    AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.01" })); return true;
+  assert.throws(() => azureSurfaceReplyConfig({ ...env, AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: undefined,
+    OPENROUTER_INPUT_USD_PER_MTOKENS: "0.01" })); return true;
 })());
-const terraEnv = { ...env, AZURE_FOUNDRY_REPLY_MODEL: "gpt-5.6-terra",
-  AZURE_FOUNDRY_REPLY_RATE_MODEL: "gpt-5.6-terra",
-  AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: "2", AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS: "12" };
-for (const patch of [{ AZURE_FOUNDRY_REPLY_RATE_MODEL: undefined },
-  { AZURE_FOUNDRY_REPLY_RATE_MODEL: "gpt-4.1-mini" },
-  { AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: undefined },
-  { AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS: undefined }]) {
+const terraEnv = { ...env, AZURE_FOUNDRY_DIALOGUE_MODEL: "gpt-5.6-terra",
+  AZURE_FOUNDRY_DIALOGUE_RATE_MODEL: "gpt-5.6-terra",
+  AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL: "gpt-5.6-terra-2026-07-09",
+  AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS: "2", AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS: "12" };
+for (const patch of [{ AZURE_FOUNDRY_DIALOGUE_RATE_MODEL: undefined },
+  { AZURE_FOUNDRY_DIALOGUE_RATE_MODEL: "gpt-4.1-mini" },
+  { AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL: undefined },
+  { AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS: undefined },
+  { AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS: undefined }]) {
   const invalid = { ...terraEnv, ...patch }; let calls = 0;
   await assert.rejects(azureSurfaceReply({ compiled, turns, env: invalid,
     db: async () => { calls++; }, fetchImpl: async () => { calls++; } }));
@@ -133,11 +136,11 @@ for (const patch of [{ AZURE_FOUNDRY_REPLY_RATE_MODEL: undefined },
 ok("Terra requires explicitly acknowledged model-specific rates before DB/network/readiness", true);
 const readiness = selfCheckServing({ ...terraEnv, NEON_URL: "fixture-only" });
 ok("Terra readiness names the rate binding and accepts configured rates without hardcoded price assumptions",
-  readiness.check.ok && readiness.required.includes("AZURE_FOUNDRY_REPLY_RATE_MODEL") &&
-  !selfCheckServing({ ...env, NEON_URL: "fixture-only" }).required.includes("AZURE_FOUNDRY_REPLY_RATE_MODEL") &&
+  readiness.check.ok && readiness.required.includes("AZURE_FOUNDRY_DIALOGUE_RATE_MODEL") &&
+  !selfCheckServing({ ...env, NEON_URL: "fixture-only" }).required.includes("AZURE_FOUNDRY_DIALOGUE_RATE_MODEL") &&
   JSON.parse(readFileSync(new URL("../../api/_env-manifest.gen.json", import.meta.url), "utf8"))
-    .find(row => row.name === "AZURE_FOUNDRY_REPLY_RATE_MODEL").required === false &&
-  azureSurfaceReplyConfig({ ...terraEnv, AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: "3" }).budgetEnv.AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS === "3");
+    .find(row => row.name === "AZURE_FOUNDRY_DIALOGUE_RATE_MODEL").required === false &&
+  azureSurfaceReplyConfig({ ...terraEnv, AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS: "3" }).budgetEnv.AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS === "3");
 const terraResponse = (patch = {}) => response({ model: "gpt-5.6-terra-2026-07-09", system_fingerprint: null,
   usage: { prompt_tokens: 4, completion_tokens: 20, completion_tokens_details: { reasoning_tokens: 8 } }, ...patch });
 const terra = ledger(); let terraBody;

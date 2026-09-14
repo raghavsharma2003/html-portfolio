@@ -18820,3 +18820,13 @@ never clicks there would have shipped the same defect silently.
 ## `wave25-handover-project-and-room-route-assumptions` (2026-09-14)
 
 Tried validating the named html-portfolio Vercel project as Meera production and api/chat.js as the Room provider route. Actual deployment metadata points to separate project meera; caller trace points to _room-surface.js then _surface.js. Acting on the handover names alone would relink the wrong project and leave the Room provider unchanged. Use observed bindings and callers instead.
+
+## `wave25-room-cannot-adopt-meets-structured-output-parser-by-provider-alignment` (2026-09-14, wave 25)
+
+**Tried.** Traced whether Room could call `createProductionDialogueGenerator()` directly when moving its reply path onto Meet's Azure registry.
+
+**What specifically broke.** Meet's generator requires its private-dialogue JSON schema and returns that structured payload. Room's shared surface requires raw text for `parseBubbles`, the expert-answer parser, disclosure insertion, never-rules and the existing delivery protocol. Reusing the structured generator would silently replace those established contracts even though the provider and deployment were correct.
+
+**What replaced it.** Added a Room reply factory to the same production registry. It reuses Meet's endpoint, deployment, key, Terra revision and pricing contract, then calls the existing budgeted raw-text adapter so the Room parser remains authoritative.
+
+**Reversal condition.** This rejection can be retired when a versioned structured Room parser passes explicit equivalence fixtures for every affected parser and delivery behavior named above.

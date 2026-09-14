@@ -7,39 +7,38 @@ import {
   foundryBudgetConfig, reserveFoundrySpend, beginFoundrySpend,
   releaseFoundrySpendBeforeCall, settleFoundrySpend, markFoundrySpendUncertain,
 } from "./_provider-budget.js";
+import { azureDialogueProtocol } from "./_dialogue/providers/azure-foundry.js";
 
 const VERSION = "2024-05-01-preview";
+// Mirrors src/engine/compiler.ts#OPERATIONAL_CORE_CAP and
+// OPERATIONAL_TAIL_CAP. scripts/check-prompt-budget.mjs checks the two sources
+// together after the retired /api/chat proxy is removed.
+const SYSTEM_MAX = 72_000;
+const TAIL_MAX = 24_000;
 const fail = (code) => { throw Object.assign(new Error(code), { code, status: 503 }); };
-// Explicitly tested deployment dialect, not a prefix guess for all GPT models.
-const MODEL_PROTOCOLS = Object.freeze({
-  "gpt-5.6-terra": Object.freeze({ expectedModel: "gpt-5.6-terra-2026-07-09",
-    completion: Object.freeze({ max_completion_tokens: 400, reasoning_effort: "none" }) }),
-});
 
 export function azureSurfaceReplyConfig(env = process.env) {
   let url;
-  try { url = new URL(env.AZURE_FOUNDRY_REPLY_ENDPOINT || env.AZURE_FOUNDRY_ENDPOINT || ""); }
+  try { url = new URL(env.AZURE_FOUNDRY_ENDPOINT || ""); }
   catch { fail("azure_reply_endpoint_required"); }
   if (url.protocol !== "https:" || !/^[a-z0-9-]+\.services\.ai\.azure\.com$/i.test(url.hostname) ||
       url.username || url.password || url.port || url.search || url.hash ||
       !["/", "/models", "/models/"].includes(url.pathname)) fail("azure_reply_endpoint_invalid");
   url.pathname = "/models/chat/completions";
   url.search = `api-version=${VERSION}`;
-  const model = String(env.AZURE_FOUNDRY_REPLY_MODEL || "").trim();
-  const apiKey = String(env.AZURE_FOUNDRY_REPLY_API_KEY || env.AZURE_FOUNDRY_API_KEY || "").trim();
+  const model = String(env.AZURE_FOUNDRY_DIALOGUE_MODEL || "").trim();
+  const apiKey = String(env.AZURE_FOUNDRY_API_KEY || "").trim();
   if (!/^[A-Za-z0-9_.-]{1,120}$/.test(model)) fail("azure_reply_model_required");
   if (apiKey.length < 16) fail("azure_reply_auth_required");
-  const protocol = Object.hasOwn(MODEL_PROTOCOLS, model) ? MODEL_PROTOCOLS[model] : undefined;
-  // A model-only switch must not reuse the incumbent's rates accidentally.
-  // The operator still supplies the verified rate card; prices are not eternal.
-  if (protocol && env.AZURE_FOUNDRY_REPLY_RATE_MODEL !== model) fail("azure_reply_rate_model_mismatch");
-  // Prices belong to this exact deployment, not to the independent claim or
-  // structured-dialogue model. Reuse the ledger without borrowing its rates.
-  const budgetEnv = {
+  // Meet already owns the deployment dialect and the optional Terra revision
+  // binding. Room asks that same provider contract for raw text because its
+  // established parseBubbles/parseExpertAnswer gate remains authoritative.
+  const protocol = azureDialogueProtocol(model, env);
+  const budgetEnv = protocol?.budgetEnv || {
     AZURE_REPLICA_BUDGET_ID: env.AZURE_REPLICA_BUDGET_ID,
     AZURE_REPLICA_APP_BUDGET_USD: env.AZURE_REPLICA_APP_BUDGET_USD,
-    AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: env.AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS,
-    AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: env.AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS,
+    AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: env.AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS,
+    AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: env.AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS,
   };
   foundryBudgetConfig(budgetEnv);
   return { url, model, apiKey, budgetEnv, protocol };
@@ -68,8 +67,8 @@ export async function azureSurfaceReply({ compiled, turns, db, env = process.env
   const config = azureSurfaceReplyConfig(env);
   const messages = [
     { role: "system", content: [
-      { type: "text", text: compiled.core.slice(0, 64_000) },
-      { type: "text", text: compiled.tail.slice(0, 24_000) },
+      { type: "text", text: compiled.core.slice(0, SYSTEM_MAX) },
+      { type: "text", text: compiled.tail.slice(0, TAIL_MAX) },
     ] },
     ...turns.slice(-40),
   ];
@@ -94,7 +93,8 @@ export async function azureSurfaceReply({ compiled, turns, db, env = process.env
       method: "POST", redirect: "error",
       headers: { "Content-Type": "application/json", "api-key": config.apiKey },
       body: JSON.stringify({ model: config.model, messages,
-        ...(config.protocol?.completion || { max_tokens: 400 }), stream: false }),
+        ...(config.protocol ? { max_completion_tokens: 400, reasoning_effort: "none" } : { max_tokens: 400 }),
+        stream: false }),
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
     });
     if (!response.ok) fail(`azure_reply_http_${Number(response.status) || "unknown"}`);
