@@ -36,6 +36,8 @@ execSync(
 );
 
 const suites = {
+  "recording-upload-repair": "recording-upload-repair.mjs",
+  "studio-capture-mobile": "clone-experience-qa/ci.mjs",
   "studio-media-policy": "studio-media-policy/run.mjs",
   "workspace-notice": "workspace-notice/run.mjs",
   "account-email-redirect": "account-email-redirect.mjs",
