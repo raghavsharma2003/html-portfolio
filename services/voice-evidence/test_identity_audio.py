@@ -34,6 +34,16 @@ def probe(audio=None, video=None):
 
 
 class ContractTests(unittest.TestCase):
+    def test_ui_and_backend_capture_ceiling_share_thirty_second_contract(self):
+        studio = (Path(__file__).parents[2] / "src" / "studio" / "LivenessCapture.tsx").read_text(encoding="utf-8")
+        creator = (Path(__file__).parents[2] / "src" / "creatorStudio" / "LivenessCapture.tsx").read_text(encoding="utf-8")
+        for source in (studio, creator):
+            self.assertIn("MAX_LIVENESS_CAPTURE_MS = 25_000", source)
+            self.assertIn("setTimeout(() => stopRecording(), MAX_LIVENESS_CAPTURE_MS)", source)
+            self.assertNotIn("setTimeout(() => stopRecording(), 60_000)", source)
+            self.assertNotIn("MAX_LIVENESS_CAPTURE_MS = 30_000", source)
+        self.assertEqual(identity.MAX_FRAMES, identity.RATE * 30)
+
     def assertCode(self, code, call):
         with self.assertRaises(identity.IdentityAudioError) as caught:
             call()

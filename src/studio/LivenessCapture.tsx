@@ -3,6 +3,10 @@ import { putSignedUpload, sha256File } from "./enrollmentApi";
 import type { BiometricVerificationAttestations, LivenessCaptureReadiness, LivenessIssueInput, SelectedReferenceAttestations, SelectedReferenceComparison } from "./livenessApi";
 import type { LivenessChallenge, ReplicaSource, SignedUpload } from "./types";
 
+// Leave five seconds for timer jitter, stalled tabs and upload handoff before
+// the decoder's strict 30-second MAX_FRAMES ceiling.
+export const MAX_LIVENESS_CAPTURE_MS = 25_000;
+
 type CaptureMode = "audio" | "video";
 type CaptureStage =
   | "idle"
@@ -516,7 +520,7 @@ export default function LivenessCapture({
     setSecondsRecorded(0);
     recorder.start(250);
     setStage("recording");
-    autoStopRef.current = window.setTimeout(() => stopRecording(), 60_000);
+    autoStopRef.current = window.setTimeout(() => stopRecording(), MAX_LIVENESS_CAPTURE_MS);
   }
 
   function stopRecording() {

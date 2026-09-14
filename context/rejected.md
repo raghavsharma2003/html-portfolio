@@ -18934,3 +18934,11 @@ A narrow CI agent reported work in an isolated worktree but committed14ad34ab an
 ## wave25-repair-does-not-update-deployed-meera-writer
 
 The current Vyakti source fixes partial-forget survivor links and mapped suppression, but deployed Meera remains atbee906 unchanged under owner separation directive. Repairing the measured20messages does not deploy that source fix to Meera; future Meera partial-forget calls can reproduce the old defect. Keep this residual limitation visible and detect recurrence with relcheck. Do not claim the entire live historical writer is fixed from a green observed incident.
+
+## standalone25-capture-duration-60s-rejected-20260914
+
+A 60-second LivenessCapture auto-stop was rejected because services/voice-evidence/identity_audio.py enforces MAX_FRAMES = RATE * 30 and refuses decoded frames beyond that limit. The parser and Face version were not changed beyond this duration alignment; no readiness or enablement change was made.
+
+## standalone25-capture-duration-zero-margin-rejected-20260914
+
+A 30-second UI timer was rejected as zero-margin: browser scheduling and upload handoff can overshoot the decoder's strict 30-second limit by milliseconds. A 25-second UX budget preserves an honest server-side refusal for stalled or oversized captures without silent trimming.

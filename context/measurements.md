@@ -18837,3 +18837,19 @@ Method: four focused offline suites on standalone25 commit 6f0ab212 after contra
 ## wave25-orphan-repair-committed-20260914
 
 2026-09-14, n=1 fixed-incident transaction after independent review and rollback proof. COMMIT acknowledged;20 target messages preserved with valid/unclaimed lineage,2 empty provisional wake episodes created,6 forget records preserved,0 term matches,0 content or term values returned. Independent connection verified20 preserved and0orphans. Receipt standalone25-meera-orphan-commit-1789378384691.json plus cursor-only intent. Subsequent actual live relcheck exit0: zero-orphan sweep green40checks including multiparty,10339ms. Receipt standalone25-relcheck-1789378422682.log. No model call or product deployment.
+
+## standalone25-capture-duration-30s-20260914
+
+Method: scoped Python ContractTests and static source contract checks in the isolated capture-duration worktree; n=10 contract tests, date 2026-09-14, all passed. Full decoder unittest was not claimable because ffmpeg/ffprobe are unavailable. Microsoft Learn's Face liveness v1.2 documentation shows modelVersion 2025-05-20 in the current tutorial and 2024-11-15 in an older response example; this task leaves the pinned version unchanged.
+
+## standalone25-capture-duration-30s-measurement-20260914
+
+Both UI surfaces assert the named 30-second timer and backend MAX_FRAMES remains RATE * 30.
+
+## standalone25-capture-duration-headroom-20260914
+
+Method: static contract tests on both liveness capture surfaces; n=2 UI sources plus the existing decoder boundary, date 2026-09-14. Both require the 25-second UX constant, reject 60-second and zero-headroom 30-second mutants, and retain RATE * 30 decoder enforcement.
+
+## standalone25-capture-duration-headroom-measurement-20260914
+
+The mirrored UI constants are 25 seconds while identity_audio.py remains RATE * 30.

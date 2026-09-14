@@ -25234,3 +25234,11 @@ Mixed repeat, theme and surface suites retain shared loop, theme selection and o
 ## wave25-preserve-logs-repair-only-proven-orphan-incident
 
 2026-09-14. Repair only the measured20/4 legacy incident after conservative forget-term exclusion and a separately verified rollback. Use row locks, a short shared forget-ledger lock, exact owner/channel/range/count guards, and empty provisional wake records. Preserve every surviving message and all forget requests; write a cursor-only intent receipt before the single COMMIT and require independent readback. Reverse or refuse if the incident shape, ownership, suppression matches or transaction proof changes. Never retry an ambiguous commit automatically.
+
+## standalone25-capture-duration-30s-20260914
+
+2026-09-14. Align both live LivenessCapture surfaces with the voice-evidence decoder's 30-second MAX_FRAMES ceiling. A 60-second browser auto-stop could create uploads the backend rejects; the shared named constant and backend assertion keep the boundary mirrored. Reverse if the backend contract is deliberately raised with matching UI and tests.
+
+## standalone25-capture-duration-headroom-20260914
+
+2026-09-14. Set the browser auto-stop to 25 seconds, leaving five seconds of headroom under the strict 30-second decoder ceiling because wall timers can fire late and tabs can stall during upload handoff. The server remains authoritative and refuses decoded audio beyond 30 seconds. Reverse if the transport gains a measured hard deadline with equivalent protection.
