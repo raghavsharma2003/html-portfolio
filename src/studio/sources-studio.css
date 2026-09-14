@@ -20,11 +20,12 @@
 .sources-studio__header h1 {
   margin: 0;
   max-width: 15ch;
-  font-family: var(--font-display, Georgia, serif);
-  font-size: clamp(2.2rem, 6vw, 4.75rem);
-  font-weight: 500;
-  letter-spacing: -0.045em;
-  line-height: 0.98;
+  color: var(--sources-ink);
+  font-family: inherit;
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
 }
 
 .sources-studio__header p {

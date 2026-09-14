@@ -20721,6 +20721,12 @@
       "kind": "rejection",
       "title": "Vite recorder fixtures omitted the deployed Studio CSP",
       "at": "context/rejected.md#wave26-vite-recorder-fixture-missed-production-csp"
+    },
+    {
+      "id": "wave25-sources-first-draft-had-no-async-scope-fence",
+      "kind": "rejection",
+      "title": "Sources first draft had no asynchronous scope fence",
+      "at": "context/rejected.md#wave25-sources-first-draft-had-no-async-scope-fence"
     }
   ],
   "edges": [
@@ -35231,6 +35237,11 @@
       "src": "wave26-recording-upload-reconciles-ambiguous-put",
       "rel": "part_of",
       "dst": "clone-creation-saga"
+    },
+    {
+      "src": "wave25-sources-first-draft-had-no-async-scope-fence",
+      "rel": "caused_by",
+      "dst": "wave25-sources-ledger-uses-live-state-and-exact-erasure-impact"
     }
   ]
 }

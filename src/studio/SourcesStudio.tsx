@@ -1,5 +1,5 @@
 import "./sources-studio.css";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useStudioLocale } from "./localeContext";
 import {
   listSourceOverview,
@@ -10,17 +10,30 @@ import {
   type SourceRemovalReceipt,
 } from "./sourcesApi";
 
+export interface SourcesStudioApi {
+  list: typeof listSourceOverview;
+  previewRemoval: typeof previewSourceRemoval;
+  remove: typeof removeOverviewSource;
+}
+
 interface SourcesStudioProps {
   token: string;
   replicaId: string;
   onSourcesChanged?: () => void | Promise<void>;
+  api?: SourcesStudioApi;
 }
+
+const DEFAULT_API: SourcesStudioApi = {
+  list: listSourceOverview,
+  previewRemoval: previewSourceRemoval,
+  remove: removeOverviewSource,
+};
 
 function interpolate(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), template);
 }
 
-export default function SourcesStudio({ token, replicaId, onSourcesChanged }: SourcesStudioProps) {
+export default function SourcesStudio({ token, replicaId, onSourcesChanged, api = DEFAULT_API }: SourcesStudioProps) {
   const { locale, t } = useStudioLocale();
   const copy = t.sourcesStudio;
   const [sources, setSources] = useState<SourceOverview[]>([]);
@@ -37,29 +50,75 @@ export default function SourcesStudio({ token, replicaId, onSourcesChanged }: So
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const mountedRef = useRef(false);
+  const scopeRef = useRef("");
+  const listRequestRef = useRef(0);
+  const impactRequestRef = useRef(0);
+  const removalRequestRef = useRef(0);
+  const removalLockRef = useRef(false);
+  const scopeKey = `${token}\n${replicaId}`;
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      listRequestRef.current += 1;
+      impactRequestRef.current += 1;
+      removalRequestRef.current += 1;
+      removalLockRef.current = false;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    scopeRef.current = scopeKey;
+    listRequestRef.current += 1;
+    impactRequestRef.current += 1;
+    removalRequestRef.current += 1;
+    removalLockRef.current = false;
+    setSources([]);
+    setLoadState("loading");
+    setSelected(null);
+    setImpact(null);
+    setImpactState("idle");
+    setConfirmation("");
+    setRemoving(false);
+    setRemoveError(false);
+    setReceipt(null);
+    returnFocusRef.current = null;
+  }, [scopeKey]);
 
   const load = useCallback(async () => {
+    const request = ++listRequestRef.current;
+    const requestScope = scopeKey;
     setLoadState("loading");
     try {
-      setSources(await listSourceOverview(token, replicaId));
+      const nextSources = await api.list(token, replicaId);
+      if (!mountedRef.current || scopeRef.current !== requestScope || listRequestRef.current !== request) return;
+      setSources(nextSources);
       setLoadState("ready");
     } catch {
+      if (!mountedRef.current || scopeRef.current !== requestScope || listRequestRef.current !== request) return;
       setLoadState("error");
     }
-  }, [replicaId, token]);
+  }, [api, replicaId, scopeKey, token]);
 
   useEffect(() => { void load(); }, [load]);
 
   const loadImpact = useCallback(async (source: SourceOverview) => {
+    const request = ++impactRequestRef.current;
+    const requestScope = scopeKey;
     setImpact(null);
     setImpactState("loading");
     try {
-      setImpact(await previewSourceRemoval(token, replicaId, source.source_id));
+      const nextImpact = await api.previewRemoval(token, replicaId, source.source_id);
+      if (!mountedRef.current || scopeRef.current !== requestScope || impactRequestRef.current !== request) return;
+      setImpact(nextImpact);
       setImpactState("ready");
     } catch {
+      if (!mountedRef.current || scopeRef.current !== requestScope || impactRequestRef.current !== request) return;
       setImpactState("error");
     }
-  }, [replicaId, token]);
+  }, [api, replicaId, scopeKey, token]);
 
   function openRemoval(source: SourceOverview) {
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -72,6 +131,7 @@ export default function SourcesStudio({ token, replicaId, onSourcesChanged }: So
 
   const closeRemoval = useCallback(() => {
     if (removing) return;
+    impactRequestRef.current += 1;
     setSelected(null);
     setImpact(null);
     setImpactState("idle");
@@ -110,23 +170,35 @@ export default function SourcesStudio({ token, replicaId, onSourcesChanged }: So
   }, [closeRemoval, selected]);
 
   async function confirmRemoval() {
-    if (!selected || !impact || impactState !== "ready" || confirmation !== copy.confirmWord) return;
+    if (removalLockRef.current || !selected || !impact || impactState !== "ready" || confirmation !== copy.confirmWord) return;
+    removalLockRef.current = true;
+    const request = ++removalRequestRef.current;
+    const requestScope = scopeKey;
+    const removedSource = selected;
+    const requestIsCurrent = () => mountedRef.current && scopeRef.current === requestScope
+      && removalRequestRef.current === request;
     setRemoving(true);
     setRemoveError(false);
     try {
-      const nextReceipt = await removeOverviewSource(token, replicaId, selected);
-      setSources((current) => current.filter((source) => source.source_id !== selected.source_id));
+      const nextReceipt = await api.remove(token, replicaId, removedSource);
+      if (!requestIsCurrent()) return;
+      setSources((current) => current.filter((source) => source.source_id !== removedSource.source_id));
       setReceipt(nextReceipt);
       setSelected(null);
       setImpact(null);
       setImpactState("idle");
       setConfirmation("");
-      await onSourcesChanged?.();
+      if (onSourcesChanged) await onSourcesChanged();
+      if (!requestIsCurrent()) return;
       requestAnimationFrame(() => headingRef.current?.focus());
     } catch {
+      if (!requestIsCurrent()) return;
       setRemoveError(true);
     } finally {
-      setRemoving(false);
+      if (removalRequestRef.current === request) {
+        removalLockRef.current = false;
+        if (mountedRef.current && scopeRef.current === requestScope) setRemoving(false);
+      }
     }
   }
 

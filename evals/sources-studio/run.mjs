@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripComments } from "../lib/source-scan.mjs";
+import { chromium } from "playwright";
+import react from "@vitejs/plugin-react";
+import { createServer } from "vite";
 import { clientSourceOverview, listOwnedSourcesOverview } from "../../api/_replica-source.js";
 import { ownedSourceRemovalImpact } from "../../api/_replica-source-erasure.js";
 
@@ -120,5 +123,94 @@ ok("English and Hindi both own a wired Sources copy block",
   /sourcesStudio:\s*EN_SOURCES_STUDIO/.test(en) && /sourcesStudio:\s*HI_SOURCES_STUDIO/.test(hi));
 ok("new screen avoids attributing quarantine to other people",
   !/quarantined[^\n]{0,160}(other people|दूसरे लोग)/i.test(`${en}\n${hi}`));
+
+// Real mounted race controls. The fixture injects deferred API promises into
+// the actual component; Playwright changes scope and dialog selection before
+// those promises settle, the failure shape a source scan cannot observe.
+const browserSource = (id, name) => ({
+  source_id: id, context_item_id: null, kind: "recording", display_name: name,
+  state: "ready", state_detail_code: "", contains_third_parties: false,
+  created_at: "2026-09-14T00:00:00.000Z",
+  yield: { claims_approved: 1, claims_proposed: 0, voice_seconds: 12 },
+});
+const vite = await createServer({
+  root: ROOT,
+  configFile: false,
+  plugins: [react()],
+  logLevel: "silent",
+  server: { host: "127.0.0.1", port: 0 },
+});
+let browser;
+try {
+  await vite.listen();
+  const address = vite.httpServer.address();
+  assert.ok(address && typeof address === "object");
+  browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+  const runtimeErrors = [];
+  page.on("pageerror", (error) => runtimeErrors.push(String(error)));
+  page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()); });
+  await page.goto(`http://127.0.0.1:${address.port}/evals/sources-studio/mounted-fixture.html`);
+  await page.waitForFunction(() => window.sourcesRaceTest?.snapshot().lists.length === 1);
+
+  await page.click("#switch-scope");
+  await page.waitForFunction(() => window.sourcesRaceTest.snapshot().lists.length === 2);
+  await page.evaluate((rows) => window.sourcesRaceTest.resolveList(0, rows), [browserSource("old-a", "Old workspace source")]);
+  await page.waitForTimeout(30);
+  ok("mounted race: a late list from the old token and replica never paints",
+    await page.getByText("Old workspace source").count() === 0);
+
+  const currentRows = [browserSource("current-one", "Current source one"), browserSource("current-two", "Current source two")];
+  await page.evaluate((rows) => window.sourcesRaceTest.resolveList(1, rows), currentRows);
+  await page.getByText("Current source two").waitFor();
+  await page.locator(".sources-row").filter({ hasText: "Current source one" }).getByRole("button", { name: "Remove" }).click();
+  await page.waitForFunction(() => window.sourcesRaceTest.snapshot().impacts.length === 1);
+  await page.getByRole("button", { name: "Keep source" }).click();
+  await page.locator(".sources-row").filter({ hasText: "Current source two" }).getByRole("button", { name: "Remove" }).click();
+  await page.waitForFunction(() => window.sourcesRaceTest.snapshot().impacts.length === 2);
+  await page.evaluate(() => window.sourcesRaceTest.resolveImpact(0, {
+    source_id: "current-one", claims_approved: 91, claims_proposed: 0, voice_seconds: 0, is_primary_voice: false,
+  }));
+  await page.waitForTimeout(30);
+  ok("mounted race: a late impact from a closed source dialog never enters the next dialog",
+    await page.getByText("91 accepted details").count() === 0
+      && await page.getByText("Checking what will be removed").count() === 1);
+
+  await page.evaluate(() => window.sourcesRaceTest.resolveImpact(1, {
+    source_id: "current-two", claims_approved: 2, claims_proposed: 1, voice_seconds: 12, is_primary_voice: false,
+  }));
+  await page.getByText("2 accepted details").waitFor();
+  await page.getByLabel("Confirmation text").fill("REMOVE");
+  await page.getByRole("button", { name: "Remove forever" }).evaluate((button) => { button.click(); button.click(); });
+  await page.waitForFunction(() => window.sourcesRaceTest.snapshot().removals.length === 1);
+  ok("mounted race: two same-turn confirms dispatch one removal",
+    (await page.evaluate(() => window.sourcesRaceTest.snapshot())).removals.length === 1);
+
+  await page.evaluate(() => document.querySelector("#switch-scope").click());
+  await page.waitForFunction(() => window.sourcesRaceTest.snapshot().lists.length === 3);
+  await page.evaluate((rows) => window.sourcesRaceTest.resolveList(2, rows), [browserSource("new-scope", "New scope source")]);
+  await page.getByText("New scope source").waitFor();
+  await page.evaluate(() => window.sourcesRaceTest.resolveRemoval(0, { erasure: "pending", rebuild_required: true }));
+  await page.waitForTimeout(30);
+  const afterLateRemoval = await page.evaluate(() => window.sourcesRaceTest.snapshot());
+  ok("mounted race: a late old-scope removal cannot erase current UI, show a receipt, or refresh enrollment",
+    await page.getByText("New scope source").count() === 1
+      && await page.getByText("Removal started. Private storage cleanup is still running.").count() === 0
+      && afterLateRemoval.changedCallbacks === 0);
+
+  await page.locator(".sources-row").filter({ hasText: "New scope source" }).getByRole("button", { name: "Remove" }).click();
+  await page.waitForFunction(() => window.sourcesRaceTest.snapshot().impacts.length === 3);
+  await page.evaluate(() => document.querySelector("#unmount-sources").click());
+  await page.evaluate(() => window.sourcesRaceTest.resolveImpact(2, {
+    source_id: "new-scope", claims_approved: 4, claims_proposed: 0, voice_seconds: 0, is_primary_voice: false,
+  }));
+  await page.waitForTimeout(30);
+  ok("mounted race: an impact settling after unmount performs no visible work and raises no runtime error",
+    await page.locator(".sources-studio").count() === 0 && runtimeErrors.length === 0,
+    runtimeErrors.join(" | "));
+} finally {
+  await browser?.close();
+  await vite.close();
+}
 
 console.log(`\n${checks} sources-studio checks passed`);
