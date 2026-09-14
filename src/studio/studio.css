@@ -3173,7 +3173,7 @@
 .mirror-availability > p { margin: 0; max-width: 68ch; color: var(--ink); font-size: 12px; line-height: 1.55; }
 .mirror-availability dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 6px 0 0; border-top: 1px solid var(--line); padding-top: 12px; }
 .mirror-availability dl > div { min-width: 0; display: grid; gap: 4px; }
-.mirror-availability dt { color: var(--ink-faint); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.mirror-availability dt { color: var(--ink-soft); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .mirror-availability dd { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .mirror-recovery-note {
   max-width: 72ch;

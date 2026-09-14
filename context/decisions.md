@@ -25342,3 +25342,11 @@ Build the exact committed worker source on the existing sponsored subscription w
 ## `wave25-cutover-separate-from-merge-result`
 
 2026-09-14. Root prepared narrow ignored helpers for PR6 merge and the two Vercel cutover operations (retired STUDIO_ROOT removal and existing Meera project Git reconnection). Both bind root-selected accepted gate evidence, retain exclusive pre-mutation claims and require independent readback. PR helper verifies reviewed head/base and actual merge parents; GitHub has no asserted atomic base comparison. A main merge triggers Deploy Vyakti web, which must be monitored separately. Meera link success requires unchanged production deployment/source; asynchronous build observation remains a separate follow-up. Reverse if platform contracts or deployment ownership change. Neither helper has performed a mutation.
+
+## `wave25-mirror-availability-labels-use-personal-aa-ink` (2026-09-14)
+
+**Decision.** Mirror Call's three availability labels use the personal studio's existing `--ink-soft` token on the card's `--paper-deep` background. The change is scoped to `.mirror-availability dt` in canonical `studio.css` and its authenticated `studio-workspace.css` partition; adjacent values already use the same token. The accessibility threshold, Hindi fixture and typography stay unchanged.
+
+**Why.** The rendered 9px bold labels measured 3.33:1 with `--ink-faint`, below the 4.5:1 normal-text floor. `--ink-soft` measures 6.02:1 against the actual card background and keeps the labels visually secondary. The design scale declares 11px as the eventual micro-type floor, so 9px remains known migration debt; changing size here would add wrapping and layout scope not needed to repair the measured contrast failure.
+
+**Reversal.** Change this scoped token only if the label or card background changes and a real built-page measurement proves the replacement remains at least 4.5:1 in both locales and both supported widths. A future 11px typography migration must recheck wrapping at 390px before replacing this size.

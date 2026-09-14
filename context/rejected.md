@@ -19088,3 +19088,13 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 ## `wave25-merge-success-does-not-prove-deployment`
 
 2026-09-14. Review found two overly broad success interpretations in prepared cutover helpers: Meera link could report success with productionUnchanged=false, and PR merge could report success after an unreviewed base advanced. Before any mutation, root added strict same-deployment/source checks and fresh-main plus exact merge-parent validation. A final-read-to-write race is still not claimed atomic, and main workflow deployment completion is deliberately not represented by merge_verified. Helpers have only been syntax checked and run in read-only plan mode. No cloud deployment or PR merge occurred.
+
+## `wave25-mirror-availability-faint-ink-and-cross-studio-token` (2026-09-14)
+
+**Tried.** The Mirror Call availability labels reused `--ink-faint` on `--paper-deep`. The first repair draft then tried `--ink-faint-aa`, following the creator studio's existing contrast precedent.
+
+**What specifically broke.** Both Node release jobs on `c4a2677` reached 24/25 and reported the same sole accessibility failure: three Hindi Call `dt` elements at 3.33:1, with `#7a7e74` on `#ebe6da`, 9px bold. The second token exists in the creator-studio foundation but is not defined in the personal-studio cascade; the real built-page browser check exposed an empty custom-property value and inherited dark text. That happened to clear contrast but did not represent a valid personal-studio token choice.
+
+**What replaced it.** The selector uses personal Studio's `--ink-soft`, measured at 6.02:1 on the actual background. The canonical stylesheet and exact workspace partition changed together. The shared faint token, gate threshold, scenario and font size remain unchanged.
+
+**The rule.** A token name established in one studio is not automatically present in the other. Verify the custom property's computed value on the built target before treating a visually passing fallback or inherited color as a valid fix.
