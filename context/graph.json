@@ -19845,6 +19845,24 @@
       "kind": "rejection",
       "title": "Flat Face verification result rejected",
       "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-processing-worker-package-is-source-controlled",
+      "kind": "decision",
+      "title": "The processing worker package and preflight are source controlled (2026-09-14)",
+      "at": "context/decisions.md#wave25-processing-worker-package-is-source-controlled"
+    },
+    {
+      "id": "wave25-processing-worker-package-focused-controls-20260914",
+      "kind": "measurement",
+      "title": "Tracked processing worker package and bootstrap focused controls (2026-09-14)",
+      "at": "context/measurements.md#wave25-processing-worker-package-focused-controls-20260914"
+    },
+    {
+      "id": "wave25-processing-worker-untracked-overlay-is-not-build-source",
+      "kind": "rejection",
+      "title": "An untracked worker overlay is not reproducible build source (2026-09-14)",
+      "at": "context/rejected.md#wave25-processing-worker-untracked-overlay-is-not-build-source"
     }
   ],
   "edges": [
@@ -33830,6 +33848,21 @@
       "src": "standalone25-face-v12-flat-result-rejected-20260914",
       "dst": "standalone25-face-v12-nested-result-20260914",
       "rel": "caused_by"
+    },
+    {
+      "src": "wave25-processing-worker-package-is-source-controlled",
+      "rel": "measured_by",
+      "dst": "wave25-processing-worker-package-focused-controls-20260914"
+    },
+    {
+      "src": "wave25-processing-worker-package-is-source-controlled",
+      "rel": "caused_by",
+      "dst": "wave25-processing-worker-untracked-overlay-is-not-build-source"
+    },
+    {
+      "src": "wave25-bandwidth-fix-does-not-prove-worker-current",
+      "rel": "constrains",
+      "dst": "wave25-processing-worker-package-is-source-controlled"
     }
   ]
 }

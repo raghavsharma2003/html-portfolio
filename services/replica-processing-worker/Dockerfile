@@ -1,4 +1,4 @@
-FROM node:24.7.0-bookworm-slim
+FROM node:24.7.0-bookworm-slim@sha256:7cffa1b5307fcd0089c55ad60ec55de500cfc0e2c6e4440b1c44af68d288b1b5
 
 ENV NODE_ENV=production
 
@@ -23,7 +23,10 @@ RUN apt-get update \
     && chown -R processor:processor /var/run/clamav /var/lib/clamav
 
 WORKDIR /srv/worker
+COPY package.json ./package.json
 COPY api ./api
+COPY services/azure-voice-app/controller.mjs ./services/azure-voice-app/controller.mjs
+COPY scripts/write-config.mjs ./scripts/write-config.mjs
 COPY services/replica-processing-worker ./services/replica-processing-worker
 
 # Bake a signature database into the image.
@@ -46,4 +49,4 @@ RUN sed -i 's/\r$//' \
 RUN chown -R processor:processor /srv/worker
 
 USER 10003:10003
-CMD ["node", "/srv/worker/services/replica-processing-worker/run-once.js"]
+CMD ["node", "/srv/worker/services/replica-processing-worker/standalone25-entry.mjs"]

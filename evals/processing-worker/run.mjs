@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { isBuiltin } from "node:module";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createNativeMediaAdapters } from "../../api/_replica-processing/providers/native-media.js";
 import {
@@ -15,6 +16,10 @@ import { readClamAvVerdict } from "../../api/_replica-processing/native-tools.js
 import { createFakeImmutableArtifactStore, createFakeProcessingAdapters } from "../../api/_replica-processing/providers/fake.js";
 import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
 import { assertAdapter, sha256Hex, stableUuid } from "../../api/_replica-processing/contracts.js";
+import {
+  PROCESSING_DATABASE,
+  startProcessingWorker,
+} from "../../services/replica-processing-worker/bootstrap.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -27,6 +32,52 @@ let checks = 0;
 function ok(name, condition) {
   assert.ok(condition, name);
   console.log(`ok ${++checks} - ${name}`);
+}
+
+const IMPORT_RE = /(?:\b(?:import|export)\s+(?:[^'";]*?\s+from\s+)?|\bimport\s*\(|\brequire\s*\()['"]([^'"]+)['"]/g;
+const sourcePath = (path) => relative(ROOT, path).replaceAll("\\", "/");
+
+function runtimeImportClosure(entry) {
+  const pending = [resolve(ROOT, entry)];
+  const files = new Set();
+  const missing = [];
+  const packages = new Set();
+  while (pending.length) {
+    const owner = pending.pop();
+    const ownerPath = sourcePath(owner);
+    if (files.has(ownerPath)) continue;
+    files.add(ownerPath);
+    const source = readFileSync(owner, "utf8");
+    IMPORT_RE.lastIndex = 0;
+    for (const match of source.matchAll(IMPORT_RE)) {
+      const specifier = match[1];
+      if (!specifier.startsWith(".")) {
+        if (!isBuiltin(specifier)) packages.add(specifier);
+        continue;
+      }
+      const unresolved = resolve(dirname(owner), specifier);
+      // Config is generated only after database admission. Never inspect an
+      // ignored local credential file as if it were a source build input.
+      if (sourcePath(unresolved) === "api/_config.js") continue;
+      const candidates = [
+        unresolved,
+        `${unresolved}.js`,
+        `${unresolved}.mjs`,
+        `${unresolved}.json`,
+        join(unresolved, "index.js"),
+        join(unresolved, "index.mjs"),
+      ];
+      const target = candidates.find((candidate) =>
+        existsSync(candidate) && statSync(candidate).isFile());
+      if (!target) {
+        const expected = sourcePath(unresolved);
+        missing.push({ owner: ownerPath, specifier, expected });
+      } else if (!files.has(sourcePath(target))) {
+        pending.push(target);
+      }
+    }
+  }
+  return { files, missing, packages };
 }
 
 const source = {
@@ -282,6 +333,107 @@ const docker = readFileSync(join(ROOT, "services/replica-processing-worker/Docke
 const dockerIgnore = readFileSync(join(ROOT, ".dockerignore"), "utf8");
 const workerInfra = readFileSync(join(ROOT, "services/replica-processing-worker/infra/main.bicep"), "utf8");
 const evidenceInfra = readFileSync(join(ROOT, "services/voice-evidence/infra/main.bicep"), "utf8");
+const bootstrap = readFileSync(join(ROOT, "services/replica-processing-worker/bootstrap.js"), "utf8");
+const workerEntry = readFileSync(join(ROOT, "services/replica-processing-worker/standalone25-entry.mjs"), "utf8");
+
+const closure = runtimeImportClosure("services/replica-processing-worker/standalone25-entry.mjs");
+ok("the tracked production entry has a complete transitive relative-import closure",
+  closure.files.size >= 50 && closure.missing.length === 0);
+ok("the copied runtime requires no uninstalled package dependencies",
+  closure.packages.size === 0);
+function unpackagedModules(dockerSource) {
+  const copies = dockerSource.split(/\r?\n/).filter((line) => /^COPY\s/.test(line)).map((line) => {
+    const match = /^COPY (\S+) (\S+)$/.exec(line);
+    assert.ok(match, "packaging check requires an explicit source/destination COPY");
+    return match.slice(1).map((path) => path.replace(/^\.\//, "").replace(/\/$/, ""));
+  });
+  return [...closure.files].filter((path) => !copies.some(([source, destination]) =>
+    source === destination && (path === source || path.startsWith(`${source}/`))));
+}
+ok("every source module reachable from the production entry is copied by the Dockerfile",
+  unpackagedModules(docker).length === 0
+  && closure.files.has("services/azure-voice-app/controller.mjs"));
+ok("the closure check detects loss of the external GPU controller copy",
+  unpackagedModules(docker.replace(/^COPY services\/azure-voice-app\/controller\.mjs .*\r?\n/m, "")).join() ===
+    "services/azure-voice-app/controller.mjs");
+ok("the closure check detects removal or relocation of the real API copy",
+  unpackagedModules(docker.replace(/^COPY api .*\r?\n/m, "")).includes("api/_replica-processing/purpose.js")
+  && unpackagedModules(docker.replace("COPY api ./api", "COPY api ./wrong-api")).includes("api/_replica-processing/purpose.js"));
+ok("purpose and private-storage controls remain inside the packaged runtime closure",
+  [
+    "api/_replica-processing/purpose.js",
+    "api/_replica-processing/storage.js",
+    "api/_replica-storage-writer.js",
+  ].every((path) => closure.files.has(path)));
+ok("the image supplies its ESM boundary, config writer and full external service dependency",
+  /COPY package\.json \.\/package\.json/.test(docker)
+  && /COPY scripts\/write-config\.mjs \.\/scripts\/write-config\.mjs/.test(docker)
+  && /COPY services\/azure-voice-app\/controller\.mjs \.\/services\/azure-voice-app\/controller\.mjs/.test(docker));
+ok("the worker base image and tracked preflight entry are immutable build inputs",
+  /^FROM node:24\.7\.0-bookworm-slim@sha256:[a-f0-9]{64}$/m.test(docker)
+  && /CMD \["node", "\/srv\/worker\/services\/replica-processing-worker\/standalone25-entry\.mjs"\]/.test(docker)
+  && /startProcessingWorker/.test(workerEntry));
+
+const validWorkerEnv = {
+  NEON_URL: "postgresql://fixture:fixture@unit.invalid/neondb",
+  REPLICA_EXPECTED_DATABASE: "neondb",
+  VYAKTI_MODEL_SERVING: "azure_only",
+};
+async function exerciseBootstrap(env, options = {}) {
+  const events = [];
+  let createOptions;
+  let error = "";
+  try {
+    await startProcessingWorker({
+      env,
+      createDb(input) {
+        createOptions = input;
+        events.push("db_factory");
+        return async (sql) => {
+          events.push("db_identity");
+          assert.equal(sql, "SELECT 1 AS ready");
+          if (options.databaseFails) throw new Error("neon_expected_database_mismatch");
+          return [{ ready: 1 }];
+        };
+      },
+      writeConfig() {
+        events.push("config_writer");
+        if (options.writerFails) throw new Error("config_writer_failed");
+      },
+      async loadWorker() { events.push("worker"); },
+    });
+  } catch (caught) {
+    error = String(caught?.message || caught);
+  }
+  return { events, createOptions, error };
+}
+for (const changed of [
+  { REPLICA_EXPECTED_DATABASE: "" },
+  { REPLICA_EXPECTED_DATABASE: "vyakti_expert_integration_20260906" },
+  { VYAKTI_MODEL_SERVING: "external" },
+  { REPLICA_SELF_TEST_MODE: "true" },
+]) {
+  const result = await exerciseBootstrap({ ...validWorkerEnv, ...changed });
+  ok("production bootstrap refuses wrong identity, provider or self-test bindings before work",
+    result.error === "processing_worker_configuration_required" && result.events.length === 0);
+}
+let bootstrapResult = await exerciseBootstrap(validWorkerEnv, { databaseFails: true });
+ok("database identity failure precedes config generation and worker loading",
+  bootstrapResult.error === "neon_expected_database_mismatch"
+  && bootstrapResult.events.join() === "db_factory,db_identity");
+bootstrapResult = await exerciseBootstrap(validWorkerEnv, { writerFails: true });
+ok("runtime config generation is fail-closed before worker loading",
+  bootstrapResult.error === "config_writer_failed"
+  && bootstrapResult.events.join() === "db_factory,db_identity,config_writer");
+bootstrapResult = await exerciseBootstrap(validWorkerEnv);
+ok("the accepted bootstrap binds neondb before generating config and loading the worker",
+  !bootstrapResult.error
+  && bootstrapResult.createOptions.expectedDatabase === PROCESSING_DATABASE
+  && bootstrapResult.createOptions.env === validWorkerEnv
+  && bootstrapResult.events.join() === "db_factory,db_identity,config_writer,worker");
+ok("the source-controlled job template supplies the same production identity and Azure-only bindings",
+  /REPLICA_EXPECTED_DATABASE', value: 'neondb'/.test(workerInfra)
+  && /VYAKTI_MODEL_SERVING', value: 'azure_only'/.test(workerInfra));
 // The job used to name the three adapter factories itself. It now composes
 // through `composeProcessingAdapters`, which names them, and that is not a
 // cosmetic move: called directly, the Azure evidence and ASR factories THROW
