@@ -97,3 +97,13 @@ documents model version `2025-05-20`, so that configured pin was retained.
 The older REST example's `2024-11-15` alone was insufficient reason to change it.
 None of these repairs enables the missing composite evidence producer or
 establishes live Face approval, successful enrollment or voice likeness.
+
+## Native decoder check, later on 2026-09-14
+
+The missing-FFmpeg PATH wall is resolved using the existing archive-verified
+local installation (FFmpeg/ffprobe9.0.1, Python3.14.2). Seven real decoder tests
+pass. Explicit25s WebM and MP4 captures each decode to600000frames; the strict
+30s ceiling remains720000frames, and padded AAC over that ceiling refuses413.
+No limits were relaxed. Receipt and measurement are linked from
+`context/measurements.md#wave25-worker-digest-native-decoder-and-ci-20260914`.
+This does not enable the missing composite evidence producer or prove likeness.

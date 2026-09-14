@@ -53,12 +53,12 @@ assert.equal(usesExactPrivateFeedDoor(experience, contextLocker.replace(
 )), false);
 
 const roomApp = readFileSync(new URL("../src/room/RoomApp.tsx", import.meta.url), "utf8");
-const roomUsesEmailFirst = (text) => /sendEmailOtp\(email\.trim\(\)\)/.test(text)
+const roomUsesEmailFirst = (text) => /sendEmailOtp\(email\.trim\(\), window\.location\.pathname \+ window\.location\.search\)/.test(text)
   && /verifyEmailOtp\(email\.trim\(\), code\)/.test(text)
   && /type="email"/.test(text)
   && !/sendPhoneOtp|verifyPhoneOtp/.test(text);
 assert.equal(roomUsesEmailFirst(roomApp), true);
-assert.equal(roomUsesEmailFirst(roomApp.replace("sendEmailOtp(email.trim())", "sendPhoneOtp(email.trim())")), false);
+assert.equal(roomUsesEmailFirst(roomApp.replace("sendEmailOtp(email.trim(), window.location.pathname + window.location.search)", "sendEmailOtp(email.trim())")), false);
 for (const namespace of ["studio", "creatorStudio"]) {
   const lab = readFileSync(new URL(`../src/${namespace}/VoicePreviewLab.tsx`, import.meta.url), "utf8");
   assert.match(lab, /href=\{voiceSampleUrl\(replicaId, window.location.search\)\}/);

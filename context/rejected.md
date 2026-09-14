@@ -19036,3 +19036,13 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 ## `wave25-raw-scan-misclassified-person-forget-repair`
 
 2026-09-14. GitHub Android aa481598 failed no unscoped raw runtime statement after the new survivor-cursor UPDATE made the previously derived-only person forget CTE visible to the raw-table scanner. That scanner only recognized agent predicates and one older whole-person delete exception. Adding agent_id filtering to the production statement would contradict purgeRelational account-wide item/window erasure and leave other-agent derived references intact. The correction is an exact whole-query, exact-file exception with mutation controls. No production SQL changed, no broad raw-reader exception was added, and the full release gate must still pass. The initial focused run in a clean worktree stopped on missing ignored api/_config.js; generating the official empty --stub config resolved that environment wall without credentials.
+
+## standalone25-first-flow-fixture-context-and-otp-shape-stale-20260914
+
+**Tried.** The callback VM supplied only the callback's older closure variables, and the Room email assertion accepted only `sendEmailOtp(email.trim())`.
+
+**What specifically broke.** The real callback now reads `wizardInput.sheetPersisted`, so the fixture threw before checking either valid route. The real Room call now passes `window.location.pathname + window.location.search`, so an exact older regex rejected the correct return destination.
+
+**What replaced it.** The callback fixture supplies explicit persisted and unpersisted sheet states, observes Meet forwarding, and retains invalid-context refusal. The Room check requires the exact current path-and-query argument and uses the old one-argument call as its negative control.
+
+**Reversal condition.** Change these fixtures only with a deliberate production route or authentication return contract change, and keep a negative that proves lost destination state is rejected.

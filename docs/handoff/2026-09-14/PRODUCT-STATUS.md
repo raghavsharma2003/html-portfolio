@@ -45,9 +45,11 @@ several first-use fixes and reproducible worker packaging are implemented.
 Meera remains deployed separately. Focused tests cover specific behaviors;
 they are not proof of the full live product.
 
-Before publishing: finish and merge the current first-use batch, pass the full
-release gate on unchanged source, verify the Azure worker build, complete the
-production cutover, and walk creator and visitor flows against real services.
+The first-use batch is merged and the Azure worker image is verified. Before
+publishing: pass the full release gate on the repaired frozen source, activate
+the accepted worker, complete the production cutover, and walk creator and
+visitor flows against real services. The earlier candidate failed three stale
+fixture assumptions; focused repairs pass, but are not a full-gate result.
 
 Fresh voice enrollment has unfinished engineering beyond credentials. The
 later Studio capture still lacks the complete evidence producer expected by

@@ -25306,3 +25306,7 @@ Build the exact committed worker source on the existing sponsored subscription w
 ## `wave25-person-forget-scanner-exact-exception`
 
 2026-09-14. The raw agent-isolation scanner now recognizes only the complete reviewed cursor-repair SQL in api/memory.js, pinned by normalized SHA256 d33cea0ef590316887c48b7627e3a0b7821759eae9f1449b60548ab4ad26c1ef. This is the existing person-wide purgeRelational contract: seed and lineage stay person-bound, raw updates only clear references to doomed episodes, and empty wakes preserve each row agent. A generic exemption for CTEs or every person_id query would weaken the isolation gate. Reverse/review this exception if that SQL changes or any raw content becomes readable outside its authority; adding an agent filter here would improperly narrow account-wide erasure. Actual SQL execution was already proven by the source-pinned PostgreSQL rollback receipt at 1789378233610; this change is scanner-only.
+
+## standalone25-first-flow-evals-track-real-caller-contracts-20260914
+
+2026-09-14. Focused first-flow fixtures execute the actual callback with both sheet states and require Room email OTP to retain the current path and query. The no-sheet source stays in private rehearsal, a persisted-sheet source forwards to Meet conversation, and an ineligible context handle remains refused. Reverse only if the production journey deliberately changes these routes and its authority or return-path contract is updated with an equivalent focused regression.
