@@ -25504,3 +25504,8 @@ Allow only the existing Azure media account in Studio connect-src and local blob
 ## wave26-register-real-capture-in-release
 
 Register the mobile capture runner and upload recovery suite in the full release registry. The browser workload uses managed Vite startup, bounded shutdown and the shared Chromium resource classifier. Preserve negative controls for the old blocking CSP. Reverse this arrangement only if another registered runner covers the same real components, production headers and failure states.
+
+
+## wave26-private-first-without-fictional-voice
+
+2026-09-14. Keep ordinary email/Google signup and per-account workspaces separate from the pinned retained-owner Hindi diagnostic. The current general voice path requires unfinished identity/liveness producers; do not route private testers into those unavailable services as though submitting more documents fixes the platform. Repair propagation of saved personal sheets and expose the existing private text test when its actual material requirements are met. Voice authority, public verification and synthesized likeness are not inferred from these UI repairs. Reverse this temporary entry arrangement when a general private voice path is implemented and tested with a fresh account and its own sample.

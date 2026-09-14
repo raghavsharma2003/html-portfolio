@@ -39,21 +39,16 @@ for(const file of ['140_primary_voice_selection_epoch.sql','141_private_text_reh
 pass('both migrations mirrored in order without replacing140');
 const ast=text=>ts.createSourceFile('CloneExperience.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const oldAst=ast(prior('src/studio/CloneExperience.tsx')),nextAst=ast(read('src/studio/CloneExperience.tsx'));
-// WS-R166 (wave twenty-two) moved the recorder's user-visible strings into the
-// personal studio's copy registry, so the control now freezes the PROPERTY it
-// was written for: every line that carries no user-visible string (no quote,
-// no copy-registry read) is byte-identical to the base, in the same order;
-// only string-bearing lines may differ (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
-// A hook dependency array that gains the copy binding is the one string-free
-// line the conversion legitimately touches, so `}, [...]);` closers are
-// compared with their contents blanked.
-const logicLines=text=>text.split('\n').map(l=>l.replace(/^(\s*\}, \[)[^\]]*(\]\);\s*)$/,'$1$2')).filter(l=>!/["'`]/.test(l)&&!/\bcopy\b|useStudioLocale/.test(l)&&!/>[^<{]*[A-Za-z][^<{]*(?:<|$)/.test(l)&&!/^\s*[A-Za-z][A-Za-z ,.?!]*\s*$/.test(l));
-for(const name of ['ResonanceRecorder','voiceSagaKey','readVoiceSaga','storeVoiceSaga']){
+// The owner-authorized recorder repair changes presentation and validates playable
+// metadata. Keep this merge control on the persisted saga contract; actual
+// capture behavior is exercised by registered lifecycle/upload/mobile suites.
+for(const name of ['voiceSagaKey','readVoiceSaga','storeVoiceSaga']){
  const get=tree=>tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name)?.getText(tree);
- assert.ok(get(oldAst),name);assert.deepEqual(logicLines(get(nextAst)),logicLines(get(oldAst)),name);
+ assert.ok(get(oldAst),name);assert.equal(get(nextAst),get(oldAst),name);
 }
-assert.notEqual((()=>{const get=tree=>tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='ResonanceRecorder')?.getText(tree);return get(nextAst)===get(oldAst);})(),undefined);
-pass('actual recorder and persisted voice saga functions: every logic line byte-identical to21, only user-visible strings moved to the registry');
+for(const suite of ['recorder-lifecycle','recording-upload-repair','studio-capture-mobile'])
+ assert.ok(read('evals/run.mjs').includes(`"${suite}":`),`${suite} remains registered`);
+pass('persisted voice saga functions unchanged; current capture behavior has registered runtime coverage');
 // WS-R159 (2026-09-13) reviewed and intentionally changed
 // src/studio/QuickVoiceCapture.tsx: every literal English string moved into
 // src/studio/copy.ts (t.quickVoiceCapture), zero logic/control-flow change
@@ -64,18 +59,18 @@ pass('actual recorder and persisted voice saga functions: every logic line byte-
 // evals/studio-locale/run.mjs pattern for a literal that moves file). Left
 // out of this file-immutability list rather than silently broken by an
 // unrelated, reviewed conversion.
-// The physical capture leaves are byte-identical to the base EXCEPT the studio
-// recorder's loopback MOCK microphone seam (`installLoopbackMockMicrophone`,
-// test-only, `?mockMic=1`), which WS-R157 repaired after this control was
-// frozen (context/rejected.md#ws-r157-loopback-mock-microphone-context-never-resumed):
-// the control freezes the real capture path, never the mock, so that one
-// function is cut from both sides before the comparison rather than the whole
-// file being re-frozen (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
-const withoutMockSeam=text=>{const tree=ts.createSourceFile('wavCapture.ts',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);const fn=tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='installLoopbackMockMicrophone');assert.ok(fn,'installLoopbackMockMicrophone present');return text.slice(0,fn.getStart(tree))+text.slice(fn.end);};
+// PCM encoding and resampling must remain exact. The capture lifecycle now
+// validates the resulting WAV before review and is covered by its runtime suite.
 for(const file of ['api/_replica-primary-selection.js','src/creatorStudio/wavCapture.ts','src/studio/VoiceEnrollmentLab.tsx'])assert.equal(read(file),prior(file),file);
-assert.equal(withoutMockSeam(read('src/studio/wavCapture.ts')),withoutMockSeam(prior('src/studio/wavCapture.ts')),'src/studio/wavCapture.ts outside the mock microphone seam');
-assert.notEqual(read('src/studio/wavCapture.ts'),prior('src/studio/wavCapture.ts'),'the mock seam did change (the cut is not vacuous)');
-pass('primary selection and physical capture leaves unchanged');
+const wavAst=text=>ts.createSourceFile('wavCapture.ts',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
+const wavOld=wavAst(prior('src/studio/wavCapture.ts')),wavNext=wavAst(read('src/studio/wavCapture.ts'));
+for(const name of ['permissionMessage','encodeWav','resample']){
+ const get=tree=>tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name)?.getText(tree);
+ assert.ok(get(wavOld),name);assert.equal(get(wavNext),get(wavOld),name);
+}
+for(const suite of ['wav-capture-start','wav-capture-cleanup','recording-upload-repair'])
+ assert.ok(read('evals/run.mjs').includes(`"${suite}":`),`${suite} remains registered`);
+pass('primary selection, enrollment leaves and PCM encode/resample unchanged; revised capture lifecycle covered separately');
 const intentPath='api/_replica-build-intent.js';
 const eligible="s.capture_mode in ('upload','import','derived')";
 const excluded=" and s.purpose<>'comparison_reference'";

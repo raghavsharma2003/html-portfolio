@@ -19261,3 +19261,8 @@ Studio deployed connect-src self only while its real uploader sends XHR to Azure
 ## wave26-unregistered-recorder-test-is-not-a-release-gate
 
 The new mobile recorder runner and upload-repair suite initially ran only when called directly. Leaving them unregistered would allow later full releases to omit exactly the states that failed on the owner phone. Both are now in evals/run.mjs; the capture wrapper closes its server and has a180second child timeout. Local success remains synthetic evidence, not a completed live expert journey.
+
+
+## wave26-historical-recorder-freeze-and-missing-source-stubs
+
+The merge control required every recorder logic line and entire non-mock wavCapture file to match an old revision. That forbade the explicitly requested playback validation and new stable recorder. Retaining it would require undoing the actual owner repair. Keep exact persisted saga, primary-selection and PCM encode/resample invariants, plus the now-registered real lifecycle/upload/mobile tests. Separately, an injected handler loader correctly rejected missing listOwnedSourcesOverview and ownedSourceRemovalImpact; both new dependencies are explicit throwing stubs in the liveness retry test, so unexpected use still fails. Do not infer Android failure from the final Sources SKIP line; its helper exits0, while the full registry names the actual failing suites.

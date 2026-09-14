@@ -33,7 +33,7 @@ async function run(op,{text=route,ready=false,auth=true,mode='live_challenge',ow
   configuredFaceSessionBroker:()=>{calls.push('broker');return{};},configuredFaceSessionErasureBroker:no,
   deleteOwnedFaceSessionNow:no,pollOwnedFaceSession:hit('poll',challenge),startOwnedFaceSession:hit('face',{challenge,quickLinkUrl:'fixture'}),
   ReplicaStorageError,REPLICA_STORAGE_WRITE_BUCKET:'fixture',ensurePrivateReplicaBucket:hit('bucket'),createSignedReplicaUpload:hit('sign',{headers:{}}),replicaObjectInfo:hit('info',{}),
-  createPendingSource:no,getOwnedSource:hit('owned',null),getOwnedSourceByUploadIntent:no,listOwnedSources:no,finalizeOwnedSource:no,markOwnedSourceDeleting:no,setOwnedPrimaryVoiceSource:no,
+  createPendingSource:no,getOwnedSource:hit('owned',null),getOwnedSourceByUploadIntent:no,listOwnedSources:no,listOwnedSourcesOverview:no,ownedSourceRemovalImpact:no,finalizeOwnedSource:no,markOwnedSourceDeleting:no,setOwnedPrimaryVoiceSource:no,
   applySelfTestAutoGrant:no,bootstrapSelfTestReplica:no,
   authorizeOwnedComparisonPreparation:no,requireCurrentComparisonPreparation:no,comparisonPreparationInput:no,isComparisonSource,
  };

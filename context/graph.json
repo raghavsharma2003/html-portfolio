@@ -20745,6 +20745,24 @@
       "kind": "rejection",
       "title": "An unregistered local fixture cannot protect later releases",
       "at": "context/rejected.md#wave26-unregistered-recorder-test-is-not-a-release-gate"
+    },
+    {
+      "id": "wave26-private-first-without-fictional-voice",
+      "kind": "decision",
+      "title": "Private testing must have a usable path and accurate capability labels",
+      "at": "context/decisions.md#wave26-private-first-without-fictional-voice"
+    },
+    {
+      "id": "wave26-auth-and-release-rejection-20260914",
+      "kind": "measurement",
+      "title": "Auth enabled; exact release caught two obsolete fixture assumptions",
+      "at": "context/measurements.md#wave26-auth-and-release-rejection-20260914"
+    },
+    {
+      "id": "wave26-historical-recorder-freeze-and-missing-source-stubs",
+      "kind": "rejection",
+      "title": "Historical immutability and omitted dependencies broke integration fixtures",
+      "at": "context/rejected.md#wave26-historical-recorder-freeze-and-missing-source-stubs"
     }
   ],
   "edges": [
@@ -35270,6 +35288,16 @@
       "src": "wave26-unregistered-recorder-test-is-not-a-release-gate",
       "rel": "caused_by",
       "dst": "wave26-register-real-capture-in-release"
+    },
+    {
+      "src": "wave26-private-first-without-fictional-voice",
+      "rel": "measured_by",
+      "dst": "wave26-auth-and-release-rejection-20260914"
+    },
+    {
+      "src": "wave26-historical-recorder-freeze-and-missing-source-stubs",
+      "rel": "caused_by",
+      "dst": "wave26-private-first-without-fictional-voice"
     }
   ]
 }
