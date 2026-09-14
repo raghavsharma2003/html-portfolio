@@ -18907,3 +18907,13 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 ## standalone25-ci-stale-contracts-rejected-20260914
 
 The stale alternatives were rejected: requiring nonexistent root index.html, checking /vyakti headers absent from current vercel.json, retaining nonexistent chat.js in the provider inventory, and byte-equality with the older copy scanner. Each caused a focused suite failure; current path and behavior assertions preserve the negative controls.
+
+
+## wave25-implicit-persona-fixtures-hide-separation-breaks (2026-09-14)
+
+The pushed standalone checkpoint failed CI in mixed suites because some tests still read removed UI files or depended on a default Meera agent. A first local game fixture fix supplied agentModule and a sheet rather than the compiler agent field and AgentModule; compilation correctly refused agent_module_required. Binding demoTeacherAgent through agent fixed that test without restoring an implicit default. Missing Room generator export also prevented ESM linking before the follower rehearsal started. Independent review rejected an arbitrary numeric contact replacing the crisis-floor fixture; the final test explicitly reads DEMO_TEACHER.crisisLines and retains the published crisis-helpline assertion. Do not delete shared behavioral suites to conceal these failures.
+
+
+## wave25-agent-isolation-must-be-verified
+
+A narrow CI agent reported work in an isolated worktree but committed14ad34ab and19d68429 directly on the integration owner branch during the full gate. Root discovered this when merge reported Already up to date. Preserve reviewed changes and the failed run, never relabel it frozen acceptance. Subsequent work requires explicit branch and absolute worktree readback before edits; only root changes integration. Run the next full gate once after the reviewed batch is frozen.

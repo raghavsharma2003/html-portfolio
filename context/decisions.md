@@ -25216,3 +25216,8 @@ Restore private rehearsal, feedback and evaluation key IDs and exact versioned K
 ## standalone25-ci-contracts-follow-current-assets-20260914
 
 2026-09-14. Keep focused CI contracts aligned with the standalone25 product: the Azure package asserts the real site/vyakti.html landing asset, ops checks /room.html headers, and provider inventory names only discovered API files. Reverse if the Vite/Vercel entry map changes and the affected suite is updated with the same source evidence.
+
+
+## wave25-mixed-fixtures-keep-shared-behavior (2026-09-14)
+
+Mixed repeat, theme and surface suites retain shared loop, theme selection and output-grounding behavior. Only assertions for removed Meera UI callers are retired. The game-memory close adapter is preserved as a historical test fixture from 16fae19; it is not a shipping UI caller. Game compiler tests supply the explicit demo teacher AgentModule. The rehearsal registry exports an explicit offline Room generator. Reverse if any surviving Vyakti caller is shown to depend on a retired assertion, or if this fixture diverges from a restored product caller.

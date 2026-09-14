@@ -160,22 +160,8 @@ ok("same input twice is byte-identical", renderRaised(raisedRecently(nagging)) =
   ok("the retry is bounded to one", LOOP_MAX_RETRIES === 1);
 }
 
-// ── the SENDER exists — `dead-writers`, structurally ───────────────────────
-// A detector with no caller is indistinguishable from an absent one, and four
-// of this repo's most expensive findings are that shape. Read off the real
-// call lane rather than trusted.
-{
-  const { readFileSync } = await import("node:fs");
-  const call = readFileSync(new URL("../src/components/useCallEngine.ts", import.meta.url), "utf8");
-  ok("the cascade lane imports the detector", /isLoopingLine/.test(call));
-  ok("…and reads her own previous spoken turns", /function herRecentCallLines/.test(call));
-  ok("…on the reply path", /if \(isLoopingLine\(herLine, herBefore\)\) \{/.test(call));
-  ok("…and on the silence nudge", /lane: "reengage"/.test(call));
-  ok("the retry is bounded by the exported constant", /< LOOP_MAX_RETRIES/.test(call));
-  ok("the nudge reaches think() rather than a compile", /\\n\$\{LOOP_NUDGE\}/.test(call));
-  ok("liveCall.ts is untouched — its import law is absolute",
-    !/isLoopingLine|LOOP_NUDGE/.test(readFileSync(new URL("../src/voice/liveCall.ts", import.meta.url), "utf8")));
-}
+// The retired Meera cascade sender is no longer part of this product.
+// This suite retains the shared loop detector and bounded-nudge contracts.
 
 console.log(fail ? `${fail} FAILURES` : "ALL PASS");
 process.exit(fail ? 1 : 0);
