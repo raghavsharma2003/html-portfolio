@@ -196,7 +196,7 @@ export function putSignedUpload(
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
     };
-    request.onerror = () => reject(new Error("Private upload connection failed"));
+    request.onerror = () => reject(new Error("The browser could not reach private storage. Your recording is still here. Retry once. If this keeps happening, the platform connection needs repair."));
     request.onabort = () => reject(new Error("Private upload was cancelled"));
     request.ontimeout = () => reject(new Error("Private upload request timed out"));
     request.onload = () => {
@@ -378,7 +378,7 @@ function azureRequest(
     request.timeout = PRIVATE_UPLOAD_REQUEST_TIMEOUT_MS;
     for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
     request.upload.onprogress = (event) => onChunkProgress(event.loaded);
-    request.onerror = () => reject(new Error("Private Azure upload connection failed"));
+    request.onerror = () => reject(new Error("The browser could not reach private storage. Your recording is still here. Retry once. If this keeps happening, the platform connection needs repair."));
     request.onabort = () => reject(new Error("Private Azure upload was cancelled"));
     request.ontimeout = () => reject(new Error("Private Azure upload request timed out"));
     request.onload = () => {

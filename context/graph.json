@@ -20703,6 +20703,24 @@
       "kind": "rejection",
       "title": "Configless build and erasure suites stop at the database import",
       "at": "context/rejected.md#wave25-configless-build-and-erasure-suites-stop-at-the-database-import"
+    },
+    {
+      "id": "wave26-recording-upload-reconciles-ambiguous-put",
+      "kind": "decision",
+      "title": "Validate local playback and reconcile ambiguous private recording uploads",
+      "at": "context/decisions.md#wave26-recording-upload-reconciles-ambiguous-put"
+    },
+    {
+      "id": "wave26-recording-upload-repair-20260914",
+      "kind": "measurement",
+      "title": "Live trace isolates the CSP stop and seven local recovery groups pass",
+      "at": "context/measurements.md#wave26-recording-upload-repair-20260914"
+    },
+    {
+      "id": "wave26-vite-recorder-fixture-missed-production-csp",
+      "kind": "rejection",
+      "title": "Vite recorder fixtures omitted the deployed Studio CSP",
+      "at": "context/rejected.md#wave26-vite-recorder-fixture-missed-production-csp"
     }
   ],
   "edges": [
@@ -35198,6 +35216,21 @@
       "src": "wave25-configless-build-and-erasure-suites-stop-at-the-database-import",
       "rel": "part_of",
       "dst": "wave25-sources-ledger-focused-verification-20260914"
+    },
+    {
+      "src": "wave26-recording-upload-reconciles-ambiguous-put",
+      "rel": "measured_by",
+      "dst": "wave26-recording-upload-repair-20260914"
+    },
+    {
+      "src": "wave26-vite-recorder-fixture-missed-production-csp",
+      "rel": "caused_by",
+      "dst": "wave26-recording-upload-reconciles-ambiguous-put"
+    },
+    {
+      "src": "wave26-recording-upload-reconciles-ambiguous-put",
+      "rel": "part_of",
+      "dst": "clone-creation-saga"
     }
   ]
 }

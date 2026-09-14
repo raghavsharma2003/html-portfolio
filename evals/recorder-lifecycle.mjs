@@ -12,10 +12,10 @@ import {boundedWaitMs} from './lib/bounded-wait.mjs'; // WS-R181: scale the fixe
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const original = readFileSync(join(ROOT, 'src/studio/CloneExperience.tsx'), 'utf8');
 const parsed = ts.createSourceFile('CloneExperience.tsx', original, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-const names = new Set(['ResonanceRecorder', 'signalSummary', 'clockDuration', 'bytesLabel', 'safeRecordingName']);
+const names = new Set(['ResonanceRecorder', 'signalSummary', 'clockDuration', 'bytesLabel', 'safeRecordingName', 'normalizeRecordingFile']);
 const extracted = parsed.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text)).map(node => node.getText(parsed)).join('\n');
 assert.equal(parsed.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text)).length, names.size);
-const constants = parsed.statements.filter(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(d => ['MINIMUM_RECORDING_MS', 'RECOMMENDED_RECORDING_MS', 'MAXIMUM_RECORDING_MS'].includes(d.name.getText(parsed)))).map(node => node.getText(parsed)).join('\n');
+const constants = parsed.statements.filter(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(d => ['MINIMUM_RECORDING_MS', 'RECOMMENDED_RECORDING_MS', 'MAXIMUM_RECORDING_MS', 'RECORDING_MIME_BY_EXTENSION'].includes(d.name.getText(parsed)))).map(node => node.getText(parsed)).join('\n');
 const preamble = `import {useCallback,useEffect,useRef,useState} from 'react';
 import {AnimatePresence,motion,useReducedMotion} from 'framer-motion';
 import {openPrivateWavCapture} from 'virtual:recorder-device';
@@ -103,6 +103,7 @@ try {
   await check('preview URL is released on unmount',async()=>{
     await open();await button().click();await page.evaluate(()=>window.recorderProbe.resolveOpen());await page.getByRole('button',{name:/Finish recording/}).waitFor();
     await page.evaluate(()=>window.recorderProbe.advanceTime());await page.getByRole('button',{name:/Finish recording/}).click();await page.evaluate(()=>window.recorderProbe.resolveStop());
+    await page.waitForFunction(()=>window.recorderProbe.media.length===1);await page.evaluate(()=>window.recorderProbe.finishMedia(0));
     await page.getByRole('button',{name:'Try again',exact:true}).waitFor();await page.evaluate(()=>window.recorderProbe.unmount());
     await page.waitForFunction(()=>window.recorderProbe.revoked.includes('blob:recorder-result'));
   });
@@ -112,6 +113,7 @@ try {
     for(let turn=1;turn<=2;turn++){
       await button().click();await page.evaluate(()=>window.recorderProbe.resolveOpen());await page.getByRole('button',{name:/Finish recording/}).waitFor();
       await page.evaluate(()=>window.recorderProbe.advanceTime());await page.getByRole('button',{name:/Finish recording/}).click();await page.evaluate(()=>window.recorderProbe.resolveStop());
+      await page.waitForFunction(expected=>window.recorderProbe.media.length===expected,turn);await page.evaluate(index=>window.recorderProbe.finishMedia(index),turn-1);
       await page.getByRole('button',{name:'Try again',exact:true}).waitFor();
       if(turn===1){await page.getByRole('button',{name:'Try again',exact:true}).click();await button().waitFor();}
     }

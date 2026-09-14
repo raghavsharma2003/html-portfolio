@@ -17,6 +17,7 @@ import VoicePreviewPanel from "./VoicePreviewPanel";
 import CloneVerificationJourney, { type CloneVerificationJourneyProps } from "./CloneVerificationJourney";
 import { FirstFiveMinutesRail, firstFiveMinutesStep } from "./FirstFiveMinutes";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
+import { transferRecording } from "./recordingUpload";
 import { addContextFiles, fileToBase64, loadContextLocker } from "./contextLockerApi";
 import {
   ENROLLMENT_LANGUAGE_LABELS,
@@ -142,6 +143,23 @@ function safeRecordingName() {
   return `vyakti-voice-${new Date().toISOString().replace(/[:.]/gu, "-")}.wav`;
 }
 
+const RECORDING_MIME_BY_EXTENSION: Record<string, string> = {
+  wav: "audio/wav", mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac",
+  flac: "audio/flac", ogg: "audio/ogg", opus: "audio/ogg", webm: "video/webm",
+  mp4: "video/mp4", mov: "video/quicktime", mkv: "video/x-matroska",
+};
+
+function normalizeRecordingFile(file: File): { file: File; kind: "audio" | "video" } {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const inferred = RECORDING_MIME_BY_EXTENSION[extension];
+  const declaredMedia = file.type.startsWith("audio/") || file.type.startsWith("video/");
+  const mime = declaredMedia ? file.type : inferred || file.type;
+  const kind = declaredMedia ? (mime.startsWith("video/") ? "video" : "audio")
+    : (["webm", "mp4", "mov", "mkv"].includes(extension) ? "video" : "audio");
+  if (!inferred || declaredMedia) return { file, kind };
+  return { file: new File([file], file.name, { type: inferred, lastModified: file.lastModified }), kind };
+}
+
 function clockDuration(milliseconds: number) {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -217,6 +235,29 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
   const sampleUrlRef = useRef<string | null>(null);
   const pendingMediaRef = useRef<(() => void) | null>(null);
 
+  const readMediaDuration = useCallback((url: string, kind: "audio" | "video") => new Promise<number | null>((resolve) => {
+    const media = kind === "video" ? document.createElement("video") : new Audio();
+    let finished = false;
+    const finish = (duration: number | null) => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timer);
+      media.onloadedmetadata = null;
+      media.onerror = null;
+      media.removeAttribute("src");
+      media.load();
+      if (pendingMediaRef.current === cancel) pendingMediaRef.current = null;
+      resolve(duration);
+    };
+    const cancel = () => finish(null);
+    const timer = window.setTimeout(cancel, 15_000);
+    pendingMediaRef.current = cancel;
+    media.preload = "metadata";
+    media.onloadedmetadata = () => finish(Number.isFinite(media.duration) ? media.duration * 1000 : null);
+    media.onerror = cancel;
+    media.src = url;
+  }), []);
+
   const clearSample = useCallback(() => {
     if (sampleUrlRef.current) URL.revokeObjectURL(sampleUrlRef.current);
     sampleUrlRef.current = null;
@@ -240,27 +281,37 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
       }
       captureRef.current = null;
       const renamed = new File([result.file], safeRecordingName(), { type: "audio/wav", lastModified: Date.now() });
+      const decodedDurationMs = await readMediaDuration(result.url, "audio");
+      if (!mountedRef.current || attempt !== captureAttemptRef.current) {
+        URL.revokeObjectURL(result.url);
+        return;
+      }
+      if (decodedDurationMs == null || decodedDurationMs < MINIMUM_RECORDING_MS) {
+        URL.revokeObjectURL(result.url);
+        throw new Error(copy.recordingFailed);
+      }
       sampleUrlRef.current = result.url;
       setSample({
         file: renamed,
         url: result.url,
         kind: "audio",
-        durationMs: result.durationMs,
+        durationMs: decodedDurationMs,
         samplePeak: samplePeakRef.current,
         audibleRatio: totalFramesRef.current ? audibleFramesRef.current / totalFramesRef.current : 0,
         recordedHere: true,
       });
-      setElapsedMs(result.durationMs);
+      setElapsedMs(decodedDurationMs);
       setCaptureState("review");
       setHint(copy.reviewHint);
     } catch (cause) {
       if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
+      if (captureRef.current === capture) captureRef.current = null;
       setError(cause instanceof Error ? cause.message : copy.recordingFailed);
       setCaptureState("idle");
     } finally {
       if (attempt === captureAttemptRef.current) stoppingRef.current = false;
     }
-  }, [copy]);
+  }, [copy, readMediaDuration]);
 
   useEffect(() => {
     if (captureState !== "recording") return;
@@ -362,7 +413,7 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
     setLevel(0);
     setError("");
     setFileOwnershipConfirmed(false);
-    setHint("Press once to begin. Let go whenever you like. Press again to finish.");
+    setHint(copy.initialHint);
   }
 
   async function chooseFile(file: File | null) {
@@ -373,35 +424,15 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
     clearSample();
     setCaptureState("requesting");
     setFileOwnershipConfirmed(false);
-    const url = URL.createObjectURL(file);
-    const durationMs = await new Promise<number | null>((resolve) => {
-      const media = file.type.startsWith("video/") ? document.createElement("video") : new Audio();
-      let finished = false;
-      const finish = (duration: number | null) => {
-        if (finished) return;
-        finished = true;
-        window.clearTimeout(timer);
-        media.onloadedmetadata = null;
-        media.onerror = null;
-        media.removeAttribute("src");
-        media.load();
-        if (pendingMediaRef.current === cancel) pendingMediaRef.current = null;
-        resolve(duration);
-      };
-      const cancel = () => finish(null);
-      const timer = window.setTimeout(cancel, 15_000);
-      pendingMediaRef.current = cancel;
-      media.preload = "metadata";
-      media.onloadedmetadata = () => finish(Number.isFinite(media.duration) ? media.duration * 1000 : null);
-      media.onerror = cancel;
-      media.src = url;
-    });
+    const normalized = normalizeRecordingFile(file);
+    const url = URL.createObjectURL(normalized.file);
+    const durationMs = await readMediaDuration(url, normalized.kind);
     if (!mountedRef.current || attempt !== captureAttemptRef.current) {
       URL.revokeObjectURL(url);
       return;
     }
     sampleUrlRef.current = url;
-    setSample({ file, url, kind: file.type.startsWith("video/") ? "video" : "audio", durationMs, samplePeak: null, audibleRatio: null, recordedHere: false });
+    setSample({ file: normalized.file, url, kind: normalized.kind, durationMs, samplePeak: null, audibleRatio: null, recordedHere: false });
     setFileOwnershipConfirmed(false);
     setCaptureState("review");
     setHint(copy.stayLocalHint);
@@ -1204,11 +1235,23 @@ export default function CloneExperience(props: CloneExperienceProps) {
         if (!created.finalized) {
           if (!created.upload) throw new Error(copy.upload.uploadAuthMissing);
           setUpload({ phase: "upload", progress: 0, message: copy.upload.uploadMessage });
-          await putSignedUpload(sample.file, created.upload, (value) => {
-            if (active()) setUpload({ phase: "upload", progress: Math.round(value), message: copy.upload.uploadMessage });
+          const transfer = await transferRecording({
+            file: sample.file,
+            sourceId,
+            uploadIntentId: operation.uploadIntentId,
+            put: (file, onProgress) => putSignedUpload(file, created.upload!, onProgress),
+            finalize: onFinalizeUpload,
+            onProgress: (value) => {
+              if (active()) setUpload({ phase: "upload", progress: Math.round(value), message: copy.upload.uploadMessage });
+            },
+            onReconciling: () => {
+              if (active()) setUpload({ phase: "verify", progress: 0, message: copy.upload.verifyMessage });
+            },
+            isActive: active,
           });
           if (!active()) return;
           operation.uploaded = true;
+          operation.finalized = transfer === "reconciled";
         }
       } else if (!operation.uploaded) {
         if (!sourceId) throw new Error(copy.upload.sourceReceiptMissing);
@@ -1220,11 +1263,23 @@ export default function CloneExperience(props: CloneExperienceProps) {
         if (!retried.finalized) {
           if (!retried.upload) throw new Error(copy.upload.uploadAuthMissing);
           setUpload({ phase: "upload", progress: 0, message: copy.upload.resumeMessage });
-          await putSignedUpload(sample.file, retried.upload, (value) => {
-            if (active()) setUpload({ phase: "upload", progress: Math.round(value), message: copy.upload.resumeMessage });
+          const transfer = await transferRecording({
+            file: sample.file,
+            sourceId,
+            uploadIntentId: operation.uploadIntentId,
+            put: (file, onProgress) => putSignedUpload(file, retried.upload!, onProgress),
+            finalize: onFinalizeUpload,
+            onProgress: (value) => {
+              if (active()) setUpload({ phase: "upload", progress: Math.round(value), message: copy.upload.resumeMessage });
+            },
+            onReconciling: () => {
+              if (active()) setUpload({ phase: "verify", progress: 0, message: copy.upload.verifyMessage });
+            },
+            isActive: active,
           });
           if (!active()) return;
           operation.uploaded = true;
+          operation.finalized = transfer === "reconciled";
         }
       }
       if (!sourceId) throw new Error(copy.upload.sourceReceiptMissing);
@@ -1537,7 +1592,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
         scope={`${identity}:${selected?.replica_id || "new"}:${room}:${enrichView}`}
         hidden={readBlocked || drawerOpen || accountOpen}
         onDismissNotice={onDismissNotice} onDismissError={onDismissError} />
-      <WorkspaceDrawer open={drawerOpen} replicas={replicas} selected={selected} runtimeStatus={runtimeStatus} onClose={() => setDrawerOpen(false)} onSelect={(id) => { setDrawerOpen(false); void onSelectReplica(id); }} onNew={() => { setDrawerOpen(false); onStartNew(); }} onReplace={() => void replaceRecording()} onDelete={() => void onRevoke()} busy={revoking || Boolean(upload)} reduceMotion={reduceMotion} />
+      <WorkspaceDrawer open={drawerOpen} replicas={replicas} selected={selected} runtimeStatus={runtimeStatus} onClose={() => setDrawerOpen(false)} onSelect={(id) => { setDrawerOpen(false); void onSelectReplica(id); }} onNew={() => { setDrawerOpen(false); onStartNew(); }} onReplace={() => void replaceRecording()} onDelete={() => void onRevoke()} busy={revoking || Boolean(upload && upload.phase !== "failed")} reduceMotion={reduceMotion} />
     </div>
   );
 }

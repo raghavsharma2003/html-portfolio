@@ -1,5 +1,33 @@
 type WavRecording = { file: File; url: string; durationMs: number };
 
+export type PcmWavInfo = {
+  sampleRate: number;
+  channels: number;
+  bitsPerSample: number;
+  frames: number;
+  durationMs: number;
+};
+
+export async function inspectPcmWav24kMono(blob: Blob): Promise<PcmWavInfo> {
+  const bytes = await blob.arrayBuffer();
+  if (bytes.byteLength < 44) throw new Error("The private recording did not contain playable audio.");
+  const view = new DataView(bytes);
+  const text = (offset: number, length: number) => String.fromCharCode(...new Uint8Array(bytes, offset, length));
+  const channels = view.getUint16(22, true);
+  const sampleRate = view.getUint32(24, true);
+  const bitsPerSample = view.getUint16(34, true);
+  const dataBytes = view.getUint32(40, true);
+  const frameBytes = channels * bitsPerSample / 8;
+  if (text(0, 4) !== "RIFF" || text(8, 4) !== "WAVE" || text(12, 4) !== "fmt " || text(36, 4) !== "data"
+      || view.getUint16(20, true) !== 1 || channels !== 1 || sampleRate !== 24_000 || bitsPerSample !== 16
+      || frameBytes !== 2 || dataBytes < frameBytes || dataBytes !== bytes.byteLength - 44 || dataBytes % frameBytes !== 0
+      || view.getUint32(4, true) !== bytes.byteLength - 8) {
+    throw new Error("The private recording did not contain playable 24 kHz audio.");
+  }
+  const frames = dataBytes / frameBytes;
+  return { sampleRate, channels, bitsPerSample, frames, durationMs: Math.round(frames / sampleRate * 1000) };
+}
+
 function permissionMessage(cause: unknown) {
   const name = cause instanceof DOMException ? cause.name : "";
   if (name === "NotAllowedError" || name === "SecurityError")
@@ -192,7 +220,9 @@ export async function openPrivateWavCapture(options: PrivateWavCaptureOptions = 
       const durationMs = Math.round(samples.length / 24_000 * 1000);
       const blob = encodeWav(samples, 24_000);
       const file = new File([blob], "private-voice-recording.wav", { type: "audio/wav" });
-      return { file, url: URL.createObjectURL(blob), durationMs };
+      const inspected = await inspectPcmWav24kMono(file);
+      if (Math.abs(inspected.durationMs - durationMs) > 1) throw new Error("The private recording duration could not be verified.");
+      return { file, url: URL.createObjectURL(file), durationMs: inspected.durationMs };
     },
     cancel: close,
   };
