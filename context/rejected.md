@@ -18830,3 +18830,7 @@ Tried validating the named html-portfolio Vercel project as Meera production and
 **What replaced it.** Added a Room reply factory to the same production registry. It reuses Meet's endpoint, deployment, key, Terra revision and pricing contract, then calls the existing budgeted raw-text adapter so the Room parser remains authoritative.
 
 **Reversal condition.** This rejection can be retired when a versioned structured Room parser passes explicit equivalence fixtures for every affected parser and delivery behavior named above.
+
+## `wave25-vercel-create-ack-is-not-always-an-env-row` (2026-09-14)
+
+The first configuration invocation assumed the create response contained a top-level environment row or created array. It returned env_write_ack_mismatch_VYAKTI_MODEL_SERVING even though independent GET proved the setting existed with all three target scopes. Treating that as a failed write and blindly creating again risks duplicates or conflicts. The helper now resolves ambiguous acknowledgements through an independent GET and matches name, type and scopes before continuing. The corrected invocation completed; secrets were never printed or stored in the checkout.

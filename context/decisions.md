@@ -25165,3 +25165,7 @@ Use the owner-requested branch tip, preserve the exact deployed Meera history in
 **Why.** Meet already owns the one Azure Foundry dialogue registry and the explicitly verified Terra protocol. A second Room namespace for endpoint, model, key and rates allowed the two reply paths to select or price the same deployment differently. Registering Room's raw-text adapter at the same factory boundary removes that drift without changing the downstream parser that public Room replies depend on.
 
 **Reversal.** Replace the raw Room adapter only after a separately versioned structured-output parser has equivalence measurements for bubble order, expert citations, disclosure, never-rules and delivery across the existing Room fixtures. Until then, Room and Meet share provider identity and pricing while keeping their distinct output contracts.
+
+## `wave25-existing-sponsored-foundry-bound-to-vercel` (2026-09-14)
+
+Use the existing sponsored Azure subscription and its succeeded Terra dialogue and mini extraction deployments. Bind them to the fixed Vyakti Vercel project; retain the shared $1 pilot text cap. Production and Preview use a sensitive API-key row; Development uses a separate encrypted row of the same existing key. No new infrastructure or continuously warm GPU was created. Reverse if verified deployment identity, actual rates, grant eligibility or measured product quality invalidates this configuration. The Terra 2/12 and mini 0.4/1.6 per-million-token rates are retained configuration, not a fresh invoice verification.
