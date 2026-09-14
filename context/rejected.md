@@ -19266,3 +19266,8 @@ The new mobile recorder runner and upload-repair suite initially ran only when c
 ## wave26-historical-recorder-freeze-and-missing-source-stubs
 
 The merge control required every recorder logic line and entire non-mock wavCapture file to match an old revision. That forbade the explicitly requested playback validation and new stable recorder. Retaining it would require undoing the actual owner repair. Keep exact persisted saga, primary-selection and PCM encode/resample invariants, plus the now-registered real lifecycle/upload/mobile tests. Separately, an injected handler loader correctly rejected missing listOwnedSourcesOverview and ownedSourceRemovalImpact; both new dependencies are explicit throwing stubs in the liveness retry test, so unexpected use still fails. Do not infer Android failure from the final Sources SKIP line; its helper exits0, while the full registry names the actual failing suites.
+
+
+## wave26-connect-src-does-not-authorize-saved-audio
+
+The initial Studio repair allowed Azure XHR and blob playback but omitted Azure from media-src. Code inspection found ProcessingReview passes the server-created short-lived Azure audition URL directly to audio.src, so that next listening action would still be blocked. The policy and its real browser negative controls now cover both upload and signed-origin playback; do not assume connect-src governs media elements.

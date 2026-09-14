@@ -22,11 +22,11 @@ const js=await build({stdin:{resolveDir:root,loader:'ts',contents:`
     if(blocks)upload.resumable={protocol:'azure-block-v1',endpoint:url,headers:{'x-ms-version':'2025-01-05'},chunk_size:8*1024*1024,metadata:{contentType:'audio/wav'}};
     try{await putSignedUpload(file,upload,()=>{});return 'uploaded';}catch{return 'blocked';}
   };
-  window.runPlayback=async()=>{
+  window.runPlayback=async(remote=false)=>{
     const audio=document.createElement('audio');audio.controls=true;document.body.append(audio);
-    const url=URL.createObjectURL(await(await fetch('/tone.wav')).blob());
+    const url=remote ? '${origin}/csp-fixture/audition.wav?sig=synthetic-not-a-credential' : URL.createObjectURL(await(await fetch('/tone.wav')).blob());
     return new Promise(resolve=>{
-      const finish=value=>{URL.revokeObjectURL(url);audio.remove();resolve(value);};
+      const finish=value=>{if(!remote)URL.revokeObjectURL(url);audio.remove();resolve(value);};
       audio.onloadedmetadata=()=>finish(audio.duration);audio.onerror=()=>finish('blocked');
       audio.src=url;audio.load();
     });
@@ -40,7 +40,7 @@ const server=createServer((req,res)=>{
   const entry=policies.find(row=>row.path===url.pathname);
   if(!entry){res.statusCode=404;return res.end();}
   // Recreate the owner's exact old policy as a negative control, not a looser mock.
-  const policy=url.searchParams.has('old')?entry.policy.replace(` https://vyaktireplicamedia.blob.core.windows.net`,'').replace(" media-src 'self' blob:;",''):entry.policy;
+  const policy=url.searchParams.has('old')?entry.policy.replace(` https://vyaktireplicamedia.blob.core.windows.net`,'').replace(/ media-src [^;]+;/,''):entry.policy;
   res.setHeader('Content-Security-Policy',policy);res.setHeader('Content-Type','text/html');
   res.end('<!doctype html><title>Studio media policy fixture</title><script src="/app.js"></script>');
 });
@@ -49,17 +49,19 @@ let browser;let checks=0;
 try{
  browser=await launchSuiteBrowser('studio-media-policy');
  const page=await browser.newPage();let intercepted=0;
- await page.route(origin+'/**',route=>{intercepted++;return route.fulfill({status:201,headers:{'Access-Control-Allow-Origin':'*'}});});
+ await page.route(origin+'/**',route=>{intercepted++;return route.fulfill(route.request().method()==='GET' ? {status:200,contentType:'audio/wav',body:wav} : {status:201,headers:{'Access-Control-Allow-Origin':'*'}});});
  for(const {path}of policies){
   await page.goto(`http://127.0.0.1:${server.address().port}${path}?old=1`);
   const before=intercepted;
   assert.equal(await page.evaluate(()=>window.runUpload()),'blocked');checks++;
   assert.equal(await page.evaluate(()=>window.runPlayback()),'blocked');checks++;
+  assert.equal(await page.evaluate(()=>window.runPlayback(true)),'blocked');checks++;
   assert.equal(intercepted,before,'old CSP must stop upload before storage');checks++;
   await page.goto(`http://127.0.0.1:${server.address().port}${path}`);
   assert.equal(await page.evaluate(()=>window.runUpload(true)),'uploaded');checks++;
   assert.equal(intercepted-before,2,'real uploader sends a block and its commit');checks++;
   assert.equal(await page.evaluate(()=>window.runPlayback()),13);checks++;
+  assert.equal(await page.evaluate(()=>window.runPlayback(true)),13);checks++;
  }
  console.log(`studio-media-policy: ${checks}/${checks} real CSP controls passed; Azure intercepted, no storage writes`);
 }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}

@@ -20763,6 +20763,24 @@
       "kind": "rejection",
       "title": "Historical immutability and omitted dependencies broke integration fixtures",
       "at": "context/rejected.md#wave26-historical-recorder-freeze-and-missing-source-stubs"
+    },
+    {
+      "id": "wave26-allow-exact-saved-audio-origin",
+      "kind": "decision",
+      "title": "Studio media policy covers saved private auditions too",
+      "at": "context/decisions.md#wave26-allow-exact-saved-audio-origin"
+    },
+    {
+      "id": "wave26-saved-audio-csp-20260914",
+      "kind": "measurement",
+      "title": "Sixteen real browser policy checks cover upload and two playback routes",
+      "at": "context/measurements.md#wave26-saved-audio-csp-20260914"
+    },
+    {
+      "id": "wave26-connect-src-does-not-authorize-saved-audio",
+      "kind": "rejection",
+      "title": "Upload permission alone cannot repair signed audition playback",
+      "at": "context/rejected.md#wave26-connect-src-does-not-authorize-saved-audio"
     }
   ],
   "edges": [
@@ -35298,6 +35316,16 @@
       "src": "wave26-historical-recorder-freeze-and-missing-source-stubs",
       "rel": "caused_by",
       "dst": "wave26-private-first-without-fictional-voice"
+    },
+    {
+      "src": "wave26-allow-exact-saved-audio-origin",
+      "rel": "measured_by",
+      "dst": "wave26-saved-audio-csp-20260914"
+    },
+    {
+      "src": "wave26-connect-src-does-not-authorize-saved-audio",
+      "rel": "caused_by",
+      "dst": "wave26-allow-exact-saved-audio-origin"
     }
   ]
 }

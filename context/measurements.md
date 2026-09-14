@@ -19105,3 +19105,8 @@ Same continuation: exact three infra writes completed, then standalone25-interna
 ## wave26-auth-and-release-rejection-20260914
 
 2026-09-14. n1 public Supabase Auth settings read returned200: signup/email/Google enabled, email autoconfirm false, phone disabled. Preview URL/key bindings match protected runtime config in memory; no values persisted. No message/account creation; SMTP deliverability, redirect allowlist and OAuth testing restrictions remain unproved. Receipt supabase-auth-readback25.json. Exact3b193bc4 Android run34868998135/job104059938696 failed two suites: private-rehearsal-combined froze pre-repair recorder logic, modern-capture-readiness omitted two new Sources dependencies. Root narrowed immutable checks to unchanged persisted saga/PCM functions while registered capture suites test the intentional repair, and supplied explicit unexpected-call stubs for the new read dependencies. Focused n8+n16 now pass. Shared full-Chromium Sources n32 passed after an explicit fixture data favicon avoided404; browserless builds skip only mounted work via shared launcher. Full release remains pending; no corrected site is deployed.
+
+
+## wave26-saved-audio-csp-20260914
+
+2026-09-14. Actual Chromium n16 checks passed across /studio and /studio.html: old policy blocks upload before storage, local blob playback and signed-origin audition; repaired policy accepts the real block+commit uploader and decodes13s synthetic WAV from both blob and intercepted exact Azure origin. No Azure Blob write or model call. check-headers/supply-chain returned zero findings; three moderate/low npm notices remain below its unchanged high threshold.

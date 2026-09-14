@@ -25509,3 +25509,8 @@ Register the mobile capture runner and upload recovery suite in the full release
 ## wave26-private-first-without-fictional-voice
 
 2026-09-14. Keep ordinary email/Google signup and per-account workspaces separate from the pinned retained-owner Hindi diagnostic. The current general voice path requires unfinished identity/liveness producers; do not route private testers into those unavailable services as though submitting more documents fixes the platform. Repair propagation of saved personal sheets and expose the existing private text test when its actual material requirements are met. Voice authority, public verification and synthesized likeness are not inferred from these UI repairs. Reverse this temporary entry arrangement when a general private voice path is implemented and tested with a fresh account and its own sample.
+
+
+## wave26-allow-exact-saved-audio-origin
+
+2026-09-14. ProcessingReview consumes the short-lived signed URL returned by replica-review audition_artifact directly in an audio element. Allow that same existing Azure media origin in media-src alongside self and blob; connect-src alone does not authorize media playback. No wildcard or second storage account is added. Reverse the direct origin allowance if all saved playback moves through same-origin authenticated streaming.
