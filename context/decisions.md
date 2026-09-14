@@ -25243,3 +25243,7 @@ Mixed repeat, theme and surface suites retain shared loop, theme selection and o
 ## wave25-voice-readiness-requires-real-composite-evidence (2026-09-14)
 
 The sponsored Azure subscription and working Speech/Foundry access do not resolve fresh-user voice enrollment. Preserve unavailable readiness while no actual producer binds later visible identity to its audible speech and supplies the existing policy decisions. Reuse completed audio ancestry, consent and processing pieces. Reverse when an implemented, version-bound producer and actual end-to-end evidence satisfy the accepted policy, or an explicitly reviewed policy change is implemented; never reverse solely by setting an env flag.
+
+## standalone25-face-v12-nested-result-20260914
+
+2026-09-14. Trust Azure Face liveness v1.2 verification only at attempt.result.verifyResult, matching the official Get Liveness with Verify Session Result contract. Flat sibling data is rejected; reverse if the pinned official schema changes and the parser/tests are updated together.

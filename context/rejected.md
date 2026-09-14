@@ -18943,3 +18943,7 @@ Windows path separators caused both scanner negative controls to miss their plan
 ## wave25-voice-blocker-was-not-only-a-credential (2026-09-14)
 
 Earlier handover suggested the voice program was blocked only by credentials. Access now works, but Azure quicklink records a separate visual ceremony and does not attest to the later Studio recording audio. ASR challenge recognition and two speaker embeddings do not create that missing visual/audio association or a synthetic-risk verdict. Correct the actual parser/recording defects and finish the producer design; do not invent scores or call a fake-provider rehearsal production enrollment.
+
+## standalone25-face-v12-flat-result-rejected-20260914
+
+The prior flat latest.verifyResult read was rejected because the official Face v1.2 response nests verification under attempt.result.verifyResult. A flat-only fixture, false identity, and low confidence now fail closed; no liveness enablement or readiness change was made.

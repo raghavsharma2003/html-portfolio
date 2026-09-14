@@ -18850,3 +18850,11 @@ The three focused suites passed with the counts recorded above.
 ## wave25-voice-enrollment-source-audit-20260914 (2026-09-14)
 
 2026-09-14,n=1 independent bounded source/official-doc audit atcd580a4f. Found missing composite producer and independent document-review producer; source registry deliberately refuses. Found two concrete defects: Face verification results read one object level too high versus officialv1.2schema; UI60-second capture limit versus decoder30seconds. Root independently checked Face schema. No provider call, browser capture, deployed verifier acceptance or likeness measurement. Exact reuse/repair map: docs/handoff/2026-09-14/VOICE-ENROLLMENT-REALITY.md.
+
+## standalone25-face-v12-nested-result-20260914
+
+Method: scoped Node 24 service test on isolated face-result worktree; n=9 liveness tests, date 2026-09-14. All 9 passed, including nested success, flat-shape rejection, non-identical identity and below-threshold confidence.
+
+## standalone25-face-v12-nested-result-measurement-20260914
+
+The nine liveness assertions include the nested provider shape and three fail-closed controls.
