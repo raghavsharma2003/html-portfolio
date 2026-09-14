@@ -25229,3 +25229,8 @@ Restore private rehearsal, feedback and evaluation key IDs and exact versioned K
 ## wave25-mixed-fixtures-keep-shared-behavior (2026-09-14)
 
 Mixed repeat, theme and surface suites retain shared loop, theme selection and output-grounding behavior. Only assertions for removed Meera UI callers are retired. The game-memory close adapter is preserved as a historical test fixture from 16fae19; it is not a shipping UI caller. Game compiler tests supply the explicit demo teacher AgentModule. The rehearsal registry exports an explicit offline Room generator. Reverse if any surviving Vyakti caller is shown to depend on a retired assertion, or if this fixture diverges from a restored product caller.
+
+
+## wave25-preserve-logs-repair-only-proven-orphan-incident
+
+2026-09-14. Repair only the measured20/4 legacy incident after conservative forget-term exclusion and a separately verified rollback. Use row locks, a short shared forget-ledger lock, exact owner/channel/range/count guards, and empty provisional wake records. Preserve every surviving message and all forget requests; write a cursor-only intent receipt before the single COMMIT and require independent readback. Reverse or refuse if the incident shape, ownership, suppression matches or transaction proof changes. Never retry an ambiguous commit automatically.

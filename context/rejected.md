@@ -18929,3 +18929,8 @@ The pushed standalone checkpoint failed CI in mixed suites because some tests st
 ## wave25-agent-isolation-must-be-verified
 
 A narrow CI agent reported work in an isolated worktree but committed14ad34ab and19d68429 directly on the integration owner branch during the full gate. Root discovered this when merge reported Already up to date. Preserve reviewed changes and the failed run, never relabel it frozen acceptance. Subsequent work requires explicit branch and absolute worktree readback before edits; only root changes integration. Run the next full gate once after the reviewed batch is frozen.
+
+
+## wave25-repair-does-not-update-deployed-meera-writer
+
+The current Vyakti source fixes partial-forget survivor links and mapped suppression, but deployed Meera remains atbee906 unchanged under owner separation directive. Repairing the measured20messages does not deploy that source fix to Meera; future Meera partial-forget calls can reproduce the old defect. Keep this residual limitation visible and detect recurrence with relcheck. Do not claim the entire live historical writer is fixed from a green observed incident.

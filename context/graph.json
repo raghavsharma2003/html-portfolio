@@ -19773,6 +19773,24 @@
       "kind": "measurement",
       "title": "Actual partial-forget source SQL and rollback proof",
       "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-preserve-logs-repair-only-proven-orphan-incident",
+      "kind": "decision",
+      "title": "Repair observed episode cursors without deleting messages",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-orphan-repair-committed-20260914",
+      "kind": "measurement",
+      "title": "Actual preserved-row repair and green integrity gate",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-repair-does-not-update-deployed-meera-writer",
+      "kind": "rejection",
+      "title": "One repaired incident does not fix historical deployed code",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -33718,6 +33736,16 @@
       "src": "wave25-partial-forget-requeues-surviving-raw-lineage-atomically",
       "dst": "wave25-clearing-dangling-cursors-alone-does-not-wake-finalizer",
       "rel": "caused_by"
+    },
+    {
+      "src": "wave25-preserve-logs-repair-only-proven-orphan-incident",
+      "rel": "measured_by",
+      "dst": "wave25-orphan-repair-committed-20260914"
+    },
+    {
+      "src": "wave25-repair-does-not-update-deployed-meera-writer",
+      "rel": "constrains",
+      "dst": "wave25-preserve-logs-repair-only-proven-orphan-incident"
     }
   ]
 }

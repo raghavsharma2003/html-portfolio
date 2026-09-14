@@ -18832,3 +18832,8 @@ Method: four focused offline suites on standalone25 commit 6f0ab212 after contra
 ## wave25-integrity-source-live-proof-20260914
 
 2026-09-14, n=1 source-pinned actual PostgreSQL proof on7175a071. Both exact source SQL statements (mapped-device suppression and recursive partial-forget purge) passed EXPLAIN in a read-only transaction. Separate synthetic transaction deleted one matching row, preserved two other rows with null consolidation cursors, inserted one empty provisional wake, and found the forgotten term from the other mapped device. ROLLBACK acknowledged; independent read-only connection found zero fixture agents,people,mappings,logs,forget records or episodes. Receipt: standalone25-integrity25-source-proof-1789378233610.json. Root integrated focused forget suite34/34 passed. These are real SQL/control-flow results, not model recall quality or deployed Meera code proof.
+
+
+## wave25-orphan-repair-committed-20260914
+
+2026-09-14, n=1 fixed-incident transaction after independent review and rollback proof. COMMIT acknowledged;20 target messages preserved with valid/unclaimed lineage,2 empty provisional wake episodes created,6 forget records preserved,0 term matches,0 content or term values returned. Independent connection verified20 preserved and0orphans. Receipt standalone25-meera-orphan-commit-1789378384691.json plus cursor-only intent. Subsequent actual live relcheck exit0: zero-orphan sweep green40checks including multiparty,10339ms. Receipt standalone25-relcheck-1789378422682.log. No model call or product deployment.
