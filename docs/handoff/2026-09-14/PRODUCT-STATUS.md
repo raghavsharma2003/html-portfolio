@@ -4,8 +4,8 @@ Updated 2026-09-14. Build and test privately first. Public rollout and enrollmen
 review are deferred. `context/STATE.md` records the exact latest release result;
 this page describes the product and the remaining proof.
 
-Accepted private preview: https://vyakti-replica-i847002wd-raghav-carbonsettles-projects.vercel.app/studio
-Source591c8a25 passed25/25 under Node22/24 and Android debug APK. The actual
+Accepted private preview: https://vyakti-replica-6uu749yfa-raghav-carbonsettles-projects.vercel.app/studio
+Source3bc5857e passed25/25 under Node22/24 and Android debug APK. The actual
 landing and sign-in screen are verified; the full signed-in journey is not.
 
 Vyakti turns an expert's knowledge, communication style and voice into an AI

@@ -20589,6 +20589,24 @@
       "kind": "rejection",
       "title": "A generic single-line field selector and unstyled Feed actions broke the current mobile form",
       "at": "context/rejected.md#wave25-generic-field-label-and-unstyled-feed-actions"
+    },
+    {
+      "id": "wave25-close-with-exact-preview-and-owner-inputs",
+      "kind": "decision",
+      "title": "Close this release with exact source and explicit live gaps",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-final-feed-preview-20260914",
+      "kind": "measurement",
+      "title": "Final Feed polish gated and deployed",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-stale-captures-and-late-visual-review",
+      "kind": "rejection",
+      "title": "Old screenshots and a broad gate miss different things",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -35029,6 +35047,11 @@
       "src": "wave25-premium-journey-uses-pearl-silver-and-human-imagery",
       "rel": "part_of",
       "dst": "wave25-feed-links-use-scoped-form-controls"
+    },
+    {
+      "src": "wave25-close-with-exact-preview-and-owner-inputs",
+      "rel": "measured_by",
+      "dst": "wave25-final-feed-preview-20260914"
     }
   ]
 }

@@ -25466,3 +25466,8 @@ Deploy exact591c8a25 as a protected preview after both Node versions pass25/25 a
 ## `wave25-feed-links-use-scoped-form-controls`
 
 2026-09-14. The personal Feed links input uses a dedicated `context-links-field` label and `context-links-add` action instead of the shared single-line `.field` input class. Feed's secondary navigation uses one intentional `.vx-text-button` treatment with the existing 44-pixel touch floor and focus ring. The dedicated selectors keep the multiline label, textarea and action in normal vertical flow while preserving every existing label, handler and route. The canonical Studio stylesheet and authenticated workspace partition carry identical context-link declarations. Reverse only if Context Locker moves to a shared form-field component whose real 390 and 1440 pixel browser geometry proves the same width, separation, focus and touch-target behavior without these scoped selectors.
+
+
+## wave25-close-with-exact-preview-and-owner-inputs
+
+Use accepted3bc5 as the newest private preview and keep the two owner inputs explicit: personal-device Azure role grant and genuine Vyakti sign-in/material. Reuse exact-policy Blob CORS rules by adding the new exact origin, preserving every old origin and rule property rather than consuming one of five rule slots per deployment. Reverse origin reuse if policies differ; never merge different policies. Context-only closure follows deployment and does not change tested product bytes.

@@ -1,6 +1,6 @@
 # STATE — read this first, then the graph
 
-## START HERE: PRIVATE INTERNAL PRODUCT, 591c ACCEPTED AND PREVIEW LIVE (2026-09-14)
+## START HERE: PRIVATE INTERNAL PRODUCT, 3bc5 ACCEPTED AND PREVIEW LIVE (2026-09-14)
 
 **Latest owner direction wins:** build and test the whole product privately first.
 Defer enrollment reviews, public rollout policy and compliance work. Prioritize
@@ -22,25 +22,29 @@ Never reset or edit the old dirty `Vyakti-platform` checkout. Its ignored
 stay outside Git and tool output. At most five independent workstreams; use
 Sol for bounded work and Astra for voice architecture/integration.
 
-**Release:** exact591c8a25d5b0c2310fe6f76c81394a2ce4ad21d9 is accepted:
-25/25 Node22/24, Android debug APK succeeded. Release34851482778;
-Node22job104000258001, Node24job104000257687, Android104000255475.
-Protected preview dpl_2nzJiq6cQi9RUXTZkTjmrMKTXXUU is READY:
-https://vyakti-replica-i847002wd-raghav-carbonsettles-projects.vercel.app
-Marker sha256:b67fb7c46949613b0199fc17adb25dbe7acdb2eb7f87c466765004b7c46c8555
-was fetched and verified (1099files,28923671bytes). Actual landing to Studio
-sign-in rendered; no real owner session/model journey yet. Exact preview Blob
-CORS is configured and verified. No public cutover or main merge.
-Both Linux performance artifacts preserve n3 Hindi DOM medians335.8ms/319.7ms
-and chunk0.4ms/0.5ms, under unchanged800ms budgets. CI skips DB gates without
-NEON_URL; live SQL receipts remain separate. Previous15bc failures are repaired:
-composite type roles, fail-closed voice probes, scoped two-column voice tabs,
-fixture GET coverage, non-vacuous cascade/Unicode controls, and a real React
-click-event leak into parent_request_id. Type checks must use tsc -b --force.
-A read-only current visual audit disproved stale screenshots of landing gaps
-and mobile rail overlap. One narrow Feed links/button styling repair is being
-prepared off591c and is NOT deployed yet. Preserve accepted source until that
-repair's own gate completes. No new voice likeness result exists.
+**Release:** deployed source3bc5857e50b572839bb430c46ccf40b94629b828 is
+accepted25/25 Node22/24 plus Android debug APK. Release34854815199;
+Node22job104011500581, Node24job104011500128, Android104011499349.
+Protected preview dpl_EjxL2fNDVF78cYLLNSkJs2YNn9Px is READY:
+https://vyakti-replica-6uu749yfa-raghav-carbonsettles-projects.vercel.app
+Marker sha256:7ce3283133669f0ee654f99988c723f383d86601bc8670287e56051ebb321ca2
+was fetched and verified (1099files,28925723bytes). Exact preview Blob CORS is
+configured and verified. No public cutover or main merge. The last commits
+may contain context-only closure; deployed code is the exact accepted3bc5.
+Both Linux artifacts preserve n3 Hindi DOM medians363.2ms/313.9ms and chunk
+0.7ms/0.8ms, under unchanged800ms budgets, zero findings. CI skips DB gates
+without NEON_URL; real SQL receipts are separate. Type checks must use
+npx tsc -b --force for this project-reference solution.
+The Feed link field and secondary actions are now styled and included in3bc5;
+focused mounted Hindi390/English1440 checks prove full-width textareas,
+44px controls,10px separation and3px keyboard focus. Older screenshot gaps
+and rail overlap were stale, disproved against current source. Accepted591c
+remains a historical preview, not the newest link.
+Real owner sign-in, uploaded expert knowledge, live model/memory journey and
+fresh voice likeness are still unverified. Latest read-only Azure preflight
+at14:35UTC refused owner_identity_grant_not_ready; zero GPU/model calls.
+No personal Microsoft browser session was opened. Owner-only next actions:
+personal-device Cloud Shell grant script, and real Vyakti account sign-in.
 
 **Working configuration:** Vercel access and Azure sponsored subscription
 work. Terra conversation/correction, mini extraction, Azure storage and open
