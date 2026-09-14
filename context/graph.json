@@ -20085,6 +20085,42 @@
       "kind": "rejection",
       "title": "Correct email-return query exceeded the old auth simulator",
       "at": "context/rejected.md#wave25-otp-simulator-hid-correct-email-return"
+    },
+    {
+      "id": "wave25-studio-gates-use-explicit-active-runtime-fixture",
+      "kind": "decision",
+      "title": "Studio render gates use an explicit active-runtime fixture",
+      "at": "context/decisions.md#wave25-studio-gates-use-explicit-active-runtime-fixture"
+    },
+    {
+      "id": "wave25-studio-active-runtime-fixture-render-20260914",
+      "kind": "measurement",
+      "title": "Active-runtime Studio fixture restores layout and accessibility coverage",
+      "at": "context/measurements.md#wave25-studio-active-runtime-fixture-render-20260914"
+    },
+    {
+      "id": "wave25-voice-ready-fixture-is-not-active-runtime",
+      "kind": "rejection",
+      "title": "A voice-preview-ready fixture is not an active runtime",
+      "at": "context/rejected.md#wave25-voice-ready-fixture-is-not-active-runtime"
+    },
+    {
+      "id": "wave25-project-bound-development-credentials",
+      "kind": "decision",
+      "title": "Bind proven credentials by project and authority",
+      "at": "context/decisions.md#wave25-project-bound-development-credentials"
+    },
+    {
+      "id": "wave25-repaired-fixtures-and-development-bindings-20260914",
+      "kind": "measurement",
+      "title": "Focused screen checks and ten Development bindings verified",
+      "at": "context/measurements.md#wave25-repaired-fixtures-and-development-bindings-20260914"
+    },
+    {
+      "id": "wave25-byte-equality-is-not-project-identity",
+      "kind": "rejection",
+      "title": "Byte equality rejected valid existing credentials",
+      "at": "context/rejected.md#wave25-byte-equality-is-not-project-identity"
     }
   ],
   "edges": [
@@ -34210,6 +34246,31 @@
       "src": "wave25-otp-simulator-hid-correct-email-return",
       "rel": "constrains",
       "dst": "wave25-auth-simulator-models-redirect-query"
+    },
+    {
+      "src": "wave25-studio-gates-use-explicit-active-runtime-fixture",
+      "dst": "wave25-studio-active-runtime-fixture-render-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "wave25-studio-gates-use-explicit-active-runtime-fixture",
+      "dst": "wave25-voice-ready-fixture-is-not-active-runtime",
+      "rel": "caused_by"
+    },
+    {
+      "src": "wave25-voice-ready-fixture-is-not-active-runtime",
+      "dst": "wave25-text-ready-is-not-room-publish-authority",
+      "rel": "constrains"
+    },
+    {
+      "src": "wave25-project-bound-development-credentials",
+      "rel": "measured_by",
+      "dst": "wave25-repaired-fixtures-and-development-bindings-20260914"
+    },
+    {
+      "src": "wave25-byte-equality-is-not-project-identity",
+      "rel": "constrains",
+      "dst": "wave25-project-bound-development-credentials"
     }
   ]
 }

@@ -19060,3 +19060,17 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 ## `wave25-otp-simulator-hid-correct-email-return`
 
 2026-09-14. Both browser rehearsals stopped waiting for #studio-code because the in-memory GoTrue simulator recognized path===otp only. The newly correct production authFetch sends otp?redirect_to=...; the simulator threw an unmodelled-route error. Increasing the20s timeout would hide the cause. Matching the fixed-origin OTP pathname plus its one allowed query key restored the63/63 and10/10 walks without changing production auth or loosening wrong-code refusal. The first-use10pass includes an explicitly permitted503 fake-generator refusal, so it must not be described as a successful real conversation.
+
+## `wave25-voice-ready-fixture-is-not-active-runtime`
+
+**Tried.** The layout and accessibility registries reused `scenario=voice-ready` for Deploy, listening, Call and EmotionOS after production added `runtimeStatus.active` to `voiceWorkspaceReady`.
+
+**What specifically broke.** That fixture explicitly returned `lifecycle: "enrolling"` and `active: false`. Deploy and both EmotionOS locales did not mount, while listening reached the shell but rendered almost nothing. The frozen GitHub Node 22 log recorded 15 layout coverage findings across the three viewports and four critical accessibility coverage findings. Lowering mount, panel or contrast thresholds would have hidden the missing product screens.
+
+**What replaced it.** A separate internally consistent `active-runtime` scenario now drives active-workspace gates. The inactive `voice-ready` preview state remains unchanged, and voice layout targets request `sample=1` explicitly. Existing Room-publish and person-Room negative controls continue to prove that inactive or text-only capability cannot publish a Room.
+
+**Reversal condition.** Reuse one scenario only after its response can truthfully satisfy both states without conflating preview availability with runtime activation, and keep the inactive publication refusal executable.
+
+## `wave25-byte-equality-is-not-project-identity`
+
+2026-09-14. The first Development source check rejected local Neon URL because channel_binding=require was present only locally; decoded credentials and database target were identical. The second check rejected the local Supabase legacy service_role JWT because current processing uses a different modern opaque secret. Both are authorized against the exact same bound project, proved using status-only admin requests without consuming response bodies. Blind string substitution or guessing a rotation was rejected. V3 uses narrow explicit project/credential validators and preserves prior exclusive claims. It does not infer that the local key equals the current sensitive Production value, and leaves five unrecoverable Development names untouched.

@@ -74,6 +74,15 @@ const FIXTURE_REPLICA: Replica = {
   updated_at: "2026-08-01T09:00:00.000Z",
 };
 
+const ACTIVE_FIXTURE_REPLICA: Replica = {
+  ...FIXTURE_REPLICA,
+  lifecycle: "active",
+  age_verified: true,
+  identity_verified: true,
+  liveness_verified: true,
+  updated_at: "2026-09-01T09:00:00.000Z",
+};
+
 const FIXTURE_CONSENT_SCOPES: ConsentReceipt["scope"][] = [
   "capture", "transcription", "storage", "biometric", "training", "inference",
 ];
@@ -236,6 +245,16 @@ const VOICE_DRAFT_REVIEW = {
   },
 };
 
+const ACTIVE_VOICE_REVIEW = {
+  review: {
+    ...VOICE_DRAFT_REVIEW.review,
+    voice_genomes: VOICE_DRAFT_REVIEW.review.voice_genomes.map((genome) => ({
+      ...genome,
+      status: "approved",
+    })),
+  },
+};
+
 const PHRASE_ITEM = {
   item_id: "22222222-2222-4222-8222-222222222222", kind: "file", format: "txt",
   source_name: "My lesson notes.txt", source_url: "", byte_size: 640, extracted_chars: 430,
@@ -293,6 +312,31 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
         qualification: { passed: 1, required: 7 },
         versions: { profile: null, calibration: null, voice_genome: 2 },
         activated_at: null,
+      },
+    },
+  },
+  // A fully active voice runtime. Keep this separate from `voice-ready`,
+  // which is the honest pre-activation state used by the voice-preview
+  // fixtures: a built sample is not Room publication authority. Screens
+  // behind the active Meet workspace use this scenario explicitly.
+  "active-runtime": {
+    "/api/replica": { replicas: [ACTIVE_FIXTURE_REPLICA], replica: ACTIVE_FIXTURE_REPLICA },
+    "/api/replica-consent": { consents: FIXTURE_CONSENTS },
+    "/api/replica-review": ACTIVE_VOICE_REVIEW,
+    "/api/replica-source": { sources: ACTIVE_VOICE_REVIEW.review.sources },
+    "/api/replica-runtime": {
+      runtime: {
+        replica_id: ACTIVE_FIXTURE_REPLICA.replica_id,
+        lifecycle: "active",
+        active: true,
+        can_activate: false,
+        blockers: [],
+        qualification: { passed: 7, required: 7 },
+        versions: { profile: 1, calibration: 1, voice_genome: 2 },
+        voice_genome_status: "approved",
+        activated_at: "2026-09-01T09:00:00.000Z",
+        text_ready: true,
+        text_blockers: [],
       },
     },
   },

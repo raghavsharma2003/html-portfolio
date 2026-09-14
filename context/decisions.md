@@ -25318,3 +25318,15 @@ Build the exact committed worker source on the existing sponsored subscription w
 ## `wave25-auth-simulator-models-redirect-query`
 
 2026-09-14. Keep the production email redirect query. The shared rehearsal auth simulator now recognizes only its fixed-origin /otp route with no query or exactly one redirect_to parameter. It still rejects unknown operations and retains the same destination/OTP checks. Reverse if GoTrue routing changes or this simulator admits unmodelled auth operations; provider-shape transport is separately covered by the account-email-redirect handler test. No live email or auth setting was changed.
+
+## `wave25-studio-gates-use-explicit-active-runtime-fixture`
+
+**Decision.** Layout and accessibility targets that exercise the personal Meet workspace, Deploy, listening, Call or EmotionOS use a dedicated `active-runtime` scenario. The older `voice-ready` scenario remains inactive and continues to represent a built preview before activation. Voice-panel targets add the real `sample=1` URL state when they intend to inspect the sample instead of the default conversation.
+
+**Why.** `CloneExperience` now requires both `runtimeStatus.active` and reviewed voice material before it grants `voiceWorkspaceReady`. Reusing an inactive preview fixture for screens that claim an active workspace made the gates blind, while changing that preview fixture to active would erase the distinction between a generated sample and Room publication authority. The active scenario aligns the replica lifecycle, consent, approved genome, qualification count and runtime status instead of flipping one boolean in an otherwise contradictory response.
+
+**Reversal condition.** Merge the scenarios only if the production capability model deliberately makes a built preview equivalent to an active runtime and the Room publication predicate changes with its own inactive-runtime negative control. If a screen later needs text-only readiness, give it an explicit text-ready fixture rather than weakening this active scenario.
+
+## `wave25-project-bound-development-credentials`
+
+2026-09-14. Development receives the locally proven Neon URL and legacy Supabase service credential after verifying the same current project and authority. The Neon values have identical decoded credentials, host, port and database; local adds channel_binding=require while retaining the same sslmode. Supabase local service_role JWT and current processing opaque sb_secret credential are different authorized keys for project chvduaujdztgjcnoswhh. Current encrypted Vercel SUPABASE_URL and processing URL bind that project; fresh status-only admin authorization validates the local key, with response bodies discarded. This does not rotate or replace Production/Preview secrets. Reverse if project binding, credential authorization, or intended Development scope changes.

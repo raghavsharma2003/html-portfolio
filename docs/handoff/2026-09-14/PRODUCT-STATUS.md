@@ -48,8 +48,12 @@ they are not proof of the full live product.
 The first-use batch is merged and the Azure worker image is verified. Before
 publishing: pass the full release gate on the repaired frozen source, activate
 the accepted worker, complete the production cutover, and walk creator and
-visitor flows against real services. The earlier candidate failed three stale
-fixture assumptions; focused repairs pass, but are not a full-gate result.
+visitor flows against real services. The earlier candidate passed 22 of 25 gates under both Node versions and was
+rejected for layout, accessibility and eval failures. The focused repairs now
+pass, including personal63/63, first-use10/10, private UI20/20 and the affected
+layout/accessibility pages. These simulated journeys are not a real-model or
+full-gate result. Ten missing Development bindings are also value-verified;
+five unknown Development values remain untouched.
 
 Fresh voice enrollment has unfinished engineering beyond credentials. The
 later Studio capture still lacks the complete evidence producer expected by
