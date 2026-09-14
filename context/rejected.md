@@ -19002,3 +19002,23 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 **What replaced it.** No-voice Deploy uses the existing material publication ceremony, voice-ready Deploy keeps RoomStudio, and the Room join sheet calls the existing email OTP functions. The earlier text-only person-Room browser premise must be retained as a voice-active Room journey or rewritten around material publication; restoring the false client gate is not an acceptable test fix.
 
 **The rule.** A client readiness flag may open only the backend capability that actually consumes it. A broader-looking label such as `text_ready` cannot stand in for a distinct runtime capability, and a sign-in screen must lead with a provider verified enabled in the deployed auth project.
+
+## standalone25-email-redirect-unvalidated-20260914
+
+**Tried.** Forwarded the email address to Supabase without `redirect_to`, relying on project `site_url`.
+
+**What specifically broke.** The caller could not request the current Studio return URL, and the existing management read had no credential to verify whether the configured site URL/allow-list matched the deployed host.
+
+**What replaced it.** Callers provide the current origin plus a bounded path; the API rejects non-web URLs and lets Supabase enforce its configured allow-list. No cloud configuration was changed.
+
+**Reversal condition.** Remove forwarding only after a verified deployed allow-list and a measured flow proves every supported Studio/Room host returns correctly without it.
+
+## standalone25-email-redirect-body-is-not-gotrue-query-20260914
+
+**Tried.** Sent a validated `redirect_to` inside the JSON body passed to `authFetch("otp", ...)`.
+
+**What specifically broke.** GoTrue reads this OTP return value from the request query. The body remained well formed, but the requested Studio or Room return path never reached the provider's redirect parser.
+
+**What replaced it.** The account door builds the validated `otp?redirect_to=...` path and keeps the body limited to `email` and `create_user`. The handler-level regression captures the generated fetch URL and body, including a Room path and query.
+
+**Reversal condition.** Change the transport only when an authenticated GoTrue contract revision documents a different `/otp` input shape and a focused outgoing-request regression captures that revision.

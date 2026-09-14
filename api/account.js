@@ -21,6 +21,7 @@ import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
 import { withDoor } from "./_incidents.js";
 import { SB_URL, SB_KEY, authFetch, userFromToken } from "./_auth.js";
+import { emailRedirect, emailOtpPath } from "./_auth-redirect.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 import { forgetTextPublicationAccount } from './_text-publication-store.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -82,6 +83,8 @@ async function handler(req, res) {
     if (op === "send_otp") {
       const email = String(b.email || "").trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "valid email required" });
+      const redirect = emailRedirect(b.redirect_to);
+      if (redirect === null) return res.status(400).json({ error: "valid redirect required" });
       // per-DESTINATION throttle (independent of IP): stops email-bombing a
       // victim address through rotating IPs
       if (!allow(email, "otp_dest", 3)) return res.status(429).json({ error: "slow down" });
@@ -96,7 +99,7 @@ async function handler(req, res) {
       // workstream's law 3 ("anything a case finds is fixed").
       if (await refused(res, "otp_send_ip", ipOf(req))) return;
       if (await refused(res, "otp_send_dest", email)) return;
-      return passthrough(res, await authFetch("otp", { email, create_user: true }));
+      return passthrough(res, await authFetch(emailOtpPath(redirect), { email, create_user: true }));
     }
     if (op === "verify_otp") {
       const email = String(b.email || "").trim().toLowerCase();

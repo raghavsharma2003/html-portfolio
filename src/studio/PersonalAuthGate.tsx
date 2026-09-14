@@ -97,7 +97,7 @@ export default function PersonalAuthGate({
     setError("");
     setBusy(true);
     try {
-      await sendEmailOtp(email.trim());
+      await sendEmailOtp(email.trim(), "/studio");
       setStep("code");
     } catch (cause) {
       setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : cause.status >= 500 ? "serviceUnavailableError" : "sendError" : "networkError");

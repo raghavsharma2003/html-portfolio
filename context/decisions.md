@@ -25294,3 +25294,7 @@ Build the exact committed worker source on the existing sponsored subscription w
 **Why.** The standard dialogue door requires `inference` consent, and that consent is granted only by the verified biometric ceremony. The private rehearsal already has the narrower authority needed for a first text answer and cannot grant voice, training, inference or publication. Room publication separately requires an active `vy_replica_runtime_capability`; `vy_replica_text_capability` cannot satisfy it. Routing each surface through the authority its backend consumes creates a usable first journey without weakening the biometric voice gates or inventing a new consent scope.
 
 **Reversal.** A text-ready workspace may enter RoomStudio only after the Room publish and visitor reply doors explicitly accept a versioned text capability and focused negative controls prove that it cannot be confused with voice authority. The private rehearsal may be replaced as first Meet only by a narrower or equivalent server-enforced text ceremony with the same source and consent revocation fences.
+
+## standalone25-email-redirect-forwarding-20260914
+
+2026-09-14. Email sign-in callers pass an origin-local return path and query to the server proxy; the proxy validates the resulting absolute HTTP(S) URL and sends `redirect_to` in GoTrue's `/otp` request query, while the JSON body contains only OTP fields. GoTrue's configured allow-list remains authoritative. Reconsider if a signed return-state design replaces URL forwarding.

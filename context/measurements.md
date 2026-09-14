@@ -18897,3 +18897,7 @@ The mirrored UI constants are 25 seconds while identity_audio.py remains RATE * 
 ## `wave25-first-journey-surface-controls-20260914`
 
 2026-09-14. Offline and local browser verification from exact integration base `6f0ab212`: forced TypeScript passed; Vite transformed 751 modules and completed; the journey-surface control passed 13 new route/capability assertions including inactive-runtime, unfiltered-context and phone-regression mutations; copy passed 6 scopes and 21 negative controls; Room copy passed 19/19; focused Room layout rendered 20 English/Hindi screenshots, judged 242 prose blocks, and glyph-checked 288 Hindi strings. The built first-use private flow passed 18/18 across 390 px and 1440 px, including the complete source-to-answer walk. Visual inspection of the 390 px English join screenshot showed email address and code controls first with Google second. No database statement, model call, cloud mutation, OTP delivery or deployment was performed.
+
+## standalone25-email-redirect-forwarding-measurement-20260914
+
+Method: focused handler regression with captured fetch and a stub persistent-rate database, plus module checks in the isolated worktree; n=1 valid Room return and 4 malformed values, date 2026-09-14. The actual account handler emitted GoTrue `/otp?redirect_to=...`, retained `{email,create_user}` as its JSON body, executed both persistent send-rate gates for the valid request, and refused every malformed value before either gate or fetch. No provider call or auth message was sent.

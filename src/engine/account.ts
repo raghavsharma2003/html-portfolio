@@ -59,7 +59,11 @@ function toSession(data: any): AuthSession {
   };
 }
 
-export const sendEmailOtp = (email: string) => post({ op: "send_otp", email });
+export const sendEmailOtp = (email: string, returnPath = "/studio") => {
+  const path = returnPath.startsWith("/") ? returnPath : "/studio";
+  const redirect = typeof window === "undefined" ? undefined : `${window.location.origin}${path}`;
+  return post({ op: "send_otp", email, ...(redirect ? { redirect_to: redirect } : {}) });
+};
 export const verifyEmailOtp = async (email: string, token: string) =>
   toSession(await post({ op: "verify_otp", email, token }));
 export const sendSmsOtp = (phone: string) => post({ op: "send_sms", phone });

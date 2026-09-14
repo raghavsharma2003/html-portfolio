@@ -2124,7 +2124,7 @@ function JoinSheet({
                   setError("");
                   try {
                     if (!codeSent) {
-                      await sendEmailOtp(email.trim());
+                      await sendEmailOtp(email.trim(), window.location.pathname + window.location.search);
                       setCodeSent(true);
                     } else {
                       onAuth(await verifyEmailOtp(email.trim(), code));

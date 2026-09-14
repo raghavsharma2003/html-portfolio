@@ -19971,6 +19971,30 @@
       "kind": "rejection",
       "title": "Text readiness is not Room publish authority",
       "at": "context/rejected.md#wave25-text-ready-is-not-room-publish-authority"
+    },
+    {
+      "id": "standalone25-email-redirect-forwarding-20260914",
+      "kind": "decision",
+      "title": "Email OTP return paths use GoTrue query transport",
+      "at": "context/decisions.md#standalone25-email-redirect-forwarding-20260914"
+    },
+    {
+      "id": "standalone25-email-redirect-forwarding-measurement-20260914",
+      "kind": "measurement",
+      "title": "Account handler captures the GoTrue email redirect request",
+      "at": "context/measurements.md#standalone25-email-redirect-forwarding-measurement-20260914"
+    },
+    {
+      "id": "standalone25-email-redirect-unvalidated-20260914",
+      "kind": "rejection",
+      "title": "Unvalidated email return URL rejected",
+      "at": "context/rejected.md#standalone25-email-redirect-unvalidated-20260914"
+    },
+    {
+      "id": "standalone25-email-redirect-body-is-not-gotrue-query-20260914",
+      "kind": "rejection",
+      "title": "GoTrue ignores email redirect in the OTP JSON body",
+      "at": "context/rejected.md#standalone25-email-redirect-body-is-not-gotrue-query-20260914"
     }
   ],
   "edges": [
@@ -34030,6 +34054,21 @@
     {
       "src": "wave25-first-journey-uses-existing-text-authorities",
       "dst": "wave25-text-ready-is-not-room-publish-authority",
+      "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-email-redirect-forwarding-20260914",
+      "dst": "standalone25-email-redirect-forwarding-measurement-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-email-redirect-unvalidated-20260914",
+      "dst": "standalone25-email-redirect-forwarding-20260914",
+      "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-email-redirect-body-is-not-gotrue-query-20260914",
+      "dst": "standalone25-email-redirect-forwarding-20260914",
       "rel": "caused_by"
     }
   ]
