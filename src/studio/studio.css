@@ -3376,6 +3376,11 @@
 .context-dropzone { display: grid; gap: 10px; justify-items: start; padding: clamp(20px, 2.6vw, 30px); border: 1px dashed var(--line); border-radius: 20px; background: var(--paper); transition: border-color 160ms ease, background 160ms ease, transform 160ms ease; }
 .context-dropzone.is-dragging { border-color: var(--forest); background: var(--forest-soft); transform: scale(1.004); }
 .context-dropzone-title { margin: 0; color: var(--ink); font: 500 17px/1.3 var(--serif); }
+.context-links-field { display: grid; width: min(100%, 680px); min-width: 0; gap: 8px; margin: 18px 0 10px; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+.context-links-field textarea { width: 100%; min-width: 0; min-height: 96px; box-sizing: border-box; resize: vertical; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--ink); background: var(--panel-solid); font: 400 15px/1.45 var(--sans); }
+.context-links-field textarea:focus { border-color: var(--forest); outline: 0; box-shadow: 0 0 0 var(--focus-width) var(--focus-ring); }
+.context-links-add { min-height: 44px; border: 1px solid var(--line-strong); color: var(--ink); background: var(--panel-solid); cursor: pointer; }
+.context-links-add:disabled { cursor: not-allowed; }
 .context-file-input { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .context-ack { margin: 14px 0; }
 .context-locker-error { color: var(--danger) !important; }

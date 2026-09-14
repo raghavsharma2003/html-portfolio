@@ -871,14 +871,35 @@
     color: var(--vx-muted);
   }
 
-  .vx-back {
+  .vx-shell .vx-back,
+  .vx-shell .vx-text-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 44px;
-    margin: 4px 0 14px;
+    margin: 4px 8px 14px 0;
     padding: 0 14px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .vx-back {
     border: 1px solid var(--vx-line);
     border-radius: 12px;
     color: var(--vx-green);
     background: rgba(255, 255, 255, 0.8);
+  }
+
+  .vx-text-button {
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: var(--vx-green);
+    background: transparent;
+  }
+
+  .vx-text-button:hover {
+    background: var(--vx-green-soft);
   }
 
   .vx-describe {

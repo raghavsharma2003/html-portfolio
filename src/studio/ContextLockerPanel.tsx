@@ -437,7 +437,7 @@ function ContextLockerScope({
         </span>
       </label>}
 
-      <label className="field">
+      <label className="context-links-field">
         <span>{copy.pasteLinksLabel}</span>
         <textarea
           rows={3}
@@ -446,7 +446,7 @@ function ContextLockerScope({
           onChange={(event) => setLinks(event.target.value)}
         />
       </label>
-      <button type="button" className="button" disabled={busy || !links.trim()} onClick={() => void sendLinks()}>
+      <button type="button" className="button context-links-add" disabled={busy || !links.trim()} onClick={() => void sendLinks()}>
         {copy.addLinks}
       </button>
 

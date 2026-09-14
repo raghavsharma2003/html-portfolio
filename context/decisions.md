@@ -25462,3 +25462,7 @@ Owner forbids Microsoft-account browser use on the employer laptop and explicitl
 ## wave25-accepted-preview-before-feed-polish
 
 Deploy exact591c8a25 as a protected preview after both Node versions pass25/25 and Android succeeds. Keep the separately found Feed link-field/button styling repair outside this accepted tree until its own validation. This provides a tested private entry without claiming that visual polish, signed-in real-service use or voice quality is complete. Reverse this sequencing if the styling defect prevents the basic Feed action or a live verification finds a functional regression.
+
+## `wave25-feed-links-use-scoped-form-controls`
+
+2026-09-14. The personal Feed links input uses a dedicated `context-links-field` label and `context-links-add` action instead of the shared single-line `.field` input class. Feed's secondary navigation uses one intentional `.vx-text-button` treatment with the existing 44-pixel touch floor and focus ring. The dedicated selectors keep the multiline label, textarea and action in normal vertical flow while preserving every existing label, handler and route. The canonical Studio stylesheet and authenticated workspace partition carry identical context-link declarations. Reverse only if Context Locker moves to a shared form-field component whose real 390 and 1440 pixel browser geometry proves the same width, separation, focus and touch-target behavior without these scoped selectors.

@@ -17,7 +17,7 @@ const SHEET='20000000-0000-4000-8000-000000000001',ITEM='30000000-0000-4000-8000
 const TOKEN='private-text-fixture-token',OWNER='60000000-0000-4000-8000-000000000001',hash='a'.repeat(64);
 const statements=[{id:'authorize_private_text_question',text:'I authorize this private text question using my selected draft and source.'},{id:'understand_ai_text_only',text:'I understand this is AI text only, without voice or public activation.'},{id:'understand_private_retention_and_withdrawal',text:'I understand this private test remains until removed; I can withdraw it.'}];
 let draft={name:'Synthetic Physics Teacher',identityWho:'A physics teacher who explains using everyday examples',subjectDomain:'physics',teachingStyle:'short visual explanations'};
-let scenario='ready', pending=[], requests=[], saved=new Map(), checks=[], surprises=[], publishedBefore=null, activeSheet=SHEET, draftStatus='draft';
+let scenario='ready', pending=[], requests=[], saved=new Map(), checks=[], surprises=[], feedLayout=[], publishedBefore=null, activeSheet=SHEET, draftStatus='draft';
 const cancellation=(replica_id,request_id)=>({replica_id,request_id,state:'withdrawn',billing_state:'unknown',can_voice:false,created_at:'2026-09-07T00:00:00Z'});
 const readiness=(rid=RID)=>({replica_id:rid,state:scenario==='unavailable'?'unavailable':scenario==='incomplete'?'needs_input':'ready',blockers:scenario==='unavailable'?[{code:'private_text_key_unavailable',responsibility:'platform'}]:scenario==='incomplete'?[{code:'draft_required_fields_missing',responsibility:'owner',field:'identityWho'}]:[],drafts:[{sheet_id:activeSheet,name:draft.name||'',updated_at:'2026-09-07T00:00:00Z',status:draftStatus}],context_items:[{item_id:ITEM,source_name:'pendulum-notes.txt',status:scenario==='mined'?'mined':'extracted',eligible:true}],selected:scenario==='incomplete'?null:{sheet_id:activeSheet,sheet_hash:hash,context_item_id:ITEM,context_hash:hash,source_id:SOURCE,source_hash:hash,evidence_hash:hash,authority_epoch:"1",snapshot_hash:hash,material:{draft:{name:draft.name,identityWho:draft.identityWho,subjectDomain:draft.subjectDomain},context:{source_name:'pendulum-notes.txt',format:'text',body:'A pendulum completes 12 oscillations in 24 seconds. Its period is 2 seconds. Keep the amplitude small.'}}},statement_set:'private-text-rehearsal/v1',statements,grant_scope:'private_text_rehearsal',can_ask:!['unavailable','incomplete'].includes(scenario)});
 const answer=(body,state='complete')=>({replica_id:body.replica_id,request_id:body.request_id,state,...(state==='complete'?{answer:'The period is 2 seconds: 24 seconds divided by 12 oscillations.'}:{}),consent:{consent_id:GRANT,receipt_hash:hash,statement_set:'private-text-rehearsal/v1',expires_at:'2026-10-07T00:00:00Z'},source:{sheet_id:SHEET,sheet_hash:hash,context_item_id:ITEM,source_id:SOURCE,source_hash:hash,evidence_hash:hash},billing_state:state==='uncertain'?'reconcile_required':'settled',can_voice:false,created_at:'2026-09-07T00:00:00Z'});
@@ -157,20 +157,48 @@ try{
  if(teachOnly){
  const teachSource=()=>page.getByRole('button',{name:/^(Teach your AI|अपने AI को सिखाएँ)$/});
  const testSource=()=>page.getByRole('button',{name:/^(Test this source|इस सामग्री से पूछें)$/});
+ const assertFeedControlLayout=async(width,lang)=>{
+  const metrics=await page.evaluate(()=>{
+   const field=document.querySelector('.context-links-field'),label=field?.querySelector('span'),textarea=field?.querySelector('textarea'),add=document.querySelector('.context-links-add');
+   const quiet=[...document.querySelectorAll('.vx-text-button')];
+   if(!field||!label||!textarea||!add||quiet.length<2)return null;
+   const rect=element=>{const value=element.getBoundingClientRect();return {left:value.left,right:value.right,top:value.top,bottom:value.bottom,width:value.width,height:value.height};};
+   const fieldRect=rect(field),labelRect=rect(label),textareaRect=rect(textarea),addRect=rect(add);
+   return {fieldRect,labelRect,textareaRect,addRect,quiet:quiet.map(element=>{const style=getComputedStyle(element);return {...rect(element),fontWeight:Number(style.fontWeight),borderRadius:parseFloat(style.borderTopLeftRadius)};}),scrollWidth:document.documentElement.scrollWidth,viewport:innerWidth,fieldDisplay:getComputedStyle(field).display};
+  });
+  assert(metrics,'Feed controls mounted');
+  assert.equal(metrics.fieldDisplay,'grid');
+  assert(metrics.textareaRect.width>=metrics.fieldRect.width-1);
+  assert(metrics.labelRect.bottom<=metrics.textareaRect.top);
+  assert(metrics.textareaRect.bottom<=metrics.addRect.top);
+  assert(metrics.addRect.height>=44);
+  assert(metrics.quiet.every(control=>control.height>=44&&control.fontWeight>=700&&control.borderRadius>=10),JSON.stringify(metrics.quiet));
+  assert.equal(metrics.scrollWidth,metrics.viewport);
+  await page.screenshot({path:join(artifact,`feed-controls-${lang}-${width}.png`),fullPage:true});
+  await page.locator('.vx-back').focus();await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(()=>document.activeElement?.classList.contains('vx-text-button')),true);
+  const quietOutline=await page.evaluate(()=>parseFloat(getComputedStyle(document.activeElement).outlineWidth));assert(quietOutline>=3);
+  const textarea=page.locator('.context-links-field textarea');await textarea.fill('https://example.com/my-essay');await textarea.press('Tab');
+  assert.equal(await page.evaluate(()=>document.activeElement?.classList.contains('context-links-add')),true);
+  const addOutline=await page.evaluate(()=>parseFloat(getComputedStyle(document.activeElement).outlineWidth));assert(addOutline>=3);
+  feedLayout.push({width,lang,...metrics,quietOutline,addOutline});
+  await page.screenshot({path:join(artifact,`feed-controls-focus-${lang}-${width}.png`),fullPage:true});await textarea.fill('');
+ };
  for(const width of [390,1440])await check(`saved own-writing source ${width}: explicit teaching path without auto-navigation`,async()=>{
   scenario='ready';pending=[];requests=[];await page.setViewportSize({width,height:900});const lang=width===390?'hi':'en';
   await page.goto(`${origin}/studio?mode=replica&replica=${RID}&view=enrich&lang=${lang}`);
   await filesMenuButton().click();await page.locator('#context-locker-title').waitFor();
+  await assertFeedControlLayout(width,lang);
   assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');assert.equal(await teachSource().count(),1);assert.equal(await testSource().count(),1);
   await page.locator('input[type=file].context-file-input').setInputFiles([
    {name:'batch-one.txt',mimeType:'text/plain',buffer:Buffer.from('First owner-written source.')},
    {name:'batch-two.txt',mimeType:'text/plain',buffer:Buffer.from('Second owner-written source.')},
   ]);
   await page.getByText('batch-two.txt',{exact:true}).waitFor();assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');
-  assert.equal(await page.getByRole('heading',{name:'Bring your context'}).count(),1);assert.equal(await teachSource().count(),1);
+  assert.equal(await page.getByRole('heading',{name:/^(Bring your context|अपना कॉन्टेक्स्ट लाएं)$/}).count(),1);assert.equal(await teachSource().count(),1);
   const add=requests.find(row=>row.path==='/api/context-items'&&row.op==='add_files');assert(add);assert.equal(add.body.files.length,2);
   await teachSource().scrollIntoViewIfNeeded();await page.screenshot({path:join(artifact,`teach-source-${width}.png`)});
-  await teachSource().click();await page.getByRole('heading',{name:'Choose what becomes you.'}).waitFor();await page.locator('#person-model-studio').waitFor();
+  await teachSource().click();await page.getByRole('heading',{name:/^(Choose what becomes you\.|चुनें कि आप क्या बनते हैं।)$/}).waitFor();await page.locator('#person-model-studio').waitFor();
   assert.equal(new URL(page.url()).searchParams.get('view'),'evolve');assert.equal(requests.filter(row=>row.path==='/api/replica-claims'&&row.method==='GET').length>0,true);
   await page.screenshot({path:join(artifact,`teach-evolve-${width}.png`)});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  });
@@ -263,6 +291,6 @@ try{
  });
  }
  assert.deepEqual(errors,[]);assert.deepEqual(surprises,[]);
- writeFileSync(join(artifact,'result.json'),JSON.stringify({at:new Date().toISOString(),checks,clientControls:25,persistenceControls:2,retainedClientNegative:1,sourceRevision:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),sourceHashes:Object.fromEntries(['CloneExperience.tsx','ContextLockerPanel.tsx','PrivateTextRehearsal.tsx'].map(file=>[file,createHash('sha256').update(readFileSync(join(root,'src/studio',file))).digest('hex')])),errors,surprises,scope:'Actual built modern entry and actual panel; synthetic HTTP only; no DB/model/provider/identity grants. Cancellation persistence/serialization and successor SQL require separate actual-store proof.'},null,2));
+ writeFileSync(join(artifact,'result.json'),JSON.stringify({at:new Date().toISOString(),checks,feedLayout,clientControls:25,persistenceControls:2,retainedClientNegative:1,sourceRevision:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),sourceHashes:Object.fromEntries(['CloneExperience.tsx','ContextLockerPanel.tsx','PrivateTextRehearsal.tsx'].map(file=>[file,createHash('sha256').update(readFileSync(join(root,'src/studio',file))).digest('hex')])),errors,surprises,scope:'Actual built modern entry and actual panel; synthetic HTTP only; no DB/model/provider/identity grants. Cancellation persistence/serialization and successor SQL require separate actual-store proof.'},null,2));
  console.log(`PASS ${checks.length} mounted groups; artifact ${artifact}`);
 }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}}
