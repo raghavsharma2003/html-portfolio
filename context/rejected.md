@@ -18825,3 +18825,13 @@ never clicks there would have shipped the same defect silently.
 **What replaced it.** Added a Room reply factory to the same production registry. It reuses Meet's endpoint, deployment, key, Terra revision and pricing contract, then calls the existing budgeted raw-text adapter so the Room parser remains authoritative.
 
 **Reversal condition.** This rejection can be retired when a versioned structured Room parser passes explicit equivalence fixtures for every affected parser and delivery behavior named above.
+
+## `wave25-terra-correction-cannot-require-mini-style-fingerprint` (2026-09-14, wave 25)
+
+**Tried.** Extend the existing Mini-only provider revision whitelist to Terra while retaining the v1 rule that every accepted response must carry a non-null `fp_*` system fingerprint.
+
+**What specifically broke.** The retained actual Terra response reports the exact dated model, valid stopped output and measured usage but an explicit null fingerprint. The unchanged v1 check therefore refuses every observed Terra correction or comparison after the provider has already answered. Reusing the older Mini ARM commitment also fails because correction and materialization bind that commitment to the configured deployment, now Terra. Keeping correction on Mini would compare and qualify a prompt-policy candidate under a different model from the Terra runtime that would serve it, with no evidence that the activation result transfers across models.
+
+**What replaced it.** Terra has a distinct v2 receipt that preserves the explicit absence, exact dated model, fresh deployment baseline commitment and pair equality. Mini remains v1 and still requires its fingerprint. Arbitrary deployment names remain refused. This is weaker backend identity for Terra and is stated as such; no fingerprint or immutable-weight claim is inferred.
+
+**Reversal condition.** Retire this rejection only if the exact Terra API contract supplies a stable fingerprint or a different provider identity signal that can be verified on every paired response and bound through materialization, qualification and activation.

@@ -18,15 +18,15 @@ function baseRow(){return{replica_id:RID,owner_user_id:OWNER,subject_person_id:i
   voice_profile_id:id(9),genome_version:1,profile_version:1,calibration_version:1,provider:'fixture',provider_ref:'fixture-only',model:'fixture-only',voice_status:'ready',capabilities:{},genome_status:'approved',
   profile_status:'approved',profile_definition:{identity:{self_name:'Asha'},speech:{languages:['Hindi','Hinglish','English']},behavior:{turn_shape:'brief'}},
   calibration_status:'approved',calibration_definition:{schema:'vyakti.calibration.v1',strategies:[]},consent_id:id(10),consent_scope:'inference',consent_policy:REPLICA_POLICY_VERSION,consent_expires_at:'2031-09-01T00:00:00Z'};}
-function fixture({experimental=false,withhold=false,unknownAfterCommit=false,atomicCasFailure=false,knownCasFailure=false}={}){
+function fixture({experimental=false,withhold=false,unknownAfterCommit=false,atomicCasFailure=false,knownCasFailure=false,terra=false}={}){
  const base=baseRow(),originalBase=structuredClone(base),caps=new Map([[BASE,base]]),history=new Map(),transitions=new Map(),trace=[],errors=[];
  const casError=Object.assign(Error(knownCasFailure?'neon 400: 40001: candidate_private_selection_write_conflict':'fixture atomic activation CAS assertion'),{code:'40001'});
  const runtime={replica:{replica_id:RID},capability:{capability_id:BASE},personProfile:{definition:base.profile_definition},calibration:{definition:base.calibration_definition}};
  const built=buildPrivateCorrectionArtifact(runtime,{status:'proposed',owner_approved:false,runtime_eligible:false,source_set_hash:'b'.repeat(64),
   selections:[{scenario_id:'delivery.turn_shape',strategy_id:'compact_observation',supporting_feedback_ids:[id(21),id(22),id(23)]}]});
  const core=renderPrivateCorrectionCandidate(runtime,built.artifact).core;
- const revision=prepareProviderRevisionBinding({expectedResponseModel:'gpt-4.1-mini-2025-04-14',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment:'gpt-4.1-mini',baselineSnapshotHash:'c'.repeat(64)});
- const provider=verifyProviderRevision({model:revision.expected_response_model,system_fingerprint:'fp_fixture1'},revision);
+ const revision=prepareProviderRevisionBinding({expectedResponseModel:terra?'gpt-5.6-terra-2026-07-09':'gpt-4.1-mini-2025-04-14',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment:terra?'gpt-5.6-terra':'gpt-4.1-mini',baselineSnapshotHash:'c'.repeat(64)});
+ const provider=verifyProviderRevision({model:revision.expected_response_model,system_fingerprint:terra?null:'fp_fixture1'},revision);
  const binding={schema:'vyakti.candidate-qualification-binding.v2',candidate_id:CID,dataset_id:DID,base_capability_id:BASE,
   artifact_sha256:built.artifact_sha256,build_manifest_hash:'d'.repeat(64),base_model_commitment:'c'.repeat(64),model_commitment:'e'.repeat(64),
   candidate_core_hash:hash(core),provider_identity:provider};
@@ -100,6 +100,13 @@ await test('strict qualification activates a distinct immutable capability',asyn
  await f.change();assert.notEqual(f.active,BASE);assert.equal(f.caps.get(BASE).capability_state,'active');assert.equal(f.caps.get(f.active).capability_state,'private');assert.equal(f.caps.get(f.active).candidate_binding_required,true);
  assert.deepEqual(f.pointer,{replica_id:RID,owner_user_id:OWNER,capability_id:f.active,base_capability_id:BASE});
  assert.equal(f.history.get(f.active).selection_kind,'qualified');assert.equal(f.history.get(f.active).artifact_snapshot.owner_approved,false);assert.equal(f.commitCalls,1);f.clean();
+});
+await test('explicit Terra v2 qualification with reported fingerprint absence remains activatable',async()=>{
+ const f=fixture({terra:true});await f.change();const stored=f.history.get(f.active);
+ assert.equal(stored.provider_revision_binding.schema,'vyakti.azure-reported-revision.v2');
+ assert.equal(stored.provider_revision_binding.deployment,'gpt-5.6-terra');
+ assert.equal(stored.provider_identity.fingerprint_status,'not_provided');assert.equal(stored.provider_identity.system_fingerprint,null);
+ assert.match(ACTIVATION_COMMIT_SQL,/gpt-5\.6-terra-2026-07-09/);assert.match(ACTIVATION_COMMIT_SQL,/jsonb_typeof/);f.clean();
 });
 await test('inconclusive can be experimental but never strictly qualified',async()=>{
  const f=fixture({experimental:true}),status=await f.read();assert.equal(status.can_activate,false);assert.equal(status.can_experiment,true);

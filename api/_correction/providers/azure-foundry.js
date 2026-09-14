@@ -1,6 +1,7 @@
 import { CORRECTION_REQUEST_SCHEMA } from '../../_replica-correction-request.js';
 import { canonicalJson, sha256Hex } from '../../_provenance/contracts.js';
 import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../_dialogue/provider-revision.js';
+import {azureDialogueProtocol} from '../../_dialogue/providers/azure-foundry.js';
 
 const API_VERSION = '2024-05-01-preview';
 const MAX_BYTES = 512_000;
@@ -27,14 +28,17 @@ function usageOf(value) {
     fail('correction_azure_usage_invalid');
   return { input_tokens: input, output_tokens: output };
 }
-function requestBody(plan, model) {
+function requestBody(plan, model, protocol) {
   const request = plan?.request;
   if (plan?.schema !== CORRECTION_REQUEST_SCHEMA || plan.dispatch_allowed !== false
     || !object(request) || request.model !== model
     || typeof plan.request_hash !== 'string' || !/^[a-f0-9]{64}$/.test(plan.request_hash)
     || sha256Hex(canonicalJson(request)) !== plan.request_hash
-    || Object.keys(request).sort().join(',') !== 'max_tokens,messages,model,response_format,temperature'
-    || request.max_tokens !== 1200 || request.temperature !== 0
+    || (protocol
+      ?Object.keys(request).sort().join(',') !== 'max_completion_tokens,messages,model,reasoning_effort,response_format'
+        ||request.max_completion_tokens!==1200||request.reasoning_effort!=='none'
+      :Object.keys(request).sort().join(',') !== 'max_tokens,messages,model,response_format,temperature'
+        ||request.max_tokens!==1200||request.temperature!==0)
     || !Array.isArray(request.messages) || request.messages.length !== 2
     || request.messages.some((message, i) => !object(message)
       || Object.keys(message).sort().join(',') !== 'content,role'
@@ -55,6 +59,7 @@ export function createAzureCorrectionStrategyAdapter(options = {}) {
   const model = String(options.model || '').trim(), apiKey = String(options.apiKey || '');
   if (!model || model.length > 120) fail('correction_azure_model_required');
   if (apiKey.length < 16) fail('correction_azure_auth_required');
+  const protocol=azureDialogueProtocol(model,options.env);
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   if (typeof fetchImpl !== 'function') fail('correction_azure_fetch_required');
   const timeoutMs = Math.min(45_000, Math.max(1, Number(options.timeoutMs) || 45_000));
@@ -62,12 +67,13 @@ export function createAzureCorrectionStrategyAdapter(options = {}) {
     expectedResponseModel:options.revisionBinding.expected_response_model,endpoint:options.endpoint,
     deployment:model,baselineSnapshotHash:options.revisionBinding.baseline_snapshot_hash}):null;
   return Object.freeze({
-    family: 'claim_extraction', name: 'azure-correction-strategy', version: CORRECTION_REQUEST_SCHEMA,
-    model, billing: Object.freeze({ meter: 'azure_foundry_tokens', max_output_tokens: 1200 }),
+    family: 'claim_extraction', name: 'azure-correction-strategy', version: `${CORRECTION_REQUEST_SCHEMA}${protocol?':'+protocol.version:''}`,
+    model, billing: Object.freeze({ meter: 'azure_foundry_tokens', max_output_tokens: 1200,
+      ...(protocol?{budget_env:protocol.budgetEnv}:{}) }),
     ...(revisionBinding?{revision_binding:revisionBinding}:{}),
     async generate({ plan, signal } = {}) {
       if (signal?.aborted) fail('correction_aborted');
-      const body = requestBody(plan, model);
+      const body = requestBody(plan, model,protocol);
       const controller = new AbortController();
       let timedOut = false, reader;
       const abort = () => controller.abort();
@@ -117,6 +123,11 @@ export function createAzureCorrectionStrategyAdapter(options = {}) {
         try { payload = JSON.parse(Buffer.concat(chunks, bytes).toString('utf8')); }
         catch { fail('correction_azure_response_invalid'); }
         const usage = usageOf(payload.usage);
+        if(protocol){
+          const reasoning=payload.usage?.completion_tokens_details?.reasoning_tokens;
+          if(usage.output_tokens>1200||(reasoning!==undefined&&(!Number.isSafeInteger(reasoning)||reasoning<0||reasoning>usage.output_tokens)))
+            fail('correction_azure_usage_invalid',usage);
+        }
         const providerIdentity=revisionBinding?verifyProviderRevision(payload,revisionBinding,usage):null;
         const choice = payload?.choices?.[0];
         if (payload?.choices?.length !== 1 || choice?.finish_reason !== 'stop'

@@ -83,8 +83,10 @@ export function prepareCorrectionStrategyRequest(snapshot, pairs, modelConfig) {
           items: { type: 'string', enum: evidence.map(item => item.feedback_id) } },
       } } },
   } };
-  const request = { model, messages, temperature: 0, max_tokens: 1200,
-    response_format: { type: 'json_schema', json_schema: { name: 'vyakti_correction_shapes', strict: true, schema: outputSchema } } };
+  const response_format={type:'json_schema',json_schema:{name:'vyakti_correction_shapes',strict:true,schema:outputSchema}};
+  const request = model==='gpt-5.6-terra'
+    ?{model,messages,max_completion_tokens:1200,reasoning_effort:'none',response_format}
+    :{model,messages,temperature:0,max_tokens:1200,response_format};
   const inputTokens = conservativeTokenEstimate(messages)
     + Buffer.byteLength(JSON.stringify(request.response_format), 'utf8');
   return { schema: CORRECTION_REQUEST_SCHEMA, dispatch_allowed: false,

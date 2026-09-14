@@ -4,6 +4,14 @@ import {requireUser,AuthError} from './_auth.js';
 import {allow,ipOf} from './_ratelimit.js';
 import {readOwnedCorrectionCandidate,runOwnedCorrectionCandidate} from './_replica-correction-candidate.js';
 import {createAzureCorrectionStrategyAdapter} from './_correction/providers/azure-foundry.js';
+export function createProductionCorrectionAdapter(options={}){
+ const env=options.env||process.env;
+ return createAzureCorrectionStrategyAdapter({endpoint:env.AZURE_FOUNDRY_ENDPOINT,
+  model:env.AZURE_FOUNDRY_DIALOGUE_MODEL,apiKey:env.AZURE_FOUNDRY_API_KEY,env,
+  revisionBinding:{expected_response_model:env.AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL,
+   baseline_snapshot_hash:env.AZURE_CORRECTION_BASE_MODEL_COMMITMENT},
+  ...(options.fetchImpl?{fetchImpl:options.fetchImpl}:{})});
+}
 export function createCorrectionCandidateHandler({db,authenticate,resolveAdapter,env=process.env}){
  return async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
@@ -23,11 +31,7 @@ export function createCorrectionCandidateHandler({db,authenticate,resolveAdapter
  };
 }
 const serve=createCorrectionCandidateHandler({db:q,authenticate:requireUser,
- resolveAdapter:()=>createAzureCorrectionStrategyAdapter({endpoint:process.env.AZURE_FOUNDRY_ENDPOINT,
-  model:process.env.AZURE_FOUNDRY_DIALOGUE_MODEL,apiKey:process.env.AZURE_FOUNDRY_API_KEY,
-  ...(process.env.AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL?{revisionBinding:{
-   expected_response_model:process.env.AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL,
-   baseline_snapshot_hash:process.env.AZURE_CORRECTION_BASE_MODEL_COMMITMENT}}:{})})});
+ resolveAdapter:()=>createProductionCorrectionAdapter()});
 export default async function handler(req,res){
  res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
  res.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type');res.setHeader('Cache-Control','no-store');

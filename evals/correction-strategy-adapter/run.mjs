@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createAzureCorrectionStrategyAdapter } from '../../api/_correction/providers/azure-foundry.js';
+import { createProductionCorrectionAdapter } from '../../api/replica-correction-candidate.js';
 import { CORRECTION_REQUEST_SCHEMA } from '../../api/_replica-correction-request.js';
 import { canonicalJson, sha256Hex } from '../../api/_provenance/contracts.js';
 
@@ -112,5 +113,57 @@ await group('strict revision checks preserve measured spend on missing/mismatche
   }
   assert.throws(()=>adapter(()=>response(valid),{...extra,revisionBinding:{...extra.revisionBinding,expected_response_model:'alias'}}),
     {code:'provider_revision_expected_version_required'});
+});
+await group('production Terra correction uses its exact dialect, rates, dated model and explicit null fingerprint',async()=>{
+  const env={AZURE_FOUNDRY_ENDPOINT:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',
+    AZURE_FOUNDRY_DIALOGUE_MODEL:'gpt-5.6-terra',AZURE_FOUNDRY_API_KEY:'fixture-key-never-real',
+    AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL:'gpt-5.6-terra-2026-07-09',AZURE_CORRECTION_BASE_MODEL_COMMITMENT:'b'.repeat(64),
+    AZURE_REPLICA_BUDGET_ID:'fixture-terra-budget',AZURE_REPLICA_APP_BUDGET_USD:'1',
+    AZURE_FOUNDRY_DIALOGUE_RATE_MODEL:'gpt-5.6-terra',AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL:'gpt-5.6-terra-2026-07-09',
+    AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS:'2',AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS:'12'};
+  const {temperature:_temperature,max_tokens:_maxTokens,...terraBase}=request;
+  const terraRequest={...terraBase,model:'gpt-5.6-terra',max_completion_tokens:1200,reasoning_effort:'none'};
+  const terraPlan={...plan(),request:terraRequest,request_hash:sha256Hex(canonicalJson(terraRequest))};
+  let body;
+  const instance=createProductionCorrectionAdapter({env,fetchImpl:async(_url,init)=>{
+    body=JSON.parse(init.body);return response({...payload(),model:'gpt-5.6-terra-2026-07-09',system_fingerprint:null,
+      usage:{prompt_tokens:23,completion_tokens:7,completion_tokens_details:{reasoning_tokens:0}}});
+  }});
+  const result=await instance.generate({plan:terraPlan});
+  assert.deepEqual(Object.keys(body).sort(),['max_completion_tokens','messages','model','reasoning_effort','response_format']);
+  assert.equal(body.max_completion_tokens,1200);assert.equal(body.reasoning_effort,'none');
+  assert.equal(result.provider_identity.schema,'vyakti.azure-reported-revision.v2');
+  assert.equal(result.provider_identity.fingerprint_status,'not_provided');assert.equal(result.provider_identity.system_fingerprint,null);
+  assert.equal(instance.billing.budget_env.AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS,'2');
+  assert.equal(instance.billing.budget_env.AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS,'12');
+  for(const key of ['AZURE_FOUNDRY_DIALOGUE_RATE_MODEL','AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL',
+    'AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS','AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS'])
+    assert.throws(()=>createProductionCorrectionAdapter({env:{...env,[key]:undefined}}));
+  for(const key of ['AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL','AZURE_CORRECTION_BASE_MODEL_COMMITMENT'])
+    assert.throws(()=>createProductionCorrectionAdapter({env:{...env,[key]:undefined}}));
+  assert.throws(()=>createProductionCorrectionAdapter({env:{...env,AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL:'gpt-4.1-mini-2025-04-14'}}),
+    {code:'provider_revision_expected_version_required'});
+  assert.throws(()=>createProductionCorrectionAdapter({env:{...env,AZURE_FOUNDRY_DIALOGUE_MODEL:'arbitrary'}}),
+    {code:'provider_revision_deployment_required'});
+});
+await group('Terra correction refuses dated-model, fingerprint and completion-unit drift after measured response',async()=>{
+  const env={AZURE_FOUNDRY_ENDPOINT:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',
+    AZURE_FOUNDRY_DIALOGUE_MODEL:'gpt-5.6-terra',AZURE_FOUNDRY_API_KEY:'fixture-key-never-real',
+    AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL:'gpt-5.6-terra-2026-07-09',AZURE_CORRECTION_BASE_MODEL_COMMITMENT:'b'.repeat(64),
+    AZURE_REPLICA_BUDGET_ID:'fixture-terra-budget',AZURE_REPLICA_APP_BUDGET_USD:'1',
+    AZURE_FOUNDRY_DIALOGUE_RATE_MODEL:'gpt-5.6-terra',AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL:'gpt-5.6-terra-2026-07-09',
+    AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS:'2',AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS:'12'};
+  const {temperature:_temperature,max_tokens:_maxTokens,...terraBase}=request;
+  const terraRequest={...terraBase,model:'gpt-5.6-terra',max_completion_tokens:1200,reasoning_effort:'none'};
+  const terraPlan={...plan(),request:terraRequest,request_hash:sha256Hex(canonicalJson(terraRequest))};
+  const valid={...payload(),model:'gpt-5.6-terra-2026-07-09',system_fingerprint:null,
+    usage:{prompt_tokens:23,completion_tokens:7,completion_tokens_details:{reasoning_tokens:0}}};
+  for(const patch of [{model:'gpt-4.1-mini-2025-04-14'},{system_fingerprint:undefined},{system_fingerprint:'invalid'},
+    {usage:{prompt_tokens:23,completion_tokens:1201}},{usage:{prompt_tokens:23,completion_tokens:7,completion_tokens_details:{reasoning_tokens:8}}}]){
+    const instance=createProductionCorrectionAdapter({env,fetchImpl:async()=>response({...valid,...patch})});
+    await assert.rejects(()=>instance.generate({plan:terraPlan}),error=>{
+      assert.deepEqual(error.measured_usage,{input_tokens:23,output_tokens:Number(patch.usage?.completion_tokens??7)});return true;
+    });
+  }
 });
 process.stdout.write(`${groups} correction strategy adapter groups passed; offline fixtures only.\n`);

@@ -18,6 +18,8 @@ const RID=uid(90001), OWNER=uid(90002), CAP=uid(90003), DATASET=uid(90004);
 const ENV={ REPLICA_FEEDBACK_KEK_ID:'fixture-kek-v1', REPLICA_FEEDBACK_KEK_B64:Buffer.alloc(32,7).toString('base64'),
   AZURE_CORRECTION_BASE_MODEL_COMMITMENT:'a'.repeat(64), AZURE_REPLICA_BUDGET_ID:'fixture-correction',
   AZURE_REPLICA_APP_BUDGET_USD:'1', AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'0.4', AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'1.6' };
+const TERRA_SPEND_ENV={AZURE_REPLICA_BUDGET_ID:'fixture-correction',AZURE_REPLICA_APP_BUDGET_USD:'1',
+  AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'2',AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'12'};
 const hash=value=>sha256Hex(canonicalJson(value));
 const sqlInventory=new Map();
 const rows=[], encrypted=new Map(), plaintext=new Map();
@@ -128,7 +130,7 @@ function fixture(options={}){
   };
   const revision=options.strict?prepareProviderRevisionBinding({expectedResponseModel:'gpt-4.1-mini-2025-04-14',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com',deployment:'gpt-4.1-mini',baselineSnapshotHash:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT}):null;
   function adapter(model='fixture-model') {return{...(revision?{revision_binding:revision}:{}),family:'claim_extraction',name:'azure-correction-strategy',version:CORRECTION_REQUEST_SCHEMA,model,
-    billing:{meter:'azure_foundry_tokens',max_output_tokens:1200},async generate({plan}){
+    billing:{meter:'azure_foundry_tokens',max_output_tokens:1200,...(options.terraRates?{budget_env:TERRA_SPEND_ENV}:{})},async generate({plan}){
       providerCalls++;assert.equal(plan.dispatch_allowed,false);
       const evidence=JSON.parse(plan.request.messages[1].content).evidence;
       assert.deepEqual(new Set(evidence.map(e=>e.feedback_id)),new Set(train.map(e=>e.feedback_id)));
@@ -159,6 +161,10 @@ await test('real worker registers a renderable private draft without changing ac
   const runtime=await loadOwnedRuntimeContext(f.db,OWNER,RID),rendered=renderPrivateCorrectionCandidate(runtime,job.artifact);
   assert.equal(rendered.runtime_eligible,false);assert.match(rendered.core,/Experimental candidate behavior shapes/);assert.equal(job.artifact.owner_approved,false);
   assert.equal(new Set(f.pairReads).size,32);f.assertUnchanged();
+});
+await test('correction reservation and settlement use adapter-scoped Terra rates',async()=>{
+  const f=fixture({terraRates:true});await f.run();
+  assert.equal(f.spends[0].actual_microusd,500);assert.equal(f.budget.spent_microusd,500);f.assertUnchanged();
 });
 await test('a legacy completed job cannot satisfy the v2 artifact request',async()=>{
   const f=fixture();const legacy=await f.run();assert.equal(legacy.state,'draft');

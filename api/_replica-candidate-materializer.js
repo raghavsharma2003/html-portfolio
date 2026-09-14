@@ -212,7 +212,7 @@ export async function advanceOwnedMaterialization(db,owner,input,{adapter,env=pr
   if(prompt.prompt_hash!==item.prompt_hash)fail('materialization_prompt_changed');
   signal?.throwIfAborted();
   reservation=await reserveFoundrySpend(db,{operation:'dialogue',requestKey:`materialization:${item.item_id}`,adapter,
-   messages:[...prompt.messages,{role:'system',content:JSON.stringify(DIALOGUE_OUTPUT_SCHEMA)}],env});
+   messages:[...prompt.messages,{role:'system',content:JSON.stringify(DIALOGUE_OUTPUT_SCHEMA)}],env:adapter.billing.budget_env||env});
   if(!reservation)fail('materialization_budget_required',503);
   const running=await gated(db,b,`update vy_replica_candidate_materialization_item i set state='running',reservation_id=$18::uuid,updated_at=now()
    from authority where i.item_id=$16::uuid and i.job_id=$17::uuid and i.replica_id=$1::uuid and i.owner_user_id=$2::uuid
