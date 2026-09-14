@@ -1,6 +1,6 @@
 # STATE — read this first, then the graph
 
-## START HERE: PRIVATE INTERNAL PRODUCT, RELEASE CANDIDATE NOT ACCEPTED (2026-09-14)
+## START HERE: PRIVATE INTERNAL PRODUCT, 591c ACCEPTED AND PREVIEW LIVE (2026-09-14)
 
 **Latest owner direction wins:** build and test the whole product privately first.
 Defer enrollment reviews, public rollout policy and compliance work. Prioritize
@@ -22,32 +22,25 @@ Never reset or edit the old dirty `Vyakti-platform` checkout. Its ignored
 stay outside Git and tool output. At most five independent workstreams; use
 Sol for bounded work and Astra for voice architecture/integration.
 
-**Release:** protected dc52ce10 baseline remains live and accepted25/25 on
-Node22/24 plus Android. URL:
-https://vyakti-replica-pn2fz2x07-raghav-carbonsettles-projects.vercel.app
-Actual landing and Studio sign-in render; owner login is requested/pending.
-The premium fe7dbc6 candidate failed22/25 (palette, performance, evals).
-Its concrete repairs are integrated: 9aaa7aff fixture fixes; 6be321ff eager
-auth CSS and shared palette; 429e9c51 first-reply budget; 0ad5958e voice
-controller; e681ce1c post-turn memory; 63013d99 private follow-up history;
-db68a6e1/175ce999/352dcd07 reachable voice UI, navigation and stable playback.
-Explicit audio-download retry and valid PCM playback fixtures also pass.
-Candidate15bcb3ad failed22/25 on both Node22/24 plus Android: widened follow-up
-role types, internal voice tab tracks, and ten eval suites. Both Linux performance
-gates passed the unchanged800ms Hindi limits; exact successful medians were not
-retained. The next workflow uploads sanitized check logs. The type fix passes
-npx tsc -b --force; root tsc --noEmit is insufficient for this project-reference
-solution. The central probe fix now keeps malformed/disabled internal voice
-responses from hiding the ordinary creator journey; scoped two-column voice
-tabs pass clone layout22 and internal voice browser16 checks. Fixture endpoint
-coverage and cascade mutation controls are repaired. Targeted suites pass:
-six first-use/refinement suites108, creator cascade32, personal rehearsal62.
-The refinement next-question handler also no longer forwards a React click
-event as parent_request_id; explicit follow-ups still send the actual UUID.
-The next pushed candidate requires fresh full CI acceptance. No newer full gate
-is accepted and no newer preview is deployed.
-Never loosen the existing Hindi budget. No public
-cutover or main merge is authorized for this private testing phase.
+**Release:** exact591c8a25d5b0c2310fe6f76c81394a2ce4ad21d9 is accepted:
+25/25 Node22/24, Android debug APK succeeded. Release34851482778;
+Node22job104000258001, Node24job104000257687, Android104000255475.
+Protected preview dpl_2nzJiq6cQi9RUXTZkTjmrMKTXXUU is READY:
+https://vyakti-replica-i847002wd-raghav-carbonsettles-projects.vercel.app
+Marker sha256:b67fb7c46949613b0199fc17adb25dbe7acdb2eb7f87c466765004b7c46c8555
+was fetched and verified (1099files,28923671bytes). Actual landing to Studio
+sign-in rendered; no real owner session/model journey yet. Exact preview Blob
+CORS is configured and verified. No public cutover or main merge.
+Both Linux performance artifacts preserve n3 Hindi DOM medians335.8ms/319.7ms
+and chunk0.4ms/0.5ms, under unchanged800ms budgets. CI skips DB gates without
+NEON_URL; live SQL receipts remain separate. Previous15bc failures are repaired:
+composite type roles, fail-closed voice probes, scoped two-column voice tabs,
+fixture GET coverage, non-vacuous cascade/Unicode controls, and a real React
+click-event leak into parent_request_id. Type checks must use tsc -b --force.
+A read-only current visual audit disproved stale screenshots of landing gaps
+and mobile rail overlap. One narrow Feed links/button styling repair is being
+prepared off591c and is NOT deployed yet. Preserve accepted source until that
+repair's own gate completes. No new voice likeness result exists.
 
 **Working configuration:** Vercel access and Azure sponsored subscription
 work. Terra conversation/correction, mini extraction, Azure storage and open

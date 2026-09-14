@@ -20553,6 +20553,24 @@
       "kind": "rejection",
       "title": "Generic API fixtures and a direct optional-ID click handler corrupted flow evidence",
       "at": "context/rejected.md#wave25-generic-api-fixtures-and-direct-optional-id-click-handler"
+    },
+    {
+      "id": "wave25-accepted-preview-before-feed-polish",
+      "kind": "decision",
+      "title": "Deploy accepted journey while isolating final Feed polish",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-591c-preview-and-release-20260914",
+      "kind": "measurement",
+      "title": "Exact591c release and protected preview verified",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "wave25-preview-ready-is-not-expert-ready",
+      "kind": "rejection",
+      "title": "A ready deployment does not establish a completed expert",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -34973,6 +34991,11 @@
       "src": "wave25-generic-api-fixtures-and-direct-optional-id-click-handler",
       "rel": "caused_by",
       "dst": "wave25-flow-fixtures-model-voice-probes-and-discard-click-events"
+    },
+    {
+      "src": "wave25-accepted-preview-before-feed-polish",
+      "rel": "measured_by",
+      "dst": "wave25-591c-preview-and-release-20260914"
     }
   ]
 }

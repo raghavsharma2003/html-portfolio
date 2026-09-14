@@ -25457,3 +25457,8 @@ Owner forbids Microsoft-account browser use on the employer laptop and explicitl
 ## wave25-flow-fixtures-model-voice-probes-and-discard-click-events
 
 2026-09-14. Studio browser fixtures that mount `CloneExperience` model the exact read-only `GET /api/internal-voice` availability probe as a disabled 404 before their unknown-request ledger. POST and every other unknown request remain failures. A button that starts a fresh private question calls its zero-argument callback through a wrapper so React's click event cannot enter the optional parent request UUID parameter. The explicit follow-up action still supplies the settled parent UUID. Reverse the fixture route only if the shipping Studio removes or replaces this probe. Reverse the callback wrapper only if the transition no longer accepts an optional identifier or a typed event handler validates and discards the event itself.
+
+
+## wave25-accepted-preview-before-feed-polish
+
+Deploy exact591c8a25 as a protected preview after both Node versions pass25/25 and Android succeeds. Keep the separately found Feed link-field/button styling repair outside this accepted tree until its own validation. This provides a tested private entry without claiming that visual polish, signed-in real-service use or voice quality is complete. Reverse this sequencing if the styling defect prevents the basic Feed action or a live verification finds a functional regression.

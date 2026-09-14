@@ -1,73 +1,104 @@
 # Vyakti: product and release status
 
-Updated 2026-09-14. This page separates the intended experience from what has
-actually been verified. The current release has not been deployed. The owner now prioritizes a private
-internal build and testing; public rollout and enrollment review are deferred.
+Updated 2026-09-14. Build and test privately first. Public rollout and enrollment
+review are deferred. `context/STATE.md` records the exact latest release result;
+this page describes the product and the remaining proof.
 
-Vyakti lets an expert turn their knowledge, communication style and voice into
-an AI that helps their audience. The first useful outcome is answering real
-questions from the expert's material, with sources, corrections and continuity
-between conversations. Teaching is the first vertical. Creating separate
-creator, consumer and business products is not the current release plan.
+Accepted private preview: https://vyakti-replica-i847002wd-raghav-carbonsettles-projects.vercel.app/studio
+Source591c8a25 passed25/25 under Node22/24 and Android debug APK. The actual
+landing and sign-in screen are verified; the full signed-in journey is not.
+
+Vyakti turns an expert's knowledge, communication style and voice into an AI
+that helps their audience. Its first useful job is answering questions from the
+expert's material, showing sources, accepting corrections and remembering each
+visitor separately. Teaching is the first vertical. We are building one platform
+with creator and visitor experiences, rather than three separate products.
 
 ## The journey
 
-1. **Sign in and agree.** Create an account and set the relevant permissions.
-2. **Feed it.** Add knowledge and describe how you think and communicate.
-3. **Meet it.** Ask questions, inspect sources, correct answers and test likeness.
-4. **Deploy it.** Publish the experience that its actual permissions and readiness
-   support. Text-material publication and a full voice Room are different capabilities.
+1. **Sign in.** Use the account that owns the expert's workspace.
+2. **Feed it.** Add material and describe how the expert thinks and communicates.
+3. **Meet it.** Ask questions, inspect sources, give corrections and compare voice.
+4. **Deploy it.** Share the experience its actual readiness supports. Text-material
+   publication and a full voice Room have different requirements.
 5. **Improve it.** Review feedback and approve changes. Each visitor's memory
-   stays separate, with controls to inspect and forget it.
+   stays separate and can be inspected or forgotten.
 
-The desired simplicity is three main steps: Feed, Meet, Deploy. Permission and
-readiness checks remain behind those steps; they must not create false success.
+Feed, Meet and Deploy are the three main steps. A saved file, a configured model,
+or a passing simulated test must never appear as a finished clone.
 
 ## What runs each part
 
-| Job | Current implementation | Evidence limit |
+| Job | Current implementation | What remains to prove |
 | --- | --- | --- |
-| Conversation and correction | Azure Foundry `gpt-5.6-terra`, expected response model `gpt-5.6-terra-2026-07-09` | Azure deployment and bindings verified; new release's real user conversation still needs its live walk. |
-| Extracting claims from material | Azure Foundry `gpt-4.1-mini` | Configuration exists; extraction quality is not established by configuration. |
-| Voice synthesis | Chatterbox Multilingual V3 on Azure, with general and Hindi checkpoint arms | No new owner-likeness result in this wave. |
-| Alternative voice experiments | IndicF5, Qwen3-TTS, VoxCPM2 and MOSS-TTS code | Not evidence that these are all deployed, fine-tuned or selected. |
-| HumanOS and EmotionOS | Approved person sheet, communication preferences and prompt compilation | These are application components, not separately trained foundation models. |
-| RelationOS and memory | Relationship state, per-person memory, retrieval and consolidation in the shared engine and database | Source tests and actual database integrity checks pass; automatic pre-voice memory still has preserved wave-24 work. |
-| Product hosting and identity | Vercel web/API, Supabase sign-in, Neon relational data, Azure storage and model services | Email redirect configuration and real fresh-user journey still require verification. |
+| Conversation and correction | Azure Foundry `gpt-5.6-terra`, expected response model `gpt-5.6-terra-2026-07-09` | Complete the real signed-in conversation on the accepted preview. |
+| Extraction and memory consolidation | Azure Foundry `gpt-4.1-mini`, with the memory response bound to `gpt-4.1-mini-2025-04-14` | Test actual extraction, useful recall and forgetting against real material. |
+| Selected voice lane | Chatterbox Multilingual V3 on Azure, with general and Hindi checkpoint arms | Deploy the prepared private CPU service after the owner's narrow Azure role grant, then generate and listen to a real comparison. No fresh likeness measurement exists. |
+| Other voice research | IndicF5, Qwen3-TTS, VoxCPM2 and MOSS-TTS code | These are experiments, not evidence of deployed or selected fine-tuned models. |
+| HumanOS and EmotionOS | Approved person sheet, communication preferences and prompt compilation | Measure whether answers preserve the expert's style and judgment. These are application components, not separate foundation models or human consciousness. |
+| RelationOS and memory | Per-person relationship state, retrieval, consolidation and erasure in the shared engine/database | The post-reply memory caller is implemented; live multi-turn recall and isolation still need verification. |
+| Hosting and identity | Vercel web/API, Supabase sign-in, Neon data, Azure storage/model services | Verify the real owner callback and the complete creator-to-visitor journey. |
 
-Azure's sponsored subscription is verified. Remaining credit balance is unknown.
-The configured text pilot has a shared $1 cap; that is not a cap on all Azure
-resources or a measured per-customer cost.
+Azure serving uses the authorized startup-grant subscription. Remaining credit
+balance is unknown. The shared text pilot has a configured USD1 cap; this is not
+a cap on all Azure resources or proof of profitable unit economics. No permanent
+GPU warming is selected.
 
-## What is done, and what remains
+## Implemented and verified so far
 
-Standalone source separation, Azure text routing, memory integrity repairs,
-several first-use fixes and reproducible worker packaging are implemented.
-Meera remains deployed separately. Focused tests cover specific behaviors;
-they are not proof of the full live product.
+- Vyakti source is separated from Meera, which remains working separately.
+- Azure text routing and provider-budget controls are implemented.
+- The processing worker's immutable image is deployed and read back.
+- Memory configuration is present in Preview and Development. The actual
+  post-reply caller is connected in source; preview cron alone is insufficient.
+- Private questions support bounded server-owned follow-up history. Two changed
+  SQL statements passed live read-only EXPLAIN. Other memory SQL checks and
+  database integrity checks are recorded in `context/measurements.md`.
+- Browser fixtures cover setup, refresh, corrections, sharing and private voice
+  playback at phone and desktop sizes. These use synthetic responses and do
+  not prove live model quality.
+- The accepted protected baseline is available; newer candidates require their
+  own 25/25 Node22 and Node24 gates plus Android success before deployment.
 
-The first-use batch is merged and the Azure worker image is verified. Before
-publishing: pass the full release gate on the repaired frozen source, activate
-the accepted worker, complete the production cutover, and walk creator and
-visitor flows against real services. The earlier candidate passed 22 of 25 gates under both Node versions and was
-rejected for layout, accessibility and eval failures. The focused repairs now
-pass, including personal63/63, first-use10/10, private UI20/20 and the affected
-layout/accessibility pages. These simulated journeys are not a real-model or
-full-gate result. Ten missing Development bindings are also value-verified;
-five unknown Development values remain untouched.
+The owner's uploads were not lost. Three saved replicas exist. The retained
+voice replica has two audio sources, one ready28.075s and one quarantined, three
+audio artifacts, and eight completed processing stages including transcription.
+It currently has no Studio knowledge items, teacher sheet, approved person
+profile or claims. Existing eligible media should be considered for reuse;
+never invent an expert profile or require all material to be uploaded again.
 
-Fresh voice enrollment has unfinished engineering beyond credentials. The
-later Studio capture still lacks the complete evidence producer expected by
-the enrollment contract. See `VOICE-ENROLLMENT-REALITY.md`. Face approval is
-also unverified. Neither can be replaced with a readiness flag.
+## Remaining work
 
-The ten wave-24 patches are preserved but not yet integrated. They include
-automatic text memory, source management, owner data controls, reply correction,
-Room experience, voice diagnostics and mobile/Hindi checks.
+1. Deploy the fully gated UI candidate as a protected preview and verify its
+   source, sign-in and actual creator/visitor journeys. No public cutover is
+   authorized for this private phase.
+2. Verify the narrow Hindi GPU role granted on the owner's personal system,
+   then deploy the already-built private voice CPU service and broker. Compare
+   a generated sample with the retained reference; collect separate likeness,
+   naturalness, pronunciation and responsiveness evidence.
+3. Complete and test fresh voice enrollment. The private retained-reference
+   comparison is not proof that any new expert can finish voice enrollment.
+   See `VOICE-ENROLLMENT-REALITY.md` for the evidence-producer gap.
+4. Test real knowledge extraction, grounded answers, follow-ups, corrections,
+   memory retrieval and forgetting through the product. Owner sign-in and
+   genuine expert material are still needed for that live journey.
+5. Resume the nine remaining preserved wave-24 patches against current code.
+   R182 memory is reconciled and integrated; do not apply its old patch again.
+   The others cover RelationOS, reply tuning, sources, sharing, visitor flow,
+   voice diagnostics, data controls and mobile/Hindi verification.
 
-No measured basis yet supports competitor superiority, product-market fit,
-paid conversion or profitable unit economics. Those require real expert and
-visitor usage, blinded voice listening, task-success measurements and observed
-serving costs. The value hypothesis is that experts can serve more people
-without repeating the same explanation, while retaining control over what
-their AI says and learns.
+No measured result yet establishes competitor superiority, product-market fit,
+paid conversion or profitability. The value hypothesis is that experts can
+serve more people without repeating the same explanations, while controlling
+what their AI says and learns. Prove it with expert task success, blinded voice
+comparisons, repeat use and observed serving costs.
+
+## Owner-only inputs
+
+- On a **personal system**, run the committed personal Cloud Shell script
+  `grant-internal-voice-identity-personal-cloud-shell.sh`, then confirm completion.
+  Never use a personal Microsoft account in any browser on this employer laptop.
+  Existing authorized Azure service-principal API access remains allowed.
+- Sign into the protected Vyakti preview with the account that owns the retained
+  clone and supply or select genuine expert material for the Feed and Meet walk.
+  Do not paste credentials, tokens or login codes into the handoff.

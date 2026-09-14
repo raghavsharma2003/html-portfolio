@@ -19206,3 +19206,8 @@ Read-only Azure metadata found the operator could attach four existing UMIs, but
 ## wave25-generic-api-fixtures-and-direct-optional-id-click-handler
 
 2026-09-14. Five Studio fixtures let an unmodeled internal voice availability request reach a generic API fallback. The HTTP 200 `{}` response was malformed but the probe previously exposed the private voice panel, detaching or replacing the controls under test; after fail-closed handling, the same legitimate GET still failed each fixture's unknown-request ledger. Loosening the ledger or returning 200 `{}` would preserve an ambiguous fixture. Each server now names only the exact GET probe and returns the disabled 404 contract. Separately, `onClick={onNextQuestion}` passed React's click event into a callback whose optional argument is a parent request UUID. A fresh question then acquired an object-shaped parent and the follow-up attestation. The handler now discards the event explicitly, while the browser fixture proves the real UUID follow-up path separately.
+
+
+## wave25-preview-ready-is-not-expert-ready
+
+Exact591c passes full CI and its deployed entry renders, but those facts cannot establish the owner authentication callback, expert material ingestion, real-model memory, or voice likeness. The dedicated voice identity still needs the personal-device grant; the deployed browser remains at sign-in. Preserve those explicit gaps instead of relabeling fixture checks as an end-to-end product result. No personal Microsoft account was opened or used on this employer laptop during this continuation.
