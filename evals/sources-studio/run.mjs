@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripComments } from "../lib/source-scan.mjs";
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { clientSourceOverview, listOwnedSourcesOverview } from "../../api/_replica-source.js";
@@ -145,7 +145,7 @@ try {
   await vite.listen();
   const address = vite.httpServer.address();
   assert.ok(address && typeof address === "object");
-  browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("sources-studio mounted races");
   const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
   const runtimeErrors = [];
   page.on("pageerror", (error) => runtimeErrors.push(String(error)));
