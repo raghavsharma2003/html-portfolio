@@ -19959,6 +19959,24 @@
       "kind": "rejection",
       "title": "GoTrue ignores email redirect in the OTP JSON body",
       "at": "context/rejected.md#standalone25-email-redirect-body-is-not-gotrue-query-20260914"
+    },
+    {
+      "id": "standalone25-publication-oauth-callback-race-20260914",
+      "kind": "decision",
+      "title": "Publication callback refresh respects lifecycle and account races",
+      "at": "context/decisions.md#standalone25-publication-oauth-callback-race-20260914"
+    },
+    {
+      "id": "standalone25-publication-oauth-callback-race-measurement-20260914",
+      "kind": "measurement",
+      "title": "Publication callback mounted regression covers fresh and stale account states",
+      "at": "context/measurements.md#standalone25-publication-oauth-callback-race-measurement-20260914"
+    },
+    {
+      "id": "standalone25-publication-oauth-callback-blind-restore-rejected-20260914",
+      "kind": "rejection",
+      "title": "Blind shared callback restoration can overwrite a newer account",
+      "at": "context/rejected.md#standalone25-publication-oauth-callback-blind-restore-rejected-20260914"
     }
   ],
   "edges": [
@@ -34018,6 +34036,16 @@
     {
       "src": "standalone25-email-redirect-body-is-not-gotrue-query-20260914",
       "dst": "standalone25-email-redirect-forwarding-20260914",
+      "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-publication-oauth-callback-race-20260914",
+      "dst": "standalone25-publication-oauth-callback-race-measurement-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-publication-oauth-callback-blind-restore-rejected-20260914",
+      "dst": "standalone25-publication-oauth-callback-race-20260914",
       "rel": "caused_by"
     }
   ]

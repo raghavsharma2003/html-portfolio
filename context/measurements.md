@@ -18892,3 +18892,7 @@ The mirrored UI constants are 25 seconds while identity_audio.py remains RATE * 
 ## standalone25-email-redirect-forwarding-measurement-20260914
 
 Method: focused handler regression with captured fetch and a stub persistent-rate database, plus module checks in the isolated worktree; n=1 valid Room return and 4 malformed values, date 2026-09-14. The actual account handler emitted GoTrue `/otp?redirect_to=...`, retained `{email,create_user}` as its JSON body, executed both persistent send-rate gates for the valid request, and refused every malformed value before either gate or fetch. No provider call or auth message was sent.
+
+## standalone25-publication-oauth-callback-race-measurement-20260914
+
+Method: two new synthetic mounted cases registered in evals/text-publication-ui/run.mjs, date 2026-09-14. One starts with a callback and no stored account and requires a refreshed authenticated publication state; one holds callback refresh, changes the stored account, then requires the newer account to remain stored. The browser fixture was not run in this phase; syntax and graph checks passed, and no provider call was made.

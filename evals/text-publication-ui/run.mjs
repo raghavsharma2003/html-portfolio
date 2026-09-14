@@ -85,6 +85,22 @@ try{
   await page.reload();await page.getByRole('button',{name:'Check status',exact:true}).click();await page.getByLabel('Share link').waitFor();assert.equal(requests.filter(r=>r.op==='publish').length,1);check(width+' reload readback never republishes');
   await page.screenshot({path:join(out,`owner-${width}.png`),fullPage:true});
   const sharedLink=await page.getByLabel('Share link').inputValue();assert.equal(new URL(sharedLink).searchParams.get('publication'),publication.public_id);
+  if(width===390){
+   const callbackContext=await browser.newContext({viewport:{width,height:900}}),callbackPage=await callbackContext.newPage();
+   await callbackPage.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+   await callbackPage.goto(sharedLink+'#access_token=fresh-callback-token&refresh_token=fresh-callback-refresh&expires_in=3600');
+   await callbackPage.getByRole('heading',{name:'Before your first question'}).waitFor();
+   assert.equal(await callbackPage.evaluate(()=>JSON.parse(localStorage.getItem('meera.state.v1')).auth.userId),'50000000-0000-4000-8000-000000000001');assert.equal(new URL(callbackPage.url()).hash,'');check('fresh callback without a stored account refreshes into the publication');
+   await callbackContext.close();
+
+   const raceContext=await browser.newContext({viewport:{width,height:900}}),racePage=await raceContext.newPage();
+   await racePage.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+   await racePage.goto(origin+'/');await racePage.evaluate(()=>localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:'stale-user',accessToken:'s'.repeat(24),refreshToken:'stale-refresh',expiresAt:Date.now()+3600000}})));
+   holdRefresh=true;heldRefresh=null;await racePage.goto(sharedLink+'#access_token=racing-callback-token&refresh_token=racing-callback-refresh&expires_in=3600');for(let i=0;!heldRefresh&&i<100;i++)await new Promise(resolve=>setTimeout(resolve,20));assert(heldRefresh,'callback refresh actually held');
+   await racePage.evaluate(()=>{localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:'newer-user',accessToken:'n'.repeat(24),refreshToken:'newer-refresh',expiresAt:Date.now()+3600000}}));window.dispatchEvent(new StorageEvent('storage',{key:'meera.state.v1'}));});holdRefresh=false;heldRefresh();heldRefresh=null;
+   await racePage.waitForFunction(()=>JSON.parse(localStorage.getItem('meera.state.v1')).auth?.userId==='newer-user');assert.equal(await racePage.evaluate(()=>JSON.parse(localStorage.getItem('meera.state.v1')).auth.userId),'newer-user');check('held callback cannot overwrite a newer stored account');
+   await raceContext.close();
+  }
   const visitorContext=await browser.newContext({viewport:{width,height:900}});page=await visitorContext.newPage();
   await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());page.on('pageerror',e=>errors.push(e.message));
   await page.goto(sharedLink);await page.getByLabel('Email',{exact:true}).fill('visitor@example.test');await page.getByRole('button',{name:'Send a code',exact:true}).click();await page.getByLabel('6-digit code').fill('123456');await page.getByRole('button',{name:'Continue',exact:true}).click();

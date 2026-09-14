@@ -25285,3 +25285,7 @@ The sponsored Azure subscription and working Speech/Foundry access do not resolv
 ## standalone25-email-redirect-forwarding-20260914
 
 2026-09-14. Email sign-in callers pass an origin-local return path and query to the server proxy; the proxy validates the resulting absolute HTTP(S) URL and sends `redirect_to` in GoTrue's `/otp` request query, while the JSON body contains only OTP fields. GoTrue's configured allow-list remains authoritative. Reconsider if a signed return-state design replaces URL forwarding.
+
+## standalone25-publication-oauth-callback-race-20260914
+
+2026-09-14. PublicationApp consumes the shared OAuth or magic-link callback before choosing a stored session, but keeps the pre-callback stored session only as the refresh race baseline. It never persists the pending callback. A callback refresh must return a non-empty user ID and both tokens; stored-session identity equality applies only to ordinary stored-session refreshes. An unmount or later account change wins and prevents the callback result from writing storage or state. Reverse only with a shared restore primitive that exposes equivalent lifecycle and baseline guards, plus a mounted negative proving it cannot overwrite a newer account.
