@@ -20157,6 +20157,24 @@
       "kind": "rejection",
       "title": "A merged PR is not a deployed or validated product",
       "at": "context/rejected.md#wave25-merge-success-does-not-prove-deployment"
+    },
+    {
+      "id": "wave25-owner-prioritizes-private-internal-product",
+      "kind": "decision",
+      "title": "Private internal product before public review workflows",
+      "at": "context/decisions.md#wave25-owner-prioritizes-private-internal-product"
+    },
+    {
+      "id": "wave25-voice-assets-recovered-and-preview-protection-20260914",
+      "kind": "measurement",
+      "title": "Reusable voice assets and protected preview verified",
+      "at": "context/measurements.md#wave25-voice-assets-recovered-and-preview-protection-20260914"
+    },
+    {
+      "id": "wave25-public-verifier-is-not-internal-test-readiness",
+      "kind": "rejection",
+      "title": "Do not spend the internal pilot on a public verification system",
+      "at": "context/rejected.md#wave25-public-verifier-is-not-internal-test-readiness"
     }
   ],
   "edges": [
@@ -34332,6 +34350,16 @@
       "src": "wave25-merge-success-does-not-prove-deployment",
       "rel": "constrains",
       "dst": "wave25-cutover-separate-from-merge-result"
+    },
+    {
+      "src": "wave25-owner-prioritizes-private-internal-product",
+      "rel": "measured_by",
+      "dst": "wave25-voice-assets-recovered-and-preview-protection-20260914"
+    },
+    {
+      "src": "wave25-public-verifier-is-not-internal-test-readiness",
+      "rel": "constrains",
+      "dst": "wave25-owner-prioritizes-private-internal-product"
     }
   ]
 }

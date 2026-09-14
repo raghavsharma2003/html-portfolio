@@ -2,6 +2,15 @@
 
 ## START HERE: WAVE TWENTY-FIVE INTEGRATED, RELEASE NOT ACCEPTED (2026-09-14)
 
+**Latest owner direction: private internal build/test first.** Reviews and public
+enrollment policy/compliance are explicitly deferred by the owner. Do not
+block internal voice tests on the unfinished public verifier or build human
+review now. Prepare a protected Vercel preview; main merge/public production
+cutover below are pending older plans, not the next action under this direction.
+Keep internal test access truthful and restricted. See
+`decisions.md#wave25-owner-prioritizes-private-internal-product` and
+`docs/handoff/2026-09-14/VOICE-PRODUCER-NEXT.md`.
+
 This repo is Vyakti. Meera's exact deployed source and full history are preserved in `raghavsharma2003/Meera` at `archive/production-20260914`; Meera production remains unchanged. Owner-selected branch is `claude/vyakti-cloning-platform-aq05n4`, integration checkout `Vyakti-platform-standalone25`, starting base `16fae19`. Old dirty coordinator worktrees remain untouched. Read `docs/handoff/2026-09-14/VYAKTI-STANDS-ALONE.md` and `WAVE-25-LIVE-READBACK.md`. Wave25 must finish before the ten preserved wave24 patches.
 
 Integrated through a672136b: standalone landing/Studio/Room and single native identity; Meera-only product surface retired while shared engines remain; Room uses Meet's Azure registry; Terra correction/comparison uses exact dated model and honest nullable revision receipt. Native OTA contract is bumped so older apps cannot accept incompatible web updates. Vercel automatic Git deployment is disabled; explicit main deploy runs the full gate first. All 23 actual crons are retained. The first full release run failed locally3/25 and on GitHub2/25; source checkpoint is not deployment. Shared fixture repairs are integrated throughd57e22c8. The local run was diagnostic only because a CI agent changed integration during it; repeat once the repaired batch is frozen.

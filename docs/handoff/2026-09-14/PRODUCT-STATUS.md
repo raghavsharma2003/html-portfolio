@@ -1,7 +1,8 @@
 # Vyakti: product and release status
 
 Updated 2026-09-14. This page separates the intended experience from what has
-actually been verified. The current release has not been deployed.
+actually been verified. The current release has not been deployed. The owner now prioritizes a private
+internal build and testing; public rollout and enrollment review are deferred.
 
 Vyakti lets an expert turn their knowledge, communication style and voice into
 an AI that helps their audience. The first useful outcome is answering real

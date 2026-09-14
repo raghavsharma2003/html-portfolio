@@ -19088,3 +19088,7 @@ Read-only review initially inferred that a code-entry form meant magic-link mail
 ## `wave25-merge-success-does-not-prove-deployment`
 
 2026-09-14. Review found two overly broad success interpretations in prepared cutover helpers: Meera link could report success with productionUnchanged=false, and PR merge could report success after an unreviewed base advanced. Before any mutation, root added strict same-deployment/source checks and fresh-main plus exact merge-parent validation. A final-read-to-write race is still not claimed atomic, and main workflow deployment completion is deliberately not represented by merge_verified. Helpers have only been syntax checked and run in read-only plan mode. No cloud deployment or PR merge occurred.
+
+## `wave25-public-verifier-is-not-internal-test-readiness`
+
+2026-09-14. The available audiovisual models do not establish calibrated ownership or synthetic-risk probabilities: the prior runner resets tracks perwindow, drops tails and assumesCUDA; currentdiarizer explicitly lacks overlap detection. Repackaging models or adding an unused verifier endpoint would not finish public verification. The owner has now deferred that review/policy work for an internal-only product. Preserve this audit for the later public boundary, but do not block every internal voice experiment on it or manufacture detector probabilities. Reuse staged models when relevant and implement explicit internal authority; no universal bypass or public-ready claim follows.
