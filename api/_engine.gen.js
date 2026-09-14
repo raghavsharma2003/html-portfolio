@@ -3530,6 +3530,12 @@ ${MATERIAL_BLOCK_OPEN}
 ${body}
 ${MATERIAL_BLOCK_CLOSE}`;
 }
+function renderCreatorMaterialParts(stableLines, selectedLine) {
+  return {
+    core: renderCreatorMaterial(stableLines),
+    tail: renderCreatorMaterial([selectedLine])
+  };
+}
 var VIBE_WARMTH_WORDS = ["cold", "reserved", "warm", "affectionate", "devoted"];
 var VIBE_ENERGY_WORDS = ["still", "low", "steady", "upbeat", "high"];
 var VIBE_HUMOUR_WORDS = ["serious", "dry, rare", "wry, occasional", "playful, often", "goofy, constant"];
@@ -4734,13 +4740,12 @@ function sheetToModule(sheet) {
     personaVersion: sheet.version,
     buildSystemPromptParts: (user, messageCount, medium, dimsStage) => {
       const activeStageText = stageParagraphFor(messageCount, dimsStage, sheet);
-      const materialBlock = renderCreatorMaterial([
+      const material2 = renderCreatorMaterialParts([
         ...staticMaterial,
-        { label: BOUNDARY_MATERIAL_LABEL, value: String(sheet.boundaryParagraph ?? "") },
-        { label: STAGE_MATERIAL_LABEL, value: activeStageText }
-      ]);
+        { label: BOUNDARY_MATERIAL_LABEL, value: String(sheet.boundaryParagraph ?? "") }
+      ], { label: STAGE_MATERIAL_LABEL, value: activeStageText });
       const parts = buildSystemPromptParts(user, messageCount, medium, dimsStage, sanitized);
-      return { core: parts.core + materialBlock, tail: parts.tail };
+      return { core: parts.core + material2.core, tail: material2.tail + parts.tail };
     },
     buildSpeechStyle: (engine) => buildSpeechStyle(engine, sheet),
     WATCH_MODE_NOTE: buildWatchModeNote(sheet),
@@ -7017,6 +7022,7 @@ export {
   refreshTexture,
   renderCloneNow,
   renderCreatorMaterial,
+  renderCreatorMaterialParts,
   renderInitiative,
   renderKinLines,
   renderMpBridge,

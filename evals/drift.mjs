@@ -155,7 +155,7 @@ function compileTurn(turn, { mode = "chat", agent = TEST_AGENT } = {}) {
     // of context"). Recall grows with what has been said, so it is simulated
     // as growing rather than held constant — a constant tail cannot exhibit
     // the pressure this suite exists to apply.
-    memories: turn ? `- probe-${turn} (fact, 2 days ago): ${"x".repeat(120 * turn)}` : "",
+    memories: turn ? `- probe-${turn} (fact, 2 days ago): ${"x".repeat(140 * turn)}` : "",
     herLife: "",
     cultureNoteText: "",
     latestUserText: turns.length ? turns[turns.length - 1].text : "",
@@ -290,6 +290,7 @@ console.log("\n§3 the stage paragraph is correct for the count, and moves exact
 {
   const stageOf = (count) => {
     const t = compile({
+      agent: TEST_AGENT,
       user: USER, messageCount: count, medium: "text", mode: "chat", voiceEngine: "gemini",
       isDirective: false, watching: false, innerThread: "", innerWants: "", memories: "",
       herLife: "", cultureNoteText: "",

@@ -676,6 +676,17 @@ export function renderCreatorMaterial(lines: readonly MaterialLine[]): string {
   );
 }
 
+/** Build two closed creator-material blocks across the cache boundary. */
+export function renderCreatorMaterialParts(
+  stableLines: readonly MaterialLine[],
+  selectedLine: MaterialLine,
+): { readonly core: string; readonly tail: string } {
+  return {
+    core: renderCreatorMaterial(stableLines),
+    tail: renderCreatorMaterial([selectedLine]),
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // EmotionOS vibe — WS-R153, migration 164. The owner's own five-dial
 // description of their AI's baseline vibe, rendered as ONE short data block

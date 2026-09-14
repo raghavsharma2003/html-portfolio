@@ -6,4 +6,5 @@
 // below is the SHIPPING symbol, never a second copy beside it — the whole
 // point is to compile the REAL compiler over the REAL relstate projection.
 export { compile } from "../../src/engine/compiler";
+export { demoTeacherAgent as TEST_AGENT } from "../../src/engine/agents/teacher";
 export { initialRelState, stageForDims, ruptureStance } from "../../src/engine/relstate";

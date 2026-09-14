@@ -376,9 +376,9 @@ ok("runtime sessions carry composite capability tenancy", /foreign key \(capabil
 
 const route = readFileSync(join(ROOT, "api/replica-runtime.js"), "utf8");
 ok("runtime route derives ownership only from bearer auth", /const user = await requireUser\(req\)/.test(route) && !/body\.(?:owner|owner_user_id|agent_id|person_id)/.test(route));
-const speechClient = readFileSync(join(ROOT, "src/voice/speech.ts"), "utf8");
-ok("client sends opaque replica id and bearer token but no provider id", /\/api\/replica-speech/.test(speechClient) && /Authorization: `Bearer \$\{opts\.replicaToken\}`/.test(speechClient) && !/replicaProvider|replicaVoiceId/.test(speechClient));
-ok("replica cascade explicitly forbids device-voice fallback", (speechClient.match(/if \(replicaVoiceRequested\(opts\)\) return onEnd\?\.\(\);/g) || []).length >= 2);
+const speechClient = readFileSync(join(ROOT, "src/studio/dialogueApi.ts"), "utf8");
+ok("Meet sends opaque replica id and bearer token but no provider id", /\/api\/replica-speech/.test(speechClient) && /Authorization: `Bearer \$\{token\}`/.test(speechClient) && !/replicaProvider|replicaVoiceId/.test(speechClient));
+ok("Meet's protected replica voice path has no browser or device-voice fallback", !/speechSynthesis|SpeechSynthesis|deviceVoice|device-voice/.test(speechClient));
 const productionSpeech = readFileSync(join(ROOT, "api/replica-speech.js"), "utf8");
 ok("production endpoint has no fake-adapter override", !/allowFake|allowTestAdapters\s*:\s*true/.test(productionSpeech));
 

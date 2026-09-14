@@ -56,7 +56,7 @@ try {
       `--outfile=${BUNDLE} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
     { stdio: "inherit", cwd: ROOT },
   );
-  const { compile, initialRelState, stageForDims, ruptureStance } = await import(pathToFileURL(BUNDLE).href);
+  const { compile, TEST_AGENT, initialRelState, stageForDims, ruptureStance } = await import(pathToFileURL(BUNDLE).href);
 
   // The decision module itself: plain JS, no bundling needed — this is the
   // literal file `api/room.js` imports in production.
@@ -79,6 +79,7 @@ try {
 
     const compiledWithNullVsAbsent = () => {
       const base = {
+        agent: TEST_AGENT,
         user: { name: "", vibe: [], facts: {} }, messageCount: 5, medium: "text", mode: "chat",
         voiceEngine: "gemini", isDirective: false, watching: false, innerThread: "", innerWants: "",
         memories: "", herLife: "", cultureNoteText: "", latestUserText: "hi", nowMs: NOW,
@@ -219,6 +220,7 @@ try {
       weEpisodes: [], phrases: [], phraseLedger: [],
     };
     const compiled = compile({
+      agent: TEST_AGENT,
       user: { name: "", vibe: [], facts: {} }, messageCount: 12, medium: "text", mode: "chat",
       voiceEngine: "gemini", isDirective: false, watching: false, innerThread: "", innerWants: "",
       memories: "", herLife: "", cultureNoteText: "", latestUserText: "hi", nowMs: NOW, relBundle,

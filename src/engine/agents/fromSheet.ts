@@ -67,7 +67,7 @@ import { lintLine } from "../shapelint";
 // file, for the same reason (see `PLATFORM_BOUNDARY`'s own header comment
 // in `compiler.ts`).
 import {
-  renderCreatorMaterial,
+  renderCreatorMaterialParts,
   PLATFORM_BOUNDARY,
   PLATFORM_STAGE_EARLY,
   PLATFORM_STAGE_GETTING_CLOSE,
@@ -166,9 +166,9 @@ const STAGE_MATERIAL_LABEL = "how they'd describe this stage of getting to know 
  * SANITIZED copy of the sheet — MATERIAL_FIELDS blanked, so the shared core
  * template's interpolation sites for them render empty rather than fusing the
  * creator's raw words into an instruction sentence — and then appends the
- * material block (built from the REAL, unsanitized values) to CORE, which is
- * where every one of those five fields' fused positions already lived (never
- * TAIL — none of the five sit in `buildSystemPromptParts`'s tail output).
+ * material blocks (built from the REAL, unsanitized values) across the cache
+ * boundary: one closed stable block stays in CORE while a separate closed
+ * block carrying the one stage line selected for this turn starts TAIL.
  * `buildSpeechStyle` and `WATCH_MODE_NOTE` are untouched: neither reads any of
  * the five (grepped: `C.identityWho`/`identityLife`/`lifeTexture`/
  * `tasteTopics`/`curiosityTopics` appear in `persona.ts` only inside the CORE
@@ -222,13 +222,12 @@ export function sheetToModule(sheet: TeacherSheet): AgentModule {
       // sanitized one, so this always names whichever of the three raw
       // stage texts actually governs this turn (see this file's header).
       const activeStageText = stageParagraphFor(messageCount, dimsStage, sheet);
-      const materialBlock = renderCreatorMaterial([
+      const material = renderCreatorMaterialParts([
         ...staticMaterial,
         { label: BOUNDARY_MATERIAL_LABEL, value: String(sheet.boundaryParagraph ?? "") },
-        { label: STAGE_MATERIAL_LABEL, value: activeStageText },
-      ]);
+      ], { label: STAGE_MATERIAL_LABEL, value: activeStageText });
       const parts = buildSystemPromptParts(user, messageCount, medium, dimsStage, sanitized);
-      return { core: parts.core + materialBlock, tail: parts.tail };
+      return { core: parts.core + material.core, tail: material.tail + parts.tail };
     },
     buildSpeechStyle: (engine: VoiceEngine | "live") => buildSpeechStyle(engine, sheet),
 

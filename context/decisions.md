@@ -25257,3 +25257,19 @@ The sponsored Azure subscription and working Speech/Foundry access do not resolv
 **Reversal.** Replace this layout only when a separately reviewed build manifest can reproduce the same source closure, preflight order, immutable base and fail-closed negative controls from a committed revision. A generated deployment-only overlay is not equivalent evidence.
 
 **Completion review.** The closure check now reads the actual Docker COPY instructions and rejects missing or relocated imports. It also requires every bare runtime import to be a Node builtin because this image installs no npm packages. The ignored runtime config is excluded from traversal even if it exists locally; the shared config writer remains a tracked input and is syntax-checked without execution in this phase.
+
+## `wave25-creator-stage-material-is-tail-state` (2026-09-14, wave 25)
+
+**Decision.** A sheet-backed agent splits its single creator-material block at the active stage row. Stable creator facts and the raw boundary description remain in CORE; the one raw stage selected by `stageParagraphFor` and the existing closing marker begin TAIL. Concatenating both parts preserves the previous material block byte for byte, so authority, active-stage content and total prompt budget do not change. Both `teacher.ts` and `fromSheet.ts` use this shape.
+
+**Why.** The raw selected stage was appended to CORE, so crossing message count 149 to 150 produced two core hashes in one 44-turn session and forfeited the provider cache prefix. The platform-owned active-stage instruction already lived in TAIL; the creator's matching stage description is turn state too.
+
+**Reversal.** Move stage material back into CORE only if the provider cache no longer keys on that prefix and a focused session measurement shows the change improves reply quality without reintroducing multiple core hashes. Any alternate split must retain exact selected content, platform authority and static/dynamic module parity without raising either budget.
+
+## `wave25-creator-material-blocks-close-at-each-compiler-boundary` (2026-09-14, wave 25)
+
+**Decision.** Stable creator material in CORE and the selected creator-stage material in TAIL are separate, independently closed `CREATOR MATERIAL` blocks. Trusted compiler additions, including call speech style, the minor safety override, and the Room note, remain outside both envelopes. The two blocks need not preserve the old concatenated byte sequence; the safety envelope takes precedence. `teacher.ts` and `fromSheet.ts` retain static/sheet parity.
+
+**Why.** `compile()` adds trusted CORE text after `AgentModule.buildSystemPromptParts()` returns. The former split left the CORE block open until the selected stage in TAIL, placing those trusted additions inside creator-controlled material on call, minor, and Room paths even while the normal chat prompt looked sound.
+
+**Reversal.** Change this layout only if the compiler gains a separately typed trusted-material channel that makes envelope membership mechanically impossible to confuse, and an actual compile regression proves all current compiler additions and static/sheet parity remain protected without increasing either operational cap.

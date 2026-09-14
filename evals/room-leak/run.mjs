@@ -2545,7 +2545,7 @@ console.log("\n── layer 14: the Room on WhatsApp (WS-R104) — two phones, o
 }
 
 // LAYER 15 (WS-R111, no migration; extended by WS-R121, also no migration) —
-// THE MATERIAL BLOCK, THE PLATFORM-OWNED BOUNDARY, AND MEERA'S BYTE IDENTITY.
+// THE MATERIAL BLOCK, THE PLATFORM-OWNED BOUNDARY, AND EXPLICIT AGENT IDENTITY.
 // `src/engine/agents/fromSheet.ts::sheetToModule` now sanitizes five sheet
 // fields before handing them to `persona.ts`'s UNTOUCHED, READ-ONLY
 // `buildSystemPromptParts` and appends a labelled material block (real
@@ -2554,57 +2554,31 @@ console.log("\n── layer 14: the Room on WhatsApp (WS-R104) — two phones, o
 // longer supply the enforced instruction at all — `compiler.ts`'s
 // `PLATFORM_BOUNDARY`/`PLATFORM_STAGE_*` do, unconditionally, with the
 // sheet's own raw text demoted to two more material lines. `persona.ts` was
-// not edited, and Meera is the static `DEFAULT_AGENT` — she never calls
-// `sheetToModule` — so this layer proves the claim structurally (her
-// compiled prompt can never carry the block's markers, or the platform
-// boundary constants, which are teacher-specific text she never sees) rather
-// than merely trusting the "untouched file" argument, and re-runs the
-// compiler-extraction's own 83/83 proof (`src/engine/__fixtures__/
-// byte-identity.mjs`) as a subprocess so a regression here fails THIS gate,
-// not only `check-prompt-budget.mjs` downstream.
+// not edited. There is no bundled default persona in the standalone product:
+// this layer first proves a missing module refuses, then drives the material
+// checks through the real sheet-backed fixture module. It also re-runs the
+// compiler-extraction's own explicit-module byte proof as a subprocess.
 // ═════════════════════════════════════════════════════════════════════════
-console.log("\n── layer 15: the material block (WS-R111) + the platform-owned boundary (WS-R121) + Meera's byte identity ──");
+console.log("\n── layer 15: the material block + platform-owned boundary + explicit agent identity ──");
 {
   const { engine: engine15, loadAgent: loadAgent15, SHEET: SHEET15 } = await loadFixtureAgent(REPO);
   ok("engine bundle exports the real MATERIAL_BLOCK_OPEN/MATERIAL_BLOCK_CLOSE markers",
     typeof engine15.MATERIAL_BLOCK_OPEN === "string" && engine15.MATERIAL_BLOCK_OPEN.length > 0 &&
     typeof engine15.MATERIAL_BLOCK_CLOSE === "string" && engine15.MATERIAL_BLOCK_CLOSE.length > 0);
 
-  // Meera's own compiled prompt (DEFAULT_AGENT — no `agent` passed, exactly
-  // as every non-Room caller compiles her) must never carry the markers:
-  // she never calls `sheetToModule`, so the block cannot appear in her
-  // output by construction. Checked directly rather than only argued.
-  const meeraCompiled = engine15.compile({
-    user: { name: "", vibe: [], facts: {} },
-    messageCount: 1,
-    medium: "text",
-    mode: "chat",
-    voiceEngine: "gemini",
-    isDirective: false,
-    watching: false,
-    innerThread: "",
-    innerWants: "",
-    memories: "",
-    herLife: "",
-    cultureNoteText: "",
-  });
-  const meeraFull = `${meeraCompiled.core}${meeraCompiled.tail}`;
-  ok("Meera's own compiled prompt carries ZERO material-block markers (she never calls sheetToModule)",
-    !meeraFull.includes(engine15.MATERIAL_BLOCK_OPEN) && !meeraFull.includes(engine15.MATERIAL_BLOCK_CLOSE));
-  // WS-R121: the platform-owned constants are teacher-specific text
-  // (`compiler.ts`'s own header on `PLATFORM_BOUNDARY`) and only
-  // `fromSheet.ts::sheetToModule` reads them — Meera's compiled prompt must
-  // carry none of them either, checked directly rather than only inferred
-  // from "she never calls sheetToModule".
-  ok("Meera's own compiled prompt carries ZERO occurrences of PLATFORM_BOUNDARY/PLATFORM_STAGE_* (WS-R121)",
-    !meeraFull.includes(engine15.PLATFORM_BOUNDARY) &&
-    !meeraFull.includes(engine15.PLATFORM_STAGE_EARLY) &&
-    !meeraFull.includes(engine15.PLATFORM_STAGE_GETTING_CLOSE) &&
-    !meeraFull.includes(engine15.PLATFORM_STAGE_ESTABLISHED));
+  let missingAgentCode = "";
+  try {
+    engine15.compile({
+      user: { name: "", vibe: [], facts: {} }, messageCount: 1, medium: "text", mode: "chat",
+      voiceEngine: "gemini", isDirective: false, watching: false, innerThread: "", innerWants: "",
+      memories: "", herLife: "", cultureNoteText: "",
+    });
+  } catch (error) {
+    missingAgentCode = String(error?.message || error);
+  }
+  ok("compile without an explicit agent module refuses closed", missingAgentCode === "agent_module_required", missingAgentCode);
 
-  // A teacher module's compiled prompt, by contrast, DOES carry the block —
-  // the byte-diff this layer's own header describes: the two paths change
-  // ONLY in whether the block exists, never in whether Meera's own bytes do.
+  // The real sheet-backed fixture module carries the creator material block.
   const { module: teacherModule } = await loadAgent15(SLUG);
   const teacherCompiled = engine15.compile({
     agent: teacherModule,
@@ -2680,10 +2654,10 @@ console.log("\n── layer 15: the material block (WS-R111) + the platform-owne
       { cwd: REPO, encoding: "utf8" },
     );
     const m = /(\d+)\/(\d+) fixtures pass/.exec(out);
-    ok("layer 15: 83/83 byte-identity fixtures still pass (Meera's compiled prompt did not move)",
+    ok("layer 15: all explicit-module byte-identity fixtures still pass",
       Boolean(m) && m[1] === m[2] && Number(m[1]) >= 83, m ? `${m[1]}/${m[2]}` : out.trim());
   } catch (e) {
-    ok("layer 15: 83/83 byte-identity fixtures still pass (Meera's compiled prompt did not move)",
+    ok("layer 15: all explicit-module byte-identity fixtures still pass",
       false, String(e.stdout || e.message || e).slice(-400));
   }
 }

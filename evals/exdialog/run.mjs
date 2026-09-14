@@ -126,9 +126,10 @@ console.log("\n§0 the control really is the shipping prompt");
 //
 // The claim `arms.mjs` makes in its header — arm B's quotable lines reach no
 // shipping prompt — is only worth anything if it is checked. Arm A must compile
-// to exactly the bytes a caller with no `agent` gets today.
+// to exactly the bytes of the shared real fixture module.
 {
   const shipping = compile({
+    agent: TEST_AGENT,
     user: USER,
     messageCount: 120,
     medium: "text",
@@ -143,7 +144,7 @@ console.log("\n§0 the control really is the shipping prompt");
     cultureNoteText: "",
   });
   const a = compileArm(ARMS[0]);
-  ok("[X-1] arm A is byte-identical to a compile with no agent override", a.system === shipping.system);
+  ok("[X-1] arm A is byte-identical to the shared real fixture module", a.system === shipping.system);
   for (const arm of ARMS.slice(1)) {
     const c = compileArm(arm);
     ok(`[X-2] arm ${arm.id}'s text is absent from the shipping prompt`, !shipping.system.includes(arm.text.split("\n")[1]));

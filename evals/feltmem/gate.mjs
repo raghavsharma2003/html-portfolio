@@ -203,7 +203,9 @@ const ok = (name, cond, extra = "") => {
   const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   for (const name of ["maya", "meera", "silk"])
     ok(`the fixtures never name the agent ("${name}")`, !code.toLowerCase().includes(name));
-  ok("the fixtures pass no agent module (the default is the point)", !/\bagent:/.test(code));
+  ok("the dyad fixtures remain character-neutral data (the harness binds the shared real module)", !/\bagent:/.test(code));
+  const harness = readFileSync(join(HERE, "compile.mjs"), "utf8");
+  ok("the compile harness explicitly binds the shared real TEST_AGENT", /E\.compile\(\{ \.\.\.input, agent: E\.TEST_AGENT \}\)/.test(harness));
 }
 
 // ══ 7. THE FIXTURES COMPILE, DETERMINISTICALLY, THROUGH THE REAL ENGINE ═══
@@ -279,6 +281,7 @@ const first = await compileProbes({ arm: "current", engine });
   const probe = PROBES[0];
   const row = first.rows[0];
   const gutted = engine.compile({
+    agent: engine.TEST_AGENT,
     user: DYADS[0].user,
     messageCount: 100,
     medium: "text",
