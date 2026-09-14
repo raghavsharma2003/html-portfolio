@@ -18776,3 +18776,9 @@ Method: static import/caller search with `rg`, esbuild compilation of the real c
 - `evals/vyakti-app/run.mjs`: 35/35. Capacitor, Android and iOS carry the Vyakti id/name; Android has one activity and no flavour split; required permissions, deep links, icons, shell, mic bridge and OTA classes remain; the shipping native sources contain no second product identity.
 - `evals/clonelife/run.mjs`: 62/62; `evals/relational/leak.mjs`: 130/130; `evals/room-doors/run.mjs`: 2719/2719; `scripts/verify-agent-id.mjs`: passed all three persisted UUID mirrors.
 - `npx tsc -b --force`: exit 0 after the web/compiler removal. The full 25-check gate was deliberately left for the combined build/provider/native integration tree.
+
+## `wave25-runtime-bindings-and-live-integrity-20260914` (2026-09-14)
+
+2026-09-14: n=3 exact-version Key Vault reads and n=10 Vercel upserts restored three key pairs and the existing USD0.10 publication subcap; final metadata GET verified every target/type (session85911 exit0). A further n=1 exact-version vault read and n=3 upserts bound the voice-evidence origin/HMAC (session60768 exit0). Values stayed in process memory. Supabase auth settings GET returned200, email enabled, signup allowed, auto-confirm false; no email sent. Speech catalogue GET returned200 with774 voices,18hi-IN,20en-IN; this proves key/endpoint access, not synthesis or likeness.
+
+Live Neon read-only metadata query returned neondb and223publictables. The actual relcheck on integration585f7cd7 passed40checks and FAILED1: meera_log.episode_id resolves,20rows. Receipt scratchpad/expert-tools/standalone25-relcheck-1789374087470.log; no SQL writes. Do not deploy while this is unresolved. Fresh Terra ARM metadata produced baseline commitment eb2c9bd293de800a6e3eea2c2a556cb11be4489b941fbf47b625dda5a8589fbd; no setting, inference or GPU change resulted. Configuration and offline passes do not establish the signed-in owner journey or voice quality.

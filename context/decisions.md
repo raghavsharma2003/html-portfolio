@@ -25188,3 +25188,7 @@ Treat `vyakti-replica-processing` as the actual scheduled consumer: its ARM meta
 **Why.** A default character remained reachable through the otherwise generic compiler, and the native project still shipped a second product's application id, strings, source package and updater domain. Either fallback could put the wrong product identity on a Vyakti path even after the web entry was removed.
 
 **Reversal.** A new built-in persona or native product may be added only as an explicit registry/configuration entry with its own public door, package identity and focused isolation test. It must never become the fallback for a sheet-backed Vyakti Room or Meet.
+
+## `wave25-restore-existing-runtime-keys-without-rotation` (2026-09-14)
+
+Restore private rehearsal, feedback and evaluation key IDs and exact versioned Key Vault values from the prior WEB50 V4 evidence. Do not generate replacement keys or relabel their identities. Use separate sensitive Production/Preview and encrypted Development rows. Bind the existing voice-evidence public origin and matching versioned HMAC to Vercel. Reverse if actual stored ciphertext or service metadata identifies a different historical key. The processing job already has its voice-evidence pair, so it needs no configuration change from this audit.
