@@ -19713,6 +19713,24 @@
       "kind": "rejection",
       "title": "Stale standalone25 CI expectations rejected",
       "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-windows-ci-portability-20260914",
+      "kind": "decision",
+      "title": "Windows CI portability follows scanner contracts",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-windows-ci-portability-measurement-20260914",
+      "kind": "measurement",
+      "title": "Windows focused CI suites pass",
+      "at": "2026-09-14"
+    },
+    {
+      "id": "standalone25-windows-ci-portability-rejected-20260914",
+      "kind": "rejection",
+      "title": "Windows CI path and temp cleanup failures rejected",
+      "at": "2026-09-14"
     }
   ],
   "edges": [
@@ -33632,6 +33650,16 @@
     {
       "src": "standalone25-ci-stale-contracts-rejected-20260914",
       "dst": "standalone25-ci-contracts-follow-current-assets-20260914",
+      "rel": "caused_by"
+    },
+    {
+      "src": "standalone25-windows-ci-portability-20260914",
+      "dst": "standalone25-windows-ci-portability-measurement-20260914",
+      "rel": "measured_by"
+    },
+    {
+      "src": "standalone25-windows-ci-portability-rejected-20260914",
+      "dst": "standalone25-windows-ci-portability-20260914",
       "rel": "caused_by"
     }
   ]

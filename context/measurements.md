@@ -18806,3 +18806,11 @@ The retained actual Terra response evidence has `n=1` for this contract question
 ## standalone25-ci-contracts-20260914
 
 Method: four focused offline suites on standalone25 commit 6f0ab212 after contract repair; n=4 suites, date 2026-09-14. Azure package 18 groups, copy portable 9 groups, ops 155 checks, incidents 134 checks; zero browser, cloud, model or database calls.
+
+## standalone25-windows-ci-portability-20260914
+
+Method: three focused offline suites in codex/standalone25-ci-portable from 19d68429; n=3, date 2026-09-14. azure-build-config 19 checks, launch-scan 8 checks, history-scan 7 checks; all passed.
+
+## standalone25-windows-ci-portability-measurement-20260914
+
+The three focused suites passed with the counts recorded above.

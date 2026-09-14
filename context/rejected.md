@@ -18907,3 +18907,7 @@ Caller audit found candidate construction and comparison use AZURE_FOUNDRY_DIALO
 ## standalone25-ci-stale-contracts-rejected-20260914
 
 The stale alternatives were rejected: requiring nonexistent root index.html, checking /vyakti headers absent from current vercel.json, retaining nonexistent chat.js in the provider inventory, and byte-equality with the older copy scanner. Each caused a focused suite failure; current path and behavior assertions preserve the negative controls.
+
+## standalone25-windows-ci-portability-rejected-20260914
+
+Windows path separators caused both scanner negative controls to miss their planted findings, and a synthetic Azure build temp tree raised EPERM during cleanup. Native separator output and unbounded cleanup retries were rejected because they made valid controls fail for host behavior; the fix keeps detection and limits cleanup tolerance to EPERM/EBUSY outside the repository.

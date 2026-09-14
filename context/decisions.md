@@ -25216,3 +25216,7 @@ Restore private rehearsal, feedback and evaluation key IDs and exact versioned K
 ## standalone25-ci-contracts-follow-current-assets-20260914
 
 2026-09-14. Keep focused CI contracts aligned with the standalone25 product: the Azure package asserts the real site/vyakti.html landing asset, ops checks /room.html headers, and provider inventory names only discovered API files. Reverse if the Vite/Vercel entry map changes and the affected suite is updated with the same source evidence.
+
+## standalone25-windows-ci-portability-20260914
+
+2026-09-14. Normalize scanner findings to forward-slash repo paths and tolerate only Windows EPERM/EBUSY cleanup of synthetic temp trees. Reverse if a non-Windows cleanup error occurs or a real repository path is ever involved.
