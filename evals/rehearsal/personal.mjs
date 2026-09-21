@@ -1033,9 +1033,15 @@ async function main() {
     const shortHint = await page.locator(".vx-capture__instruction strong").first().textContent();
     ok("NEGATIVE CONTROL — a too-short recording is refused (recording continues, not finalized)", await recordButton.getAttribute("aria-pressed") === "true", `hint=${JSON.stringify(shortHint)}`);
 
-    await page.waitForTimeout(12_500);
+    // Allow the recorder's audio worklet to start after the click before
+    // counting the minimum sample duration; slow CI browsers can spend more
+    // than half a second on permission and worklet startup.
+    await page.waitForTimeout(15_000);
     await recordButton.click();
-    await page.locator("button.vx-button--primary", { hasText: "Continue" }).waitFor({ state: "visible", timeout: 20_000 });
+    await page.locator("button.vx-button--primary", { hasText: "Continue" }).waitFor({ state: "visible", timeout: 20_000 }).catch(async (error) => {
+      console.log("  record review did not open:", JSON.stringify((await page.locator("body").innerText()).slice(-1200)));
+      throw error;
+    });
     const qualityText = await page.locator(".vx-sample p").first().textContent();
     ok("record: a real >=12s fake-microphone sample reached the review screen", true, `quality=${JSON.stringify(qualityText)}`);
     const continueButton = page.locator("button.vx-button--primary", { hasText: "Continue" });
@@ -1096,9 +1102,17 @@ async function main() {
     // without-the-full-build-promotion-pipeline.
     tStep = Date.now();
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.locator(".vx-verification, .vx-conversation-switch, #knowledge-menu-title, #context-locker-title").first().waitFor({ state: "visible", timeout: 20_000 });
+    await page.locator("#vx-verification-pending-title, .vx-verification, .vx-conversation-switch, #knowledge-menu-title, #context-locker-title").first().waitFor({ state: "visible", timeout: 20_000 });
     const reachedMeet = await page.locator(".vx-conversation-switch").count() > 0;
-    ok("record: the real, unmodified CloneVerificationJourney renders honestly (never a crash) when the build has not promoted", reachedMeet || await page.locator(".vx-verification").count() > 0);
+    const verificationPending = await page.locator("#vx-verification-pending-title").isVisible();
+    ok("record: the saved voice shows an honest pending state while verification has not promoted", verificationPending || reachedMeet || await page.locator(".vx-verification").count() > 0);
+    if (verificationPending) {
+      const backToKnowledge = page.getByRole("button", { name: "Back to knowledge" });
+      ok("record: pending verification offers a way back to knowledge", await backToKnowledge.isVisible());
+      await backToKnowledge.click();
+      await page.locator("#knowledge-menu-title").waitFor({ state: "visible", timeout: 20_000 });
+      ok("record: Back to knowledge opens the real knowledge room", true);
+    }
     if (!reachedMeet) {
       console.log("  FINDING: Meet does not open automatically on this tree without the full build-promotion pipeline (queueOwnedVoiceGenome's evidence gate + promoteCandidate) — a real product fact, not a rehearsal gap; see this file's own header and context/rejected.md#ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline.");
     }
@@ -1268,7 +1282,7 @@ async function main() {
     await page.evaluate((rid) => localStorage.removeItem(`vyakti:experience:voice-saga:v1:${rid}`), rid);
     await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
     try {
-      await page.locator(".vx-conversation-switch, .vx-record-button, .vx-verification").first().waitFor({ state: "visible", timeout: 20_000 });
+      await page.locator(".vx-conversation-switch, .vx-record-button, .vx-verification, #vx-verification-pending-title").first().waitFor({ state: "visible", timeout: 20_000 });
     } catch (cause) {
       console.log("DEBUG meetOpenWithoutVoice timeout; body:", (await page.locator("body").innerText()).slice(0, 800));
       const el = page.locator(".vx-conversation-switch").first();
@@ -1310,7 +1324,7 @@ async function main() {
     //    state — not a full call turn (a named gap, see this file's header).
     tStep = Date.now();
     await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
-    await page.locator("#knowledge-menu-title, .vx-record-button, .vx-conversation-switch, .vx-verification").first().waitFor({ state: "visible", timeout: 20_000 });
+    await page.locator("#knowledge-menu-title, .vx-record-button, .vx-conversation-switch, .vx-verification, #vx-verification-pending-title").first().waitFor({ state: "visible", timeout: 20_000 });
     ok("Talk: the studio reloads signed-in without crashing (real session persisted; MirrorCallStudio is unreachable in this tree for the same real reason Meet is, named in this file's own header)", true);
     timings.talkMs = Date.now() - tStep;
 
