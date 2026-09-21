@@ -1,3 +1,4 @@
+import {privateVoiceErasureFence} from './_private-voice-erasure.js';
 import { createHmac, randomBytes } from "node:crypto";
 import { sha256Hex } from "./_replica-processing/contracts.js";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
@@ -48,6 +49,7 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // and a deletion receipt that did not name them would understate what
       // was held. Additive; the eval asserts membership, never the exact list.
       "owner_context_locker",
+      "private_voice_requests_and_outputs",
       "published_account_text_and_visitor_payloads",
       // 058. Named as its own class rather than folded into replica_feedback:
       // a Mirror Call holds the owner's own transcript and the habits mined
@@ -180,6 +182,12 @@ export async function prepareReplicaErasures(db, options = {}) {
        update vy_replica r set lifecycle='purging',revoked_at=coalesce(revoked_at,now()),updated_at=now()
          from candidates c where r.replica_id=c.replica_id and r.owner_user_id=c.owner_user_id
        returning r.replica_id,r.owner_user_id
+     ), private_voice_revoked as (
+       update vy_private_voice_run pv set state='revoked',revoked_at=coalesce(revoked_at,now()),updated_at=now()
+       from replicas r where pv.replica_id=r.replica_id and pv.owner_user_id=r.owner_user_id returning pv.window_id
+     ), private_voice_closing as (
+       update vy_voice_app_lifecycle l set state='closing' from private_voice_revoked pv
+       where l.window_id=pv.window_id and l.state='open'
      ), consents as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
          from replicas r where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
@@ -265,6 +273,7 @@ export async function leaseNextReplicaErasure(db, options = {}) {
           (j.state='running' and (j.lease_expires_at is null or j.lease_expires_at<=now()))
          ) and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=j.replica_id)
            and not exists (select 1 from vy_replica_source s where s.replica_id=j.replica_id)
+           and ${privateVoiceErasureFence('r',false)}
            and not exists (
              select 1 from vy_replica_source_storage_writer sw
               where sw.replica_id=j.replica_id and sw.owner_user_id=j.owner_user_id
@@ -451,6 +460,7 @@ export async function completeReplicaErasure(db, lease, receipt) {
            and j.storage_status->>'channel'='confirmed'
            and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=r.replica_id)
            and not exists (select 1 from vy_replica_source s where s.replica_id=r.replica_id)
+           and ${privateVoiceErasureFence('r',false)}
            and not exists (
              select 1 from vy_replica_source_storage_writer sw
               where sw.replica_id=r.replica_id and sw.owner_user_id=r.owner_user_id
@@ -632,6 +642,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
          and (select count(*) from retired_text_publication_ids)>=0),
      comparison_references as (delete from vy_replica_comparison_reference x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     private_voice_runs as (delete from vy_private_voice_run x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      private_text_rehearsals as (delete from vy_private_text_rehearsal x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),

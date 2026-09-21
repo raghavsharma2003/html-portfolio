@@ -643,6 +643,13 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
         where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
           and exists (select 1 from owned where snapshot_current)
         returning ${SOURCE_RETURNING}
+     ), private_voice_revoked as (
+       update vy_private_voice_run pv set state='revoked',revoked_at=coalesce(revoked_at,now()),updated_at=now()
+       from target t where pv.replica_id=t.replica_id and pv.owner_user_id=t.owner_user_id and pv.source_id=t.source_id
+       returning pv.window_id
+     ), private_voice_closing as (
+       update vy_voice_app_lifecycle l set state='closing' from private_voice_revoked pv
+       where l.window_id=pv.window_id and l.state='open'
      ), private_text_erased as (
        delete from vy_private_text_rehearsal h using target t
        where h.replica_id=t.replica_id and h.owner_user_id=$2::uuid and h.source_id=t.source_id

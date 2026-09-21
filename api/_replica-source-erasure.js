@@ -1,3 +1,4 @@
+import {privateVoiceErasureFence} from './_private-voice-erasure.js';
 import { randomBytes } from "node:crypto";
 import { REPLICA_POLICY_VERSION, replicaId } from "./_replica.js";
 import { sha256Hex } from "./_replica-processing/contracts.js";
@@ -107,6 +108,7 @@ export async function leaseNextSourceErasure(db, options = {}) {
           -- A DB job/intent can settle before a provider finishes a request.
           -- The per-writer authority is the durable provider quiescence gate;
           -- released or expired rows do not block, active future rows do.
+          and ${privateVoiceErasureFence('s')}
           and not exists (
             select 1 from vy_replica_source_storage_writer sw
              where sw.source_id=s.source_id and sw.replica_id=s.replica_id
@@ -154,6 +156,10 @@ export async function leaseNextSourceErasure(db, options = {}) {
                        from vy_replica_processing_artifact a
                       where a.source_id=s.source_id and a.replica_id=s.replica_id
                         and a.owner_user_id=s.owner_user_id
+                     union all
+                     select pv.output_storage_bucket bucket,pv.output_object_path path
+                       from vy_private_voice_run pv where pv.source_id=s.source_id and pv.replica_id=s.replica_id
+                        and pv.owner_user_id=s.owner_user_id and pv.output_deleted_at is null
                      union all
                      select i.result_storage_bucket bucket,i.result_object_path path
                        from vy_replica_voice_preview_intent i
@@ -210,7 +216,8 @@ export async function renewSourceErasureLease(db, lease, options = {}) {
       where s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
         and s.state='deleting' and s.erasure_lease_token_hash=$4
            and s.erasure_lease_expires_at>now()
-           and not exists (
+           and ${privateVoiceErasureFence('s')}
+          and not exists (
              select 1 from vy_replica_source_storage_writer sw
               where sw.source_id=s.source_id and sw.replica_id=s.replica_id
                 and sw.owner_user_id=s.owner_user_id and sw.state='active'
@@ -255,6 +262,7 @@ export async function completeSourceErasure(db, lease) {
           -- must not remove the final manifest if an authority was extended or
           -- an old-version writer became visible after the lease was issued.
           and coalesce(s.upload_authorization_expires_at,'-infinity'::timestamptz)<=now()
+          and ${privateVoiceErasureFence('s')}
           and not exists (
             select 1 from vy_replica_source_storage_writer sw
              where sw.source_id=s.source_id and sw.replica_id=s.replica_id

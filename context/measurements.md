@@ -19110,3 +19110,8 @@ Same continuation: exact three infra writes completed, then standalone25-interna
 ## wave26-saved-audio-csp-20260914
 
 2026-09-14. Actual Chromium n16 checks passed across /studio and /studio.html: old policy blocks upload before storage, local blob playback and signed-origin audition; repaired policy accepts the real block+commit uploader and decodes13s synthetic WAV from both blob and intercepted exact Azure origin. No Azure Blob write or model call. check-headers/supply-chain returned zero findings; three moderate/low npm notices remain below its unchanged high threshold.
+
+
+## `private-voice-request171-offline` — handler/store controls (2026-09-14)
+
+At first checkpoint, n=13 node:test cases passed using the real private handler/store and synthetic SQL results in evals/private-voice/run.test.mjs. Covered owner/session boundaries, immutable request config, duplicate UUID, source/permission changes, withdrawal/expiry, receipt tampering and erasure-path checks. A real-store SQL capture script emits four parameterized EXPLAIN shapes. No live migration, PostgreSQL parse, GPU/model call or measured likeness occurred. Current fresh-reference effective Hindi CFG is 0 for unknown/unverified language, while requested CFG remains 0.78; this is source behavior, not a listening result.

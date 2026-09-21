@@ -19271,3 +19271,8 @@ The merge control required every recorder logic line and entire non-mock wavCapt
 ## wave26-connect-src-does-not-authorize-saved-audio
 
 The initial Studio repair allowed Azure XHR and blob playback but omitted Azure from media-src. Code inspection found ProcessingReview passes the server-created short-lived Azure audition URL directly to audio.src, so that next listening action would still be blocked. The policy and its real browser negative controls now cover both upload and signed-origin playback; do not assume connect-src governs media elements.
+
+
+## `private-voice-static-grant-expansion` — removing the owner check would split GPU authority (2026-09-14)
+
+Rejected treating the retained owner-only internal runtime as generic by changing its guard: its Blob state contains one static reference, authorization, budget reserve and GPU exclusion. Per-account copies would multiply the budget and allow concurrent target activation. Public preview selection also depends on review/genome fences that private self-use does not claim. Batch171 instead stores separate private request attestations and reserves shared SQL metering for the following CPU adapter. An initial candidate SQL draft used USING after an ON join that exposed duplicate owner tuple columns; corrected to explicit tuple joins before parser review. Synthetic tests are not proof that SQL parses.

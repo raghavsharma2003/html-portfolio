@@ -502,6 +502,21 @@ if (unreachable.length) {
   );
 }
 
+// 171 is optional until its reviewed migration is applied. The generic catalog
+// walk above must also prove its composite source/replica cascade reach.
+const privateVoice171 = await q("select to_regclass('public.vy_private_voice_run') is not null present");
+if (privateVoice171[0]?.present) {
+  check("Private voice requests retain the owner's exact source/artifact tuple", `select count(*)::integer n
+    from vy_private_voice_run h where not exists (
+      select 1 from vy_replica_processing_artifact a join vy_replica_source s
+        on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
+      where a.artifact_id=h.artifact_id and a.source_id=h.source_id and a.replica_id=h.replica_id
+        and a.owner_user_id=h.owner_user_id and a.sha256=h.reference_sha256)
+    or h.output_object_path<>h.owner_user_id::text||'/'||h.replica_id::text||'/'||h.source_id::text||'/derived/private-voice/'||h.run_id::text||'.wav'
+    or (h.receipt->>'scope'='private_voice_test' and h.config->>'release_eligible'='false'
+      and h.config->>'identity_claim_allowed'='false') is not true`);
+}
+
 // 166 adds two columns to the already-covered vy_replica_calibration table
 // (erasure reach and PERSON_TABLES manifest coverage are unchanged -- see
 // the migration file), but winner_artifact_id carries NO declared FK
