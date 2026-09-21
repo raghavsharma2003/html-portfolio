@@ -25524,3 +25524,8 @@ Owner requests wrap-up. Prioritize the repaired UI release and genuine per-accou
 ## fast-private-pilot-20260921
 
 The owner explicitly prioritizes fast wrap-up and token economy. Release the repaired private sign-in, knowledge, profile and text-conversation journey. Keep incomplete voice scaffolding separate; no new runtime, GPU activation or migration171 in this release. Reverse when this pilot works end to end and the owner resumes voice expansion.
+
+
+## private-preview-wrap-20260921
+
+Deploy accepted4461b361 as protected Preview after exact-head25/25 on Node22 and24 plus Android success. Keep production untouched and unfinished private voice WIP separate. Reverse the narrow text-pilot scope only after a genuine account journey succeeds and the owner resumes voice expansion.

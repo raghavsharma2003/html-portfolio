@@ -1,5 +1,26 @@
 # STATE — read this first, then the graph
 
+## START HERE: REPAIRED PRIVATE PREVIEW LIVE (2026-09-21)
+
+Owner prioritizes fast wrap-up and low token waste. Stop feature expansion.
+Protected Preview: https://vyakti-replica-exjrjsy9f-raghav-carbonsettles-projects.vercel.app/studio
+Deployment dpl_H8iEKeWY4HFWeGSshczwLwHS5K9y serves accepted4461b361.
+Node22 and Node24 each25/25 passed in GitHub run35574317929; Android
+run35574317816 passed. Source fingerprint7b8159561fcaa140201d7fad4f0b23249da7ac75b8029b63ac303278623b3705.
+Live probe60/0 findings, deploy verifier6/6, both Studio CSP headers and
+release marker match. Exact preview Azure upload CORS added and read back.
+Browser sign-in screen checked; no signed-in real-account journey yet.
+
+Usable test target: email/Google sign-in, own workspace, knowledge/context,
+person profile, private text questions and correction. General voice cloning
+is unfinished, not part of this pilot acceptance. Private voice WIP f0246956
+stays on codex/private-voice-requests25; migration171 NOT applied. No GPU
+activation, new model call or voice likeness measurement in this release.
+Only user action pending is signing into the new preview to test their actual
+account. No personal Microsoft browser access on this employer laptop.
+Detailed receipts and limitations: docs/handoff/2026-09-21/WRAP-UP.md.
+
+
 ## START HERE: FAST PRIVATE PILOT; RELEASE CORRECTIONS IN PROGRESS (2026-09-21)
 
 Owner prioritizes usable product and token economy. Freeze feature expansion.

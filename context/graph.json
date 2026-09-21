@@ -20817,6 +20817,24 @@
       "kind": "rejection",
       "title": "Automatic private handoff must not override explicit source tests or recovery",
       "at": "2026-09-21"
+    },
+    {
+      "id": "private-preview-wrap-20260921",
+      "kind": "decision",
+      "title": "Ship repaired private preview without voice completion claim",
+      "at": "2026-09-21"
+    },
+    {
+      "id": "private-preview-live-20260921",
+      "kind": "measurement",
+      "title": "Accepted release and live source verified",
+      "at": "2026-09-21"
+    },
+    {
+      "id": "preview-is-not-user-journey-20260921",
+      "kind": "rejection",
+      "title": "Passing deployment probes does not prove the signed-in journey",
+      "at": "2026-09-21"
     }
   ],
   "edges": [

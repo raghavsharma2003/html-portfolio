@@ -19122,3 +19122,8 @@ Same continuation: exact three infra writes completed, then standalone25-interna
 2026-09-21: GitHub release run35572189697, Node22 job106245960611 and Node24 job106245960796, n=2 complete job logs: each24/25 top-level checks passed; eval-suite failed. Android run35572189702 succeeded. Failing browser suites were verification-knowledge, feed-meet-return-ui, primary-intent-recovery, rehearsal-personal; Node24 additionally private-teaching-refinement-ui. No deployment of65d occurred.
 
 Focused correction checks on2026-09-21: verification-knowledge14 mounted checks; unchanged feed-meet-return13 groups and primary-intent-recovery18 groups; private-first-meet4 groups; private-teaching-refinement42 groups. Personal rehearsal64/64 passes against its synthetic handler fixture. TypeScript composite build and copy gate pass. These prove mounted/synthetic behavior, not live account or voice quality.
+
+
+## private-preview-live-20260921
+
+2026-09-21: n=2 CI matrix jobs each25/25; Android success. Deployment dpl_H8iEKeWY4HFWeGSshczwLwHS5K9y READY. Live route/API probe n=60, zero findings; deploy verifier n=6 passed. Two Studio CSP headers exactly match checkout; source marker7b8159561fcaa140201d7fad4f0b23249da7ac75b8029b63ac303278623b3705 matches1105 files28991972 bytes. Exact Azure CORS origin readback passed, unchanged unowned properties. Browser sign-in visibly rendered. No real authenticated user journey or model/voice quality measurement.
