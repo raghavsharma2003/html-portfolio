@@ -9,6 +9,12 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const bundle = await build({ stdin: { contents: `
   import React, { useState } from 'react';
   import { createRoot } from 'react-dom/client';
+  window.noticeTimerStarts = 0;
+  const schedule = window.setTimeout.bind(window);
+  window.setTimeout = (fn, delay, ...args) => {
+    if (delay === 6000) window.noticeTimerStarts++;
+    return schedule(fn, delay, ...args);
+  };
   import Notice from './src/studio/WorkspaceNotice';
   import { workspaceLifecycleLabel } from './src/studio/workspaceLifecycle';
   function App() {
@@ -40,10 +46,15 @@ try {
   await page.clock.install();
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   const click = name => page.getByRole('button',{name,exact:true}).click();
-  const count = async (role,n) => { assert.equal(await page.getByRole(role).count(),n); checks++; };
+  const count = async (role,n) => {
+    await page.getByRole(role).waitFor({ state: n ? 'attached' : 'detached', timeout: 3000 });
+    assert.equal(await page.getByRole(role).count(),n); checks++;
+  };
   await click('Notify'); await count('status',1);
+  await page.waitForFunction(()=>window.noticeTimerStarts === 1);
   await page.clock.runFor(4000); await click('Rerender'); await page.clock.runFor(2100);
-  await count('status',0); // unstable parent callback must not restart the timer
+  assert.equal(await page.evaluate(()=>window.noticeTimerStarts),1,'unstable parent callback must not restart the timer');
+  await count('status',0); // wait for React/AnimatePresence to commit the actual dismissal
   await click('Notify'); await page.getByRole('button',{name:'Dismiss',exact:true}).focus();
   await page.clock.runFor(8000); await count('status',1);
   await page.getByRole('button',{name:'Rerender',exact:true}).focus(); await page.clock.runFor(6100);
@@ -51,6 +62,15 @@ try {
   await click('Notify'); await click('Navigate'); await count('status',0);
   await click('Notify'); await click('Drawer'); await count('status',0);
   await click('Drawer'); await count('status',0); // reopening must not revive stale feedback
+  await click('Notify'); await click('Dismiss'); await count('status',0);
+  await page.getByRole('button',{name:'Notify',exact:true}).evaluate(button=>button.click());
+  await page.clock.runFor(6100); await count('status',0); // dismissed focus cannot pause the next async notice
+  await click('Notify'); await page.getByRole('status').hover();
+  await page.getByRole('button',{name:'Navigate',exact:true}).evaluate(button=>button.click());
+  await count('status',0);
+  await page.mouse.move(700,500);
+  await page.getByRole('button',{name:'Notify',exact:true}).evaluate(button=>button.click());
+  await page.clock.runFor(6100); await count('status',0); // removed hover cannot leak into the next scope
   await click('Error'); await page.clock.runFor(15000); await count('alert',1);
   await click('Dismiss'); await count('alert',0);
   assert.equal(await page.getByTestId('lifecycle').textContent(),'Finish setup / अपनी आवाज़ जोड़ें'); checks++;

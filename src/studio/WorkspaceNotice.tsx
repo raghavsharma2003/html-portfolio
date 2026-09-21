@@ -34,6 +34,9 @@ export default function WorkspaceNotice(props: Props) {
   }, [message, error, hidden, pointerInside, focusInside]);
 
   const visible = !hidden && Boolean(error || (message && !stale));
+  useEffect(() => {
+    if (!visible) { setPointerInside(false); setFocusInside(false); }
+  }, [visible]);
   return <AnimatePresence>
     {visible && <motion.div className={`vx-toast${error ? " is-error" : ""}`}
       key={error ? `error:${error.headline}:${error.detail}` : `notice:${message}`}
