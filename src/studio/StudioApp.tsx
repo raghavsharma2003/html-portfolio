@@ -173,7 +173,7 @@ const GENERIC_COPY: StudioCopy = {
   // what does not work. The truth is unchanged and still stated on the panels
   // that own each gate; what changes is that the first thing a person reads
   // after their first action tells them what to do next.
-  createdNotice: "Your workspace is ready. Add one file or link on this step, and you can hear a private draft voice before any verification.",
+  createdNotice: "Your workspace is ready. Add your information and one text source to test a private draft.",
 };
 
 const TEST_COPY: StudioCopy = {
@@ -188,7 +188,7 @@ const TEST_COPY: StudioCopy = {
   nameLabel: "Clone name",
   namePlaceholder: "Your name",
   fieldNote: "You can change the clone as you test it.",
-  createdNotice: "Test workspace ready. Add useful sources, or start talking to the clone now.",
+  createdNotice: "Test workspace ready. Add useful sources, then use the available private tests.",
 };
 
 const ERASURE_REQUEST_KEY = "vyakti.replica.erasure-request.v1";
@@ -1805,7 +1805,7 @@ export default function StudioApp({
           listSources(fresh.accessToken, replicaId),
           livenessStatus(fresh.accessToken, replicaId),
           readRuntimeStatus(fresh.accessToken, replicaId),
-          mode === "teacher" ? readTeacherSheetDraft(fresh.accessToken, replicaId) : Promise.resolve(null),
+          readTeacherSheetDraft(fresh.accessToken, replicaId),
           mode === "teacher" ? listChannels(fresh.accessToken, replicaId) : Promise.resolve(null),
         ]);
         if (!live) return;
@@ -2214,6 +2214,11 @@ export default function StudioApp({
     }
   }
 
+  function handlePersonalSheetSaved(replicaId: string, sheet: TeacherSheet) {
+    if (!session || activeSessionRef.current?.userId !== session.userId || selectedIdRef.current !== replicaId) return;
+    setSheetDraft(sheet);
+  }
+
   /**
    * The public first-run path deliberately combines workspace creation and the
    * one source-intake agreement behind one tap. They remain two server
@@ -2574,6 +2579,7 @@ export default function StudioApp({
         onActivityAct={handleActivityAct}
         onAuthError={handleReviewAuthError}
         onContextCount={setContextItemCount}
+        onPersonalSheetSaved={handlePersonalSheetSaved}
       />
       </Suspense>
       </StudioLocaleProvider>

@@ -42,6 +42,7 @@ import type {
   VoiceListeningCandidate,
 } from "./types";
 import type { WizardInput } from "./wizardModel";
+import type { TeacherSheet } from "../engine/agents/teacherTypes";
 import { useStudioLocale } from "./localeContext";
 import type { CloneExperienceShellCopy } from "./copy";
 import WorkspaceNotice from "./WorkspaceNotice";
@@ -768,6 +769,7 @@ export interface CloneExperienceProps {
   onActivityAct: (job: ActivityJob) => void;
   onAuthError: (cause: unknown) => void;
   onContextCount: (count: number) => void;
+  onPersonalSheetSaved?: (replicaId: string, sheet: TeacherSheet) => void;
 }
 
 /** WS-R157. The one shape this file needs off a captured `beforeinstallprompt`
@@ -791,7 +793,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
     onRefreshEnrollment, onRefreshReview, onReadVoiceReissue, onCheckCaptureReadiness, onIssueChallenge, onStartFaceSession,
     onPollFaceSession, onCancelChallenge, onCreateLivenessUpload, onFinalizeLiveness,
     onVerifiedConsentChanged,
-    onActivityView, onActivityAct, onAuthError, onContextCount,
+    onActivityView, onActivityAct, onAuthError, onContextCount, onPersonalSheetSaved,
   } = props;
   const { t, locale } = useStudioLocale();
   const copy = t.cloneExperienceShell;
@@ -1381,6 +1383,9 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const showRecorder = Boolean(selected && consentActive && !voiceSaga && !activeCandidate && !upload
     && (textReady ? replacePrimary : (!currentPrimary || replacePrimary)));
   const showVerification = Boolean(selected && consentActive && activeCandidate && !upload);
+  const voiceVerificationPending = Boolean(showVerification && activeCandidate?.state === "ready"
+    && !review?.self_test_mode && selected
+    && (!selected.age_verified || !selected.identity_verified || !selected.liveness_verified));
   const voiceWorkspaceReady = Boolean(selected && consentActive && !voiceSaga && runtimeStatus?.active
     && currentVoiceReady && !replacePrimary && !upload);
   const privateFirstMeet = Boolean(selected && consentActive && room === "voice" && meetView === "conversation"
@@ -1509,6 +1514,8 @@ export default function CloneExperience(props: CloneExperienceProps) {
             <motion.section className="vx-scene vx-saga-recovery" key="saga-recovery" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-labelledby="vx-saga-title"><div className="vx-upload__center"><VoiceField level={0.08} calm /></div><div className="vx-stage-title"><h1 id="vx-saga-title">{copy.sagaRecovery.heading}</h1><p>{copy.sagaRecovery.body}</p></div><div className="vx-upload__actions"><button className="vx-button vx-button--primary" type="button" onClick={() => void onRefreshEnrollment()}>{copy.sagaRecovery.checkReceipt}</button><button className="vx-button vx-button--quiet" type="button" onClick={() => void replaceRecording()}>{copy.sagaRecovery.startAgain}</button></div></motion.section>
           ) : showRecorder && !textWorkspaceOpen ? (
             <motion.div className="vx-scene" key="record" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><ResonanceRecorder key={selected?.replica_id} onKnowledge={() => chooseRoom("enrich")} onProceed={(sample, language) => void submitRecording(sample, language)} /></motion.div>
+          ) : voiceVerificationPending && selected && !textWorkspaceOpen ? (
+            <motion.section className="vx-scene vx-saga-recovery" key="voice-verification-pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-labelledby="vx-verification-pending-title"><div className="vx-stage-title"><h1 id="vx-verification-pending-title">{copy.verification.platformPendingHeading}</h1><p>{privateTextEntryEligible ? copy.verification.platformPendingReadyBody : copy.verification.platformPendingBody}</p></div><div className="vx-upload__actions">{privateTextEntryEligible ? <button className="vx-button vx-button--primary" type="button" onClick={() => chooseRoom("rehearsal")}>{copy.verification.testPrivateDraft}</button> : null}<button className="vx-button vx-button--quiet" type="button" onClick={() => { setEnrichView("menu"); chooseRoom("enrich"); }}>{copy.verification.backToKnowledge}</button></div></motion.section>
           ) : showVerification && selected && !textWorkspaceOpen ? (
             <motion.div className="vx-scene vx-verification" key="verification" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>{voiceBuildIntent?.state === "failed" ? <aside className="vx-recovery" role="alert"><div><strong>{selectionReissue ? copy.verification.chooseWhetherToUse : copy.verification.couldNotBuild}</strong><span>{selectionReissue ? voiceBuildIntent.last_error_code === "primary_selection_snapshot_missing" ? copy.verification.needsNewConfirmation : copy.verification.confirmToReplace : voiceBuildIntent.last_error_code.replaceAll("_", " ") || copy.verification.buildStoppedOurSide}</span>{selectionReissue && !onReadVoiceReissue ? <span>{copy.verification.checkingUnavailable}</span> : null}{reissueError ? <span role="alert">{reissueError}</span> : null}</div>{selectionReissue ? <button type="button" disabled={reissueBusy || !onReadVoiceReissue} onClick={() => void reissueSavedRecording()}>{reissueBusy ? copy.verification.checkingRecording : copy.verification.useThisRecording}</button> : null}<button type="button" disabled={reissueBusy} onClick={() => void replaceRecording()}>{copy.verification.recordAgain}</button></aside> : recoveryJob ? <aside className="vx-recovery" role={recoveryJob.state === "waiting_on_you" ? "status" : "alert"}><div><strong>{recoveryJob.state === "waiting_on_you" ? copy.verification.actionNeeded : copy.verification.stepStopped}</strong><span>{recoveryJob.state_reason}</span></div>{recoveryJob.next_action.kind !== "none" && recoveryJob.next_action.kind !== "wait" && recoveryJob.next_action.kind !== "owner_setup" ? <button type="button" disabled={recoveryBusy} onClick={() => void runRecoveryAction()}>{recoveryBusy ? copy.verification.checking : recoveryJob.next_action.label}</button> : null}</aside> : null}<CloneVerificationJourney ownerUserId={ownerUserId} token={accessToken} replica={selected} consents={consents} sources={sources} review={review} candidateSourceId={activeCandidate?.source_id} buildIntent={voiceBuildIntent} reviewLoading={reviewLoading} challenge={challenge} livenessLoading={livenessLoading} onOpenSourcePermission={() => { void onGrantConsent().catch(onAuthError); }} onResetLegacyClone={onRevoke} onReturnToVoice={() => void replaceRecording()} onExit={() => { setEnrichView("menu"); chooseRoom("enrich"); }} exitLabel={copy.verification.backToKnowledge} onContinue={finishCandidateJourney} onCreateSourceUpload={onCreateUpload} onRetryUpload={onRetryUpload} onFinalizeSourceUpload={onFinalizeUpload} onDeleteSource={onDeleteSource} onSourcesChanged={onRefreshEnrollment} onIdentityChanged={onRefreshEnrollment} onCheckCaptureReadiness={onCheckCaptureReadiness} onIssueChallenge={onIssueChallenge} onStartFaceSession={onStartFaceSession} onPollFaceSession={onPollFaceSession} onCancelChallenge={onCancelChallenge} onCreateLivenessUpload={onCreateLivenessUpload} onFinalizeLiveness={onFinalizeLiveness} onVerifiedConsentChanged={onVerifiedConsentChanged} onRefreshReview={onRefreshReview} onAuthError={onAuthError} /></motion.div>
           ) : showRooms && selected ? (
@@ -1549,7 +1556,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
                   } else {
                     chooseRoom("rehearsal");
                   }
-                }} /></> : null}{enrichView === "video" ? <VideoEnrollPanel token={accessToken} replicaId={selected.replica_id} onUseFileUpload={() => { setReplacePrimary(true); chooseRoom("voice"); }} /> : null}{enrichView === "describe" ? <DescribeMe token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} onSaved={onContextCount} /> : null}{enrichView === "humanos" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingWhoYouAre}</p>}><HumanOsStudio token={accessToken} replica={selected} onAuthError={onAuthError} /></Suspense> : null}</>}</section>}
+                }} /></> : null}{enrichView === "video" ? <VideoEnrollPanel token={accessToken} replicaId={selected.replica_id} onUseFileUpload={() => { setReplacePrimary(true); chooseRoom("voice"); }} /> : null}{enrichView === "describe" ? <DescribeMe token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} onSaved={onContextCount} /> : null}{enrichView === "humanos" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingWhoYouAre}</p>}><HumanOsStudio token={accessToken} replica={selected} locale={locale} onAuthError={onAuthError} onSaved={onPersonalSheetSaved} /></Suspense> : null}</>}</section>}
               {room === "evolve" && <section className="vx-room__panel vx-room__scroll"><div className="vx-stage-title"><h1>{copy.rooms.evolve.heading}</h1><p>{copy.rooms.evolve.body}</p></div><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.evolve.openingHistory}</p>}><PersonModelStudio token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} /></Suspense></section>}
               {room === "emotionos" && <section className="vx-room__panel vx-room__scroll"><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.emotionos.openingVibe}</p>}><EmotionOsStudio token={accessToken} replicaId={selected.replica_id} replica={selected as { locale?: unknown }} onAuthError={onAuthError} onBack={() => chooseRoom("enrich")} /></Suspense></section>}
               {room === "call" && <section className="vx-room__panel vx-room__scroll"><div className="vx-stage-title"><h1>{copy.rooms.call.headingTemplate.replace("{name}", selected.display_name)}</h1><p>{copy.rooms.call.body}</p></div><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.call.openingCallRoom}</p>}><MirrorCallStudio token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} /></Suspense></section>}

@@ -975,6 +975,10 @@ const HI_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
     stepStopped: "यह चरण रुक गया",
     checking: "जांचा जा रहा है",
     backToKnowledge: "जानकारी पर लौटें",
+    platformPendingHeading: "आवाज़ की पुष्टि अभी उपलब्ध नहीं है।",
+    platformPendingBody: "आपकी रिकॉर्डिंग सुरक्षित है। आवाज़ की पुष्टि हमारी ओर से रुकी है। निजी टेक्स्ट ड्राफ्ट तैयार करने के लिए जानकारी पर लौटें।",
+    platformPendingReadyBody: "आपकी रिकॉर्डिंग सुरक्षित है। आवाज़ की पुष्टि हमारी ओर से रुकी है। अभी निजी टेक्स्ट ड्राफ्ट आज़माएँ।",
+    testPrivateDraft: "निजी ड्राफ्ट आज़माएँ",
   },
   rooms: {
     voice: {

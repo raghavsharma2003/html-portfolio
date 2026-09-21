@@ -942,6 +942,10 @@ export interface CloneExperienceShellCopy {
     stepStopped: string;
     checking: string;
     backToKnowledge: string;
+    platformPendingHeading: string;
+    platformPendingBody: string;
+    platformPendingReadyBody: string;
+    testPrivateDraft: string;
   };
   rooms: {
     voice: { headingTemplate: string; body: string; meetExperienceAria: string; conversation: string; voiceSample: string; privateDraftTest: string; listeningTest: string; openingListeningTest: string; lookingForSamples: string; needTwoSamples: string; couldNotOpen: string; close: string; openingConversation: string };
@@ -2017,6 +2021,10 @@ const EN_CLONE_EXPERIENCE_SHELL: CloneExperienceShellCopy = {
     stepStopped: "This step stopped",
     checking: "Checking",
     backToKnowledge: "Back to knowledge",
+    platformPendingHeading: "Voice verification is not available yet.",
+    platformPendingBody: "Your recording is saved. Voice verification is waiting on us. Return to knowledge to prepare a private text draft.",
+    platformPendingReadyBody: "Your recording is saved. Voice verification is waiting on us. You can test a private text draft now.",
+    testPrivateDraft: "Test a private draft",
   },
   rooms: {
     voice: {

@@ -141,11 +141,13 @@ export default function HumanOsStudio({
   token,
   replica,
   onAuthError,
+  onSaved,
   locale = "en",
 }: {
   token: string;
   replica: Replica;
   onAuthError: (cause: unknown) => void;
+  onSaved?: (replicaId: string, sheet: TeacherSheet) => void;
   locale?: HumanOsLocale;
 }) {
   const c = HUMANOS_COPY[locale];
@@ -313,9 +315,10 @@ export default function HumanOsStudio({
     setSaving(true);
     setNotice("");
     try {
-      await saveTeacherSheetDraft(token, replica.replica_id, draft);
+      const saved = await saveTeacherSheetDraft(token, replica.replica_id, draft);
       if (!current()) return;
       setExistingKind("person");
+      if (saved.draft) onSaved?.(replica.replica_id, saved.draft);
       setNotice(c.saved);
     } catch (cause) {
       if (!current()) return;
