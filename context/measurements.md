@@ -19110,3 +19110,8 @@ Same continuation: exact three infra writes completed, then standalone25-interna
 ## wave26-saved-audio-csp-20260914
 
 2026-09-14. Actual Chromium n16 checks passed across /studio and /studio.html: old policy blocks upload before storage, local blob playback and signed-origin audition; repaired policy accepts the real block+commit uploader and decodes13s synthetic WAV from both blob and intercepted exact Azure origin. No Azure Blob write or model call. check-headers/supply-chain returned zero findings; three moderate/low npm notices remain below its unchanged high threshold.
+
+
+## closeout-checks-20260921
+
+2026-09-21: notice14/14, private-first4/4 real Chromium checks; TypeScript and copy pass. Separate private voice13/13 synthetic tests pass. Latest Vercel readback is unchanged old3bc Preview. No cloud mutation, migration or model call. Full integrated release remains pending.

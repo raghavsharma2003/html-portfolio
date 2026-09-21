@@ -25514,3 +25514,8 @@ Register the mobile capture runner and upload recovery suite in the full release
 ## wave26-allow-exact-saved-audio-origin
 
 2026-09-14. ProcessingReview consumes the short-lived signed URL returned by replica-review audition_artifact directly in an audio element. Allow that same existing Azure media origin in media-src alongside self and blob; connect-src alone does not authorize media playback. No wildcard or second storage account is added. Reverse the direct origin allowance if all saved playback moves through same-origin authenticated streaming.
+
+
+## closeout-scope-20260921
+
+Owner requests wrap-up. Prioritize the repaired UI release and genuine per-account voice journey; keep unfinished voice scaffolding separate. Reverse only if new runtime evidence identifies a more fundamental blocker.

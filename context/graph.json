@@ -20781,6 +20781,24 @@
       "kind": "rejection",
       "title": "Upload permission alone cannot repair signed audition playback",
       "at": "context/rejected.md#wave26-connect-src-does-not-authorize-saved-audio"
+    },
+    {
+      "id": "closeout-scope-20260921",
+      "kind": "decision",
+      "title": "Finish the private pilot before expansion",
+      "at": "context/decisions.md#closeout-scope-20260921"
+    },
+    {
+      "id": "closeout-checks-20260921",
+      "kind": "measurement",
+      "title": "September21 closeout checks",
+      "at": "context/measurements.md#closeout-checks-20260921"
+    },
+    {
+      "id": "dismissed-reading-state-20260921",
+      "kind": "rejection",
+      "title": "A dismissed notice paused later notices",
+      "at": "context/rejected.md#dismissed-reading-state-20260921"
     }
   ],
   "edges": [
@@ -35326,6 +35344,11 @@
       "src": "wave26-connect-src-does-not-authorize-saved-audio",
       "rel": "caused_by",
       "dst": "wave26-allow-exact-saved-audio-origin"
+    },
+    {
+      "src": "closeout-scope-20260921",
+      "rel": "measured_by",
+      "dst": "closeout-checks-20260921"
     }
   ]
 }

@@ -19271,3 +19271,8 @@ The merge control required every recorder logic line and entire non-mock wavCapt
 ## wave26-connect-src-does-not-authorize-saved-audio
 
 The initial Studio repair allowed Azure XHR and blob playback but omitted Azure from media-src. Code inspection found ProcessingReview passes the server-created short-lived Azure audition URL directly to audio.src, so that next listening action would still be blocked. The policy and its real browser negative controls now cover both upload and signed-origin playback; do not assume connect-src governs media elements.
+
+
+## dismissed-reading-state-20260921
+
+A focused dismissed notice retained focusInside and blocked the next asynchronous notice timer. The mounted reproduction failed before resetting reading state whenever the notice becomes invisible, then passed. CI timer checks now assert one six-second timer and wait for React dismissal instead of racing the DOM commit.

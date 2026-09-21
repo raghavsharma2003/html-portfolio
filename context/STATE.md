@@ -1,5 +1,25 @@
 # STATE — read this first, then the graph
 
+## START HERE: SEPTEMBER 21 CLOSEOUT; PRODUCT INCOMPLETE
+
+Owner asks to wrap up. UI repairs are integrated through2ba6445a, including
+personal profile save and a usable private-text route. Latest live Vercel
+readback still shows old3bc5857e at kefkrsmzn; no repaired deployment exists.
+New exact-head full gates are required: prior3b193bc4 failed three eval suites.
+Their corrections are integrated, not yet a full release acceptance.
+
+September21 checks: notice14/14, private-first mounted4/4, TypeScript and copy
+pass. Private voice request/store WIP f0246956 is pushed separately on
+codex/private-voice-requests25;13 synthetic tests pass. Migration171 is NOT
+applied. CPU execution, supervisor, route wiring and live SQL proof remain.
+Do not call this scaffolding a working voice feature or merge it as one.
+
+Finish a usable private pilot before more expansion. No genuine full-account
+journey or measured voice likeness exists. Old retained diagnostic permission
+expired September16; do not replay old runs. Personal Microsoft browser access
+remains prohibited. Detailed remaining work and branch pointers are in
+docs/handoff/2026-09-21/WRAP-UP.md.
+
 ## START HERE: OWNER PHONE JOURNEY FAILS; REPAIR BEFORE READY CLAIMS (2026-09-14, owner mobile test)
 
 The owner tested the actual mobile product and supplied seven screenshots.
