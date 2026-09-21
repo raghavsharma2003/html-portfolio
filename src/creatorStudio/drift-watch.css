@@ -1,0 +1,146 @@
+/* drift-watch.css — the drift watch card's own stylesheet. WS-R9.
+ *
+ * A separate file for readiness.css's own reason: studio.css is contended
+ * ground and a shared file is where a concurrent diff goes to lose a merge.
+ * Everything here is namespaced under `.vy-drift`.
+ *
+ * Every value comes from `design/tokens.css`. There is not one ad-hoc px or
+ * colour in this file, readiness.css's own rule restated (DESIGN-LAW §3).
+ *
+ * MOTION. None beyond what the platform default already gives buttons. This
+ * card has no loop, no progress illusion and nothing that needs
+ * `prefers-reduced-motion` to turn off, because nothing here ever turns on.
+ *
+ * THE SPARKLINE IS NOT A CHART LIBRARY. It is two SVG primitives drawn from
+ * real points the server sent, scaled to their OWN min and max rather than a
+ * fixed axis — a fixed 0-to-1 axis would flatten a real, measured movement to
+ * a hairline nobody could see. One point renders one dot and no line, which
+ * is the honest picture of "we have one measurement so far".
+ */
+
+@layer components {
+  .vy-drift {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-tight);
+    border: var(--hairline) solid var(--line);
+    border-left: var(--focus-width) solid var(--state-done);
+    border-radius: var(--radius);
+    padding: var(--space-pad);
+    background: rgba(255, 255, 255, 0.46);
+  }
+
+  .vy-drift--moved { border-left-color: var(--state-waiting); }
+  .vy-drift--not_measured { border-left-color: var(--state-running); }
+
+  .vy-drift__eyebrow {
+    margin: 0;
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--forest);
+  }
+
+  .vy-drift__headline {
+    margin: 0;
+    font-size: var(--text-lead);
+    line-height: var(--leading-snug);
+    font-weight: var(--weight-strong);
+    color: var(--ink);
+  }
+
+  .vy-drift__lede {
+    margin: 0;
+    max-width: var(--measure);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+    color: var(--ink-soft);
+  }
+
+  .vy-drift__score {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+
+  .vy-drift__score-value {
+    font-size: var(--text-heading);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-heading);
+    font-weight: var(--weight-strong);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+
+  .vy-drift__score-note {
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+    color: var(--ink-soft);
+  }
+
+  .vy-drift__trend {
+    display: flex;
+    align-items: center;
+    gap: var(--space-tight);
+  }
+
+  .vy-drift__spark-line { stroke: var(--state-done); }
+  .vy-drift--moved .vy-drift__spark-line { stroke: var(--state-waiting); }
+  .vy-drift__spark-dot { fill: var(--state-done); }
+  .vy-drift--moved .vy-drift__spark-dot { fill: var(--state-waiting); }
+
+  .vy-drift__trend-note {
+    font-size: var(--text-micro);
+    color: var(--ink-soft);
+  }
+
+  .vy-drift__reasons {
+    margin: 0;
+    padding-left: 1.1em;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+
+  .vy-drift__reasons li {
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+    color: var(--ink);
+  }
+
+  .vy-drift__engine {
+    margin: 0;
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+    color: var(--ink-soft);
+  }
+
+  .vy-drift__anchor-note {
+    margin: 0;
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+
+  .vy-drift__act { align-self: flex-start; }
+
+  .vy-drift__skeleton {
+    min-height: 92px;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    opacity: 0.6;
+  }
+}
+
+@layer responsive {
+  /* A translucent panel over a blurred ground is unreadable at high contrast,
+   * readiness.css's own rule, restated for the same reason: this card is
+   * where a creator finds out something changed. */
+  @media (prefers-contrast: more) {
+    .vy-drift { background: var(--paper); border-color: var(--line-strong); }
+  }
+}

@@ -14,11 +14,59 @@
 // that forget's whole-wipe and api/export.js both iterate. A table someone
 // adds without listing it there would be invisible to forget AND export —
 // this check is where that omission fails loudly instead of silently.
+import { readFile } from "node:fs/promises";
 import { q } from "../api/_db.js";
 import { PERSON_TABLES } from "../api/memory.js";
 
 const checks = [];
 const check = (name, sql, params = []) => checks.push({ name, sql, params });
+// 162 keeps metadata inside the already-owned fact row; no new erasure table.
+const communication162 = await q(`select 1 from information_schema.columns
+ where table_schema='public' and table_name='vy_fact' and column_name='communication'`);
+if(communication162.length) {
+ check('fact communication constraint remains validated',`select (1-count(*))::integer n from pg_constraint
+  where conrelid='vy_fact'::regclass and conname='vy_fact_communication_check' and contype='c' and convalidated`);
+ check('fact communication remains learner sourced and cited',`select count(*)::integer n from vy_fact v
+  where v.communication is not null and (v.kind<>'user' or v.name<>'preference' or v.provenance<>'user_said'
+   or cardinality(v.citations)=0 or not exists(select 1 from vy_episode e where e.id=any(v.citations)
+    and e.agent_id=v.agent_id and e.person_id=v.person_id and e.room_memory_follower_id is not null))`);
+}
+
+// 159 adds only columns to tables already in PERSON_TABLES and already named
+// by full replica erasure. The FK walk below must additionally verify the two
+// source-parent cascades; explicit cited-child cleanup is a trigger, not an FK.
+const roomMemory159 = await q(`select 1 from information_schema.columns
+ where table_schema='public' and table_name='vy_room_follower' and column_name='memory_epoch'`);
+if (roomMemory159.length) {
+  check("Room memory source rows keep their exact owner", `select count(*)::integer n from (
+    select l.room_memory_follower_id,l.room_memory_epoch,l.agent_id,l.speaker_person_id as person_id from meera_log l
+    where l.room_memory_follower_id is not null
+    union all
+    select e.room_memory_follower_id,e.room_memory_epoch,e.agent_id,e.person_id from vy_episode e
+    where e.room_memory_follower_id is not null
+  ) s left join vy_room_follower f on f.follower_id=s.room_memory_follower_id
+  where f.follower_id is null or s.room_memory_epoch is null or s.room_memory_epoch>f.memory_epoch
+  or s.agent_id<>f.agent_id or s.person_id<>f.person_id`);
+  check("Room memory source erasure FK and trigger reach", `select (4-count(*))::integer n from (
+    select distinct c.conrelid::regclass::text as item from pg_constraint c
+    where c.contype='f' and c.confdeltype='c' and c.confrelid='vy_room_follower'::regclass
+    and c.conrelid in ('meera_log'::regclass,'vy_episode'::regclass)
+    union all
+    select t.tgname from pg_trigger t where t.tgrelid='vy_room_follower'::regclass and t.tgenabled<>'D'
+    and t.tgname in ('vy_room_memory_epoch_change','vy_room_memory_follower_erasure')
+  ) reached`);
+}
+
+// Migration153 adds lineage on already-owned rows. No parallel person table.
+check("publication continuity has no cross-visitor or erased provenance", `select count(*)::int n from vy_text_publication_request h
+ where (h.memory_epoch is null and h.memory_refs<>'[]'::jsonb)
+ or (h.state='withdrawn' and h.memory_refs<>'[]'::jsonb)
+ or exists(select 1 from jsonb_array_elements(h.memory_refs) ref where not exists(
+  select 1 from vy_text_publication_request prior where prior.request_id=(ref->>'request_id')::uuid
+  and prior.publication_id=h.publication_id and prior.replica_id=h.replica_id and prior.owner_user_id=h.owner_user_id
+  and prior.visitor_user_id=h.visitor_user_id and prior.memory_epoch=h.memory_epoch
+  and prior.question_hash=ref->>'question_hash' and prior.answer_hash=ref->>'answer_hash'
+  and prior.request_id<>h.request_id and prior.created_at<=h.created_at))`);
 
 // ── orphaned citations: a row citing a vy_episode id that does not exist ──
 const orphanCite = (table, extra = "") =>
@@ -179,6 +227,23 @@ mpCheck(
   `select count(*)::int n from vy_disclosure_grant where group_id is null`,
 );
 
+// Agent ownership must agree with the room row on every shared child. A
+// globally unique group_id is not a substitute for this assertion: a writer
+// can pair agent B with agent A's group and every single-column FK still
+// resolves. Migration 064 fixes address uniqueness; these checks hold the
+// persisted child rows to the same boundary.
+const roomAgentMismatch = (table, alias = "r") =>
+  `select count(*)::int n from ${table} ${alias}
+    join vy_group g on g.id = ${alias}.group_id
+   where ${alias}.group_id is not null and ${alias}.agent_id <> g.agent_id`;
+mpCheck("vy_group_member agent matches room", roomAgentMismatch("vy_group_member", "m"));
+mpCheck("vy_group_turn agent matches room", roomAgentMismatch("vy_group_turn", "t"));
+mpCheck("room vy_episode agent matches room", roomAgentMismatch("vy_episode", "e"));
+mpCheck("room meera_log agent matches room", roomAgentMismatch("meera_log", "l"));
+mpCheck("room vy_fact agent matches room", roomAgentMismatch("vy_fact", "f"));
+mpCheck("room vy_phrase agent matches room", roomAgentMismatch("vy_phrase", "p"));
+mpCheck("room disclosure grant agent matches room", roomAgentMismatch("vy_disclosure_grant", "d"));
+
 // Room isolation (§2.4 clause 4) reads group_id as a hint on derived rows;
 // a hint pointing at a room that no longer exists would make the clause
 // compare against nothing. No FK on hint columns (house law), so sweep it.
@@ -257,17 +322,110 @@ const EXEMPT = {
     "this is the check it is an exemption FROM, and an argument that lives " +
     "only next to the table it excuses is an argument nobody reviewing this " +
     "gate will ever read.",
+  vy_receipt:
+    "person-keyed (person_id) but deliberately NOT a PERSON_TABLES entry: " +
+    "an account-wide 'forget everything' NULLS person_id on this table " +
+    "(api/memory.js's own explicit door, right beside vy_room_forget_" +
+    "receipt's), it never DELETEs the row - the whole reason it is exempt " +
+    "here rather than listed above, since PERSON_TABLES membership means " +
+    "'wiped by the generic DELETE loop' and this table must survive that " +
+    "wipe with its receipt_no and its ledger-linked amount intact, losing " +
+    "only the person. It IS reachable for forget and export both: forget " +
+    "via api/memory.js's own explicit door (this comment's own sibling), " +
+    "export via api/_room-surface.js's ROOM_EXPORT_EXTRA. A full REPLICA " +
+    "erasure (a different, stronger act) DOES delete it by name, child-" +
+    "before-parent, in api/_replica-full-erasure.js - migration 126's own " +
+    "header carries the full argument.",
 };
+//
+// WS-R: THE SAME LESSON, ONE LEVEL DOWN. The column list used to be
+// ('person_id','device_id','user_id'). That is a subset too, and enumerating a
+// subset is still how a gate reports full coverage of a part: it could not see
+// vy_replica_runtime_capability (keyed `subject_person_id`) or
+// vy_disclosure_grant (`granted_by`/`granted_to`), and it had never once
+// considered the 48 tables keyed on `owner_user_id`. The column list is now
+// every name that means "a natural person" in this schema, which is what makes
+// the OWNER_LANE verdict below a decision instead of a blind spot.
+// WS-R23 (086): `redeemed_by_user_id` (vy_creator_invite) joins this list for
+// exactly the reason this comment names — an invite IS the replica owner's id
+// once redeemed, the same fact that makes it OWNER lane rather than person
+// lane, and leaving the column out would reproduce the blind spot this file's
+// own history is written to prevent (`issued_by_user_id`, the OPERATOR who
+// issued the code, deliberately stays OUT: they are platform staff acting in
+// that capacity, not a consumer of this table's own erasure obligation, and
+// the row is fully reached either way once it is deleted by name).
+const PERSON_COLUMNS = [
+  "person_id",
+  "device_id",
+  "user_id",
+  "auth_user_id",
+  "subject_person_id",
+  "speaker_person_id",
+  "granted_by",
+  "granted_to",
+  "owner_user_id",
+  "redeemed_by_user_id",
+  "visitor_user_id",
+];
+
+// `owner_user_id` is the replica OWNER's Supabase auth id — a natural person,
+// and deliberately NOT in PERSON_TABLES. The argument is written out where the
+// manifest ends (api/memory.js, "WHAT IS DELIBERATELY NOT IN THE LIST ABOVE");
+// the short form is that the replica lane's rows are the only pointers to
+// objects outside Postgres, so a manifest loop deleting them would strand a
+// person's biometric audio in object storage while the receipt claimed it was
+// gone. The lane is erased by docs/REPLICA-ERASURE.md's chain instead.
+//
+// That verdict is worth nothing unsupported, so it is CHECKED rather than
+// asserted: every owner-keyed table must be reachable when the erasure job
+// deletes vy_replica — by ON DELETE CASCADE in the live FK graph, or by being
+// named outright in api/_replica-full-erasure.js. The walk below found three
+// tables that were reachable by neither (053/055 declare replica_id and
+// owner_user_id FK-shaped but not FK), which is the whole reason it exists.
+//
+// WS-R23 (086): `redeemed_by_user_id` joins `owner_user_id` here, not just in
+// PERSON_COLUMNS above — vy_creator_invite has no `owner_user_id` column of
+// its own, so without this it would be `keyed` (via PERSON_COLUMNS) but never
+// `ownerOnly`, which would make it FAIL manifest coverage for not being in
+// PERSON_TABLES (correctly excluded, on OWNER_LANE's own verdict) with no
+// escape hatch except a written EXEMPT entry duplicating an argument this
+// file already makes. Folding it into the SAME owner-lane machinery instead
+// means it gets the STRONGER, CHECKED guarantee every other owner-keyed table
+// gets: reachable by cascade or named in api/_replica-full-erasure.js, walked
+// below rather than merely asserted.
+const OWNER_KEYS = ["owner_user_id", "redeemed_by_user_id"];
+// Public text carries both owner and visitor identity. Owner reach below is
+// insufficient for visitor forgetting: inspect both explicit live callers.
+const publicationStore = await readFile(new URL('../api/_text-publication-store.js', import.meta.url), 'utf8');
+const publicationAccount = await readFile(new URL('../api/account.js', import.meta.url), 'utf8');
+if (!publicationStore.includes('where v.visitor_user_id=$1::uuid and v.publication_id in(select publication_id from locked)')
+    || !publicationAccount.includes('await forgetTextPublicationAccount(q, user.id)')) {
+  failed++;
+  console.log('FAIL  published text visitor account erasure caller missing');
+}
+// Request ciphertext cascades from (publication_id,visitor_user_id). The
+// content-free retired-ID table has no owner/person/content field to erase.
+
 const keyed = await q(
   `select distinct table_name from information_schema.columns
     where table_schema = 'public'
       and (table_name like 'vy\\_%' or table_name like 'meera\\_%')
-      and column_name in ('person_id','device_id','user_id')`,
+      and column_name = any($1::text[])`,
+  [PERSON_COLUMNS],
+);
+const ownerOnly = new Set(
+  (
+    await q(
+      `select distinct table_name from information_schema.columns
+        where table_schema = 'public' and column_name = any($1::text[])`,
+      [OWNER_KEYS],
+    )
+  ).map((r) => r.table_name),
 );
 const listed = new Set(PERSON_TABLES.map((t) => t.table));
 const missing = keyed
   .map((r) => r.table_name)
-  .filter((t) => !listed.has(t) && !EXEMPT[t]);
+  .filter((t) => !listed.has(t) && !EXEMPT[t] && !ownerOnly.has(t));
 if (missing.length) {
   failed++;
   console.log(
@@ -279,8 +437,89 @@ if (missing.length) {
   const ex = Object.keys(EXEMPT).length;
   console.log(
     `  ok  manifest coverage (${keyed.length} owned tables across vy_ and meera_, ` +
-      `${ex} exempted in writing, the rest all listed)`,
+      `${ex} exempted in writing, ${ownerOnly.size} on the owner lane, the rest all listed)`,
   );
+}
+
+// ── the owner lane's own coverage: erasure reach, walked on the live FK graph ─
+const fks = await q(
+  `select tc.relname child, tp.relname parent, c.confdeltype del
+     from pg_constraint c
+     join pg_class tc on tc.oid = c.conrelid
+     join pg_class tp on tp.oid = c.confrelid
+     join pg_namespace n on n.oid = tc.relnamespace
+    where c.contype = 'f' and n.nspname = 'public'`,
+);
+const cascades = new Map();
+for (const f of fks) {
+  if (f.del !== "c") continue; // 'c' = ON DELETE CASCADE; anything else is not reach
+  if (!cascades.has(f.parent)) cascades.set(f.parent, []);
+  cascades.get(f.parent).push(f.child);
+}
+const reached = new Set(["vy_replica"]);
+for (const stack = ["vy_replica"]; stack.length; ) {
+  for (const child of cascades.get(stack.pop()) || []) {
+    if (reached.has(child)) continue;
+    reached.add(child);
+    stack.push(child);
+  }
+}
+const erasureSrc = await readFile(
+  new URL("../api/_replica-full-erasure.js", import.meta.url),
+  "utf8",
+);
+const unreachable = [...ownerOnly]
+  // 156 activation snapshots cascade from their owner replica, candidate and
+  // qualification. Erasing snapshots must retain the capability's required
+  // binding marker; candidate runtime then refuses instead of falling back.
+  // 161 ordinary processing authority cascades from owned source/replica.
+  // Hashed infrastructure lifecycle/child evidence and monetary holds survive erasure.
+  // 158 voice allocation authority/children cascade from owned source/replica.
+  // Content-free app lifecycle/cost windows and resource-release receipts survive for accounting.
+  // Releasing resource exclusion never removes owner erasure reach or monetary holds.
+  // 155's private text materialization jobs/items must be reached through
+  // owned candidate/dataset/correction-job and feedback FKs; no exemption.
+  // 152's correction candidate jobs cascade through their owned dataset and
+  // candidate FKs; this same catalog walk must prove their replica reach.
+  // 141's vy_private_text_rehearsal is an owner lane with replica/source/item
+  // cascades and an explicit full-erasure delete. This catalog walk checks it.
+  .filter((t) => !reached.has(t))
+  .filter((t) => !new RegExp(`delete from ${t}\\b`).test(erasureSrc));
+if (unreachable.length) {
+  failed++;
+  console.log(
+    `FAIL  owner-lane erasure reach: ${unreachable.join(", ")} carry ${OWNER_KEYS.join("/")} but are neither ` +
+      `reached by ON DELETE CASCADE from vy_replica nor deleted by name in ` +
+      `api/_replica-full-erasure.js. They survive the erasure job, so they are covered by NOTHING ` +
+      `— not the person manifest, which excludes the owner lane on purpose, and not the chain that ` +
+      `exclusion points at.`,
+  );
+} else {
+  const named = [...ownerOnly].filter((t) => !reached.has(t)).length;
+  console.log(
+    `  ok  owner-lane erasure reach (${ownerOnly.size} ${OWNER_KEYS.join("/")} tables: ` +
+      `${ownerOnly.size - named} by cascade from vy_replica, ${named} deleted by name)`,
+  );
+}
+
+// 166 adds two columns to the already-covered vy_replica_calibration table
+// (erasure reach and PERSON_TABLES manifest coverage are unchanged -- see
+// the migration file), but winner_artifact_id carries NO declared FK
+// (db/migrations/166_voice_listening_verdict.sql explains why). This is the
+// live-DB check that stands in for that missing FK: every non-null
+// winner_artifact_id must actually be a sealed generation belonging to the
+// SAME replica/owner as the calibration row that names it.
+const listeningVerdict166 = await q(`select 1 from information_schema.columns
+ where table_schema='public' and table_name='vy_replica_calibration' and column_name='winner_artifact_id'`);
+if (listeningVerdict166.length) {
+  check("Voice listening verdict winners resolve to the owner's own sealed generation", `select count(*)::integer n
+   from vy_replica_calibration c
+   where c.winner_artifact_id is not null
+     and not exists (
+       select 1 from vy_replica_generation g
+        where g.generation_id=c.winner_artifact_id and g.replica_id=c.replica_id
+          and g.owner_user_id=c.owner_user_id and g.state='sealed'
+     )`);
 }
 
 // migration 008 lands in three parts and is deployed by the owner, not by

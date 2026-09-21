@@ -1,0 +1,100 @@
+{
+  "schema": "publication-integration29-explain/v1",
+  "started_at": "2026-09-07T21:54:06.062Z",
+  "database": "vyakti_expert_integration_20260906",
+  "mode": "run",
+  "checks": [
+    {
+      "name": "owner-publication-export",
+      "query_sha256": "985c4627e88a9b7b16db8cab401d9f6ad57e2ff80eb7bc57d76d2bcebfacfea1",
+      "parsed": true
+    },
+    {
+      "name": "heartbeat-start",
+      "query_sha256": "26998eb23b75f65b0e235a3df4492414d1e61082f0cb61a129872f98416c3825",
+      "parsed": true
+    },
+    {
+      "name": "heartbeat-finish",
+      "query_sha256": "5a72658d77ef8a3287f13e15cf90fe9de2d47338e2c4af84734f95a4f7574c07",
+      "parsed": true
+    },
+    {
+      "name": "heartbeat-prune",
+      "query_sha256": "7d1f6e3a350f06d6cfbbaa1d7c5cb3733c6fb172dfa0fc934fdca88cfdbf38e8",
+      "parsed": true
+    },
+    {
+      "name": "negative_invalid_column",
+      "query_sha256": "fb6762c4cc1a5c7b8249ce2167dd144fc66f9e2ab1bc93d05159682153f3f336",
+      "expected_sqlstate": "42703",
+      "actual_sqlstate": "42703"
+    }
+  ],
+  "writes_executed": false,
+  "analyze_executed": false,
+  "private_rows_read": false,
+  "before": {
+    "head": "42a01d025148ceec85a2b64a858266d4528bbd1c",
+    "branch": "codex/expert-release-integration29",
+    "source_pins": {
+      "api/_creator-export.js": "4987fded0d4d2fbd45348dbed5d4e890b8d42ef18ad1a1b783568fbcd55b69bd",
+      "api/text-publication-expire.js": "e77b62da814c662428aa359ca81ce1f1f7ad378513d96fa895e427bf62ea579a",
+      "api/_sweep-run.js": "3ec69508cf542e85eb7db8c43092a822c21125ec472d64ae55d2aa9f22ad9f98"
+    },
+    "tracked_files": 2811,
+    "tracked_manifest_sha256": "61a31f834a9e988bfc9e016c91dedd593f143e39231b79f27019a8dc9ebea486",
+    "helper_sha256": "28fb4d48925ea615287a63c494ef590b968991f6df3a006fe49b0894c8b5d57c"
+  },
+  "capture": {
+    "actual_handler_outcomes": [
+      "ok",
+      "partial",
+      "failed"
+    ],
+    "recorded_calls": 9,
+    "unique_heartbeat_shapes": 3,
+    "io_boundaries_injected": true,
+    "real_export_or_expiry_work_executed": false
+  },
+  "query_inventory": [
+    {
+      "name": "owner-publication-export",
+      "sha256": "985c4627e88a9b7b16db8cab401d9f6ad57e2ff80eb7bc57d76d2bcebfacfea1",
+      "parameter_count": 2
+    },
+    {
+      "name": "heartbeat-start",
+      "sha256": "26998eb23b75f65b0e235a3df4492414d1e61082f0cb61a129872f98416c3825",
+      "parameter_count": 3
+    },
+    {
+      "name": "heartbeat-finish",
+      "sha256": "5a72658d77ef8a3287f13e15cf90fe9de2d47338e2c4af84734f95a4f7574c07",
+      "parameter_count": 4
+    },
+    {
+      "name": "heartbeat-prune",
+      "sha256": "7d1f6e3a350f06d6cfbbaa1d7c5cb3733c6fb172dfa0fc934fdca88cfdbf38e8",
+      "parameter_count": 2
+    }
+  ],
+  "driver_pins": {
+    "neon": "2913bd33766e5e9ca954c86d77c3664fc4169b2188cc8de558a07bb04ca0df27",
+    "ws": "fe154662301fd558f935f9c217fccbe7a7dac02ff39e648a000589403ff27c7f"
+  },
+  "after": {
+    "head": "42a01d025148ceec85a2b64a858266d4528bbd1c",
+    "branch": "codex/expert-release-integration29",
+    "source_pins": {
+      "api/_creator-export.js": "4987fded0d4d2fbd45348dbed5d4e890b8d42ef18ad1a1b783568fbcd55b69bd",
+      "api/text-publication-expire.js": "e77b62da814c662428aa359ca81ce1f1f7ad378513d96fa895e427bf62ea579a",
+      "api/_sweep-run.js": "3ec69508cf542e85eb7db8c43092a822c21125ec472d64ae55d2aa9f22ad9f98"
+    },
+    "tracked_files": 2811,
+    "tracked_manifest_sha256": "61a31f834a9e988bfc9e016c91dedd593f143e39231b79f27019a8dc9ebea486",
+    "helper_sha256": "28fb4d48925ea615287a63c494ef590b968991f6df3a006fe49b0894c8b5d57c"
+  },
+  "passed": true,
+  "finished_at": "2026-09-07T21:54:13.482Z"
+}

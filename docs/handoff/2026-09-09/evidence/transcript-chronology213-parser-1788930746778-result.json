@@ -1,0 +1,336 @@
+{
+  "state": "passed_actual_chronology213_explain",
+  "source_head": "1d0319ed032d96c23e1ea7ad0c2c452a0bc33e7f",
+  "source_hashes": {
+    "api/_replica-claims.js": "19bf8ad31539332b40b7fcaf9e8db7b417383a61e8f9fbd0bdeb7a22d8d97d23",
+    "api/_context-claim-authority.js": "6ef7139afe43e44d710162ed3b17014225c99c7da54b9c4acee6a2378dbdcf22",
+    "api/_claim-extraction/contracts.js": "c15c93d28a4add5abe3ce73c782727bce1440e27aaa3e43a86f80c5b1e902570"
+  },
+  "review_sha256": "a6a3b504afd32eb595982acdd4515b53db4948c526b67e8c3cc7d692e8cf5529",
+  "sql_acknowledged": 8,
+  "started_at": "2026-09-09T05:12:26.786Z",
+  "sql_sha256": "73993cfaad8e1b147ca857ba4d1a6257e73c898f031e3c669f28319131a984fa",
+  "sql_calls": 8,
+  "errors": [],
+  "provider_calls": 0,
+  "writes": 0,
+  "identity": {
+    "db": "vyakti_expert_integration_20260906",
+    "ro": "on",
+    "search_path": "public, pg_catalog"
+  },
+  "explain": [
+    {
+      "Plan": {
+        "Node Type": "Limit",
+        "Parallel Aware": false,
+        "Async Capable": false,
+        "Startup Cost": 21.43,
+        "Total Cost": 21.43,
+        "Plan Rows": 1,
+        "Plan Width": 274,
+        "Plans": [
+          {
+            "Node Type": "Sort",
+            "Parent Relationship": "Outer",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 21.43,
+            "Total Cost": 21.43,
+            "Plan Rows": 1,
+            "Plan Width": 274,
+            "Sort Key": [
+              "s.created_at",
+              "e.source_id",
+              "e.span_start_ms",
+              "e.span_end_ms",
+              "e.created_at",
+              "e.evidence_id"
+            ],
+            "Plans": [
+              {
+                "Node Type": "Hash Join",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Join Type": "Inner",
+                "Startup Cost": 1.34,
+                "Total Cost": 21.42,
+                "Plan Rows": 1,
+                "Plan Width": 274,
+                "Inner Unique": true,
+                "Hash Cond": "(e.source_id = s.source_id)",
+                "Join Filter": "(((e.evidence_type = 'transcript_span'::text) AND (NOT s.contains_third_parties) AND ((s.state = ANY ('{processing,ready}'::text[])) OR ((s.state = 'quarantined'::text) AND (s.capture_mode = 'derived'::text) AND ((s.provenance ->> 'purpose'::text) = 'mirror_window'::text) AND ((e.value #>> '{provenance,origin}'::text[]) = 'mirror_call'::text) AND ((e.value #>> '{provenance,source_id}'::text[]) = (s.source_id)::text))) AND EXISTS(SubPlan 1)) OR ((e.evidence_type = 'text_span'::text) AND (e.adapter_family = 'context-locker'::text) AND (e.adapter_version = 'canonical-evidence-v1'::text) AND ((e.value #>> '{provenance,origin}'::text[]) = 'context_locker'::text) AND ((e.value #>> '{provenance,source_id}'::text[]) = (e.source_id)::text) AND ((e.value #>> '{provenance,protected_trait_inference}'::text[]) = 'false'::text) AND ((e.value #>> '{provenance,inner_state_inference}'::text[]) = 'false'::text) AND ((e.value #>> '{epistemic_status}'::text[]) = 'observed'::text) AND ((e.value #>> '{observation_target}'::text[]) = 'owner_supplied_text'::text) AND (ANY ((e.source_id = (hashed SubPlan 3).col1) AND (e.replica_id = (hashed SubPlan 3).col2) AND (e.owner_user_id = (hashed SubPlan 3).col3) AND (e.input_sha256 = (hashed SubPlan 3).col4) AND ((e.value #>> '{provenance,context_item_id}'::text[]) = (hashed SubPlan 3).col5) AND ((e.value #>> '{provenance,raw_content_sha256}'::text[]) = (hashed SubPlan 3).col6) AND ((e.value #>> '{locator,canonical_text_sha256}'::text[]) = (hashed SubPlan 3).col7)))))",
+                "Plans": [
+                  {
+                    "Node Type": "Nested Loop",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Join Type": "Anti",
+                    "Startup Cost": 0.29,
+                    "Total Cost": 20.37,
+                    "Plan Rows": 1,
+                    "Plan Width": 564,
+                    "Inner Unique": false,
+                    "Join Filter": "(xi.evidence_id = e.evidence_id)",
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "vy_replica_processing_evidence",
+                        "Alias": "e",
+                        "Startup Cost": 0,
+                        "Total Cost": 4,
+                        "Plan Rows": 1,
+                        "Plan Width": 564,
+                        "Filter": "((confidence >= '0.55'::double precision) AND (replica_id = '90219e4c-2252-43ed-8b7b-5d8cbdd8caa1'::uuid) AND (owner_user_id = 'b309aeca-aa2b-4dc6-a1ce-69de0e9506b7'::uuid) AND (length((value ->> 'text'::text)) >= 1) AND (length((value ->> 'text'::text)) <= 8000) AND (lower(((((adapter_family || ' '::text) || adapter_name) || ' '::text) || adapter_version)) !~ '(fake|fixture|test|mock)'::text) AND (((evidence_type = 'transcript_span'::text) AND EXISTS(SubPlan 1)) OR ((evidence_type = 'text_span'::text) AND (adapter_family = 'context-locker'::text) AND (adapter_version = 'canonical-evidence-v1'::text) AND ((value #>> '{provenance,origin}'::text[]) = 'context_locker'::text) AND ((value #>> '{provenance,source_id}'::text[]) = (source_id)::text) AND ((value #>> '{provenance,protected_trait_inference}'::text[]) = 'false'::text) AND ((value #>> '{provenance,inner_state_inference}'::text[]) = 'false'::text) AND ((value #>> '{epistemic_status}'::text[]) = 'observed'::text) AND ((value #>> '{observation_target}'::text[]) = 'owner_supplied_text'::text) AND (ANY ((source_id = (hashed SubPlan 3).col1) AND (replica_id = (hashed SubPlan 3).col2) AND (owner_user_id = (hashed SubPlan 3).col3) AND (input_sha256 = (hashed SubPlan 3).col4) AND ((value #>> '{provenance,context_item_id}'::text[]) = (hashed SubPlan 3).col5) AND ((value #>> '{provenance,raw_content_sha256}'::text[]) = (hashed SubPlan 3).col6) AND ((value #>> '{locator,canonical_text_sha256}'::text[]) = (hashed SubPlan 3).col7))))))",
+                        "Plans": [
+                          {
+                            "Node Type": "Nested Loop",
+                            "Parent Relationship": "SubPlan",
+                            "Subplan Name": "SubPlan 1",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Join Type": "Inner",
+                            "Startup Cost": 1.01,
+                            "Total Cost": 5.04,
+                            "Plan Rows": 1,
+                            "Plan Width": 0,
+                            "Inner Unique": true,
+                            "Join Filter": "(speaker.evidence_id = d.evidence_id)",
+                            "Plans": [
+                              {
+                                "Node Type": "Seq Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Relation Name": "vy_replica_processing_evidence",
+                                "Alias": "speaker",
+                                "Startup Cost": 0,
+                                "Total Cost": 4,
+                                "Plan Rows": 1,
+                                "Plan Width": 16,
+                                "Filter": "((span_start_ms < e.span_end_ms) AND (span_end_ms > e.span_start_ms) AND (replica_id = e.replica_id) AND (owner_user_id = e.owner_user_id) AND (source_id = e.source_id) AND (evidence_type = 'speaker_segment'::text) AND (COALESCE(((value ->> 'target_likelihood'::text))::double precision, '0'::double precision) >= '0.8'::double precision) AND (lower(((((adapter_family || ' '::text) || adapter_name) || ' '::text) || adapter_version)) !~ '(fake|fixture|test|mock)'::text))"
+                              },
+                              {
+                                "Node Type": "Subquery Scan",
+                                "Parent Relationship": "Inner",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Alias": "d",
+                                "Startup Cost": 1.01,
+                                "Total Cost": 1.03,
+                                "Plan Rows": 1,
+                                "Plan Width": 16,
+                                "Filter": "(d.decision = 'accepted'::text)",
+                                "Plans": [
+                                  {
+                                    "Node Type": "Unique",
+                                    "Parent Relationship": "Subquery",
+                                    "Parallel Aware": false,
+                                    "Async Capable": false,
+                                    "Startup Cost": 1.01,
+                                    "Total Cost": 1.02,
+                                    "Plan Rows": 1,
+                                    "Plan Width": 72,
+                                    "Plans": [
+                                      {
+                                        "Node Type": "Sort",
+                                        "Parent Relationship": "Outer",
+                                        "Parallel Aware": false,
+                                        "Async Capable": false,
+                                        "Startup Cost": 1.01,
+                                        "Total Cost": 1.01,
+                                        "Plan Rows": 1,
+                                        "Plan Width": 72,
+                                        "Sort Key": [
+                                          "d_1.evidence_id",
+                                          "d_1.created_at DESC",
+                                          "d_1.decision_id DESC"
+                                        ],
+                                        "Plans": [
+                                          {
+                                            "Node Type": "Seq Scan",
+                                            "Parent Relationship": "Outer",
+                                            "Parallel Aware": false,
+                                            "Async Capable": false,
+                                            "Relation Name": "vy_replica_processing_evidence_decision",
+                                            "Alias": "d_1",
+                                            "Startup Cost": 0,
+                                            "Total Cost": 1,
+                                            "Plan Rows": 1,
+                                            "Plan Width": 72,
+                                            "Filter": "((replica_id = '90219e4c-2252-43ed-8b7b-5d8cbdd8caa1'::uuid) AND (owner_user_id = 'b309aeca-aa2b-4dc6-a1ce-69de0e9506b7'::uuid))"
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "Node Type": "Nested Loop",
+                            "Parent Relationship": "SubPlan",
+                            "Subplan Name": "SubPlan 3",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Join Type": "Inner",
+                            "Startup Cost": 0,
+                            "Total Cost": 4.09,
+                            "Plan Rows": 1,
+                            "Plan Width": 242,
+                            "Inner Unique": true,
+                            "Join Filter": "((context_item.replica_id = context_text.replica_id) AND (context_item.owner_user_id = context_text.owner_user_id) AND (context_text.item_id = context_item.item_id))",
+                            "Plans": [
+                              {
+                                "Node Type": "Nested Loop",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Join Type": "Inner",
+                                "Startup Cost": 0,
+                                "Total Cost": 2.06,
+                                "Plan Rows": 1,
+                                "Plan Width": 161,
+                                "Inner Unique": true,
+                                "Join Filter": "((context_item.source_id = context_source.source_id) AND (context_item.replica_id = context_source.replica_id) AND (context_item.owner_user_id = context_source.owner_user_id) AND (context_item.content_sha256 = context_source.sha256))",
+                                "Plans": [
+                                  {
+                                    "Node Type": "Seq Scan",
+                                    "Parent Relationship": "Outer",
+                                    "Parallel Aware": false,
+                                    "Async Capable": false,
+                                    "Relation Name": "vy_replica_source",
+                                    "Alias": "context_source",
+                                    "Startup Cost": 0,
+                                    "Total Cost": 1.04,
+                                    "Plan Rows": 1,
+                                    "Plan Width": 113,
+                                    "Filter": "((NOT contains_third_parties) AND (state = 'ready'::text) AND (purpose = 'context_item'::text) AND ((provenance ->> 'purpose'::text) = 'context_item'::text))"
+                                  },
+                                  {
+                                    "Node Type": "Seq Scan",
+                                    "Parent Relationship": "Inner",
+                                    "Parallel Aware": false,
+                                    "Async Capable": false,
+                                    "Relation Name": "vy_context_item",
+                                    "Alias": "context_item",
+                                    "Startup Cost": 0,
+                                    "Total Cost": 1,
+                                    "Plan Rows": 1,
+                                    "Plan Width": 129,
+                                    "Filter": "((status = ANY ('{extracted,mined}'::text[])) AND (format <> 'whatsapp_export'::text) AND (authorship = 'mine'::text) AND (consent_scope = 'own_context'::text))"
+                                  }
+                                ]
+                              },
+                              {
+                                "Node Type": "Seq Scan",
+                                "Parent Relationship": "Inner",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Relation Name": "vy_context_item_text",
+                                "Alias": "context_text",
+                                "Startup Cost": 0,
+                                "Total Cost": 2,
+                                "Plan Rows": 1,
+                                "Plan Width": 199
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "Node Type": "Nested Loop",
+                        "Parent Relationship": "Inner",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Join Type": "Inner",
+                        "Startup Cost": 0.29,
+                        "Total Cost": 16.35,
+                        "Plan Rows": 1,
+                        "Plan Width": 48,
+                        "Inner Unique": true,
+                        "Join Filter": "(xi.run_id = xr.run_id)",
+                        "Plans": [
+                          {
+                            "Node Type": "Index Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Scan Direction": "Forward",
+                            "Index Name": "vy_replica_claim_extraction_input_evidence_ix",
+                            "Relation Name": "vy_replica_claim_extraction_input",
+                            "Alias": "xi",
+                            "Startup Cost": 0.15,
+                            "Total Cost": 8.17,
+                            "Plan Rows": 1,
+                            "Plan Width": 64,
+                            "Index Cond": "((owner_user_id = 'b309aeca-aa2b-4dc6-a1ce-69de0e9506b7'::uuid) AND (replica_id = '90219e4c-2252-43ed-8b7b-5d8cbdd8caa1'::uuid))"
+                          },
+                          {
+                            "Node Type": "Index Scan",
+                            "Parent Relationship": "Inner",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Scan Direction": "Forward",
+                            "Index Name": "vy_replica_claim_extraction_owner_ix",
+                            "Relation Name": "vy_replica_claim_extraction",
+                            "Alias": "xr",
+                            "Startup Cost": 0.14,
+                            "Total Cost": 8.17,
+                            "Plan Rows": 1,
+                            "Plan Width": 48,
+                            "Index Cond": "((owner_user_id = 'b309aeca-aa2b-4dc6-a1ce-69de0e9506b7'::uuid) AND (replica_id = '90219e4c-2252-43ed-8b7b-5d8cbdd8caa1'::uuid))",
+                            "Filter": "((schema_version = 'vyakti.claim-extraction.v2'::text) AND (state = 'complete'::text))"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Hash",
+                    "Parent Relationship": "Inner",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 1.03,
+                    "Total Cost": 1.03,
+                    "Plan Rows": 1,
+                    "Plan Width": 178,
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "vy_replica_source",
+                        "Alias": "s",
+                        "Startup Cost": 0,
+                        "Total Cost": 1.03,
+                        "Plan Rows": 1,
+                        "Plan Width": 178,
+                        "Filter": "((replica_id = '90219e4c-2252-43ed-8b7b-5d8cbdd8caa1'::uuid) AND (owner_user_id = 'b309aeca-aa2b-4dc6-a1ce-69de0e9506b7'::uuid))"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "closed": true,
+      "transaction": "rollback_acknowledged",
+      "close": "acknowledged"
+    }
+  ],
+  "finished_at": "2026-09-09T05:12:29.863Z"
+}

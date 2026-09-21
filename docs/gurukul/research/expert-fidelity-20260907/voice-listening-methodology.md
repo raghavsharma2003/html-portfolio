@@ -1,0 +1,45 @@
+# Reserved voice listening corpus, 7 September 2026
+
+The accompanying `voice-listening-corpus.json` contains 60 authored prompts: 20 Hindi, 20 Roman Hinglish and 20 English. No owner transcript, training sample, generated audio or listening result is included. Its holdout status is intended, not experimentally established. Audit overlap with enrollment transcripts, adaptation material, development prompts and prior owner corrections before freezing it. If an item has influenced model or reference selection, retire it from the holdout and author a replacement under a new version.
+
+The 20 shared intent IDs support coverage comparisons. Translations are **not matched acoustic inputs**: compare A and B on the identical text and language within each item. Differences between English and Hindi wording must never be called a matched-text model win. Proper names are illustrative. Gendered Hindi wording is authored text, not a claim about the owner's gender or habitual expression.
+
+## Use the existing listening tool
+
+Reuse `scripts/voice-listening-benchmark.mjs` and `evals/voice-listening-benchmark/{lib,server,page,browser-check}`; this document does not introduce another harness. The existing library has opaque stimuli, HMAC-based randomization, rating validation and matched cells. In `lib.mjs:194`, `buildCells` groups exact language plus text SHA-256; a cell without multiple distinct candidates remains `unmatched_lane`.
+
+**This corpus is not yet wired into that tool.** `scripts/voice-listening-benchmark.mjs:643` loads the August 2026 Chatterbox, Qwen and VoxCPM packs, with optional IndicF5 and vendor packs. Its count contract is 15 base stimuli, or 21 with IndicF5, plus vendor stimuli. The owner comparison reference path is also fixed to the older VoxCPM pack. A future generic recorded-pack entry must accept this versioned corpus and an explicit authorized reference manifest while retaining protection, source-count, digest, receipt and provenance validation. Never spoof old source IDs or relax count checks to fit a new engine. Validate this adapter separately before collecting a new benchmark.
+
+The existing UI axes are `owner_likeness`, `naturalness`, `indian_accent` and `pronunciation`, each 1–5. The JSON's A/B/tie/cannot-judge rubric, prosody and meaning annotations are a **proposed supplementary protocol**, not current UI fields. Preserve the existing ratings. A later explicit schema/UI extension or separately versioned annotation record is required to capture the supplemental judgments; do not silently relabel pronunciation or accent as meaning or prosody. An Indian-accent score is not an owner-identity score.
+
+## Freeze the comparison before listening
+
+The current `unsealedReport` excludes consistency repeats from model evidence and reports per-stimulus listener means. It does not calculate utterance-cluster confidence intervals or the proposed pairwise protocol. Retain the underlying per-utterance and per-listener records for a separately validated paired analysis. Its winner field remains null; do not interpret the descriptive report as a model-selection result.
+
+1. Choose eligible arms using separate development material. Record model repository, immutable checkpoint and runtime/image digest, code revision, reference audio/transcript hashes, adapter hash or explicit no-adapter state, language mode, text frontend and normalization receipts, conditioning settings, seed, sampling settings and output format. For unsupported Hindi arms, record unsupported and omit the language lane; do not reinterpret English-only support.
+2. Bind every output to corpus version, item ID, exact input hash, reference manifest, model/adapter identity, output hash, generation receipt and protection/disclosure receipts. Retain original and spoken text when normalization changes representation. Equal numeric seeds across different engines do not establish equal randomness. Specify replicate count in advance and retain failures.
+3. Use the same authorized owner references across arms where contracts permit. If an arm requires a different reference length, transcript or sample rate, declare that arm-specific condition: it tests the full recipe, not an isolated model effect. Keep independent owner comparison recordings separate from enrollment and tuning recordings. Have authorized raters hear those comparison recordings before identity judgments.
+4. Render through approved protection paths. Keep disclosure policy consistent, retain complete protected originals and record any approved evaluation transformation. Do not remove watermarks or bypass protections to make an arm sound better. Record disclosure audibility separately so a shared disclaimer does not stand in for owner likeness.
+5. Conceal engine, adapter and reference-condition names from raters. Randomize presentation and left/right order with the existing opaque-ID and keyed shuffle machinery. Freeze the private mapping before collecting responses. Do not change loudness or playback treatment for one arm without recording a common justified transform and retaining original hashes.
+
+## Listening and acceptance
+
+Use the owner plus at least five independent Hindi/English bilingual listeners for each lane, consistent with the main research brief, noting their familiarity with the owner and relevant regional pronunciations. This is a proposed minimum panel, not a statistical power claim. Only listeners with authorized owner comparison material should rate identity; otherwise record cannot judge. The owner must judge personal likeness directly. A majority of unfamiliar listeners cannot replace that judgment.
+
+Collect the existing four ratings and, once explicitly supported, the supplemental pairwise identity, naturalness, pronunciation/prosody and meaning judgments. Record time spans for wrong names, changed numbers, lost negation, omitted uncertainty, unnatural pauses and audible artifacts. Delivery constraints guide perception; they are not spoken prompts, prescribed emotional states or millisecond targets. Allow intelligible regional pronunciations and equivalent number readings. They do not authorize rewriting the synthesis text.
+
+The independent content unit is the utterance, with 20 per language. Repeated renders and raters are nested observations, not new independent prompts; matched intent across translations also creates dependence. Report n of utterances, rendered attempts, successful protected outputs and raters separately. Record missing or failed clips rather than silently dropping them. Keep Hindi, Hinglish and English results separate, with per-axis A/B/tie/cannot-judge counts, existing scale distributions, failures and disagreements. Do not pool language wins or produce a single percentage of owner fidelity. Any uncertainty calculation should resample utterance clusters within a language, not individual rating clicks; specify the analysis before unblinding.
+
+Before generation, the owner should set per-language acceptance requirements and which critical meaning/pronunciation errors block adoption. Until those requirements and actual results exist, every candidate remains unaccepted. Prefer an arm only after owner identity acceptance, no unacceptable critical meaning loss, and review of naturalness and pronunciation/prosody regressions in that same lane. These are proposed decision boundaries, not an assertion that this small corpus proves general performance.
+
+This is a static speech test. It cannot establish listening skill, interruption handling, cultural authenticity across people, persistent personality or inner feelings. Evaluate live turn-taking separately with controlled conversational scenarios. Likewise, record time to first playable **protected** audio and total wall time separately from listening ratings, with hardware, warm/cold state and n; provider throughput is not an end-to-end latency result.
+
+## Existing primary-source context
+
+These sources are already recorded in the adjacent evidence ledger. They explain why candidate capability and conditioning must be declared; none validates this authored corpus or supplies local acceptance results.
+
+- [OpenBMB VoxCPM repository](https://github.com/OpenBMB/VoxCPM): candidate and conditioning provenance. Existing dual reference/prompt integration should be measured before proposing duplicate plumbing.
+- [Qwen3-TTS repository](https://github.com/QwenLM/Qwen3-TTS) and [AI4Bharat IndicF5 model card](https://huggingface.co/ai4bharat/IndicF5): inspect declared language support when choosing eligible lanes; local Hindi/Hinglish quality still needs listening.
+- [Ekstedt and Skantze, 2022 SIGDIAL paper](https://aclanthology.org/2022.sigdial-1.51/): relevant background for a separate turn-taking study, not validation of this static corpus or Hindi conversational performance.
+
+Preparation checks only: parse JSON, verify 60 unique IDs and nonempty texts, 20 items per language, and exactly one item per language for each shared intent. No provider calls, audio generation, owner listening or statistical quality measurement is part of authoring.

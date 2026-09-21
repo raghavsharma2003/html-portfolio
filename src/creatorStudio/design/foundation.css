@@ -1,0 +1,134 @@
+/* Shared Creator Studio and Room foundation. Import after tokens.css so the palette retains its original precedence. Panel styles stay in studio.css; keep this file limited to both surfaces. */
+
+@layer reset, tokens, base, components, responsive;
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; }
+  button, input { font: inherit; }
+  button { color: inherit; }
+
+  /* Standard offscreen-but-announced pattern. Used by `WizardRail.tsx`'s jump
+     announcer (WS-AP): a screen reader has to hear "moved to X" when a jump
+     anchor moves focus on a phone, but nobody sighted should see a floating
+     status string appear and vanish. `display: none` would hide it from
+     assistive tech too, which is the one thing this element exists to avoid. */
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0; border: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+@layer tokens {
+  :root {
+    color-scheme: light;
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #171915;
+    background: #f4f1e9;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    --paper: #f7f7f4;
+    --paper-deep: #ebe6da;
+    --panel: rgba(255, 254, 249, 0.9);
+    --panel-solid: #ffffff;
+    --ink: #161817;
+    --ink-soft: #4f5651;
+    --ink-faint: #7a7e74;
+    /* WCAG 1.4.3 (text contrast) — WS-R50. `--ink-faint` measures 3.47:1 to
+     * 4.1:1 against the backgrounds it is actually painted on in this file
+     * (`--paper`, `--forest-soft`, `--panel-solid`), all below the 4.5:1
+     * floor for normal-size text. `--ink-faint` itself is used in 50+ places
+     * across this file and this workstream's own targets (the studio shell's
+     * three tabs) proved only three of them; darkening the shared token here
+     * would recolour dozens of spots this gate never measured, which is
+     * reasoning where this repo asks for measurement. So this is a SECOND,
+     * AA-safe token, reserved for the exact selectors this gate's axe scan
+     * actually caught failing on the studio shell's three tabs
+     * (`#hear-voice-counter` via `.voice-preview-script small`,
+     * `.hear-voice-state.idle`, `.mirror-note`, `.mirror-fidelity-legend`)
+     * — see `context/rejected.md#ws-r50-ink-faint-token-wide-recolour` for
+     * the wider `--ink-faint` sweep this deliberately did not do, and why.
+     * 5.15:1 to 7.0:1 against the backgrounds axe measured them on. */
+    --ink-faint-aa: #565a4f;
+    --line: rgba(28, 32, 26, 0.12);
+    --line-strong: rgba(28, 32, 26, 0.22);
+    --forest: #245746;
+    --forest-deep: #173f33;
+    --forest-soft: #e7ede9;
+    --signal: #ed693d;
+    --signal-soft: #fce9df;
+    --danger: #9d302d;
+    --danger-soft: #f9e9e5;
+    --shadow: 0 24px 70px rgba(41, 43, 35, 0.1), 0 3px 12px rgba(41, 43, 35, 0.04);
+    --radius-sm: 12px;
+    --radius: 20px;
+    --radius-lg: 28px;
+    --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  }
+}
+
+@layer base {
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    min-height: 100svh;
+    background:
+      radial-gradient(circle at 80% 0%, rgba(231, 165, 117, 0.16), transparent 29rem),
+      var(--paper);
+  }
+
+  button, a, input { -webkit-tap-highlight-color: transparent; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3, p { margin-top: 0; }
+
+  :focus-visible {
+    outline: 3px solid rgba(23, 73, 59, 0.28);
+    outline-offset: 3px;
+  }
+
+  ::selection { background: #cadfd4; }
+}
+
+@layer components {
+
+  .text-button {
+    width: 100%;
+    margin-top: 15px;
+    border: 0;
+    padding: 8px;
+    color: var(--forest);
+    background: transparent;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .text-button:active:not(:disabled) {
+    transform: scale(0.97);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+}
+
+@layer responsive {
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .text-button:active:not(:disabled) { transform: none; }
+  }
+}

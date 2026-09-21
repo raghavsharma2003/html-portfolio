@@ -74,6 +74,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { scoreHinglishTranscriptPair } from "./hinglish-script-score.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "../..");
@@ -285,7 +286,10 @@ function scoreLine(expectedText, transcript) {
     }
   }
   const ratio = expected.length ? matched / expected.length : 1;
-  return { expected, got, matched, misses, flags, ratio };
+  // Preserve the legacy set-overlap ratio above for comparability. Add real
+  // edit-distance WER/CER in raw and explicitly curated cross-script arms.
+  const transcriptMetrics = scoreHinglishTranscriptPair(expectedText, transcript);
+  return { expected, got, matched, misses, flags, ratio, transcriptMetrics };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -302,7 +306,10 @@ for (const [i, item] of CORPUS.entries()) {
     const score = scoreLine(item.text, transcript);
     results.push({ ...item, transcript, sttModel, score, error: null });
     console.log(
-      `stt="${transcript}" ratio=${(score.ratio * 100).toFixed(0)}%${score.flags.length ? " FLAGGED: " + score.flags.join("; ") : ""}`,
+      `stt="${transcript}" legacy-match=${(score.ratio * 100).toFixed(0)}% ` +
+      `raw-WER=${score.transcriptMetrics.raw.wordErrorRate.toFixed(3)} ` +
+      `curated-cross-script-WER=${score.transcriptMetrics.scriptAware.wordErrorRate.toFixed(3)}` +
+      `${score.flags.length ? " FLAGGED: " + score.flags.join("; ") : ""}`,
     );
   } catch (e) {
     results.push({ ...item, transcript: null, sttModel: null, score: null, error: e?.message || String(e) });
@@ -314,8 +321,46 @@ const errored = results.filter((r) => r.error);
 const scored = results.filter((r) => r.score);
 const flagged = scored.filter((r) => r.score.flags.length > 0);
 const worst = [...scored].sort((a, b) => a.score.ratio - b.score.ratio).slice(0, 5);
+const aggregateMetric = (name) => {
+  const wordErrors = scored.reduce((sum, row) => sum + row.score.transcriptMetrics[name].wordErrors, 0);
+  const referenceWords = scored.reduce((sum, row) => sum + row.score.transcriptMetrics[name].referenceWords, 0);
+  const characterErrors = scored.reduce((sum, row) => sum + row.score.transcriptMetrics[name].characterErrors, 0);
+  const referenceCharacters = scored.reduce((sum, row) => sum + row.score.transcriptMetrics[name].referenceCharacters, 0);
+  return {
+    wordErrors,
+    referenceWords,
+    wordErrorRate: referenceWords ? wordErrors / referenceWords : (wordErrors ? 1 : 0),
+    characterErrors,
+    referenceCharacters,
+    characterErrorRate: referenceCharacters ? characterErrors / referenceCharacters : (characterErrors ? 1 : 0),
+  };
+};
+const rawTranscriptMetric = aggregateMetric("raw");
+const curatedCrossScriptMetric = aggregateMetric("scriptAware");
+const transcriptCoverage = {
+  expectedAliasMatchedTokens: scored.reduce((sum, row) =>
+    sum + row.score.transcriptMetrics.coverage.expectedAliasMatchedTokens, 0),
+  observedAliasMatchedTokens: scored.reduce((sum, row) =>
+    sum + row.score.transcriptMetrics.coverage.observedAliasMatchedTokens, 0),
+  observedDevanagariTokens: scored.reduce((sum, row) =>
+    sum + row.score.transcriptMetrics.coverage.observedDevanagariTokens, 0),
+  observedMappedDevanagariTokens: scored.reduce((sum, row) =>
+    sum + row.score.transcriptMetrics.coverage.observedMappedDevanagariTokens, 0),
+  observedUnmappedDevanagariTokens: [...new Set(scored.flatMap((row) =>
+    row.score.transcriptMetrics.coverage.observedUnmappedDevanagariTokens))].sort(),
+};
 
 console.log(`\n${scored.length}/${CORPUS.length} lines scored, ${errored.length} errored, ${flagged.length} flagged as likely mispronunciations.`);
+if (scored.length) {
+  console.log(
+    `Raw Unicode WER/CER ${rawTranscriptMetric.wordErrorRate.toFixed(3)}/${rawTranscriptMetric.characterErrorRate.toFixed(3)}; ` +
+    `curated cross-script WER/CER ${curatedCrossScriptMetric.wordErrorRate.toFixed(3)}/${curatedCrossScriptMetric.characterErrorRate.toFixed(3)}.`,
+  );
+  console.log(
+    `Alias coverage expected/observed ${transcriptCoverage.expectedAliasMatchedTokens}/${transcriptCoverage.observedAliasMatchedTokens}; ` +
+    `observed Devanagari mapped ${transcriptCoverage.observedMappedDevanagariTokens}/${transcriptCoverage.observedDevanagariTokens}.`,
+  );
+}
 if (worst.length) {
   console.log("\nWorst offenders (lowest word-match ratio):");
   for (const w of worst) {
@@ -344,13 +389,29 @@ lines.push(
     `engine mispronunciation with model paraphrase). n=${CORPUS.length}, real paid ` +
     `Google calls, run once on ${dateStr}. Round-trip: each line synthesised, then ` +
     `sent back through Gemini multimodal transcription (romanised output requested). ` +
-    `Scored by word-level token match against the source line, plus a curated ` +
+    `Scored by the legacy word-level token match against the source line, raw ` +
+    `Unicode WER/CER, and separately labeled curated cross-script WER/CER. The ` +
+    `adjusted arm only canonicalizes reviewed Roman/Devanagari aliases and ` +
+    `reports mapping coverage; unknown words remain errors. Also includes a curated ` +
     `confusable-word flag for the specific ambiguous romanisations this ticket named ` +
     `(hai/he, kal/call, main/man, kya/kaya, padh|pad, bahut/bohot).`,
 );
 lines.push("");
 lines.push(`**Summary: ${scored.length}/${CORPUS.length} scored, ${errored.length} errored, ${flagged.length} flagged as likely mispronunciations.**`);
 lines.push("");
+if (scored.length) {
+  lines.push(
+    `Raw Unicode WER/CER: **${rawTranscriptMetric.wordErrorRate.toFixed(3)} / ${rawTranscriptMetric.characterErrorRate.toFixed(3)}**. ` +
+    `Curated cross-script WER/CER: **${curatedCrossScriptMetric.wordErrorRate.toFixed(3)} / ${curatedCrossScriptMetric.characterErrorRate.toFixed(3)}**. ` +
+    `The latter is an alias-bounded diagnostic, not plain WER/CER and not a transliteration-quality claim.`,
+  );
+  lines.push(
+    `Alias coverage: expected/observed matched tokens **${transcriptCoverage.expectedAliasMatchedTokens} / ${transcriptCoverage.observedAliasMatchedTokens}**; ` +
+    `observed Devanagari mapped **${transcriptCoverage.observedMappedDevanagariTokens} / ${transcriptCoverage.observedDevanagariTokens}**. ` +
+    `Unmapped observed Devanagari tokens: ${transcriptCoverage.observedUnmappedDevanagariTokens.length ? transcriptCoverage.observedUnmappedDevanagariTokens.map((token) => `\`${token}\``).join(", ") : "none"}.`,
+  );
+  lines.push("");
+}
 if (worst.length) {
   lines.push("## Worst offenders (lowest word-match ratio)");
   lines.push("");
@@ -361,14 +422,16 @@ if (worst.length) {
 }
 lines.push("## Full per-line results");
 lines.push("");
-lines.push("| # | line | source | STT transcript | match | flagged mispronunciation |");
-lines.push("|---|------|--------|-----------------|-------|---------------------------|");
+lines.push("| # | line | source | STT transcript | legacy match | raw WER | curated cross-script WER | flagged mispronunciation |");
+lines.push("|---|------|--------|-----------------|--------------|---------|--------------------------|---------------------------|");
 for (const [i, r] of results.entries()) {
   if (r.error) {
-    lines.push(`| ${i + 1} | \`${r.text}\` | ${r.src} | ERROR | — | ${r.error.replace(/\|/g, "/")} |`);
+    lines.push(`| ${i + 1} | \`${r.text}\` | ${r.src} | ERROR | — | — | — | ${r.error.replace(/\|/g, "/")} |`);
   } else {
     lines.push(
-      `| ${i + 1} | \`${r.text}\` | ${r.src} | \`${r.transcript}\` | ${(r.score.ratio * 100).toFixed(0)}% | ${r.score.flags.length ? r.score.flags.join("; ") : "—"} |`,
+      `| ${i + 1} | \`${r.text}\` | ${r.src} | \`${r.transcript}\` | ${(r.score.ratio * 100).toFixed(0)}% | ` +
+      `${r.score.transcriptMetrics.raw.wordErrorRate.toFixed(3)} | ${r.score.transcriptMetrics.scriptAware.wordErrorRate.toFixed(3)} | ` +
+      `${r.score.flags.length ? r.score.flags.join("; ") : "—"} |`,
     );
   }
 }

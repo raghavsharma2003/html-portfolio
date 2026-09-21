@@ -8,6 +8,8 @@
 import {
   raisedRecently, renderRaised,
   MIN_TIMES, MAX_TERMS, RAISED_BUDGET, SHORT_REPLY_WORDS,
+  isLoopingLine, loopWords, jaccard,
+  LOOP_JACCARD, LOOP_LOOKBACK, LOOP_MIN_WORDS, LOOP_MAX_RETRIES, LOOP_NUDGE,
 } from "./.bundle.mjs";
 
 let fail = 0;
@@ -105,6 +107,61 @@ ok("no quoted dialogue", !/["“”]/.test(nagText), nagText);
 
 // ── determinism ────────────────────────────────────────────────────────────
 ok("same input twice is byte-identical", renderRaised(raisedRecently(nagging)) === nagText);
+
+
+// ══ THE HER-SIDE LOOP FENCE (WS-GAMEFEEL) ═════════════════════════════════
+//
+// A different repetition from everything above. That one is about TOPICS —
+// what she keeps bringing up and how he answers. This is about a LINE: the
+// 2026-08-25 tester heard "kya idea hai" for a whole game, and same-question
+// loops on calls generally. The topic detector structurally cannot see it (the
+// tokens are short, shared or both), and nothing else in the stack looked at
+// her own previous turn at all.
+{
+  const line = "arre wahi toh main keh rahi thi na yaar";
+  ok("an exact repeat is caught", isLoopingLine(line, [line]));
+  ok("…and so is the same line with the filler shuffled",
+    isLoopingLine("wahi toh main keh rahi thi na yaar arre", [line]));
+  ok("a different line is not", !isLoopingLine("acha ab tum batao kya kar rahe ho", [line]));
+
+  // THE BACKCHANNEL EXEMPTION, which is not a corner case — it is most of what
+  // she says on a call. Real people say "hmm" twice in a row and nobody
+  // notices; a fence that forced variety there would be the tell, not the fix.
+  ok("a short backchannel may repeat", !isLoopingLine("haan haan", ["haan haan"]));
+  ok("…and the boundary is LOOP_MIN_WORDS",
+    loopWords("haan haan").size < LOOP_MIN_WORDS && loopWords(line).size >= LOOP_MIN_WORDS);
+
+  // THE LOOKBACK IS BOUNDED. Reaching further back turns a deliberate callback
+  // ("like I said —") into a defect.
+  const older = ["something else entirely here", "another different line here", line];
+  ok(`only the last ${LOOP_LOOKBACK} turns count`, !isLoopingLine(line, older));
+  ok("…and the most recent one does", isLoopingLine(line, [line, "unrelated words in here"]));
+
+  // NORMALISATION: punctuation, emoji and case are not differences.
+  ok("emoji and punctuation are stripped",
+    jaccard(loopWords("kya idea hai?? 😭"), loopWords("KYA idea, hai")) === 1);
+  ok("devanagari survives normalisation", loopWords("क्या idea है").has("idea"));
+
+  // NEGATIVE CONTROLS — `bold-eats-words`: an assertion whose evidence is an
+  // absence passes just as happily on a dead detector.
+  ok("NEGATIVE CONTROL: nothing to compare against is never a loop", !isLoopingLine(line, []));
+  ok("NEGATIVE CONTROL: an empty candidate is never a loop", !isLoopingLine("", [line]));
+  ok("NEGATIVE CONTROL: the threshold can be missed",
+    jaccard(loopWords("toh kya idea hai tumhara"), loopWords("kya idea hai tumhara batao")) <= LOOP_JACCARD);
+
+  // THE NUDGE. It says WHAT to do and never WHAT TO SAY: a nudge carrying an
+  // example line is a phrase bank, which is `recited-prompt`, installed at
+  // exactly the moment she has demonstrated she will repeat what is in front
+  // of her.
+  ok("the nudge is a <context: …> note", LOOP_NUDGE.startsWith("<context:") && LOOP_NUDGE.endsWith(">"));
+  ok("the nudge has NO square brackets", !/[[\]]/.test(LOOP_NUDGE), LOOP_NUDGE);
+  ok("the nudge forbids referencing itself", /never reference this note/.test(LOOP_NUDGE));
+  ok("the nudge carries no line she could say", !/["\u201c\u2018]/.test(LOOP_NUDGE), LOOP_NUDGE);
+  ok("the retry is bounded to one", LOOP_MAX_RETRIES === 1);
+}
+
+// The retired Meera cascade sender is no longer part of this product.
+// This suite retains the shared loop detector and bounded-nudge contracts.
 
 console.log(fail ? `${fail} FAILURES` : "ALL PASS");
 process.exit(fail ? 1 : 0);

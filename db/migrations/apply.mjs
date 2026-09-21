@@ -11,9 +11,10 @@
 // interrupted between statements is recovered by running the same file
 // again, never by manual repair.
 import { readFileSync, readdirSync } from "node:fs";
-import { q } from "../../api/_db.js";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
-const DIR = new URL(".", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL(".", import.meta.url));
 
 /**
  * Split SQL into statements on top-level semicolons. Quote-aware (single
@@ -79,7 +80,10 @@ const files = readdirSync(DIR)
   .sort()
   .filter((f) => !only.length || only.some((a) => f.startsWith(a)));
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  // Defer the secrets-bearing database module so splitSql can be imported by
+  // offline migration gates on a clean checkout with no generated _config.js.
+  const { q } = await import("../../api/_db.js");
   let statements = 0;
   const t0 = Date.now();
   for (const f of files) {

@@ -4,6 +4,7 @@
 // evals/lanes/.entry.ts: context/rejected.md `gates-that-live-nowhere` is
 // what a frozen bundle buys you.
 export { compile, OPERATIONAL_CORE_CAP, OPERATIONAL_TAIL_CAP } from "../../src/engine/compiler";
+export { demoTeacherAgent as TEST_AGENT } from "../../src/engine/agents/teacher";
 export { formatChatTail, callMemories, formatActivityLedger } from "../../src/engine/memory";
 export { formatSharedHistory, formatActivityLedgerForCall, callGraphBlocks } from "../../src/voice/callHistory";
 export { herCommitments } from "../../src/engine/honesty";

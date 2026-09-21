@@ -38,8 +38,8 @@
 //
 //     `persona.ts` imports `storyContext()` from this file, so ANY import
 //     here that reaches `timeline.ts` closes that loop — and the loop is not
-//     harmless, because `compiler.ts` reads `DEFAULT_AGENT.CRISIS_LINES` at
-//     module scope. With the edge present, `DEFAULT_AGENT` is undefined when
+//     harmless, because `compiler.ts` used to read its default agent at
+//     module scope. With the edge present, that agent was undefined when
 //     that line runs and the whole engine bundle fails to import. Measured:
 //     `TypeError: Cannot read properties of undefined (reading
 //     'CRISIS_LINES')`, from both `./timeline` and `./sky`, with the app's
@@ -83,7 +83,7 @@ export interface Story {
   desc: string; // what's in it, for her own awareness
 }
 
-const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform() ? "https://vyakti-replica-lab.vercel.app" : "";
 
 export const STORIES: Story[] = [
   {

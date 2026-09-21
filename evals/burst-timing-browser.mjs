@@ -21,14 +21,14 @@
 // it needs a built app on a port. It IS in version control, and its entry URL
 // is `#chat` — see the note in burst-browser.mjs about the two days this
 // battery spent unable to reach the composer.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 
 const B = process.env.MEERA_PREVIEW || "http://localhost:4291";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let fails = 0;
 const ok = (n, c, e = "") => { console.log(`${c ? "ok  " : "FAIL"} ${n}${e ? " — " + e : ""}`); if (!c) fails++; };
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("burst-timing-browser");
 
 const BASE_STATE = {
   onboarded: true,

@@ -1,0 +1,41 @@
+{
+  "contract": "vyakti-indicf5-pronunciation-impact-hypothesis/v1",
+  "asOf": "2026-08-28",
+  "sourceObjectiveReport": {
+    "visibility": "private",
+    "sha256": "aacea25fd17a63cc2b9a68bc70572f920ccd91c3de29f381b14939c19c4e41af"
+  },
+  "baselineAsrDisagreement": {
+    "chemicalSymbols": {
+      "targetUnits": 8,
+      "errors": 6,
+      "errorRate": 0.75
+    },
+    "numerals": {
+      "targetUnits": 11,
+      "errors": 4,
+      "errorRate": 0.36363636363636365
+    }
+  },
+  "deterministicallyCoveredErrorUnits": {
+    "chemicalSymbols": 4,
+    "numerals": 3
+  },
+  "preRegisteredIfEveryCoveredUnitResolvesAndNoOtherUnitRegresses": {
+    "chemicalSymbols": {
+      "remainingErrors": 2,
+      "errorRate": 0.25,
+      "absoluteErrorReduction": 4,
+      "percentagePointReduction": 50
+    },
+    "numerals": {
+      "remainingErrors": 1,
+      "errorRate": 0.09090909090909091,
+      "absoluteErrorReduction": 3,
+      "percentagePointReduction": 27.27272727272727
+    }
+  },
+  "status": "integrated_not_resynthesized",
+  "interpretation": "This is exact deterministic text coverage and a conditional resynthesis hypothesis. It is not measured audio, ASR, intelligibility, naturalness, accent, or likeness improvement.",
+  "sealedMappingIncluded": false
+}

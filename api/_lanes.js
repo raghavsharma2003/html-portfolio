@@ -320,6 +320,18 @@ export function attachToLastTurn(messages, { caption = "", urls = [], docBlocks 
 //
 //   gemini-free  the free Google AI Studio pool (api/_gkeys.js) — free, fast,
 //                streams, and the incumbent for text.
+//   gemini-paid  WS-COST. The owner's PREPAID Google key, same host and same
+//                OpenAI-compatible surface as the free pool, so it is a swap of
+//                key rather than a second code path. It sits directly BELOW the
+//                free pool and ABOVE OpenRouter because that is the cheapest
+//                order at measured prices: free is $0, direct Google list is
+//                $0.75/1M in (measured $0.0101/turn uncached, $0.0046 on an
+//                implicit-cache hit — see the WS-COST A2/A3 tables), and
+//                OpenRouter is list plus its own margin for the same model.
+//                FLAG-GATED AND OFF BY DEFAULT: it is only in the order when
+//                the caller passes `paidLane: true`, so with the flag unset
+//                this function returns the very same frozen arrays it always
+//                did and no request can reach a billed Google key by accident.
 //   openrouter   paid. Currently the owner's OpenRouter balance is spent, which
 //                is exactly why the lane below it now exists.
 //   azure        Microsoft-for-Startups credits: $0 cash. Last resort for text,
@@ -327,7 +339,18 @@ export function attachToLastTurn(messages, { caption = "", urls = [], docBlocks 
 export const LANE_ORDER_TEXT = ["gemini-free", "openrouter", "azure"];
 export const LANE_ORDER_ATTACHMENT = ["azure", "gemini-free", "openrouter"];
 
-/** Which order this request uses. One call site, so the rule is one line. */
-export function laneOrder({ hasAttachments }) {
-  return hasAttachments ? LANE_ORDER_ATTACHMENT : LANE_ORDER_TEXT;
+// The SAME two orders with the paid Google lane spliced in at its one correct
+// position. Written out rather than computed so the shipped order is readable
+// in one glance — the whole reason this file holds the constant at all.
+export const LANE_ORDER_TEXT_PAID = ["gemini-free", "gemini-paid", "openrouter", "azure"];
+export const LANE_ORDER_ATTACHMENT_PAID = ["azure", "gemini-free", "gemini-paid", "openrouter"];
+
+/** Which order this request uses. One call site, so the rule is one line.
+ *
+ *  `paidLane` defaults to false, and false returns the ORIGINAL constant by
+ *  identity — not a filtered copy — so "flag off is byte-identical to before"
+ *  is a property of this function rather than a claim about it. */
+export function laneOrder({ hasAttachments, paidLane = false }) {
+  if (!paidLane) return hasAttachments ? LANE_ORDER_ATTACHMENT : LANE_ORDER_TEXT;
+  return hasAttachments ? LANE_ORDER_ATTACHMENT_PAID : LANE_ORDER_TEXT_PAID;
 }

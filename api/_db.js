@@ -12,6 +12,13 @@ const HOST = URL_ ? URL_.split("@")[1]?.split("/")[0] : "";
  * slow Neon must never add ten seconds to something the user is waiting on.
  */
 export async function q(query, params = [], timeoutMs = 10_000) {
+  // A deployment built from the stub config (no NEON_URL on the Vercel
+  // project) used to reach here with HOST === "" and fail inside fetch with
+  // undici's bare "fetch failed", which every door then logged as if the
+  // database were down. Found by the main loop's live probe of the wave-
+  // eleven preview (2026-09-05): name the real cause so the runtime log and
+  // the incident ledger say what is missing, never what is not.
+  if (!HOST) throw new Error("neon_url_missing");
   const res = await fetch(`https://${HOST}/sql`, {
     method: "POST",
     headers: {
@@ -21,7 +28,55 @@ export async function q(query, params = [], timeoutMs = 10_000) {
     body: JSON.stringify({ query, params }),
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!res.ok) throw new Error(`neon ${res.status}`);
+  if (!res.ok) {
+    const detail = await pgDetail(res);
+    const error = new Error(`neon ${res.status}${detail.suffix}`);
+    // Only a parsed PostgreSQL SQLSTATE is machine-readable authority. Keep
+    // the existing message; neither HTTP status nor message text is a code.
+    if (detail.code) error.code = detail.code;
+    throw error;
+  }
   const data = await res.json();
   return data.rows ?? [];
+}
+
+/**
+ * The Postgres `code` and `message` off a non-ok Neon response, as a suffix,
+ * plus an optional validated five-character SQLSTATE for exact caller checks.
+ *
+ * This used to be dropped on the floor: every failure collapsed to
+ * `neon 400`, and the body carrying `42883 operator does not exist: uuid =
+ * text` was never read. That is a bad trade on a SQL-over-HTTP driver, because
+ * a type error is indistinguishable from a wrong password, a dropped column or
+ * a syntax error at the call site — the studio's first live "create replica"
+ * click 500'd and the log said `neon 400` and nothing else. A whole class of
+ * bug is invisible while the one line that names it is discarded.
+ *
+ * Deliberately message + code ONLY. Not the connection string, not the query,
+ * not the bound parameters — the reason the body was dropped in the first place
+ * was that it is attacker-adjacent, and the fix for that is to take the two
+ * fields that name the defect rather than to take nothing.
+ *
+ * The `neon ${status}` PREFIX is load-bearing: evals/self/observation.mjs
+ * matches /neon 4\d\d/ on the message. Suffixing keeps that true.
+ */
+async function pgDetail(res) {
+  const empty = { suffix: "" };
+  try {
+    const body = await res.text();
+    if (!body) return empty;
+    let code, message;
+    try {
+      ({ code, message } = JSON.parse(body));
+    } catch {
+      return empty;
+    }
+    const parts = [code, message].filter((v) => typeof v === "string" && v);
+    return {
+      suffix: parts.length ? `: ${parts.join(" ")}` : "",
+      ...(typeof code === "string" && code.length === 5 && /^[0-9A-Z]{5}$/.test(code) ? { code } : {}),
+    };
+  } catch {
+    return empty; // a body we cannot read must never mask the status we have
+  }
 }

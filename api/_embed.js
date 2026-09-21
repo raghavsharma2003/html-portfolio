@@ -13,10 +13,7 @@
 // already calls for extraction returns 200 with 1536 dims; OpenRouter's
 // /api/v1/embeddings on `openai/text-embedding-3-small` does too.
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
-
-const AZ_ENDPOINT = process.env.AZURE_ENDPOINT || AZURE_ENDPOINT;
-const AZ_KEY = process.env.AZURE_API_KEY || AZURE_KEY;
-const OR_KEY = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
+import { assertAzureServingOrigin, isAzureOnlyServing } from "./_model-serving-policy.js";
 
 export const EMBED_MODEL = "text-embedding-3-small";
 export const EMBED_DIM = 1536;
@@ -31,13 +28,20 @@ export function embedCostSnapshot() {
   return { ...cost };
 }
 
-async function embedAzure(inputs) {
-  if (!AZ_ENDPOINT || !AZ_KEY) return null;
-  const r = await fetch(`${AZ_ENDPOINT}/embeddings`, {
+async function embedAzure(inputs, { env, fetchImpl }) {
+  // An injected environment never inherits deployment credentials; strict
+  // serving also requires an explicit runtime Azure configuration.
+  const baked = env === process.env && !isAzureOnlyServing(env);
+  const endpoint = env.AZURE_ENDPOINT || (baked ? AZURE_ENDPOINT : "");
+  const key = env.AZURE_API_KEY || (baked ? AZURE_KEY : "");
+  if (!endpoint || !key) return null;
+  assertAzureServingOrigin(endpoint, env);
+  const r = await fetchImpl(`${endpoint}/embeddings`, {
     method: "POST",
-    headers: { "api-key": AZ_KEY, "Content-Type": "application/json" },
+    headers: { "api-key": key, "Content-Type": "application/json" },
     body: JSON.stringify({ model: EMBED_MODEL, input: inputs }),
     signal: AbortSignal.timeout(15_000),
+    ...(isAzureOnlyServing(env) ? { redirect: "error" } : {}),
   });
   if (!r.ok) return null;
   const j = await r.json();
@@ -47,12 +51,13 @@ async function embedAzure(inputs) {
   return j.data.slice().sort((a, b) => a.index - b.index).map((d) => d.embedding);
 }
 
-async function embedOpenRouter(inputs) {
-  if (!OR_KEY) return null;
-  const r = await fetch("https://openrouter.ai/api/v1/embeddings", {
+async function embedOpenRouter(inputs, { env, fetchImpl }) {
+  const key = env.OPENROUTER_API_KEY || (env === process.env ? OPENROUTER_KEY : "");
+  if (!key) return null;
+  const r = await fetchImpl("https://openrouter.ai/api/v1/embeddings", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${OR_KEY}`,
+      Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
       "X-Title": "Meera",
     },
@@ -71,27 +76,31 @@ async function embedOpenRouter(inputs) {
  *  null on total failure — every caller must treat null as "skip this write /
  *  fall back to keyword-only", never as an error worth failing the request
  *  for: an embedding is an enhancement, never the only path to a memory. */
-export async function embedBatch(texts) {
+export async function embedBatch(texts, options = {}) {
+  const env = options.env || process.env;
+  const transport = { env, fetchImpl: options.fetchImpl || globalThis.fetch };
   const inputs = texts.map((t) => String(t || "").slice(0, 4000)).filter(Boolean);
   if (!inputs.length) return [];
   try {
-    const az = await embedAzure(inputs);
+    const az = await embedAzure(inputs, transport);
     if (az && az.every((v) => Array.isArray(v) && v.length === EMBED_DIM)) return az;
   } catch {
-    /* fall through to OpenRouter */
+    /* the optional legacy fallback is selected below */
   }
-  try {
-    const or = await embedOpenRouter(inputs);
-    if (or && or.every((v) => Array.isArray(v) && v.length === EMBED_DIM)) return or;
-  } catch {
-    /* both failed */
+  if (!isAzureOnlyServing(env)) {
+    try {
+      const or = await embedOpenRouter(inputs, transport);
+      if (or && or.every((v) => Array.isArray(v) && v.length === EMBED_DIM)) return or;
+    } catch {
+      /* both failed */
+    }
   }
   cost.failures += inputs.length;
   return inputs.map(() => null);
 }
 
-export async function embedOne(text) {
-  const [v] = await embedBatch([text]);
+export async function embedOne(text, options = {}) {
+  const [v] = await embedBatch([text], options);
   return v || null;
 }
 

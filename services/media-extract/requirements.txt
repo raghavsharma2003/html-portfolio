@@ -1,0 +1,13 @@
+# Pinned exactly. yt-dlp is the one dependency in this repo whose pin has an
+# EXPIRY rather than just a version: YouTube changes its player and a pinned
+# extractor stops working, usually with `extractor_signature_failed` or
+# `extractor_po_token_required`. README.md §"Update policy" is the procedure
+# and it is not optional maintenance.
+#
+# Latest release at the time of pinning: 2026.08.19 (verified against
+# https://github.com/yt-dlp/yt-dlp/releases on 2026-08-26).
+yt-dlp==2026.8.19
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+requests==2.32.3
+anyio==4.7.0

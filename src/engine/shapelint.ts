@@ -56,7 +56,7 @@ export function lintLine(line: string): LineViolation {
   const words = wordsOf(trimmed);
   if (words.length > MAX_WORDS) reasons.push(`too long: ${words.length} words (cap ${MAX_WORDS})`);
   if (SENTENCE_SHAPED_RE.test(trimmed)) reasons.push("sentence-shaped (capital start + terminal punctuation)");
-  if (FIRST_PERSON_LINE_INITIAL_RE.test(trimmed)) reasons.push("first-person-Meera voice, line-initial");
+  if (FIRST_PERSON_LINE_INITIAL_RE.test(trimmed)) reasons.push("first-person persona voice, line-initial");
 
   return { line, reasons };
 }
@@ -70,7 +70,7 @@ export interface LintReport {
 /** Lints a block of authored content, one line per row (the shape everything
  * in T3–T7 renders as: "- subject: telegraphic note (when)"). `allowlist`
  * lines are skipped verbatim — for the ONE class where the rule is inverted
- * on purpose: CRISIS_LINES must ship exactly as written (§3.1 C2), and
+ * on purpose: the sheet's crisis lines must ship exactly as written (§3.1 C2), and
  * shared-language / phrase-ledger rows are "THEIR line, not a line written
  * for her" (SPEC §2.4 vy_phrase comment) — verbatim storage is the point. */
 export function lintBlock(text: string, allowlist: readonly string[] = []): LintReport {

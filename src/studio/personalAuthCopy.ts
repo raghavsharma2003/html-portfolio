@@ -1,0 +1,53 @@
+/** Copy for the personal studio's email-link sign-in journey. */
+export interface PersonalAuthCopy {
+  homeAriaLabel: string;
+  safeguardsAriaLabel: string;
+  privateByDefault: string;
+  everyClipDisclosed: string;
+  deleteAnytime: string;
+  welcomeBackTitle: string;
+  emailTitle: string;
+  inboxTitle: string;
+  resumeTitle: string;
+  resumeBodyTemplate: string;
+  sameClone: string;
+  stepTitle: Record<"feed" | "meet" | "deploy", string>;
+  emailBody: string;
+  inboxBodyTemplate: string;
+  emailLabel: string;
+  emailPlaceholder: string;
+  sendingAriaLabel: string;
+  sending: string;
+  sendLink: string;
+  or: string;
+  google: string;
+  inboxHelp: string;
+  checkingLink: string;
+  openedLink: string;
+  optionalCodeDivider: string;
+  codeLabel: string;
+  codePlaceholder: string;
+  verifyingAriaLabel: string;
+  verifying: string;
+  verify: string;
+  differentEmail: string;
+  linkNotReadyError: string;
+  sendError: string;
+  networkError: string;
+  rateLimitError: string;
+  serviceUnavailableError: string;
+  invalidEmailError: string;
+  codeMismatchError: string;
+  googleError: string;
+  workspaceLoadError: string;
+  retryWorkspace: string;
+  legalNotice: string;
+  visualAlt: string;
+  visualCaptions: Record<"knowledge" | "voice" | "people", string>;
+  variant: Record<"generic" | "teacher" | "test", {
+    brandTag: string;
+    introEyebrow: string;
+    introTitle: string;
+    introBody: string;
+  }>;
+}

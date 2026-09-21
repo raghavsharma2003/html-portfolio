@@ -37,13 +37,14 @@
 // before and after.
 //
 // What is different here, and load-bearing: the fixture applies 008b, 009,
-// 010 AND 013 — filtered to the two tables under test — so `agent_id` has NO
+// 010, 013 AND 064 — filtered to the two tables under test — so `agent_id` has NO
 // DEFAULT, exactly as in production since 010. A fixture that kept 009's
 // default would let a writer which never names `agent_id` pass here and raise
 // a NOT NULL violation live, which is the precise shape of failure this repo
 // keeps paying for. Test 0 compares the fixture's catalog against production's
 // column for column, so the two cannot drift apart silently.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { q } from "../../api/_db.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
@@ -57,7 +58,7 @@ import {
 import { MEERA_AGENT_ID } from "../../api/_agentscope.js";
 import { surfaceRoomDeviceId } from "../../api/_room.js";
 
-const ROOT = new URL("../..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const PREFIX = "wsbind_test_";
 const TAG = "wsbind-test-";
 const KEEP = process.argv.includes("--keep");
@@ -79,6 +80,7 @@ const FILES = [
   "009_agents.sql",
   "010_agent_strict.sql",
   "013_surface_room_binding.sql",
+  "064_agent_room_binding.sql",
 ];
 
 const targetOf = (stmt) => {
@@ -94,10 +96,14 @@ const targetOf = (stmt) => {
   return null;
 };
 
-const stmtsFor = (file) =>
-  splitSql(readFileSync(join(ROOT, "db/migrations", file), "utf8")).filter((s) =>
-    TABLES.has(targetOf(s)),
-  );
+const stmtsFor = (file) => {
+  const statements = splitSql(readFileSync(join(ROOT, "db/migrations", file), "utf8"));
+  // 064 contains only the two agent-aware room indexes followed by removal of
+  // their legacy global counterparts. Keep its DROP INDEX statements too:
+  // filtering solely by target table cannot attribute a drop.
+  if (file === "064_agent_room_binding.sql") return statements;
+  return statements.filter((s) => TABLES.has(targetOf(s)));
+};
 
 async function teardown() {
   const rels = await q(
@@ -140,10 +146,10 @@ async function buildSchema() {
   for (const s of stmts) await q(ns(s), [], 60_000);
   // The house law: every statement in every migration file is independently
   // idempotent, because an interrupted apply is recovered by running the same
-  // file again (db/migrations/apply.mjs). 013 is the new one, so 013 is the
-  // one re-applied here — if any of its eight statements were not re-runnable,
+  // file again (db/migrations/apply.mjs). 064 is the new one, so 064 is the
+  // one re-applied here — if any replacement statement were not re-runnable,
   // this second pass throws and the suite dies loudly at build time.
-  for (const s of stmtsFor("013_surface_room_binding.sql")) await q(ns(s), [], 60_000);
+  for (const s of stmtsFor("064_agent_room_binding.sql")) await q(ns(s), [], 60_000);
   return stmts.length;
 }
 
@@ -172,7 +178,7 @@ const before = await productionCounts();
 console.log("\n── fixture namespace ──");
 await teardown();
 const built = await buildSchema();
-ok(`${built} statements -> ${PREFIX}*, then 013 re-applied (idempotence)`, built > 0);
+ok(`${built} statements -> ${PREFIX}*, then 064 re-applied (idempotence)`, built > 0);
 
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── 0. the fixture IS production's shape ──");
@@ -214,9 +220,17 @@ console.log("\n── 0. the fixture IS production's shape ──");
     [[T("vy_group"), T("vy_group_member")]],
   );
   const names = idx.map((r) => r.indexname.replace(PREFIX, ""));
-  ok("013's unique index on (surface, surface_chat_id) exists", names.includes("vy_group_surface_chat_ix"), names.join(","));
+  ok(
+    "064's agent-aware unique index on (agent_id, surface, surface_chat_id) exists",
+    names.includes("vy_group_agent_surface_chat_ix"),
+    names.join(","),
+  );
   ok("013's lookup index on (surface, surface_user_id) exists", names.includes("vy_group_member_surface_ix"));
-  ok("008b's old unique index STILL exists (nothing was dropped)", names.includes("vy_group_tg_chat_ix"));
+  ok("064's agent-aware Telegram compatibility index exists", names.includes("vy_group_agent_tg_chat_ix"));
+  ok(
+    "064 removed both legacy global room constraints",
+    !names.includes("vy_group_surface_chat_ix") && !names.includes("vy_group_tg_chat_ix"),
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -233,6 +247,7 @@ console.log("\n── 1. the key discriminator: a chat key is opaque text ──
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── 2. new-write: every surface gets a room, on its own key ──");
 let tgRoom, dcRoom, waRoom;
+const SECOND_AGENT_ID = "a0000000-0000-4000-8000-000000000002";
 {
   tgRoom = await ensureRoomForSurfaceChat("telegram", "9001", { name: `${TAG}tg` }, t);
   dcRoom = await ensureRoomForSurfaceChat("discord", "9001", { name: `${TAG}dc` }, t);
@@ -261,6 +276,27 @@ let tgRoom, dcRoom, waRoom;
 
   ok("every room names its agent explicitly (010 dropped the default)",
     (await q(`select count(*)::int n from ${T("vy_group")} where agent_id = $1`, [MEERA_AGENT_ID]))[0].n === 3);
+}
+
+console.log("\n—— 2b. the same wire address belongs to two independent agents ——");
+{
+  const second = await ensureRoomForSurfaceChat(
+    "discord",
+    "9001",
+    { name: `${TAG}dc-agent-2`, agentId: SECOND_AGENT_ID },
+    t,
+  );
+  ok("agent 2 can create the SAME surface/chat address", Boolean(second?.id));
+  ok("the two agents receive DIFFERENT room ids", second?.id !== dcRoom.id, `${second?.id} vs ${dcRoom.id}`);
+  ok(
+    "agent 1 reads only its room",
+    (await roomForChat("discord", "9001", t, MEERA_AGENT_ID))?.id === dcRoom.id,
+  );
+  ok(
+    "agent 2 reads only its room",
+    (await roomForChat("discord", "9001", t, SECOND_AGENT_ID))?.id === second?.id,
+  );
+  await q(`delete from ${T("vy_group")} where id = $1 and agent_id = $2::uuid`, [second.id, SECOND_AGENT_ID]);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -474,9 +510,7 @@ console.log(
     "  - that a real Telegram chat id round-trips through a real webhook. That needs\n" +
     "    TELEGRAM_BOT_TOKEN and a real group; evals/mp/tgbot.mjs drives the handler\n" +
     "    with mock updates, which is as far as offline goes.\n" +
-    "  - the OTHER agent-scoped writers. api/_room.js's episode, turn and grant\n" +
-    "    inserts still do not name agent_id, and production has had 010's default\n" +
-    "    dropped since it was applied. That is a live break in a file this suite\n" +
-    "    does not own — see docs/SURFACES.md §4.",
+    "  - a two-agent dispatch through the room and DM runtime. evals/agentroom.mjs\n" +
+    "    owns that local, no-network fixture.",
 );
 process.exitCode = failures.length ? 1 : 0;

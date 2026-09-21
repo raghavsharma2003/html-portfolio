@@ -64,16 +64,24 @@
 //      together, so they have to be true together — this is the column where
 //      a careless date becomes a contradiction a user can catch.
 //
-//   GET  /api/life?secret=…&status=pending|approved|retired  → owner listing
-//   POST /api/life {op:"propose", secret, beat, at, kind, arc_key, media}
+//   GET  /api/life?status=pending|approved|retired  → owner listing
+//   POST /api/life {op:"propose", beat, at, kind, arc_key, media}
 //                                                            → pending row
-//   POST /api/life {op:"edit",    secret, id, beat}          → pending only
-//   POST /api/life {op:"approve", secret, id}                → publish
-//   POST /api/life {op:"retire",  secret, id}                → withdraw
+//   POST /api/life {op:"edit",    id, beat}                 → pending only
+//   POST /api/life {op:"approve", id}                       → publish
+//   POST /api/life {op:"retire",  id}                       → withdraw
+// Every op above carries the owner secret in the `x-owner-secret` header,
+// never in the query string or the body — WS-R93. It used to be `?secret=`
+// on GET and `body.secret` on POST, which lands in access logs, proxies and
+// browser history, the same leak class WS-R89 already closed for
+// `api/consolidate-sweep.js`'s cron secret
+// (`context/rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope`).
+// No caller in this repo ever sent it any other way.
 //
 // Gated exactly like api/culture.js gates its `force` param and
 // api/taste-queue.js gates its owner ops: no secret configured means this
 // capability is simply OFF, never open by accident.
+import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 
@@ -131,7 +139,15 @@ export function lintBeat(beat) {
   return { clean: reasons.length === 0, reasons };
 }
 
-const ownerOk = (given) => Boolean(SECRET) && given === SECRET;
+// Owner secret, header only, constant-time compare — api/self-check.js's
+// own `authorized` shape, api/consolidate-sweep.js's own `secretMatches`.
+// A short or unset SECRET can never match, so an unconfigured deploy is
+// simply closed rather than open-by-accident.
+function authorized(req) {
+  const expected = Buffer.from(String(SECRET));
+  const actual = Buffer.from(String(req.headers?.["x-owner-secret"] || ""));
+  return expected.length >= 16 && expected.length === actual.length && timingSafeEqual(expected, actual);
+}
 
 /** `approve` and `retire` are TEXT-FREE ops. A body that carries beat text
  *  alongside a publish op is not a mistake to normalize away — it is the
@@ -149,8 +165,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
-      const secret = req.query?.secret || "";
-      if (!ownerOk(secret)) return res.status(403).json({ error: "owner review only" });
+      if (!authorized(req)) return res.status(403).json({ error: "owner review only" });
       const status = STATUSES.includes(req.query?.status) ? req.query.status : "pending";
       const agentId = req.query?.agent || MEERA_AGENT_ID;
       const rows = await q(
@@ -169,7 +184,7 @@ export default async function handler(req, res) {
 
     const body = req.body || {};
     const { op } = body;
-    if (!ownerOk(body.secret || "")) return res.status(403).json({ error: "owner review only" });
+    if (!authorized(req)) return res.status(403).json({ error: "owner review only" });
 
     // ── propose: text in, ALWAYS pending. Never publishes. ──────────────
     if (op === "propose") {

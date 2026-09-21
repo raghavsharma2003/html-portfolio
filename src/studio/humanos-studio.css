@@ -1,0 +1,119 @@
+/* humanos-studio.css — WS-R151. Own class names throughout (`.humanos-*`),
+   deliberately not reusing `.teacher-sheet-grid`/`.teacher-sheet-card` even
+   though the layout is the same shape — a rename in TeacherSheetStudio's own
+   styling must never silently move this screen too. Generic building blocks
+   (`.field`, `.field-label`, `.field-note`, `.button`, `.text-button`,
+   `.section-heading`, `.eyebrow`, `.create-row`, `.person-model-action`,
+   `.model-consent-check`, `.inline-error`) come from the shared studio
+   stylesheet already loaded by every screen in this directory and are not
+   redefined here. Tokens from src/studio/design/tokens.css, mobile 390px
+   first, desktop 1280 second — 590px is `studio-workspace.css`'s own
+   breakpoint for this exact two-column-card layout, reused for consistency. */
+
+.humanos-studio { padding: 28px 40px 40px; }
+
+.humanos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.humanos-card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  min-width: 0;
+}
+.humanos-card h3 { margin: 0 0 12px; color: var(--forest-deep); font: 500 18px/1.2 var(--serif); letter-spacing: -0.01em; }
+.humanos-card .field-label { margin-top: 14px; }
+.humanos-card .field-label:first-of-type { margin-top: 0; }
+/* WS-R151, measured (`scripts/check-accessibility.mjs --only studio:humanos`):
+   the shared `.field-note` color (`--ink-faint` on `--paper`) measures 3.67:1,
+   under the 4.5:1 WCAG AA floor this gate enforces — a latent pair no earlier
+   accessibility target happened to render long enough prose against `--paper`
+   to catch. Overridden here, scoped to this screen's own cards, rather than
+   touching the shared `.field-note` rule every other screen already ships
+   with (`--ink` on `--paper` is the same high-contrast pair `.disclosure-card
+   p` already uses successfully). */
+.humanos-card .field-note { color: var(--ink); }
+
+.humanos-chip-list {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.humanos-chip-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--forest-soft);
+  max-width: 100%;
+}
+.humanos-chip-list li span { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.humanos-chip-list li .text-button { font-size: 11px; }
+
+/* WS-R178. "Draft it from what I gave" — own class names, the same
+   `.humanos-card .field-note` contrast fix above applied here too, since
+   this section sits outside `.humanos-grid`'s own cards. */
+.humanos-draft {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  margin-top: 22px;
+}
+.humanos-draft h3 { margin: 0 0 8px; color: var(--forest-deep); font: 500 18px/1.2 var(--serif); letter-spacing: -0.01em; }
+.humanos-draft .field-note { color: var(--ink); }
+
+.humanos-draft-proposals {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.humanos-draft-proposal {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.humanos-draft-proposal p { margin: 0; overflow-wrap: anywhere; }
+.humanos-draft-citation { font-size: 13px; color: var(--ink); }
+.humanos-draft-proposal-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.humanos-draft-gaps {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.humanos-draft-gaps li {
+  font-size: 13px;
+  color: var(--ink);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+@media (max-width: 590px) {
+  .humanos-studio { padding: 23px 17px; }
+  .humanos-grid { grid-template-columns: 1fr; }
+}

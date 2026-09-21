@@ -1,34 +1,28 @@
-// The agent registry — SPEC-AGENT-LAYER.md §3, §6. One place that knows
-// every AgentModule this build carries, and the fixed id that ties Meera's
-// module to her `vy_agent` row.
+// Static fixture modules used by compiler and safety suites. Published Vyakti
+// agents are constructed from their stored sheets and are never selected from
+// a process-wide default.
 import type { AgentModule } from "./types";
-import { meeraAgent } from "./meera";
 import { kabirAgent } from "./kabir";
-
-// Mirrors db/migrations/009_agents.sql's fixed constant — read directly out
-// of that file (its own header: "mirrored in db/schema.sql and (when it
-// exists) src/engine/agents/registry.ts, asserted equal by
-// scripts/verify-agent-id.mjs — the same mirrored-not-imported pattern as
-// OPERATIONAL_CORE_CAP"). WS-AGENT-SCHEMA's migration landed with this exact
-// v4-shaped uuid ("agent one"); do not hand-edit without re-reading that
-// file, and do not invent a replacement — a mismatch here is a silent
-// data-corruption bug (rows get written under the wrong agent_id).
-export const MEERA_AGENT_ID = "a0000000-0000-4000-8000-000000000001";
+import { demoTeacherAgent } from "./teacher";
 
 const REGISTRY: Record<string, AgentModule> = {
-  meera: meeraAgent,
   // The existence proof (RelationalOS R2): a second personality composed
   // from the SAME core, differing only by its character sheet. Registering
   // him puts his module under the per-module invariant floor (G-E3) on
   // every eval run. He has no vy_agent row yet — runtime use needs one;
   // compile-time gating does not.
   kabir: kabirAgent,
+  // Gurukul WS-A: the demo teacher (TeacherSheet on the same core). Registered
+  // for the SAME reason Kabir is — the per-module safety floor
+  // (evals/persona-invariants.mjs) asks the registry for what exists and runs
+  // safetyFloorChecks() against every entry, so registering is how a teacher
+  // module gets gated rather than trusted. He is FICTIONAL, has no vy_agent
+  // row and no consent artifact, and must not be reachable at runtime: WS-B's
+  // publish path is where a real teacher's consent row gates registration
+  // (docs/gurukul/safety-floor-teacher.md §2.2 — revocation deregisters the
+  // module rather than asking the clone to stop).
+  "teacher-demo-arjun": demoTeacherAgent,
 };
-
-// The default injected into compiler.ts's CompileInput.agent — keeps every
-// existing call site correct (SPEC-AGENT-LAYER.md §3 / §7 G-E2) while the
-// rest of the stack learns to pass an explicit agent.
-export const DEFAULT_AGENT: AgentModule = meeraAgent;
 
 export function getAgent(slug: string): AgentModule | undefined {
   return REGISTRY[slug];

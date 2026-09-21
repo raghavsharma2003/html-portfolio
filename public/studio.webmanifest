@@ -1,0 +1,12 @@
+{
+  "name": "Vyakti",
+  "short_name": "Vyakti",
+  "description": "Build and test your own AI self.",
+  "start_url": "/studio",
+  "display": "standalone",
+  "background_color": "#f8f8f5",
+  "theme_color": "#f8f8f5",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

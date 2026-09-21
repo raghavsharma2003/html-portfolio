@@ -1,0 +1,361 @@
+// Database operations for the owner-only self-replica control plane.
+// Every read and mutation includes owner_user_id in SQL. Callers must pass the
+// id returned by requireUser(), never any identifier from request JSON.
+import { hashInviteCode } from "./_invites.js";
+
+export const REPLICA_POLICY_VERSION = "replica-self-v1";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function replicaId(value) {
+  const id = String(value || "").trim();
+  // A named code, not only a status. A route that maps errors by code turns an
+  // uncoded refusal into a 500, which is how the voice preview lane reported
+  // "you sent no replica_id" as a server crash. The message is for a log; the
+  // code is the contract.
+  if (!UUID.test(id)) {
+    throw Object.assign(new Error("valid replica_id required"), {
+      status: 400, code: "valid_replica_id_required",
+    });
+  }
+  return id;
+}
+
+export function clientIntentId(value, code = "valid_intent_id_required") {
+  const id = String(value || "").trim();
+  if (!UUID.test(id)) {
+    throw Object.assign(new Error(code), { status: 400, code });
+  }
+  return id;
+}
+
+export function replicaDisplayName(value) {
+  const name = Array.from(String(value || ""))
+    .filter((character) => {
+      const code = character.codePointAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join("")
+    .trim();
+  // WS-R124 (body-shape fuzzing): this threw with `status` alone, no `code` —
+  // the one domain-error shape in this file that broke the `{code, status}`
+  // contract every other check here (`replicaId`, two lines up) and every
+  // other Room decision module in this repo already keeps. Harmless at
+  // api/replica.js's own catch-all today (it falls back to `error.message`
+  // for anything without a numeric `.status`), but a caller that matches
+  // errors by `.code` — exactly what `evals/room-doors/run.mjs`'s SECTION 25
+  // does, and what api/room.js's own catch-all does for every OTHER domain
+  // error in this product — could not tell this refusal apart from an
+  // unnamed crash. A `null`/non-string `display_name` (this file's own
+  // `evals/room-doors/run.mjs` negative control, class "null-for-required")
+  // is what surfaced it: `String(null || "")` -> `""` -> refused here, and
+  // the refusal now carries a name.
+  if (!name || name.length > 80) {
+    throw Object.assign(new Error("display_name must be 1-80 characters"), { status: 400, code: "display_name_invalid" });
+  }
+  return name;
+}
+
+// WS-R52 (migration 112). The two chrome locales the STUDIO ships, matching
+// the Room's own follower- and room-level locale columns' CHECK-bounded
+// shape one surface over (`db/migrations/087_room_locale.sql`). Never
+// widened here alone -- src/studio/copy.ts's STUDIO_LOCALES and the
+// migration's CHECK constraint move together (evals/studio-locale/run.mjs
+// fails the build otherwise).
+//
+// This module reads and writes vy_replica only; it never queries a
+// follower or thread table, aggregate or otherwise -- see
+// evals/room-leak/run.mjs's own header on why even a comment naming those
+// tables by name would join this file to its scanned set
+// (context/rejected.md#ws-r48-explanatory-comment-named-the-guarded-tables-a-fourth-time).
+export const STUDIO_LOCALES = ["en", "hi"];
+
+export function normalizeStudioLocale(value) {
+  return STUDIO_LOCALES.includes(value) ? value : "en";
+}
+
+export function clientReplica(row) {
+  if (!row) return null;
+  const identityCurrent = row.identity_expires_at === undefined ||
+    (Boolean(row.identity_expires_at) && new Date(row.identity_expires_at).getTime() > Date.now());
+  // Whitelist by construction. Ownership ids, provider handles, raw evidence,
+  // verification internals and erasure processor state never enter a response.
+  return {
+    replica_id: row.replica_id,
+    display_name: row.display_name,
+    subject_mode: row.subject_mode,
+    lifecycle: row.lifecycle,
+    policy_version: row.policy_version,
+    age_verified: Boolean(row.age_verified_at) && identityCurrent,
+    identity_verified: Boolean(row.identity_verified_at) && identityCurrent,
+    liveness_verified: Boolean(row.liveness_verified_at) && identityCurrent,
+    // WS-R52: absent on rows read before migration 112 ran only in a stale
+    // fake db an eval built by hand -- the real column is NOT NULL DEFAULT
+    // 'en', so a live read always carries a valid value already.
+    locale: normalizeStudioLocale(row.locale ?? "en"),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+const RETURNING = `replica_id, display_name, subject_mode, lifecycle, policy_version, creation_intent_id,
+  age_verified_at, identity_verified_at, liveness_verified_at, identity_expires_at, locale, created_at, updated_at`;
+const EXISTING_SELECT = `existing.replica_id, existing.display_name, existing.subject_mode,
+  existing.lifecycle, existing.policy_version, existing.creation_intent_id, existing.age_verified_at,
+  existing.identity_verified_at, existing.liveness_verified_at, existing.identity_expires_at,
+  existing.locale, existing.created_at, existing.updated_at`;
+
+export async function createSelfReplicaWithIntent(db, ownerUserId, displayName, creationIntentId, options = {}) {
+  const name = replicaDisplayName(displayName);
+  const intentId = creationIntentId == null || creationIntentId === ""
+    ? null
+    : clientIntentId(creationIntentId, "valid_creation_intent_id_required");
+  const invitesRequired = Boolean(options.invitesRequired);
+  const rawCode = typeof options.inviteCode === "string" ? options.inviteCode.trim() : "";
+  if (invitesRequired && !rawCode) {
+    // A fast, distinctly-named refusal before touching the invite table at
+    // all - "you gave me nothing" reads differently on screen than "what you
+    // gave me did not work" (invite_invalid, below). This is a courtesy, not
+    // the gate: an account that already owns a replica is still allowed
+    // through with no code at all, which only the CTE below can decide, so
+    // this check only ever narrows to the one case both agree on (no code,
+    // no existing replica).
+    const owned = await db(`select 1 from vy_replica where owner_user_id = $1::uuid limit 1`, [ownerUserId]);
+    if (!owned.length) throw Object.assign(new Error("invite_required"), { status: 403, code: "invite_required" });
+  }
+  const codeHash = rawCode ? hashInviteCode(rawCode) : null;
+  const rows = await db(
+    `with owner_lock as (
+       select pg_advisory_xact_lock(hashtextextended($1::text, 0))
+     ), existing_person as (
+       select ap.person_id
+         from vy_account_person ap, owner_lock
+        where ap.auth_user_id = $1::uuid
+     ), created_person as (
+       insert into vy_person (age_tier)
+       select 'unverified' from owner_lock
+        where not exists (select 1 from existing_person)
+       returning person_id
+     ), owner_person as (
+       select person_id from existing_person
+       union all
+       select person_id from created_person
+       limit 1
+     ), account_bridge as (
+       insert into vy_account_person (auth_user_id, person_id)
+       select $1::uuid, person_id from owner_person
+       on conflict (auth_user_id) do update
+         set auth_user_id = excluded.auth_user_id
+       returning person_id
+     ), already_owns as (
+       select 1 as x from vy_replica, owner_lock where owner_user_id = $1::uuid limit 1
+     ), invite_redeem as (
+       update vy_creator_invite
+          set redeemed_at = now(), redeemed_by_user_id = $1::uuid
+        where code_hash = $4::text
+          and redeemed_at is null
+          and expires_at > now()
+          and $5::boolean
+          and not exists (select 1 from already_owns)
+       returning invite_id
+     ), gate as (
+       select case
+         when not $5::boolean then true
+         when exists (select 1 from already_owns) then true
+         when exists (select 1 from invite_redeem) then true
+         else false
+       end as ok
+     ), replica as (
+       insert into vy_replica
+         (owner_user_id, subject_person_id, display_name, subject_mode, lifecycle, policy_version,
+          creation_intent_id)
+       select $1::uuid, person_id, $2, 'self', 'consent_pending', $3, $6::uuid
+         from account_bridge, gate
+        where gate.ok
+       on conflict (owner_user_id, creation_intent_id)
+         where creation_intent_id is not null do nothing
+       returning ${RETURNING}
+     ), resolved as (
+       select replica.*,true created from replica
+       union all
+       select ${EXISTING_SELECT},false created
+         from vy_replica existing, owner_lock
+        where $6::uuid is not null and existing.owner_user_id=$1::uuid
+          and existing.creation_intent_id=$6::uuid
+          and not exists (select 1 from replica)
+       limit 1
+     ), audit as (
+       insert into vy_replica_audit
+         (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
+       select replica_id, $1::uuid, 'replica.create', 'replica', replica_id::text, $3, 'allowed', '{}'::jsonb
+         from replica
+     )
+     select * from resolved`,
+    [ownerUserId, name, REPLICA_POLICY_VERSION, codeHash, invitesRequired, intentId],
+  );
+  if (!rows[0] && invitesRequired) {
+    throw Object.assign(new Error("invite_invalid"), { status: 403, code: "invite_invalid" });
+  }
+  if (!rows[0]) {
+    throw Object.assign(new Error("replica_creation_intent_conflict"), {
+      status: 409,
+      code: "replica_creation_intent_conflict",
+    });
+  }
+  return Object.freeze({
+    replica: clientReplica(rows[0]),
+    creation_intent_id: rows[0].creation_intent_id || null,
+    replayed: !rows[0].created,
+  });
+}
+
+export async function createSelfReplica(db, ownerUserId, displayName, options = {}) {
+  return (await createSelfReplicaWithIntent(db, ownerUserId, displayName, null, options)).replica;
+}
+
+export async function listOwnedReplicas(db, ownerUserId) {
+  const rows = await db(
+    `select ${RETURNING} from vy_replica
+      where owner_user_id = $1::uuid
+      order by created_at desc limit 50`,
+    [ownerUserId],
+  );
+  return rows.map(clientReplica);
+}
+
+export async function getOwnedReplica(db, ownerUserId, id) {
+  const rows = await db(
+    `select ${RETURNING} from vy_replica
+      where replica_id = $1::uuid and owner_user_id = $2::uuid limit 1`,
+    [replicaId(id), ownerUserId],
+  );
+  return clientReplica(rows[0]);
+}
+
+export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
+  const rid = replicaId(id);
+  let rows = await db(
+    `with revoked as (
+       update vy_replica
+          set lifecycle = 'revoked', revoked_at = coalesce(revoked_at, now()), updated_at = now(),
+              private_text_epoch=private_text_epoch+1
+        where replica_id = $1::uuid and owner_user_id = $2::uuid and lifecycle <> 'purging'
+        returning ${RETURNING}
+     ), private_text_erased as (
+       update vy_private_text_rehearsal h set state='withdrawn',question_envelope=null,raw_envelope=null,answer_envelope=null,
+         gate_sidecar='{}'::jsonb,failure_code='replica_revoked',updated_at=now()
+       from revoked r where h.replica_id=r.replica_id and h.owner_user_id=$2::uuid
+     ), audit as (
+       insert into vy_replica_audit
+         (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
+       select replica_id, $2::uuid, 'replica.revoke', 'replica', replica_id::text,
+              policy_version, 'allowed', '{}'::jsonb
+         from revoked
+     ), runtime_capabilities as (
+       update vy_replica_runtime_capability c
+          set state = 'revoked', revoked_at = coalesce(revoked_at, now())
+         from revoked r
+        where c.replica_id = r.replica_id and c.owner_user_id = $2::uuid and c.state = 'active'
+     ), runtime_sessions as (
+       update vy_replica_runtime_session s
+          set state = 'revoked', ended_at = coalesce(ended_at, now()), updated_at = now()
+         from revoked r
+        where s.replica_id = r.replica_id and s.owner_user_id = $2::uuid and s.state = 'active'
+     ), open_generations as (
+       update vy_replica_generation g
+          set state = 'aborted', failure_code = 'replica_revoked', updated_at = now()
+         from revoked r
+        where g.replica_id = r.replica_id and g.owner_user_id = $2::uuid
+          and g.state in ('authorized','streaming')
+     ), voice_profiles as (
+       update vy_replica_voice_profile vp set status = 'deleting', updated_at = now()
+        from revoked r where vp.replica_id = r.replica_id and vp.owner_user_id = $2::uuid
+          and vp.status <> 'deleting'
+     ), provider_consents as (
+       update vy_replica_provider_consent pc set state = 'revoked',
+              revoked_at = coalesce(revoked_at, now()), updated_at = now()
+        from revoked r where pc.replica_id = r.replica_id and pc.owner_user_id = $2::uuid
+           and pc.state <> 'revoked'
+     ), face_sessions as (
+       update vy_replica_liveness_challenge ch set state='failed',failure_code='replica_revoked',
+              face_session_state=case
+                when ch.face_session_handle<>'' and ch.face_session_state not in
+                  ('passed_deleted','failed_deleted','expired_deleted') then 'expired_deleting'
+                else ch.face_session_state end,
+              verification_lease_token_hash='',verification_leased_at=null,
+              verification_lease_expires_at=null,updated_at=now()
+        from revoked r where ch.replica_id=r.replica_id and ch.owner_user_id= $2::uuid
+       returning ch.challenge_id,ch.verification_attempt
+     ), liveness_attempts as (
+       update vy_replica_liveness_verification_attempt a set outcome='failed',
+              failure_code='replica_revoked',finished_at=now()
+        from face_sessions ch where a.challenge_id=ch.challenge_id
+          and a.attempt=ch.verification_attempt and a.outcome='running'
+     ), biometric_verification_grants as (
+       update vy_replica_biometric_verification_grant g set state='revoked',revoked_at=now()
+        from revoked r where g.replica_id=r.replica_id and g.owner_user_id= $2::uuid and g.state='active'
+     ), erasure as (
+       insert into vy_replica_erasure_job (replica_id, owner_user_id, state)
+       select replica_id, $2::uuid, 'pending' from revoked
+       on conflict (replica_id) do update
+         set updated_at = now(),
+             state = case when vy_replica_erasure_job.state = 'complete'
+                          then vy_replica_erasure_job.state else 'pending' end
+       returning job_id,replica_id
+     )
+     select revoked.*,erasure.job_id as erasure_request_id
+       from revoked join erasure on erasure.replica_id=revoked.replica_id`,
+    [rid, ownerUserId],
+  );
+  if (!rows[0]) {
+    rows = await db(
+      `select r.replica_id,r.display_name,r.subject_mode,r.lifecycle,r.policy_version,
+              r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,r.created_at,r.updated_at,
+              j.job_id as erasure_request_id from vy_replica r
+        join vy_replica_erasure_job j on j.replica_id=r.replica_id and j.owner_user_id=r.owner_user_id
+        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.lifecycle = 'purging' limit 1`,
+      [rid, ownerUserId],
+    );
+  }
+  if (!rows[0]) return null;
+  return { replica: clientReplica(rows[0]), erasure_request_id: rows[0].erasure_request_id };
+}
+
+export async function revokeOwnedReplica(db, ownerUserId, id) {
+  const result = await requestOwnedReplicaErasure(db, ownerUserId, id);
+  return result?.replica || null;
+}
+
+/**
+ * WS-R52 (migration 112). The studio's own chrome language -- Feed/Meet/
+ * Share, Readiness, the review queue, Payouts, the Suite card. Never the
+ * AI's own replies and never the Room a follower sees; those are
+ * src/room/copy.ts's business, untouched by this function.
+ *
+ * Scoped by BOTH replica_id and owner_user_id in the same WHERE clause as
+ * every other write in this file (`getOwnedReplica`'s own shape) so an
+ * owner can never be asked to name, let alone change, a replica that is not
+ * theirs -- there is no code path here that reads a second account's row.
+ * An invalid locale is refused BY NAME (a coded error), never silently
+ * folded into "en" -- `roomSetLocale`'s own rule in api/_room-surface.js,
+ * reused here rather than re-derived, because "a request that names one
+ * language ends up storing another with no error" is the exact defect class
+ * a silent fallback would be.
+ */
+export async function setOwnedReplicaLocale(db, ownerUserId, id, locale) {
+  const rid = replicaId(id);
+  const value = String(locale || "").trim();
+  if (!STUDIO_LOCALES.includes(value)) {
+    throw Object.assign(new Error("valid locale required"), {
+      status: 400, code: "studio_locale_invalid",
+    });
+  }
+  const rows = await db(
+    `update vy_replica
+        set locale = $3, updated_at = now()
+      where replica_id = $1::uuid and owner_user_id = $2::uuid
+      returning ${RETURNING}`,
+    [rid, ownerUserId, value],
+  );
+  return clientReplica(rows[0]);
+}

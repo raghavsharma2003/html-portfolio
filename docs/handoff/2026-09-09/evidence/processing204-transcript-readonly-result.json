@@ -1,0 +1,31 @@
+{
+  "kind": "processing204-transcript-readonly/v1",
+  "scope": {
+    "owner_user_id": "990aa0b5-e636-49b2-b5f2-d9763fa72f09",
+    "replica_id": "2262d203-1015-4196-a06b-3a4f057e10e0",
+    "source_id": "c16ccae1-d50d-4186-950b-e4c6a89869cb"
+  },
+  "state": "measured_not_likeness",
+  "sql_calls": 7,
+  "model_calls": 0,
+  "blob_gets": 0,
+  "db_read_only": true,
+  "rollback": "acknowledged",
+  "close": "acknowledged",
+  "measurement": {
+    "n_sources": 1,
+    "n_segments": 2,
+    "reference_sha256": "b33c79a4de33c9d8ae760aa838d9ed09318addee8b48257def4883420dfe8346",
+    "transcript_sha256": "41bfdb475cd70f3ca1d50b68826fed99a738097d39bfa29d1bd859657dc066fd",
+    "reference_text": "नमस्ते, आज हम एक छोटे विचार पर बात करेंगे। जब कोई छात्र कठिन सवाल से घबराता है, तो पहले उसकी उलझन समझना जरूरी है। हम सवाल को छोटे हिस्सों में बाँटेंगे, एक सरल उदाहरण देखेंगे, और फिर सही तरीका चुनेंगे। गलती सीखने का हिस्सा है। उसे छिपाने की जरूरत नहीं। नियमित अभ्यास से धीरे धीरे आत्मविश्वास बनता है।",
+    "transcript_text": "उसे छिपाने की जरूरत नहीं। नियमित अभ्यास से धीरेधीरे आत्मविश्वास बनता है। नमस्ते, आज हम एक छोटे विचार पर बात करेंगे। जब कोई छात्र कठिन सवाल से घबराता है तो पहले उसकी उलझन समझना ज़रूरी है। हम सवाल को छोटे हिस्सों में बांटेंगे, एक सरल उदाहरण देखेंगे और फिर सही तरीका चुनेंगे। गलती सीखने का हिस्सा है।",
+    "languages": [
+      "hi-IN"
+    ],
+    "reference_words": 58,
+    "transcript_words": 57,
+    "word_edit_distance": 27,
+    "word_error_rate": 0.46551724137931033
+  },
+  "finished_at": "2026-09-09T04:57:21.964Z"
+}

@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <title>Vyakti</title>
+  <meta name="description" content="A private AI built from your own material: your identity, how it feels, and a private relationship with every person who talks to it." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Vyakti" />
+  <meta property="og:description" content="Build the AI version of you, test it, tweak it, and deploy it: a private, continuing relationship with everyone who talks to it." />
+  <meta name="theme-color" content="#f7f7f4" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+  <!--
+    ══ WHY THIS PAGE IS ONE FILE ═══════════════════════════════════════════
+    `site/styles.css` is Maya's, and `scripts/check-contrast.mjs` reads that
+    file and `site/index.html` by name to re-derive the world paintings'
+    veils from the real image bytes. Vyakti paints no world and shares no
+    palette with that page, so giving it a second stylesheet would either
+    add a file the contrast gate does not know how to read, or invite
+    someone to "unify" two palettes that are deliberately different
+    products. One self-contained file, no build coupling, no extra copy step
+    in scripts/vercel-build.sh.
+
+    ══ WS-R10 REWRITE, 2026-09-03: WHAT CHANGED AND WHY ═════════════════════
+    This page used to pitch a single vertical (JEE teachers) and lead with
+    fidelity metrics from one owner's voice build. The product decided
+    2026-09-02 is Rooms: a creator's own AI, and a private, continuing
+    relationship for every follower who talks to it. This page told that
+    story instead.
+
+    ══ WS-R160 REWRITE, 2026-09-13: WHAT CHANGED AND WHY ════════════════════
+    The Rooms story was still written for a creator with an audience — every
+    stranger who opened this page was addressed as someone who already has
+    followers. The owner's own intent (`context/STATE.md`'s 2026-09-13 base
+    block, `docs/gurukul/waves/wave-21`'s common brief) is broader: ANY
+    person builds an AI version of themselves, whatever they intend to do
+    with it, and a Room is one way to deploy it, not the premise of the
+    page. The word "creator" is gone from every user-visible string here
+    (`context/decisions.md#ws-r160-creator-becomes-the-person-or-you`); the
+    two "for the creator" / "for the follower" sections became three,
+    matching the product's own build/test/deploy journey and naming its
+    three named systems (HumanOS, RelationOS, EmotionOS,
+    `context/decisions.md#ws-r160-landing-three-screens-map-to-the-three-os-names`)
+    as section titles with one plain sentence of promise each — never a
+    fourth, invented name, and never a claim about a screen that does not
+    exist yet (the interview, Readiness, and the review queue are live; a
+    measured likeness screen is not, `context/STATE.md`'s own honest state,
+    so this page states the MEASURING as a design commitment, never a
+    number). The page is now in English and Hindi, `site/suites.html`'s own
+    `.locale`/`data-set-lang` pattern reused rather than reinvented — see
+    that file's own header for the mechanism. Every fact this page had a
+    right to state before (the free tier, "our share is one number") is
+    unchanged; nothing invented, no adoption figures added.
+
+    ══ WS-R164, 2026-09-13: THE HERO'S PRIMARY ACTION, ONLY ═════════════════
+    WS-R158 proved the personal studio's own sign-in (`/studio`, real OTP,
+    no fixture) end to end; a stranger who wants to build their own AI no
+    longer needs to wait behind the batched "apply for a Room" review this
+    page still honestly describes for the OTHER thing a Room can be (an
+    existing audience's own paid Room). So the ONE primary action a person
+    sees first, the hero button, now goes straight to `/studio` (`/studio
+    ?lang=hi` in the Hindi half), carrying no `?mode=` and so landing on the
+    personal studio, never the teacher one (`src/studio/main.tsx`'s own
+    default). Nothing else on this page moved: the closing section's own
+    "Apply for one of the first Rooms" button and the apply form below it
+    (`#apply`/`#apply-hi`) are UNCHANGED and still true for the audience they
+    address, `context/decisions.md#ws-r164-hero-cta-goes-straight-to-sign-in`.
+
+    ══ WHAT MAY BE SAID HERE ════════════════════════════════════════════════
+    No testimonials, no logos, no invented users, no "trusted by" - there are
+    none yet, and a fabricated one on the page that asks a real person to
+    apply would be the single most self-defeating sentence we could write.
+    The application process is described honestly: a person reads it, there
+    is no live self-serve signup yet, and no date is promised because none
+    has been decided.
+
+    The em-dash ban (`scripts/check-copy.mjs`) covers every site/*.html, and
+    so do the version-stamp, numbered-eyebrow, scroll-cue, filler-verb and
+    one-middot rules, plus the Rooms vocabulary rule. HTML comments are
+    exempt, body copy is not - which is why this comment may use the
+    punctuation the page may not.
+  -->
+
+  <style>
+    /* ── reset ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body { margin: 0; }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; }
+    [hidden] { display: none !important; }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+    }
+
+    /* ── tokens ────────────────────────────────────────────────────────────
+       The same values as src/studio/design/tokens.css, restated because this
+       file ships with no build step and cannot import from src/. Any change
+       to one belongs in the other; docs/gurukul/DESIGN-SYSTEM.md is the
+       single description both are implementations of.
+
+       One theme, locked. `color-scheme: light` is a commitment, not an
+       omission (DESIGN-SYSTEM §5.1): a records office has no night mode. */
+    :root {
+      color-scheme: light;
+      --paper: #f6f6f3;
+      --paper-deep: #ecece8;
+      --panel: #ffffff;
+      --ink: #161817;
+      --ink-soft: #4f5551;
+      --ink-faint: #626963;
+      --line: rgba(28, 33, 30, 0.12);
+      --line-strong: rgba(28, 33, 30, 0.22);
+
+      /* ONE accent. Forest is it. */
+      --forest: #245746;
+      --forest-deep: #173f33;
+      --forest-soft: #e5ede8;
+
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Devanagari", sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+      --radius-control: 10px;
+      --radius: 18px;
+      --radius-lg: 26px;
+
+      /* Tracking is size-specific (DESIGN-LAW §2). One letter-spacing value
+         across all sizes is always wrong somewhere: display type needs the
+         negative, body needs zero, uppercase micro-type needs the positive. */
+      --tracking-display: -0.021em;
+      --tracking-heading: -0.012em;
+      --tracking-body: 0;
+      --tracking-caps: 0.06em;
+
+      --leading-display: 1.06;
+      --leading-tight: 1.25;
+      --leading-body: 1.6;
+
+      --measure: 68ch;
+      --space-section: clamp(56px, 9vw, 108px);
+      --space-pad: clamp(22px, 4vw, 44px);
+
+      --shadow: 0 30px 80px rgba(30, 36, 32, 0.12), 0 3px 12px rgba(30, 36, 32, 0.05);
+      --motion-instant: 90ms;
+      --motion-quick: 160ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    /* ── base ──────────────────────────────────────────────────────────── */
+    body {
+      min-width: 320px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      line-height: var(--leading-body);
+      letter-spacing: var(--tracking-body);
+    }
+
+    h1, h2, h3 { margin: 0; font-family: var(--serif); font-weight: 400; }
+    h1 { line-height: var(--leading-display); letter-spacing: var(--tracking-display); }
+    h2, h3 { line-height: var(--leading-tight); letter-spacing: var(--tracking-heading); }
+    p { margin: 0; }
+
+    :focus-visible { outline: 3px solid var(--forest); outline-offset: 3px; border-radius: 4px; }
+
+    .wrap { width: min(1120px, 100% - 2 * var(--space-pad)); margin-inline: auto; }
+    .measure { max-width: var(--measure); }
+
+    /* The ONE eyebrow on this page. Kept as a class rather than inlined so a
+       second use is visible in a diff. */
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--forest);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: var(--tracking-caps);
+      text-transform: uppercase;
+    }
+
+    /* ── the mark ──────────────────────────────────────────────────────────
+       The studio's own mark (studio.css `.mark`), redrawn in three divs so
+       the landing and the workspace open with the same object. Three bars of
+       unequal height: three sources, one person. */
+    .mark {
+      display: inline-grid;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: end;
+      gap: 3px;
+      width: 34px;
+      height: 34px;
+      padding: 7px;
+      border-radius: 10px;
+      background: var(--forest);
+      flex: none;
+    }
+    .mark i { width: 100%; border-radius: 999px; background: var(--paper); }
+    .mark i:nth-child(1) { height: 42%; }
+    .mark i:nth-child(2) { height: 100%; }
+    .mark i:nth-child(3) { height: 68%; }
+
+    /* ── nav ───────────────────────────────────────────────────────────────
+       One conversion action lives in the page (the apply button below);
+       the nav's job is identity, one way out, and the language switch. */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      padding: 14px 0;
+      background: color-mix(in srgb, var(--paper) 88%, transparent);
+      backdrop-filter: saturate(1.4) blur(14px);
+    }
+    .nav .wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
+    .brand b { font-size: 15px; font-weight: 800; letter-spacing: 0.14em; }
+    .brand small { color: var(--ink-faint); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; }
+    .nav-spacer { flex: 1; }
+    .nav-link { color: var(--ink-soft); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
+    .lang-toggle {
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      padding: 7px 14px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* ── the one button ────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 26px;
+      border: 1px solid var(--forest);
+      border-radius: var(--radius-control);
+      background: var(--forest);
+      color: var(--panel); /* 10.13:1 */
+      font-family: var(--sans);
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: opacity var(--motion-quick) var(--ease-standard), transform var(--motion-instant) var(--ease-standard);
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.97); }
+
+    /* ── 1. hero: four stacked elements, and no fifth ──────────────────────
+       h1, subtext, button, fine print. Top padding maxes at 88px (5.5rem),
+       under the law's ~6rem, so the button is above the fold on a 640px-tall
+       laptop viewport with the nav included. */
+    .hero { padding: clamp(40px, 6vw, 88px) 0 var(--space-section); }
+    .hero h1 { max-width: 20ch; font-size: clamp(34px, 5vw, 56px); }
+    .hero h1 em { font-style: normal; color: var(--forest); }
+    .hero p.lede { max-width: 48ch; margin-top: 22px; color: var(--ink-soft); font-size: clamp(17px, 1.8vw, 20px); }
+    .hero .btn { margin-top: 30px; }
+    .hero p.fine { max-width: 48ch; margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
+
+    /* ── section prose: one measure, no card grid ──────────────────────── */
+    section { padding: var(--space-section) 0; }
+    .head h2 { font-size: clamp(28px, 3.8vw, 40px); max-width: 30ch; }
+    .head p { max-width: var(--measure); margin-top: 18px; color: var(--ink-soft); font-size: 17px; }
+
+    .claims { max-width: var(--measure); margin-top: 46px; display: grid; gap: 30px; }
+    .claims p { color: var(--ink-soft); font-size: 16px; }
+    .claims b { color: var(--ink); font-weight: 700; }
+    .claims code { font-family: var(--mono); font-size: 13px; color: var(--forest-deep); background: var(--forest-soft); border-radius: 5px; padding: 1px 5px; }
+
+    /* ── the floor: one filled panel ────────────────────────────────────── */
+    .floor { padding: var(--space-pad); border: 1px solid rgba(23, 73, 59, 0.22); border-radius: var(--radius-lg); background: var(--forest-soft); }
+    .floor h2 { font-size: clamp(26px, 3.4vw, 34px); max-width: 26ch; }
+    .floor > p { max-width: var(--measure); margin-top: 18px; color: var(--forest-deep); font-size: 15.5px; }
+    .floor ul { margin: 28px 0 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+    .floor li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 14px; max-width: var(--measure); color: var(--forest-deep); font-size: 15px; }
+    .floor li span { color: var(--forest); font-weight: 800; }
+
+    /* ── what happens after you apply: a dashed block, deliberately plain ── */
+    .limits { border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--space-pad); }
+    .limits h2 { font-size: 26px; }
+    .limits ul { margin: 24px 0 0; padding-left: 20px; display: grid; gap: 14px; max-width: var(--measure); color: var(--ink-soft); font-size: 15px; }
+    .limits strong { color: var(--ink); }
+
+    /* ── the apply form (WS-R23): plain markup, no framework, this file's
+       own no-build-step rule. Same tokens and control radius the studio
+       uses (docs/gurukul/DESIGN-SYSTEM.md), restated here rather than
+       imported. ── */
+    .apply-form { margin-top: 32px; max-width: var(--measure); display: grid; gap: 18px; }
+    .apply-field { display: grid; gap: 6px; }
+    .apply-field label { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .apply-field input, .apply-field textarea {
+      font: inherit;
+      font-size: 15px;
+      padding: 12px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--panel);
+      color: var(--ink);
+    }
+    .apply-field textarea { resize: vertical; min-height: 72px; }
+    .apply-form button { cursor: pointer; justify-self: start; }
+    .apply-form button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .apply-note { min-height: 1em; font-size: 13px; color: var(--ink-faint); }
+    .apply-note[data-state="error"] { color: var(--ink); font-weight: 700; }
+    .apply-note[data-state="ok"] { color: var(--forest-deep); font-weight: 700; }
+
+    /* ── close: centred, one column ─────────────────────────────────────── */
+    .close { text-align: center; }
+    .close h2 { font-size: clamp(30px, 4.4vw, 46px); max-width: 100%; margin-inline: auto; }
+    .close p { max-width: 52ch; margin: 20px auto 0; color: var(--ink-soft); font-size: 17px; }
+    .close .btn { margin-top: 30px; }
+    .close .fine { margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
+
+    .foot { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 13px; }
+    .foot .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+    .foot p { max-width: 54ch; }
+    .foot a { color: var(--ink-soft); }
+
+    /* prose-containment34: measured fallback size for #boundary, unchanged
+       content, unchanged estimate. The WS-R160 rewrite drops this
+       optimisation for the three build/test/deploy sections rather than
+       guess a size for entirely new prose - "hypothesis pending A/B" per
+       this rule's own name, never worth a mismatched-estimate layout shift
+       for a section whose length just moved. */
+    @supports (content-visibility: auto) {
+      main > #boundary, main > #boundary-hi { content-visibility: auto; contain-intrinsic-block-size: auto 635px; }
+      @media (min-width: 768px) {
+        main > #boundary, main > #boundary-hi { contain-intrinsic-block-size: auto 463px; }
+      }
+    }
+    @media print {
+      main > #boundary, main > #boundary-hi { content-visibility: visible; contain-intrinsic-block-size: none; }
+    }
+
+    /* Premium journey pass. The structure and form handlers remain the same. */
+    body {
+      background:
+        radial-gradient(circle at 92% 4%, rgba(198, 204, 200, 0.32), transparent 30rem),
+        var(--paper);
+    }
+    .wrap { width: min(1240px, 100% - 2 * var(--space-pad)); }
+    .nav { padding: 18px 0; border-bottom: 1px solid rgba(28, 33, 30, 0.07); }
+    .brand .vyakti-mark { display: inline-flex; align-items: baseline; gap: 8px; }
+    .brand .vyakti-mark__glyph { color: #b33c2d; font-family: var(--dev); font-size: 25px; font-weight: 700; letter-spacing: -0.09em; }
+    .brand .vyakti-mark__word { color: var(--ink); font-size: 17px; font-weight: 720; letter-spacing: -0.035em; }
+    .brand .vyakti-mark__word small { margin-left: 1px; color: #b33c2d; font-size: 9px; font-weight: 700; }
+    .nav-link { text-decoration: none; }
+    .lang-toggle { min-height: 44px; padding-inline: 17px; }
+    .btn { min-height: 54px; padding-inline: 28px; box-shadow: 0 12px 30px rgba(36, 87, 70, 0.16); }
+
+    .hero { padding: clamp(28px, 4vw, 60px) 0 clamp(64px, 8vw, 104px); }
+    .hero .wrap {
+      min-height: min(700px, calc(100svh - 106px));
+      display: grid;
+      grid-template-columns: minmax(260px, 0.82fr) minmax(360px, 1.18fr);
+      grid-template-rows: 1fr auto auto auto 1fr;
+      align-items: center;
+      gap: 0 clamp(28px, 4vw, 68px);
+    }
+    .hero h1 { grid-column: 1; grid-row: 2; max-width: 12ch; font-size: clamp(48px, 5.4vw, 76px); }
+    .hero p.lede { grid-column: 1; grid-row: 3; max-width: 36ch; margin-top: 24px; }
+    .hero .btn { grid-column: 1; grid-row: 4; width: fit-content; margin-top: 32px; }
+    .hero p.fine { grid-column: 1; grid-row: 5; align-self: start; max-width: 38ch; margin-top: 16px; }
+    .hero-visual {
+      position: relative;
+      grid-column: 2;
+      grid-row: 1 / -1;
+      margin: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.88);
+      border-radius: 30px;
+      background: var(--paper-deep);
+      box-shadow: var(--shadow);
+    }
+    .hero-visual::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: inset 0 0 0 1px rgba(22, 24, 23, 0.05);
+      pointer-events: none;
+    }
+    .hero-visual img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: 55% 50%; }
+
+    .journey { border-top: 1px solid var(--line); }
+    .journey .wrap { display: grid; grid-template-columns: minmax(260px, 0.78fr) minmax(420px, 1.22fr); gap: clamp(46px, 8vw, 120px); }
+    .journey .head { align-self: start; position: sticky; top: 108px; }
+    .journey .head h2 { max-width: 16ch; font-size: clamp(38px, 4.4vw, 58px); }
+    .journey .head p { max-width: 44ch; font-size: 16px; }
+    .journey .claims { max-width: none; margin: 0; gap: 0; border-top: 1px solid var(--line-strong); }
+    .journey .claims p { padding: 26px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
+    .journey .claims b { display: block; margin-bottom: 8px; font-size: 17px; }
+
+    .floor, .limits { box-shadow: 0 18px 50px rgba(30, 36, 32, 0.06); }
+    .floor { border-color: var(--line); background: linear-gradient(135deg, #eef2ef, #e6ece8); }
+    .limits { border-style: solid; background: rgba(255, 255, 255, 0.72); }
+    .apply-form { grid-template-columns: 1fr 1fr; max-width: none; }
+    .apply-field:last-of-type { grid-column: 1 / -1; }
+    .apply-form button, .apply-note { grid-column: 1 / -1; }
+    .apply-field input, .apply-field textarea { min-height: 50px; }
+    .close { border-top: 1px solid var(--line); }
+    .foot { background: rgba(236, 236, 232, 0.7); }
+
+    /* Private internal build: the public Rooms application lane is paused. */
+    #boundary, #boundary-hi, #apply, #apply-hi, .close { display: none; }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .hero h1, .hero .lede, .hero .btn, .hero .fine, .hero-visual {
+        animation: hero-settle 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      .hero .lede { animation-delay: 70ms; }
+      .hero .btn { animation-delay: 110ms; }
+      .hero .fine { animation-delay: 140ms; }
+      .hero-visual { animation-delay: 50ms; }
+    }
+    @keyframes hero-settle { from { opacity: 0; transform: translateY(12px); } }
+
+    @media (max-width: 760px) {
+      .nav .wrap { flex-wrap: nowrap; }
+      .brand small, .nav-link { display: none; }
+      .hero { padding-top: 24px; }
+      .hero .wrap {
+        min-height: 0;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        gap: 0;
+      }
+      .hero h1, .hero p.lede, .hero .btn, .hero p.fine, .hero-visual { grid-column: 1; grid-row: auto; }
+      .hero h1 { font-size: clamp(43px, 13vw, 58px); }
+      .hero p.lede { font-size: 17px; }
+      .hero .btn { width: 100%; }
+      .hero-visual { margin-top: 32px; border-radius: 22px; }
+      .hero-visual img { aspect-ratio: 4 / 3; object-position: 63% 50%; }
+      .journey .wrap { grid-template-columns: 1fr; gap: 32px; }
+      .journey .head { position: static; }
+      .journey .head h2 { max-width: 15ch; font-size: 38px; }
+      .journey .claims p { padding-block: 22px; }
+      .apply-form { grid-template-columns: 1fr; }
+      .apply-field:last-of-type, .apply-form button, .apply-note { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="locale" id="loc-en" lang="en">
+  <nav class="nav" aria-label="Primary">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Vyakti home">
+        <span class="vyakti-mark"><span class="vyakti-mark__glyph" aria-hidden="true" lang="hi">व्य</span><span class="vyakti-mark__word">vyakti<small>.ai</small></span></span>
+      </a>
+      <span class="nav-spacer"></span>
+      <a class="nav-link" href="/studio">Studio</a>
+      <button class="lang-toggle" type="button" data-set-lang="hi"><span lang="hi">हिन्दी</span></button>
+    </div>
+  </nav>
+
+  <main>
+
+    <!-- ══ 1. hero. Four elements: the one line, one button, one fine print. -->
+    <header class="hero">
+      <div class="wrap">
+        <h1>Build an AI that feels like <em>you</em>.</h1>
+        <p class="lede">Give it your work. Talk to it. Shape what it becomes.</p>
+        <a class="btn" href="/studio">Open your studio</a>
+        <p class="fine">Start privately with one file, link, or recording.</p>
+        <picture class="hero-visual">
+          <source media="(max-width: 760px)" srcset="/site/assets/vyakti-mirror-960.webp" />
+          <img src="/site/assets/vyakti-mirror-1600.webp" alt="A woman stands beside a curved silver mirror, with her reflection visible" width="1600" height="901" fetchpriority="high" />
+        </picture>
+      </div>
+    </header>
+
+    <!-- ══ 2. build it: HumanOS ═══════════════════════════════════════════ -->
+    <section class="journey journey-feed" aria-labelledby="build-title">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="build-title">Feed it the work that made you.</h2>
+          <p>Bring your writing, voice, videos, and context into one private studio.</p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>Start with one source.</b> A file, link, or recording is enough to begin.
+          </p>
+          <p>
+            <b>Fill the gaps together.</b> Your AI asks what your material cannot answer.
+          </p>
+          <p>
+            <b>Stay in control.</b> Nothing changes until you review it.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 3. test it, tweak it: EmotionOS ═════════════════════════════════ -->
+    <section class="journey journey-meet" aria-labelledby="test-title">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="test-title">Meet the first draft. Then make it yours.</h2>
+          <p>Ask a real question, hear the answer, and shape how your AI responds.</p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>Talk naturally.</b> Use the same questions people already bring to you.
+          </p>
+          <p>
+            <b>Correct in the moment.</b> Keep what works, fix what misses, and mark what it should never say.
+          </p>
+          <p><b>Measure before you trust it.</b> Voice likeness is shown only when a real measurement exists.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 4. deploy it: RelationOS ════════════════════════════════════════ -->
+    <section class="journey journey-deploy" aria-labelledby="deploy-title">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="deploy-title">Deploy it when it is ready.</h2>
+          <p>Open a Room where your AI can answer, remember, and keep learning from your review.</p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>One relationship at a time.</b> Each person gets a private Room with its own memory.
+          </p>
+          <p>
+            <b>Choose what goes live.</b> Your AI stays private until you decide to publish it.
+          </p>
+          <p>
+            <b>Keep shaping it.</b> Return to Meet whenever an answer needs your touch.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 5. the boundary, in plain words ════════════════════════════════ -->
+    <section id="boundary" aria-labelledby="boundary-title">
+      <div class="wrap">
+        <div class="floor">
+          <h2 id="boundary-title">The boundary, in plain words.</h2>
+          <p>
+            Three scopes, and they do not blur into each other. This is not a setting you can turn off, it is
+            how the underlying scopes are structured.
+          </p>
+          <ul>
+            <li><span aria-hidden="true">&check;</span><span>What you give your AI (your material, your corrections) flows down to every follower who talks to it.</span></li>
+            <li><span aria-hidden="true">&check;</span><span>What a follower tells your AI stays in their own Room. It never becomes something your AI knows about you, and it never reaches anyone else's Room.</span></li>
+            <li><span aria-hidden="true">&check;</span><span>You see counts, never words. A pattern shared by five or more followers can surface to you as a number, and only once you have opted in to seeing it.</span></li>
+            <li><span aria-hidden="true">&check;</span><span>Your AI never denies being an AI, on either side of that line.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 6. what happens after you apply, and the real form (WS-R23). ═══
+         Posts to api/apply.js (op:"submit"), api/_apply.js's one predicate:
+         at most one application per contact per day. No framework on this
+         page (this file's own header note), so a small inline script. ══ -->
+    <section aria-labelledby="apply-title" id="apply">
+      <div class="wrap">
+        <div class="limits">
+          <p class="eyebrow">Read this before you apply</p>
+          <h2 id="apply-title">This is not a self-serve signup yet.</h2>
+          <ul>
+            <li>
+              <strong>A person reads every application.</strong> It goes to a person, not a queue with an
+              automatic reply. Send the form below and expect a real answer back.
+            </li>
+            <li>
+              <strong>We are opening the first Rooms in small batches.</strong> No date is promised here
+              because none has been decided, and a fake one would be worse than none.
+            </li>
+            <li>
+              <strong>Your material and your calibration stay yours to correct.</strong> The Studio never
+              publishes anything you have not reviewed, and revocation is available from the day you start.
+            </li>
+          </ul>
+
+          <form class="apply-form" id="apply-form" novalidate>
+            <div class="apply-field">
+              <label for="apply-name">Your name</label>
+              <input id="apply-name" name="name" type="text" maxlength="200" required autocomplete="name" />
+            </div>
+            <div class="apply-field">
+              <label for="apply-archive">A link to your archive</label>
+              <input
+                id="apply-archive" name="archive_link" type="text" maxlength="2000" required
+                placeholder="A channel, a course, a feed, anything long"
+              />
+            </div>
+            <div class="apply-field">
+              <label for="apply-audience">Who is your audience</label>
+              <textarea
+                id="apply-audience" name="audience" maxlength="2000"
+                placeholder="Where they already find you, and roughly how many"
+              ></textarea>
+            </div>
+            <div class="apply-field">
+              <label for="apply-contact">Contact</label>
+              <input
+                id="apply-contact" name="contact" type="text" maxlength="320" required
+                placeholder="An email or a phone number" autocomplete="email"
+              />
+            </div>
+            <button class="btn" type="submit" id="apply-submit">Submit application</button>
+            <p class="apply-note" id="apply-status" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 7. close ═══════════════════════════════════════════════════════ -->
+    <section class="close" aria-labelledby="close-title">
+      <div class="wrap">
+        <h2 id="close-title">Talk to all of them. Let none of them hear each other.</h2>
+        <p>
+          Free to build. You set what your followers pay. Our share is one number, shown before you publish.
+        </p>
+        <a class="btn" href="#apply">Apply for one of the first Rooms</a>
+        <p class="fine">A short form, four fields. A person reads it. No automatic decision.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span class="brand" aria-hidden="true"><span class="vyakti-mark"><span class="vyakti-mark__glyph" lang="hi">व्य</span><span class="vyakti-mark__word">vyakti<small>.ai</small></span></span></span>
+      <p>Vyakti turns your own material into a private AI, with a private, continuing relationship for every person who talks to it.</p>
+      <span class="nav-spacer"></span>
+      <a href="/privacy">Privacy and Terms</a>
+    </div>
+  </footer>
+</div>
+
+<div class="locale" id="loc-hi" lang="hi" hidden>
+  <nav class="nav" aria-label="मुख्य">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Vyakti होम">
+        <span class="vyakti-mark"><span class="vyakti-mark__glyph" aria-hidden="true" lang="hi">व्य</span><span class="vyakti-mark__word">vyakti<small>.ai</small></span></span>
+      </a>
+      <span class="nav-spacer"></span>
+      <a class="nav-link" href="/studio?lang=hi">स्टूडियो</a>
+      <button class="lang-toggle" type="button" data-set-lang="en">English</button>
+    </div>
+  </nav>
+
+  <main>
+
+    <header class="hero">
+      <div class="wrap">
+        <h1>ऐसा <em>AI</em> बनाएं, जो आपका लगे।</h1>
+        <p class="lede">इसे अपना काम दें। इससे बात करें। इसे अपने अंदाज़ में ढालें।</p>
+        <a class="btn" href="/studio?lang=hi">अपना स्टूडियो खोलें</a>
+        <p class="fine">एक फ़ाइल, लिंक या रिकॉर्डिंग से निजी तौर पर शुरू करें।</p>
+        <picture class="hero-visual">
+          <source media="(max-width: 760px)" srcset="/site/assets/vyakti-mirror-960.webp" />
+          <img src="/site/assets/vyakti-mirror-1600.webp" alt="एक महिला घुमावदार चांदी के आईने के पास खड़ी है और उसमें उसका प्रतिबिंब दिख रहा है" width="1600" height="901" fetchpriority="high" />
+        </picture>
+      </div>
+    </header>
+
+    <section class="journey journey-feed" aria-labelledby="build-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="build-title-hi">इसे वह काम दें जिसने आपको बनाया है।</h2>
+          <p>अपना लेखन, आवाज़, वीडियो और संदर्भ एक निजी स्टूडियो में लाएं।</p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>एक स्रोत से शुरू करें।</b> शुरुआत के लिए एक फ़ाइल, लिंक या रिकॉर्डिंग काफ़ी है।
+          </p>
+          <p>
+            <b>कमियां साथ में भरें।</b> आपकी सामग्री जिस बात का जवाब नहीं देती, आपका AI वह आपसे पूछता है।
+          </p>
+          <p>
+            <b>नियंत्रण अपने पास रखें।</b> जब तक आप रिव्यू नहीं करते, कुछ नहीं बदलता।
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="journey journey-meet" aria-labelledby="test-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="test-title-hi">पहला रूप देखें। फिर उसे अपना बनाएं।</h2>
+          <p>असल सवाल पूछें, जवाब सुनें और अपने AI का तरीका सुधारें।</p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>सहज तरीके से बात करें।</b> वही सवाल पूछें जो लोग पहले से आपके पास लाते हैं।
+          </p>
+          <p>
+            <b>उसी समय सुधारें।</b> जो सही है उसे रखें, जो चूका उसे ठीक करें और जो कभी नहीं कहना चाहिए उसे चिन्हित करें।
+          </p>
+          <p><b>भरोसा करने से पहले मापें।</b> आवाज़ की समानता तभी दिखाई जाती है जब उसका असली माप मौजूद हो।</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="journey journey-deploy" aria-labelledby="deploy-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="deploy-title-hi">तैयार होने पर इसे उपलब्ध कराएं।</h2>
+          <p>एक Room खोलें जहां आपका AI जवाब दे सके, याद रख सके और आपके रिव्यू से बेहतर होता रहे।</p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>एक समय में एक रिश्ता।</b> हर व्यक्ति को अपनी निजी याददाश्त वाला Room मिलता है।
+          </p>
+          <p>
+            <b>आप तय करें क्या लाइव होगा।</b> जब तक आप पब्लिश नहीं करते, आपका AI निजी रहता है।
+          </p>
+          <p>
+            <b>इसे बेहतर बनाते रहें।</b> जब भी किसी जवाब को आपकी जरूरत हो, Meet में लौटें।
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="boundary-hi" aria-labelledby="boundary-title-hi">
+      <div class="wrap">
+        <div class="floor">
+          <h2 id="boundary-title-hi">सीमा, सीधे शब्दों में।</h2>
+          <p>
+            तीन दायरे हैं, और वे एक दूसरे में कभी नहीं मिलते। यह कोई सेटिंग नहीं है जिसे आप बंद कर सकें, यह
+            इस बात का ढांचा है कि ये दायरे कैसे बने हैं।
+          </p>
+          <ul>
+            <li><span aria-hidden="true">&check;</span><span>आप अपने AI को जो देते हैं (आपकी सामग्री, आपके सुधार) हर उस फॉलोअर तक पहुंचता है जो इससे बात करता है।</span></li>
+            <li><span aria-hidden="true">&check;</span><span>एक फॉलोअर अपने AI को जो बताता है वह उसके अपने Room में ही रहता है। यह कभी ऐसी चीज़ नहीं बनता जो आपका AI आपके बारे में जानता हो, और यह किसी और के Room तक कभी नहीं पहुंचता।</span></li>
+            <li><span aria-hidden="true">&check;</span><span>आप सिर्फ गिनती देखते हैं, कभी शब्द नहीं। एक पैटर्न जो पांच या ज़्यादा फॉलोअर साझा करते हैं, वह आपको एक नंबर के तौर पर दिख सकता है, और वह भी सिर्फ तब जब आपने इसे देखने के लिए सहमति दी हो।</span></li>
+            <li><span aria-hidden="true">&check;</span><span>आपका AI कभी यह नहीं छिपाता कि वह एक AI है, इस सीमा के किसी भी तरफ।</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="apply-title-hi" id="apply-hi">
+      <div class="wrap">
+        <div class="limits">
+          <p class="eyebrow">आवेदन करने से पहले यह पढ़ें</p>
+          <h2 id="apply-title-hi">यह अभी सेल्फ-सर्व साइनअप नहीं है।</h2>
+          <ul>
+            <li>
+              <strong>हर आवेदन एक इंसान पढ़ता है।</strong> यह किसी क्यू या ऑटोमैटिक जवाब को नहीं, एक इंसान
+              को जाता है। नीचे फ़ॉर्म भेजें और असली जवाब की उम्मीद रखें।
+            </li>
+            <li>
+              <strong>हम पहले Rooms छोटे बैचों में खोल रहे हैं।</strong> यहां कोई तारीख नहीं बताई गई क्योंकि
+              अभी कोई तय नहीं हुई है, और एक झूठी तारीख न होने से बुरी होती।
+            </li>
+            <li>
+              <strong>आपकी सामग्री और आपका कैलिब्रेशन सुधारने के लिए आपका ही रहता है।</strong> Studio वह कुछ
+              भी पब्लिश नहीं करता जो आपने रिव्यू नहीं किया, और शुरुआत के दिन से ही वापस लेना उपलब्ध है।
+            </li>
+          </ul>
+
+          <form class="apply-form" id="apply-form-hi" novalidate>
+            <div class="apply-field">
+              <label for="apply-name-hi">आपका नाम</label>
+              <input id="apply-name-hi" name="name" type="text" maxlength="200" required autocomplete="name" />
+            </div>
+            <div class="apply-field">
+              <label for="apply-archive-hi">आपके आर्काइव का लिंक</label>
+              <input
+                id="apply-archive-hi" name="archive_link" type="text" maxlength="2000" required
+                placeholder="एक चैनल, एक कोर्स, एक फ़ीड, कुछ भी लंबा"
+              />
+            </div>
+            <div class="apply-field">
+              <label for="apply-audience-hi">आपकी ऑडियंस कौन है</label>
+              <textarea
+                id="apply-audience-hi" name="audience" maxlength="2000"
+                placeholder="वे आपको पहले से कहां पाते हैं, और लगभग कितने"
+              ></textarea>
+            </div>
+            <div class="apply-field">
+              <label for="apply-contact-hi">संपर्क</label>
+              <input
+                id="apply-contact-hi" name="contact" type="text" maxlength="320" required
+                placeholder="एक ईमेल या फ़ोन नंबर" autocomplete="email"
+              />
+            </div>
+            <button class="btn" type="submit" id="apply-submit-hi">आवेदन भेजें</button>
+            <p class="apply-note" id="apply-status-hi" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="close" aria-labelledby="close-title-hi">
+      <div class="wrap">
+        <h2 id="close-title-hi">सबसे बात करें। किसी को किसी की बात सुनने न दें।</h2>
+        <p>
+          बनाना मुफ़्त है। आपके फॉलोअर क्या देंगे, यह आप तय करते हैं। हमारा हिस्सा एक ही नंबर है, जो पब्लिश
+          करने से पहले दिखाया जाता है।
+        </p>
+        <a class="btn" href="#apply-hi">पहले Rooms में से एक के लिए आवेदन करें</a>
+        <p class="fine">एक छोटा फ़ॉर्म, चार फ़ील्ड। इसे एक इंसान पढ़ता है। कोई ऑटोमैटिक फ़ैसला नहीं।</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span class="brand" aria-hidden="true"><span class="vyakti-mark"><span class="vyakti-mark__glyph" lang="hi">व्य</span><span class="vyakti-mark__word">vyakti<small>.ai</small></span></span></span>
+      <p>Vyakti आपकी अपनी सामग्री को एक निजी AI में बदलता है, हर उस व्यक्ति के साथ एक निजी, चलती रहने वाली रिश्तेदारी के साथ जो इससे बात करता है।</p>
+      <span class="nav-spacer"></span>
+      <a href="/privacy">गोपनीयता और शर्तें</a>
+    </div>
+  </footer>
+</div>
+
+  <!-- WS-R23: the apply form's own small inline script, this file's no-build-
+       step rule. Posts to api/apply.js; the one predicate that can refuse it
+       (one application per contact per day) is api/_apply.js's, never
+       re-implemented here - this script only reports whatever the server
+       already decided. WS-R160: wired twice, once per locale form, the SAME
+       function taking every id as a parameter - `site/suites.html`'s own
+       `wireStartForm` precedent for a bilingual page with no framework. -->
+  <script>
+    (function () {
+      function wireApplyForm(formId, nameId, archiveId, audienceId, contactId, submitId, statusId, msg) {
+        var form = document.getElementById(formId);
+        var status = document.getElementById(statusId);
+        var submit = document.getElementById(submitId);
+        if (!form || !status || !submit) return;
+
+        function setStatus(state, text) {
+          status.setAttribute("data-state", state);
+          status.textContent = text;
+        }
+
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          var name = document.getElementById(nameId).value.trim();
+          var archiveLink = document.getElementById(archiveId).value.trim();
+          var audience = document.getElementById(audienceId).value.trim();
+          var contact = document.getElementById(contactId).value.trim();
+          if (!name || !archiveLink || !contact) {
+            setStatus("error", msg.missing);
+            return;
+          }
+          submit.disabled = true;
+          setStatus("", msg.sending);
+          fetch("/api/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              op: "submit",
+              name: name,
+              archive_link: archiveLink,
+              audience: audience,
+              contact: contact,
+            }),
+          })
+            .then(function (response) {
+              return response.json().catch(function () { return {}; }).then(function (data) {
+                return { ok: response.ok, status: response.status, data: data };
+              });
+            })
+            .then(function (result) {
+              submit.disabled = false;
+              if (result.ok) {
+                form.reset();
+                setStatus("ok", msg.ok);
+                return;
+              }
+              if (result.status === 429) {
+                setStatus("error", msg.rateLimited);
+                return;
+              }
+              setStatus("error", msg.failed);
+            })
+            .catch(function () {
+              submit.disabled = false;
+              setStatus("error", msg.network);
+            });
+        });
+      }
+
+      wireApplyForm(
+        "apply-form", "apply-name", "apply-archive", "apply-audience", "apply-contact",
+        "apply-submit", "apply-status",
+        {
+          missing: "Your name, an archive link and a contact are all required.",
+          sending: "Sending.",
+          ok: "Sent. A person will read this and reach out.",
+          rateLimited: "One application per contact per day. Please try again tomorrow.",
+          failed: "That did not go through. Check the form and try again.",
+          network: "That did not reach the server. Check your connection and try again.",
+        },
+      );
+
+      wireApplyForm(
+        "apply-form-hi", "apply-name-hi", "apply-archive-hi", "apply-audience-hi", "apply-contact-hi",
+        "apply-submit-hi", "apply-status-hi",
+        {
+          missing: "आपका नाम, आर्काइव का लिंक और संपर्क, तीनों ज़रूरी हैं।",
+          sending: "भेजा जा रहा है।",
+          ok: "भेज दिया गया। एक इंसान इसे पढ़ेगा और संपर्क करेगा।",
+          rateLimited: "एक दिन में एक संपर्क से एक ही आवेदन। कृपया कल फिर कोशिश करें।",
+          failed: "यह नहीं भेजा जा सका। फ़ॉर्म जांचें और फिर कोशिश करें।",
+          network: "यह सर्वर तक नहीं पहुंचा। अपना कनेक्शन जांचें और फिर कोशिश करें।",
+        },
+      );
+
+      // ── locale toggle, site/suites.html's own mechanism ─────────────────
+      function applyLang(lang) {
+        var en = document.getElementById("loc-en");
+        var hi = document.getElementById("loc-hi");
+        var isHi = lang === "hi";
+        en.hidden = isHi;
+        hi.hidden = !isHi;
+        document.documentElement.lang = isHi ? "hi" : "en";
+        var params = new URLSearchParams(window.location.search);
+        if (isHi) params.set("lang", "hi"); else params.delete("lang");
+        var q = params.toString();
+        history.replaceState(null, "", window.location.pathname + (q ? "?" + q : "") + window.location.hash);
+      }
+      var initial = new URLSearchParams(window.location.search).get("lang") === "hi" ? "hi" : "en";
+      applyLang(initial);
+      document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          applyLang(btn.getAttribute("data-set-lang"));
+        });
+      });
+    })();
+  </script>
+
+</body>
+</html>

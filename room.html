@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f1e9" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!--
+      WS-R22: the installable Room. This static file is the fallback every
+      visitor gets before any JS runs; `RoomApp.tsx` swaps this link's `href`
+      once it knows which creator's Room this tab is on, so "Add to Home
+      Screen" opens back to THIS room rather than the unrouted `/r/` this
+      static manifest's own `start_url` names. WS-R59 points that swap at a
+      real per-Room route (`api/_room-manifest.js`,
+      `/r/<slug>/manifest.webmanifest`) rather than a client-built Blob URL —
+      see `RoomApp.tsx`'s own comment on that effect.
+    -->
+    <link rel="manifest" href="/room.webmanifest" />
+    <!--
+      THE CASCADE LAYER ORDER, DECLARED WHERE A MINIFIER CANNOT REMOVE IT.
+
+      Identical to studio.html's, and it has to be here too or this page renders
+      a cascade the studio does not have. LightningCSS strips a standalone
+      `@layer` statement from a stylesheet as redundant, which fixes layer order
+      by first appearance instead and put RESET LAST of the first four. What
+      that shipped once was `button { color: inherit }` beating a primary call
+      to action's own colour, at a measured 1.73:1 against a 4.5:1 floor. A
+      statement inside an inline <style> in the head is emitted verbatim and is
+      the first layer declaration the browser sees.
+    -->
+    <style>@layer reset, tokens, base, components, responsive;</style>
+    <title>Talk to a creator's AI | Vyakti</title>
+    <meta
+      name="description"
+      content="A private, continuing conversation with a creator's AI. It remembers you, and it never shows anyone else what you said."
+    />
+  </head>
+  <body>
+    <div id="room-root"></div>
+    <script type="module" src="/src/room/main.tsx"></script>
+  </body>
+</html>

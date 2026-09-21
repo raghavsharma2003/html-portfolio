@@ -1,0 +1,11 @@
+# Personal sign-in visual42
+
+Additive to Hindi41 commit54fc1519. Source inspection and preserved screenshots showed conflicting eager styles: legacy studio-entry pseudo-elements create a dark background, later auth-entry applies dark text, and mobile legacy card margin=-70px overlaps the intro. General mode's image-specific overrides avoided the defect; actual testEnvironment mode lacked those overrides.
+
+The actual product AuthGate now exposes data-auth-theme from its existing testEnvironment prop. A narrow selector gives that mode the existing paper background, removes the obsolete pseudo/ambient layers and resets card margin to0 with an opaque white background. No text, fonts, authority or performance budgets change. General mode remains covered by the existing mounted views.
+
+One authorized batch exec6562 passed8 en/hi x390/1440 xgeneral/test actual AuthGate views,09:59:12.827Z to09:59:33.815Z,20.986s. Four test-mode views additionally assert full scene overflow, hero/form non-overlap and visible active hero/form text contrast>=4.5. Disabled buttons are excluded from contrast assertions; their current dimmed appearance is not an enabled-action contrast claim. Language geometry/focus and the email/code/cross-tab failure flow remain checked. This uses actual eager CSS and mocked account responses, not a production build or provider acceptance.
+
+Raw receipt: scratchpad/focused-1788861552824. Geometry and eight screenshots: scratchpad/personal-auth-locale-browser-1788861553569. Direct visual inspection of corrected Hindi390 and1440 confirms subtitle no longer hides under the card and heading reads on paper. Earlier broken screenshots remain in personal-auth-locale-browser-1788861065537; this repair does not rewrite41's receipt. Scoped Impeccable detector ran once after this UI repair and returned[] in scratchpad/visual42-impeccable.json.
+
+Changed product files: src/studio/StudioApp.tsx and auth-entry.css. Changed focused verification: evals/personal-auth-locale-browser.mjs. Reverse or narrow if mode selection, real mounted readability, layout or release checks regress. No browser retry or performance run. Hindi41's release acceptance remains pending on the integration candidate.

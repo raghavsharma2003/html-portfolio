@@ -9,6 +9,7 @@
 
 import type { CompileInput, RelBundleInput } from "../compiler";
 import type { UserProfile } from "../persona";
+import { demoTeacherAgent } from "../agents/teacher";
 import type { RelState, PatternRow, WeEpisodeRow, PhraseRow } from "../relstate";
 import type { RitualRow, CurrencyRow } from "../india";
 import type { TierGates } from "../clock";
@@ -160,6 +161,7 @@ const GATES_MINOR_SAFE: TierGates = { engagementMechanics: false, romanceRegiste
 const GATES_UNRESTRICTED: TierGates = { engagementMechanics: true, romanceRegisters: true };
 
 const base = (overrides: Partial<CompileInput>): CompileInput => ({
+  agent: demoTeacherAgent,
   user: USER,
   messageCount: 999,
   medium: "text",
@@ -273,8 +275,8 @@ export const BUDGET_FIXTURES: BudgetFixture[] = [
     id: "crisis-flagged",
     status: "wired",
     note:
-      "crisis handling lives in persona.ts's never-truncated core (C2, CRISIS_LINES verbatim), not the " +
-      "tail — this fixture just proves CRISIS_LINES survives compilation unmodified on every lane.",
+      "crisis handling lives in the explicit agent module's never-truncated core (C2), not the " +
+      "tail; this fixture proves the sheet's crisis lines survive compilation unmodified on every lane.",
     input: base({}),
   },
   {

@@ -1,0 +1,40 @@
+{
+  "kind": "voice-listening106-usability/v1",
+  "date": "2026-09-09",
+  "changed": {
+    "template": {
+      "path": "scratchpad/expert-tools/voice-listening106-template.html",
+      "beforeSha256": "4659f3f33479183178aa8a946bef1c7e3ce37dc111fa64a7e81f14936b640beb",
+      "afterSha256": "29e09381998cd12fd184c6551e5ba993708a85a9fbfc6bf1c8295ac8d23a9fdd"
+    },
+    "index": {
+      "path": "scratchpad/expert-tools/voice-listening106-public/index.html",
+      "beforeSha256": "45259632965fb8bc0ca227ba919c4e564e55000fdffd0883b950f09a5d7ca3f0",
+      "afterSha256": "8067010bda64ea7f7546948240cd54f57a58afa095408603a48cd00a8b765dc4"
+    }
+  },
+  "preserved": {
+    "manifest_private_map_reference_and_wavs": 14,
+    "hashesIdentical": true,
+    "hashList": "scratchpad\\expert-tools\\voice-listening106-usability-before-20260909-110830\\preserved-input-hashes.json"
+  },
+  "verification": {
+    "result": "scratchpad\\expert-tools\\voice-listening106-usability-1788932816328\\result.json",
+    "mobile": "scratchpad\\expert-tools\\voice-listening106-usability-1788932816328\\390.png",
+    "desktop": "scratchpad\\expert-tools\\voice-listening106-usability-1788932816328\\1440.png",
+    "checks": 5,
+    "errors": 0
+  },
+  "behavior": [
+    "one active pair",
+    "Pair 1 of 6 progress",
+    "prominent A/B audio",
+    "collapsed stock reference and limitations",
+    "optional detailed ratings",
+    "Back/Next with heading focus",
+    "unchanged rating keys and export contract",
+    "automaticWinner null",
+    "ownerLikenessAssessed false"
+  ],
+  "scope": "Static page only; no model, ASR, provider, mapping regeneration, audio transform or owner-likeness evaluation"
+}

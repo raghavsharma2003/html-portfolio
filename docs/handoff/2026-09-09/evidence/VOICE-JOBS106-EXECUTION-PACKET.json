@@ -1,0 +1,274 @@
+{
+  "kind": "stock106-executable-packet/v1",
+  "status": "prepared_for_root_review_no_mutation_performed",
+  "sourceCommit": "0b47b2b892f60b3f45f5d56bd647d97e2308329d",
+  "sourceRoot": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106",
+  "originalRoot": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform",
+  "envelopePath": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\VOICE-JOBS106-ENVELOPE.json",
+  "envelopeCommitment": "8f9091c46c1e2352cba30c36814c0e583c5e553fc2410f1d97f6b371986a7f4e",
+  "receiptDir": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-jobs106-receipts",
+  "budget": {
+    "id": "gpu-control-probe-20260908",
+    "foreignId": "expert-development-20260906",
+    "before": {
+      "limit_microusd": 1000000,
+      "reserved_microusd": 970200,
+      "spent_microusd": 0
+    },
+    "afterLimit": 2500000,
+    "rateMicrousdPerSecond": 462,
+    "newReservation": 1164240,
+    "perArmReservation": 582120,
+    "afterBothReservations": 365560,
+    "monetaryHoldsPreserved": true,
+    "hardInvoiceCap": false
+  },
+  "configReader": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\processing204-config-literal.mjs",
+  "budgetSqlSource": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\processing204-budget-cas.mjs",
+  "neonHostnameSha256": "d702b80148e3aea71f354ac5004c9b5def2a281ed694f1be8069023bb1f25302",
+  "pins": [
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\api\\_gpu-allocation-budget.js",
+      "sha256": "2eefb6ac34a69cab4b5629e5f9eb40e1a13480aafd96a36bd4dc12399dd33cfd"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\api\\_invites.js",
+      "sha256": "98b9a4d5bce63c6fc6d6708cc2230a791d1bde65697ead1b82c7d3ce27227ef6"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\api\\_provenance\\contracts.js",
+      "sha256": "3d4abdcf2ee08cac77b6256343702f36fb3b14f8c3bcee3abd1416d0fd9e4233"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\api\\_replica.js",
+      "sha256": "53058e3712315f1b4c4149b2fab4e9deee72e7e5de1f5b7836402ab1ce56eba9"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\api\\_voice\\contracts.js",
+      "sha256": "726553033891100b9bc7a8b3c54c4a15a4a2b46ceb26917d9e88f7baf25b834b"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\scripts\\stock-jobs106-observer.mjs",
+      "sha256": "9866d4d04532b84e252b80e397c6dcb089fb8a74a23f414659968a6383f66d4a"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\scripts\\stock-jobs106.mjs",
+      "sha256": "2a6dd8728b9179e3013412c9c2e56089bf04b76b7e787f83dd32bd643d0ce242"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\services\\azure-gpu-job\\controller.mjs",
+      "sha256": "13bc023c2216f0f0d314672e5ce17f94126ca3e1d984602ba29d0336fd93497d"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\services\\azure-gpu-job\\supervisor.mjs",
+      "sha256": "7a4266ce3eec492a5e151fdfd70fb31efebbd4a8b628f303c9e53fb61187394b"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\services\\replica-processing-worker\\db.js",
+      "sha256": "909872fbb428c02ebcfe715bed4f545da2a9ddb61e3ac9fcd421e4217ba7fcb6"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\services\\voice-stock-comparison\\capture.mjs",
+      "sha256": "14f35d46bcf3ddb5e697b03f6906c6fcca512b982c6531cb383c2a937414b5ee"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\services\\voice-stock-comparison\\collect.py",
+      "sha256": "8da1af4a1b7899d2ad5f108404d8c32cb892db64439bb9a467e0b2a5cdfd727b"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\services\\voice-stock-comparison\\entrypoint.py",
+      "sha256": "50eb15216989a668990084669946467b9a8cbd084db6d0a86648ffdf5463e60e"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\services\\voice-stock-comparison\\job-plan.mjs",
+      "sha256": "2c56272ffb94432a7098201bdcb43feeb87109d591afdc5f5f9650b5e3e74d79"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-voice-comparison106\\services\\voice-stock-comparison\\observer.mjs",
+      "sha256": "68db7e36dc50e5383a2d917e98665f8948e72c5a450f4310e24b2649ca63cd2f"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-30-combined\\node_modules\\typescript\\lib\\typescript.js",
+      "sha256": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\VOICE-OVERLAY106-ACTUAL-BUILDS.json",
+      "sha256": "df63072836d438fc620ef89bbf07bd13a15658728dee07e2cac926049cb1c94f"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\VOICE-OVERLAY106-CHATTERBOX-PACKET.json",
+      "sha256": "17db9d7b5ca083ba752a350019e9d45cdf248a26040249d64b19060c1a3e32eb"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\VOICE-OVERLAY106-VOXCPM2-PACKET.json",
+      "sha256": "3e5ae1774b4c370efb30507bdc060c6a5b8e0b2599bbbddfbcd6d149875d1e48"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\processing204-budget-cas.mjs",
+      "sha256": "544f0c8d06b1427b825ab3e9d3fb63e77b98d49fc07a6ea491d52d0175090405"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\processing204-config-literal.mjs",
+      "sha256": "e03e0aff13a2e36d690858f0d2f1bf7f36bf535303295fbd8314a9a5055b7df1"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\processing204-terminal-readonly-1788929509237.json",
+      "sha256": "ca499dc848f60cfa9d8e23d0b8d900740a33d81caa9274afbe6dcc3a1a0c6661"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-jobs106-bridge.mjs",
+      "sha256": "2ac12d7fc8ffd20e35a8e5b3fd71c3a2fa880b2fa215a287525369f7ebcc13c2"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-jobs106-launch.py",
+      "sha256": "276ce645c90f2c6a98c8da88d193d1675395bbbfc27259a451d8e483072d829b"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-jobs106-prepare.mjs",
+      "sha256": "cda1165f2dd1c3277720bf4c68be8036207a19b6102840e1870778dc446c430c"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-jobs106-readonly-1788929669015467700.json",
+      "sha256": "bc98fb836d5170f69c9ee8f528fa95f06c90e59805a213edefcd7f05ddf0e462"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\Dockerfile",
+      "sha256": "12ea868ac94a5a05b6719cd8adaae51faedc1f76cda9705c9cb92f8f9df06deb"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\entrypoint.py",
+      "sha256": "50eb15216989a668990084669946467b9a8cbd084db6d0a86648ffdf5463e60e"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\manifest.json",
+      "sha256": "f4bf9a8151527a725807446ce71cb4fdc224b821575f794aad6bdcc189c888ff"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\requests.json",
+      "sha256": "40b44f6f7f251e41bf60630f500bb2b8494c55817f2ae1ba0f39debe7c30a76d"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\runtime\\app.py",
+      "sha256": "e8342a6ac1b43b92a75fb46d69cfb3c7c7bac13d5c1bc419bd8a916d06b1544e"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\runtime\\hindi_pack.py",
+      "sha256": "9eafdecf8a37dc07d930fdb65d18add20c6366b6b1dbeaf27b67f9b8512fb436"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\runtime\\lora.py",
+      "sha256": "7ef2c819958386a68aa7b45bb3e070011573d7a09f690f25ef12759ac6fb874a"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\runtime\\offline_assets.py",
+      "sha256": "43ca80894231182a75c59de9d19cb858a53994abbc831153637a4ec962c9f598"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context\\stock.wav",
+      "sha256": "16636b6e06d0e7145fad3cab3ac5d85409f84e527c23a2189fb3c79b85738cf6"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-verify-1788928847280701000.json",
+      "sha256": "d5e51ff14a6830ef18d243ad00a921653f4513064710b1270cba56dae6e065c8"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-context\\Dockerfile",
+      "sha256": "3cd86599b84b576a1a5f644fa94a32021d1d0308f1b016335fde25a59b924a0f"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-context\\entrypoint.py",
+      "sha256": "50eb15216989a668990084669946467b9a8cbd084db6d0a86648ffdf5463e60e"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-context\\manifest.json",
+      "sha256": "10d3f2ca8933eecc248bdf73ca82a21b74429372784bbffeaea93942a9ffeda1"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-context\\requests.json",
+      "sha256": "19d2d954df344ab7e723301d5fc79d3ab3bd8a5cbebe9873af9d8ddd1b770e28"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-context\\runtime\\app.py",
+      "sha256": "240fd3baad60eef9c6239c94f084620854be3f0694903922852be2b2d125ea3e"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-context\\runtime\\contract.py",
+      "sha256": "f35d6a5a9d41291c78c8c22d87d18bd45db6eafb51b35c78cdccfa626b5d6024"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-context\\stock.wav",
+      "sha256": "16636b6e06d0e7145fad3cab3ac5d85409f84e527c23a2189fb3c79b85738cf6"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-verify-1788928847279597900.json",
+      "sha256": "987bb7ce7da4c9afb23c8ae6196560314f6d55bb5c3f0ef8901031601f695f6c"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\VOICE-JOBS106-ENVELOPE.json",
+      "sha256": "364500291a739181323037d1fb5773595927381b2ce284d2ab58c9ac2b5b230d"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\VOICE-JOBS106-CHATTERBOX-ARM.json",
+      "sha256": "609468ab3a47cefc7a0aaf950beba5479a896528504b89343d004eba76115ff4"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\VOICE-JOBS106-VOXCPM2-ARM.json",
+      "sha256": "f85d5eeafc7820cb219efbfb87649315a6a27d8feac27fcc3345e3e626481737"
+    }
+  ],
+  "scope": {
+    "jobs": 2,
+    "serial": true,
+    "cells": 12,
+    "retries": 0,
+    "ownerIdentity": false,
+    "firstArmCaptureBeforeSecond": true,
+    "noContinuousWarmth": true
+  },
+  "priceEvidence": {
+    "at": "2026-09-09T04:54:24.326347+00:00",
+    "receipt": "voice-jobs106-readonly-1788929669015467700.json",
+    "meters": [
+      {
+        "id": "d32e1d63-2107-5508-8996-0d04d882548c",
+        "name": "Standard NC T4 v3 GPU Usage",
+        "price": 0.000102,
+        "unit": "1 Second"
+      },
+      {
+        "id": "87620268-42d5-510b-8337-071b322131f8",
+        "name": "Standard vCPU Active Usage",
+        "price": 2.4e-05,
+        "unit": "1 Second"
+      },
+      {
+        "id": "2b14d956-df03-522c-b6b7-aea5ff0ab675",
+        "name": "Standard Memory Active Usage",
+        "price": 3e-06,
+        "unit": "1 GiB Second"
+      }
+    ]
+  },
+  "buildHolds": {
+    "each": 500000,
+    "total": 1000000,
+    "unchanged": true,
+    "separateFromGpuLedger": true
+  },
+  "runOrder": [
+    "check",
+    "logcheck",
+    "provision-chatterbox",
+    "provision-voxcpm2",
+    "inspect",
+    "admit",
+    "run"
+  ],
+  "remainingUnknowns": [
+    "actual GPU startup and model quality",
+    "first complete retained-log delivery",
+    "attributable billable usage"
+  ],
+  "mutationsPerformed": 0,
+  "modelCalls": 0
+}

@@ -186,6 +186,54 @@ export function withShareRecord(
     .slice(0, SHARE_LEDGER_MAX);
 }
 
+// ── DPDP MEMORY CONSENT (task #148) ────────────────────────────────────────
+//
+// India's DPDP Act reaches full effect on 2027-05-14, and the part of it this
+// product cannot answer with a terms-of-service checkbox is the one about
+// STORING CROSS-SESSION PERSONAL AND EMOTIONAL MEMORY: that needs its own
+// specific, informed, unbundled consent, and the penalty ceiling for getting
+// it wrong is Rs 250 Cr. Bundling it into "by continuing you agree" would be
+// the same shape of wrong as bundling it into an 18+ confirmation.
+//
+// So it is one dedicated question, asked once, in its own step, with a real
+// alternative that is not a dead end (see src/components/MemoryConsent.tsx).
+//
+// THE RECORD IS THREE FIELDS AND NOTHING ELSE. `granted` is the answer, `at`
+// is when it was given as an ISO string (a legal record is a date a human can
+// read, not an epoch integer), and `version` is which ASK it answers — the
+// moment the card's copy changes materially, the version goes up and consent
+// to the old text stops standing in for consent to the new one. No free text,
+// no name, no device fingerprint: this object is evidence about an answer, not
+// another record about a person.
+export interface MemoryConsent {
+  granted: boolean;
+  /** ISO-8601, e.g. "2026-08-25T09:12:44.000Z" */
+  at: string;
+  version: 1;
+}
+
+/** Which ask the current card's copy IS. Bump it when the copy changes what a
+ *  person is agreeing to, never for a typo. */
+export const MEMORY_CONSENT_VERSION = 1 as const;
+
+/**
+ * May this device write cross-session memory?
+ *
+ * ABSENT MEANS YES, and that default is deliberate rather than lax. Every
+ * install that predates this field is an install whose person was never asked,
+ * and the answer to "never asked" is to ASK (App.tsx renders a one-time card
+ * for exactly them), never to silently switch her memory off underneath a
+ * relationship that already exists. The same rule `theme`, `soundOn` and
+ * `SelfFactKind` follow one field at a time: a stored shape is not rewritten
+ * under a running install.
+ *
+ * Only an explicit `granted: false` closes the gate. New installs always carry
+ * one value or the other, because the onboarding step cannot be skipped past.
+ */
+export function memoryWritesAllowed(s: Pick<AppState, "memoryConsent">): boolean {
+  return s.memoryConsent?.granted !== false;
+}
+
 export interface AuthInfo {
   userId: string;
   email?: string;
@@ -459,6 +507,21 @@ export interface AppState {
   // instead (it is deliberately NOT a field here — a push token in synced
   // state is another device's reachability).
   notifyPrefs?: NotifyPrefs;
+  // ── the memory consent (task #148, DPDP) ───────────────────────────────
+  // The answer to the one question this product has to ask before it stores
+  // anything about a person's life across sessions. See `MemoryConsent` above
+  // for the shape and `memoryWritesAllowed` for what absent means.
+  //
+  // DEVICE-LOCAL, exactly like `notifyPrefs` and for a sharper version of its
+  // reason: it is absent from `syncableState` and from `mergeStates` because
+  // a decline STOPS the state push, so the one channel that could carry it to
+  // another device is the channel it switches off. Inferring an answer for a
+  // device that never asked would also be the app answering a consent
+  // question on the person's behalf, which is the single thing consent may
+  // not be. A second device asks its own question, once, and the server
+  // consent ledger (api/account.js `consent`) is what makes the two answers
+  // reconcilable after the fact.
+  memoryConsent?: MemoryConsent;
   // Lifetime activity tallies, written at game close. The RECORD is the
   // progression system; these are the running totals the detector reads.
   tally?: {
@@ -702,6 +765,10 @@ function crossTabSig(s: AppState): string {
     s.followup ?? null,
     s.callback ?? null,
     s.recentMoment ?? null,
+    // Device-scope like the settings above it, and IN here rather than out for
+    // the reason `shares` is: two tabs are one device, and one tab must not go
+    // on writing memory a second tab has just switched off.
+    s.memoryConsent ?? null,
   ]);
 }
 

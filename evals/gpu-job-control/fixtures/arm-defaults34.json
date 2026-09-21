@@ -1,0 +1,139 @@
+{
+  "at": "2026-09-08T06:38:53.033797+00:00",
+  "arm_writes": 0,
+  "cloud_key_reads": 0,
+  "model_calls": 0,
+  "job_id": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/jobs/vyakti-replica-processing",
+  "observations": [
+    {
+      "path": "configuration.dapr",
+      "state": "empty",
+      "type": "NoneType",
+      "value": null
+    },
+    {
+      "path": "configuration.eventTriggerConfig",
+      "state": "empty",
+      "type": "NoneType",
+      "value": null
+    },
+    {
+      "path": "configuration.identitySettings",
+      "state": "empty",
+      "type": "list",
+      "value": []
+    },
+    {
+      "path": "configuration.scheduleTriggerConfig",
+      "state": "nonempty",
+      "type": "dict"
+    },
+    {
+      "path": "configuration.manualTriggerConfig",
+      "state": "empty",
+      "type": "NoneType",
+      "value": null
+    },
+    {
+      "path": "template.initContainers",
+      "state": "empty",
+      "type": "NoneType",
+      "value": null
+    },
+    {
+      "path": "template.volumes",
+      "state": "empty",
+      "type": "NoneType",
+      "value": null
+    },
+    {
+      "path": "template.containers.0.args",
+      "state": "absent"
+    },
+    {
+      "path": "template.containers.0.command",
+      "state": "absent"
+    },
+    {
+      "path": "template.containers.0.probes",
+      "state": "absent"
+    },
+    {
+      "path": "template.containers.0.volumeMounts",
+      "state": "absent"
+    },
+    {
+      "path": "template.containers.0.resources.ephemeralStorage",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.registries.0.identity",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.0.keyVaultUrl",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.0.identity",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.1.keyVaultUrl",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.1.identity",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.2.keyVaultUrl",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.2.identity",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.3.keyVaultUrl",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.3.identity",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.4.keyVaultUrl",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.4.identity",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.5.keyVaultUrl",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.5.identity",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.6.keyVaultUrl",
+      "state": "absent"
+    },
+    {
+      "path": "configuration.secrets.6.identity",
+      "state": "absent"
+    }
+  ],
+  "container_keys": [
+    [
+      "env",
+      "image",
+      "name",
+      "resources"
+    ]
+  ],
+  "state": "readonly_defaults_complete"
+}
