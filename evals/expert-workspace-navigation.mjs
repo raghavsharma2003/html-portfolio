@@ -43,8 +43,8 @@ assert.equal(usesActiveVoiceAuthority(experience.replace(
 )), false);
 const usesExactPrivateFeedDoor = (experienceText, lockerText) =>
   experienceText.includes("onPrivateTextItemCount={onPrivateTextItemCount}")
-  && experienceText.includes("if (wizardInput.sheetPersisted) {")
-  && experienceText.includes('setMeetView("conversation");')
+  && experienceText.includes("hasSavedSheet: wizardInput.sheetPersisted")
+  && experienceText.includes('hasTextMaterial: privateTextEntryEligible }) === "private-rehearsal"')
   && lockerText.includes("onPrivateTextItemCount?.(next.items.filter(isTeachableContextSource).length)");
 assert.equal(usesExactPrivateFeedDoor(experience, contextLocker), true);
 assert.equal(usesExactPrivateFeedDoor(experience, contextLocker.replace(
