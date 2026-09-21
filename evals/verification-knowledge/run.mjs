@@ -53,6 +53,24 @@ for(const changed of [
  navigationBaseline.replace('consents={consents}','consents={[]}'),
  navigationBaseline+'\n'+invocation(navigationBaseline),
 ]) assert.throws(()=>checkNavigation(changed),'missing/wrong navigation, authority drift and duplicate caller must fail');
+// A ready source without completed identity/liveness now receives the honest
+// platform-pending panel before the historical verification journey can mount.
+// Its independent return action must keep the same knowledge destination.
+const pendingPanel=current.match(/<motion\.section className="vx-scene vx-saga-recovery" key="voice-verification-pending"[\s\S]*?<\/motion\.section>/)?.[0];
+assert(pendingPanel,'ready-source platform-pending panel is required');
+function checkPendingNavigation(panel){
+ assert(panel.includes('copy.verification.platformPendingHeading'),'pending panel must explain its state');
+ assert(panel.includes('privateTextEntryEligible ? copy.verification.platformPendingReadyBody : copy.verification.platformPendingBody'),'pending panel must distinguish private draft eligibility');
+ assert.equal(panel.split('onClick={() => { setEnrichView("menu"); chooseRoom("enrich"); }}').length-1,1,'pending return must open the knowledge menu');
+ assert.equal(panel.split('copy.verification.backToKnowledge').length-1,1,'pending return must keep its registered label');
+}
+checkPendingNavigation(pendingPanel);
+for(const changed of [
+ pendingPanel.replace('chooseRoom("enrich")','chooseRoom("voice")'),
+ pendingPanel.replace('setEnrichView("menu")','setEnrichView("files")'),
+ pendingPanel.replace('copy.verification.backToKnowledge','copy.verification.recordAgain'),
+ pendingPanel.replace('copy.verification.platformPendingHeading','copy.verification.couldNotBuild'),
+]) assert.throws(()=>checkPendingNavigation(changed),'wrong pending message or navigation must fail');
 if(process.argv.includes('--source-only')){console.log(JSON.stringify({sourceOnly:true,hashes,oldHash:sha(old),callerDeltas:['knowledge-navigation','reviewed-owner-identity-plumbing']}));process.exit(0);}
 const {build}=await import('vite');
 const {statements}=await import('../first-use-private-flow/fixture.mjs');
@@ -79,19 +97,24 @@ try{
  for(const width of [396,1440]){
   const page=await browser.newPage({viewport:{width,height:900},reducedMotion:'reduce'});page.setDefaultTimeout(boundedWaitMs(15000));page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
   const check=async(name,fn)=>{await fn();checks.push({width,name});console.log('ok '+checks.length+' - '+width+' '+name);};
-  const open=async(scenario,extra='')=>{await page.goto(`${origin}/?replica=${rid}&step=meet&view=voice&lang=hi&case=${scenario}${extra}`);await page.waitForFunction(()=>window.journeyProbe?.builds.length===1);await page.locator('.cvj-shell').waitFor();};
+  const open=async(scenario,extra='')=>{await page.goto(`${origin}/?replica=${rid}&step=meet&view=voice&lang=hi&case=${scenario}${extra}`);await page.waitForFunction(()=>window.journeyProbe?.builds.length===1);await page.locator(scenario==='unavailable'&&!extra?'#vx-verification-pending-title':'.cvj-shell').waitFor();};
   const exit=()=>page.getByRole('button',{name:'Back to knowledge',exact:true});
   const state=()=>page.evaluate(()=>({saga:localStorage.getItem('vyakti:experience:voice-saga:v1:10000000-0000-4000-8000-000000000001'),builds:window.journeyProbe.builds,mutations:window.journeyProbe.mutations,auth:window.journeyProbe.authErrors}));
   await check('old actual caller traps pending verification without knowledge navigation',async()=>{await open('pending','&old=1');assert.equal(await exit().count(),0);assert.equal(await page.getByRole('navigation',{name:'Clone rooms'}).count(),0);assert.equal(await page.locator('.cvj-shell').getAttribute('data-stage'),'source_processing');});
   for(const scenario of ['pending','unavailable']){
-   await open(scenario);const before=await state(),expected=scenario==='pending'?'source_processing':'liveness';
-   if(scenario==='unavailable')await page.getByText('Live verification is unavailable',{exact:true}).waitFor();
+   await open(scenario);const before=await state(),expected='source_processing';
+   if(scenario==='unavailable'){
+    await page.getByRole('heading',{name:'Voice verification is not available yet.'}).waitFor();
+    assert.equal(await page.locator('.cvj-shell').count(),0);
+    await page.getByText('Your recording is saved. Voice verification is waiting on us.',{exact:false}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Test a private draft'}).count(),0);
+   }
    await check(scenario+' visible keyboard navigation preserves exact source/intent/locale without mutation',async()=>{const box=await exit().boundingBox();assert(box&&box.height>=44&&box.y>=0&&box.y+box.height<=900);await exit().focus();await page.keyboard.press('Enter');await page.getByRole('heading',{name:'Add more of you.'}).waitFor();assert.equal(new URL(page.url()).searchParams.get('replica'),rid);assert.equal(new URL(page.url()).searchParams.get('lang'),'hi');assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');assert.deepEqual(await state(),before);await page.waitForFunction(()=>document.activeElement?.textContent==='Add more of you.');});
    if(scenario==='pending'){
     await check('existing private test stays unavailable with no ask or publication dispatched',async()=>{await page.getByRole('button',{name:/Test a private draft/}).click();await page.getByRole('heading',{name:'Test your private draft.'}).waitFor();await page.getByText('Waiting on us:',{exact:true}).waitFor();assert.equal(await page.getByRole('alert').count(),0);assert(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled());await page.getByRole('button',{name:'Back to your workspace',exact:true}).click();await page.getByRole('heading',{name:'Add more of you.'}).waitFor();assert.deepEqual(await state(),before);});
     await check('existing share review remains blocked and explicit; no automatic publish',async()=>{await page.getByRole('button',{name:/Share your knowledge/}).click();await page.getByRole('heading',{name:'Share your knowledge',exact:true}).waitFor();await page.getByText('Sharing is waiting on our platform.',{exact:false}).waitFor();assert.equal(await page.getByRole('button',{name:'Publish link',exact:true}).count(),0);await page.getByRole('button',{name:'Back to knowledge',exact:true}).click();await page.getByRole('heading',{name:'Add more of you.'}).waitFor();assert.deepEqual(await state(),before);});
    }
-   await check(scenario+' return and reload resume unchanged verification, with no reset or fabricated readiness',async()=>{await page.getByRole('button',{name:'Back to voice',exact:true}).click();await page.locator('.cvj-shell').waitFor();assert.equal(await page.locator('.cvj-shell').getAttribute('data-stage'),expected);assert.deepEqual(await state(),before);const params=new URL(page.url());params.searchParams.set('reload','1');await page.goto(params.href);await page.waitForFunction(()=>window.journeyProbe?.builds.length===1);await page.locator('.cvj-shell').waitFor();assert.equal(await page.locator('.cvj-shell').getAttribute('data-stage'),expected);assert.deepEqual(await state(),before);assert.equal(await page.getByRole('navigation',{name:'Clone rooms'}).count(),0);if(scenario==='unavailable')await page.getByText('Live verification is unavailable',{exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:join(out,`${scenario}-${width}.png`)});});
+   await check(scenario+' return and reload resume unchanged verification, with no reset or fabricated readiness',async()=>{await page.getByRole('button',{name:'Back to voice',exact:true}).click();if(scenario==='pending'){await page.locator('.cvj-shell').waitFor();assert.equal(await page.locator('.cvj-shell').getAttribute('data-stage'),expected);}else{await page.getByRole('heading',{name:'Voice verification is not available yet.'}).waitFor();assert.equal(await page.locator('.cvj-shell').count(),0);}assert.deepEqual(await state(),before);const params=new URL(page.url());params.searchParams.set('reload','1');await page.goto(params.href);await page.waitForFunction(()=>window.journeyProbe?.builds.length===1);if(scenario==='pending'){await page.locator('.cvj-shell').waitFor();assert.equal(await page.locator('.cvj-shell').getAttribute('data-stage'),expected);}else{await page.getByRole('heading',{name:'Voice verification is not available yet.'}).waitFor();assert.equal(await page.locator('.cvj-shell').count(),0);}assert.deepEqual(await state(),before);assert.equal(await page.getByRole('navigation',{name:'Clone rooms'}).count(),0);await page.evaluate(()=>document.fonts.ready);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:join(out,`${scenario}-${width}.png`)});});
   }
   await page.close();
  }

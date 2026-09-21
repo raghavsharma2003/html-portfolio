@@ -1384,6 +1384,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
     && (textReady ? replacePrimary : (!currentPrimary || replacePrimary)));
   const showVerification = Boolean(selected && consentActive && activeCandidate && !upload);
   const voiceVerificationPending = Boolean(showVerification && activeCandidate?.state === "ready"
+    && voiceBuildIntent?.state !== "failed"
     && !review?.self_test_mode && selected
     && (!selected.age_verified || !selected.identity_verified || !selected.liveness_verified));
   const voiceWorkspaceReady = Boolean(selected && consentActive && !voiceSaga && runtimeStatus?.active
@@ -1550,12 +1551,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
                 }} testSourceLabel={feedCopy.test} onTestSource={savedRehearsal ? undefined : source => {
                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || source.replicaId !== selected.replica_id || !isPrivateTextId(source.itemId) || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== source.replicaId) return;
                   rehearsalReturn.current = { identity, token: accessToken, replicaId: source.replicaId, draft: { question: rehearsalReturn.current?.draft.question || "", sheetId: rehearsalReturn.current?.draft.sheetId || "", contextItemId: source.itemId } };
-                  if (wizardInput.sheetPersisted) {
-                    setMeetView("conversation");
-                    chooseRoom("voice");
-                  } else {
-                    chooseRoom("rehearsal");
-                  }
+                  chooseRoom("rehearsal");
                 }} /></> : null}{enrichView === "video" ? <VideoEnrollPanel token={accessToken} replicaId={selected.replica_id} onUseFileUpload={() => { setReplacePrimary(true); chooseRoom("voice"); }} /> : null}{enrichView === "describe" ? <DescribeMe token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} onSaved={onContextCount} /> : null}{enrichView === "humanos" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingWhoYouAre}</p>}><HumanOsStudio token={accessToken} replica={selected} locale={locale} onAuthError={onAuthError} onSaved={onPersonalSheetSaved} /></Suspense> : null}</>}</section>}
               {room === "evolve" && <section className="vx-room__panel vx-room__scroll"><div className="vx-stage-title"><h1>{copy.rooms.evolve.heading}</h1><p>{copy.rooms.evolve.body}</p></div><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.evolve.openingHistory}</p>}><PersonModelStudio token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} /></Suspense></section>}
               {room === "emotionos" && <section className="vx-room__panel vx-room__scroll"><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.emotionos.openingVibe}</p>}><EmotionOsStudio token={accessToken} replicaId={selected.replica_id} replica={selected as { locale?: unknown }} onAuthError={onAuthError} onBack={() => chooseRoom("enrich")} /></Suspense></section>}

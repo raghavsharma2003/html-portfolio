@@ -25519,3 +25519,8 @@ Register the mobile capture runner and upload recovery suite in the full release
 ## closeout-scope-20260921
 
 Owner requests wrap-up. Prioritize the repaired UI release and genuine per-account voice journey; keep unfinished voice scaffolding separate. Reverse only if new runtime evidence identifies a more fundamental blocker.
+
+
+## fast-private-pilot-20260921
+
+The owner explicitly prioritizes fast wrap-up and token economy. Release the repaired private sign-in, knowledge, profile and text-conversation journey. Keep incomplete voice scaffolding separate; no new runtime, GPU activation or migration171 in this release. Reverse when this pilot works end to end and the owner resumes voice expansion.

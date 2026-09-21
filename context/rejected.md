@@ -19276,3 +19276,8 @@ The initial Studio repair allowed Azure XHR and blob playback but omitted Azure 
 ## dismissed-reading-state-20260921
 
 A focused dismissed notice retained focusInside and blocked the next asynchronous notice timer. The mounted reproduction failed before resetting reading state whenever the notice becomes invisible, then passed. CI timer checks now assert one six-second timer and wait for React dismissal instead of racing the DOM commit.
+
+
+## private-handoff-overrides-explicit-action-20260921
+
+The first-Meet change sent Test this source to view=voice even when the user explicitly requested a source-bound rehearsal; the strict existing round-trip test caught it. Its platform-pending branch also hid failed-build retry controls. Restore explicit rehearsal navigation and exclude failed build intents from the pending branch. Separately, a refinement test enumerated zero attestations while readiness was loading; wait for all three actual inputs instead of treating an empty loop as confirmation. Do not bypass these failures or label the candidate shippable.

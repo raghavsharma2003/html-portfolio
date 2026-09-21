@@ -20799,6 +20799,24 @@
       "kind": "rejection",
       "title": "A dismissed notice paused later notices",
       "at": "context/rejected.md#dismissed-reading-state-20260921"
+    },
+    {
+      "id": "fast-private-pilot-20260921",
+      "kind": "decision",
+      "title": "Freeze expansion for the usable private pilot",
+      "at": "2026-09-21"
+    },
+    {
+      "id": "ci65d-rejection-20260921",
+      "kind": "measurement",
+      "title": "Exact integrated candidate failed one of25 release checks",
+      "at": "2026-09-21"
+    },
+    {
+      "id": "private-handoff-overrides-explicit-action-20260921",
+      "kind": "rejection",
+      "title": "Automatic private handoff must not override explicit source tests or recovery",
+      "at": "2026-09-21"
     }
   ],
   "edges": [

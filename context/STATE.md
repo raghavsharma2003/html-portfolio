@@ -1,5 +1,17 @@
 # STATE — read this first, then the graph
 
+## START HERE: FAST PRIVATE PILOT; RELEASE CORRECTIONS IN PROGRESS (2026-09-21)
+
+Owner prioritizes usable product and token economy. Freeze feature expansion.
+Ship repaired sign-in, knowledge, profile and private text conversation after
+exact-head gates. Voice remains incomplete and separately saved; migration171
+is not applied. Candidate65d67bed failed the eval-suite on both Node versions
+(24/25 top-level gates), while Android passed. Explicit source-test navigation
+and failed-build recovery were actual regressions and are corrected here.
+Old verification-screen fixtures and a readiness/checkbox test race are also
+being repaired. No new deployment yet; latest live remains old3bc5857e.
+
+
 ## START HERE: SEPTEMBER 21 CLOSEOUT; PRODUCT INCOMPLETE
 
 Owner asks to wrap up. UI repairs are integrated through2ba6445a, including

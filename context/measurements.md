@@ -19115,3 +19115,10 @@ Same continuation: exact three infra writes completed, then standalone25-interna
 ## closeout-checks-20260921
 
 2026-09-21: notice14/14, private-first4/4 real Chromium checks; TypeScript and copy pass. Separate private voice13/13 synthetic tests pass. Latest Vercel readback is unchanged old3bc Preview. No cloud mutation, migration or model call. Full integrated release remains pending.
+
+
+## ci65d-rejection-20260921
+
+2026-09-21: GitHub release run35572189697, Node22 job106245960611 and Node24 job106245960796, n=2 complete job logs: each24/25 top-level checks passed; eval-suite failed. Android run35572189702 succeeded. Failing browser suites were verification-knowledge, feed-meet-return-ui, primary-intent-recovery, rehearsal-personal; Node24 additionally private-teaching-refinement-ui. No deployment of65d occurred.
+
+Focused correction checks on2026-09-21: verification-knowledge14 mounted checks; unchanged feed-meet-return13 groups and primary-intent-recovery18 groups; private-first-meet4 groups; private-teaching-refinement42 groups. Personal rehearsal64/64 passes against its synthetic handler fixture. TypeScript composite build and copy gate pass. These prove mounted/synthetic behavior, not live account or voice quality.
