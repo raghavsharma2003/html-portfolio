@@ -19288,3 +19288,8 @@ The d4b5d031 Android eval run106251497914 then exposed two source/callback check
 ## preview-is-not-user-journey-20260921
 
 The new preview renders email/Google sign-in, but no user session is available in the browser. Read-only unauthenticated probes and synthetic mounted rehearsals cannot prove OTP delivery, actual account upload, model answer or voice likeness. Asked the owner to sign into this exact preview; do not fabricate acceptance or extract browser credentials. Old6uu/kef links retain the old interface and must not be supplied as the repaired release.
+
+
+## phone-test-choice-not-acceptance-20260921
+
+The owner choosing phone testing does not demonstrate successful sign-in, upload, conversation or cloned voice. Preserve the prior deployment evidence separately from outstanding real-user journey evidence; do not mark the whole product complete.

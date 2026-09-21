@@ -19127,3 +19127,8 @@ Focused correction checks on2026-09-21: verification-knowledge14 mounted checks;
 ## private-preview-live-20260921
 
 2026-09-21: n=2 CI matrix jobs each25/25; Android success. Deployment dpl_H8iEKeWY4HFWeGSshczwLwHS5K9y READY. Live route/API probe n=60, zero findings; deploy verifier n=6 passed. Two Studio CSP headers exactly match checkout; source marker7b8159561fcaa140201d7fad4f0b23249da7ac75b8029b63ac303278623b3705 matches1105 files28991972 bytes. Exact Azure CORS origin readback passed, unchanged unowned properties. Browser sign-in visibly rendered. No real authenticated user journey or model/voice quality measurement.
+
+
+## owner-phone-test-status-20260921
+
+2026-09-21, n=1 explicit owner response: I will test it myself on my phone. Method: conversation reply. This records a testing preference, not a completed test. No new browser, model, voice or deployment measurement was run during this context-only update.

@@ -20835,6 +20835,24 @@
       "kind": "rejection",
       "title": "Passing deployment probes does not prove the signed-in journey",
       "at": "2026-09-21"
+    },
+    {
+      "id": "owner-phone-test-20260921",
+      "kind": "decision",
+      "title": "Owner will test the private preview on their phone",
+      "at": "2026-09-21"
+    },
+    {
+      "id": "owner-phone-test-status-20260921",
+      "kind": "measurement",
+      "title": "Phone journey has not yet been reported",
+      "at": "2026-09-21"
+    },
+    {
+      "id": "phone-test-choice-not-acceptance-20260921",
+      "kind": "rejection",
+      "title": "Do not treat a testing intention as product acceptance",
+      "at": "2026-09-21"
     }
   ],
   "edges": [

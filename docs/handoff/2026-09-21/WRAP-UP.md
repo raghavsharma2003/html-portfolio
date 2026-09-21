@@ -43,6 +43,8 @@ retained-owner diagnostic permission expired September16. Do not use personal
 Microsoft accounts in any browser on this employer laptop. Authorized Azure
 service-principal API access remains available.
 
-Only owner input currently needed: sign into the new Preview with email or
-Google and try their actual knowledge/profile journey. No new credential or
-Microsoft login is requested.
+The owner chose to test independently on their phone. Await their feedback
+on sign-in, knowledge, profile and private text conversation. No desktop login,
+new credential or Microsoft login is requested. Do not count that choice as
+evidence of a successful real-account journey. Next work should address actual
+reported blockers while preserving the fast-wrap, low-token scope.

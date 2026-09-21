@@ -16,8 +16,11 @@ person profile, private text questions and correction. General voice cloning
 is unfinished, not part of this pilot acceptance. Private voice WIP f0246956
 stays on codex/private-voice-requests25; migration171 NOT applied. No GPU
 activation, new model call or voice likeness measurement in this release.
-Only user action pending is signing into the new preview to test their actual
-account. No personal Microsoft browser access on this employer laptop.
+Owner chose to test independently on their phone. Await their actual
+sign-in/knowledge/profile/private-text results; do not repeatedly request a
+desktop login or claim their journey passed. Resume with reported blockers,
+not new feature expansion. No personal Microsoft browser access on this
+employer laptop.
 Detailed receipts and limitations: docs/handoff/2026-09-21/WRAP-UP.md.
 
 

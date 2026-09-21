@@ -25529,3 +25529,8 @@ The owner explicitly prioritizes fast wrap-up and token economy. Release the rep
 ## private-preview-wrap-20260921
 
 Deploy accepted4461b361 as protected Preview after exact-head25/25 on Node22 and24 plus Android success. Keep production untouched and unfinished private voice WIP separate. Reverse the narrow text-pilot scope only after a genuine account journey succeeds and the owner resumes voice expansion.
+
+
+## owner-phone-test-20260921
+
+The owner explicitly chose independent phone testing. Await their feedback and address concrete blockers; keep feature expansion frozen. Do not repeat the desktop sign-in request. Reverse if the owner requests agent-driven testing or resumes implementation.
