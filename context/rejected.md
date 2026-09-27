@@ -19325,3 +19325,6 @@ A personal sheet inherited a teaching subject and its private compiler discarded
 
 
 The initial rebuilt auth card inherited backdrop-filter:blur(18px) from studio.css despite its new opaque layout. Renderer visibility evidence for Hindi was never observed; explicitly remove that filter rather than loosen the performance gate. The original recent-sample UI depended on sessionStorage, so another browser could lose the active run handle. Added an owner/replica-scoped server discovery ID and read-only restoration, preserving unknown state on uncertain recovery and never generating again automatically.
+
+
+Production CSS exposed a second auth visibility issue: placing -webkit-backdrop-filter:none after the standard declaration made the optimizer retain only the prefixed reset, leaving the older standard blur active in Chromium. A built-page computed-style read confirmed blur(18px), while Vite source showed none. Keep only the standard reset in source (the build emits both correctly) and a scoped .auth-page .auth-card override. Hindi visibility is observed after the fix, but local throttled timing still exceeded budgets on this laptop; only a new quiet CI run can accept the release. No timing budget was weakened.

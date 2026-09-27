@@ -34,36 +34,16 @@ for (const patch of [
 
 const cloneSource = readFileSync(root + "src/studio/CloneExperience.tsx", "utf8");
 const cloneAst = ts.createSourceFile("CloneExperience.tsx", cloneSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-let callback;
+let unsupportedCaller = false, sourceTest;
 function visit(node) {
-  if (ts.isJsxAttribute(node) && node.name.getText(cloneAst) === "onTeachSource"
-    && node.initializer && ts.isJsxExpression(node.initializer) && node.initializer.expression) callback = node.initializer.expression;
+  if (ts.isJsxAttribute(node) && node.name.getText(cloneAst) === "onTeachSource") unsupportedCaller = true;
+  if (ts.isJsxAttribute(node) && node.name.getText(cloneAst) === "onTestSource") sourceTest = node.initializer?.getText(cloneAst);
   ts.forEachChild(node, visit);
 }
 visit(cloneAst);
-assert(callback, "actual CloneExperience teach callback");
-const callbackCode = ts.transpileModule(`globalThis.teach=${callback.getText(cloneAst)};`, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
-}).outputText;
-const RID = "10000000-0000-4000-8000-000000000001", OTHER = "10000000-0000-4000-8000-000000000002", ITEM = source.item_id;
-const rooms = [];
-const callbackContext = {
-  reissueMounted: { current: true }, identity: "owner-a", accessToken: "token-a", selected: { replica_id: RID },
-  reissueCurrent: { current: { identity: "owner-a", accessToken: "token-a", selected: { replica_id: RID } } },
-  isPrivateTextId: (value) => /^[0-9a-f-]{36}$/.test(value), chooseRoom: (room) => rooms.push(room),
-};
-runInNewContext(callbackCode, callbackContext);
-callbackContext.teach({ replicaId: RID, itemId: ITEM });
-assert.deepEqual(rooms, ["evolve"], "current saved source opens explicit extraction and review");
-for (const stale of [
-  () => callbackContext.teach({ replicaId: OTHER, itemId: ITEM }),
-  () => callbackContext.teach({ replicaId: RID, itemId: "bad" }),
-  () => { callbackContext.reissueCurrent.current.identity = "owner-b"; callbackContext.teach({ replicaId: RID, itemId: ITEM }); },
-  () => { callbackContext.reissueCurrent.current.identity = "owner-a"; callbackContext.reissueCurrent.current.accessToken = "token-b"; callbackContext.teach({ replicaId: RID, itemId: ITEM }); },
-  () => { callbackContext.reissueCurrent.current.accessToken = "token-a"; callbackContext.reissueCurrent.current.selected = { replica_id: OTHER }; callbackContext.teach({ replicaId: RID, itemId: ITEM }); },
-  () => { callbackContext.reissueCurrent.current.selected = { replica_id: RID }; callbackContext.reissueMounted.current = false; callbackContext.teach({ replicaId: RID, itemId: ITEM }); },
-]) stale();
-assert.deepEqual(rooms, ["evolve"], "stale account, token, replica, item, and unmounted callbacks cannot navigate");
+assert.equal(unsupportedCaller, false, "personal workspace must not offer a source action that discards its item ID");
+assert.ok(sourceTest?.includes("contextItemId: source.itemId"), "actual source testing binds the selected saved item");
+assert.ok(sourceTest?.includes('chooseRoom("rehearsal")'), "actual source testing opens private rehearsal");
 assert.match(lockerSource, /onTeachSource && teachableSource/);
 // WS-R166 moved the button's own default label into the studio copy
 // registry (src/studio/copy.ts's EN_CONTEXT_LOCKER_PANEL.teachYourAi, byte
@@ -77,4 +57,4 @@ assert.match(lockerSource, /const resolvedTeachSourceLabel = teachSourceLabel \?
 assert.match(lockerSource, />\{resolvedTeachSourceLabel\}<\/button>/);
 const copySource = readFileSync(root + "src/studio/copy.ts", "utf8");
 assert.match(copySource, /teachYourAi: "Teach your AI",/);
-console.log("PASS 16 teach-path source and scope controls; no browser, API, database, or provider claim.");
+console.log("PASS source eligibility, optional teaching control and exact-item rehearsal contracts; no browser, API, database, or provider claim.");

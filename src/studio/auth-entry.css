@@ -214,7 +214,6 @@
     border-radius: 16px;
     background: #ffffff;
     backdrop-filter: none;
-    -webkit-backdrop-filter: none;
     box-shadow: none;
     scrollbar-color: #bfc0c3 transparent;
     scrollbar-width: thin;
@@ -531,3 +530,7 @@
   }
 
 }
+
+/* The entry subset and lazy studio sheets can be emitted in different chunks.
+   This opaque sign-in surface must never inherit the historical glass filter. */
+.auth-page .auth-card { backdrop-filter: none; background: #ffffff; }
