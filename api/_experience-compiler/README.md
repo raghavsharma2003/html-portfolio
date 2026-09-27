@@ -19,6 +19,25 @@ This directory defines deterministic envelopes and transition guards. It is not 
 
 ## Integration constraints
 
+### Claim extraction input layer
+
+`claim-evidence.js` now normalizes the rows selected by the existing
+`ELIGIBLE_TRANSCRIPTS_SQL` authority. The production `createExtractionBatch()`
+and `extractionMessages()` callers preserve document/text coordinates and
+audio/video transcript-window metadata in a bounded descriptor. Evidence-relative
+UTF-16 citation offsets remain distinct from document offsets and transcription
+input times. Missing page maps, word alignment, visual observations and speaker
+identity are explicitly unavailable, never inferred from a zero timestamp.
+
+The input commitment includes the normalized metadata and actual outbound
+projection. Provider messages omit private source fingerprints. The prompt
+revision advances while the completed-evidence schema remains v2, so previously
+completed material is not automatically replayed. Images still contribute only
+verified geometry; the extractor refuses to turn that geometry into visual claims.
+These contracts do not replace SQL consent/ownership checks or explicit owner
+review. The source-only branch needs hosted release and actual runtime evidence
+before deployment; offline fixtures are not PostgreSQL or provider proof.
+
 1. The compiler hashes are content commitments, not replacements for database UUIDs, foreign keys, owner predicates or SQL uniqueness.
 2. The adapter must load complete prior decisions and materializations before calling a transition guard. Omitting history is a contract violation, not an empty history.
 3. Authentication and active consent remain server-side predicates. A client-supplied decision or consent object is never sufficient evidence.

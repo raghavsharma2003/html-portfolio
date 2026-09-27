@@ -17946,6 +17946,30 @@
       "kind": "rejection",
       "title": "Do not request legacy keys for the Azure expert profile",
       "at": "2026-09-09"
+    },
+    {
+      "id": "multimodal20260927-existing-compiler",
+      "kind": "decision",
+      "title": "Preserve modality and locators through the existing claim compiler",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-bounded-research-cycle",
+      "kind": "decision",
+      "title": "Keep a bounded research queue with visible failed outcomes",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-focused-evidence",
+      "kind": "measurement",
+      "title": "Multimodal continuation source and focused verification evidence",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-parallel-runtime-replay",
+      "kind": "rejection",
+      "title": "No parallel runtime, blind context import or schema-triggered replay",
+      "at": "2026-09-27"
     }
   ],
   "edges": [
@@ -30386,6 +30410,31 @@
       "src": "product175-correction-editor-polish",
       "rel": "caused_by",
       "dst": "product175-correction-editor-scope"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "measured_by",
+      "dst": "multimodal20260927-focused-evidence"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "caused_by",
+      "dst": "multimodal20260927-parallel-runtime-replay"
+    },
+    {
+      "src": "multimodal20260927-bounded-research-cycle",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "multimodal20260927-bounded-research-cycle",
+      "rel": "measured_by",
+      "dst": "multimodal20260927-focused-evidence"
     }
   ]
 }

@@ -1,5 +1,13 @@
 # STATE — read this first, then the graph
 
+## START HERE: MULTIMODAL EVIDENCE CONTINUATION (2026-09-27)
+
+This block scopes the current source work; it does not supersede the preserved product's unverified release and owner-quality limits. The user authorized continuing the multimodal layer in the successor repository. Active branch: `codex/multimodal-layer-20260927`; worktree: `C:/Users/raghav.s/Desktop/build/Vyakti-platform-multimodal-20260927`, based on `codex/handoff206` at `20263775f06d471f7d69a09d4b4aa711955ee952`. The original coordinator checkout and its dirty work remain intact.
+
+Extend the existing Human Experience Compiler and real claim-extraction caller. Preserve text/document source locators and audio/video interpretation limits; keep absent document times null. Claim schema v2 remains unchanged to avoid replaying old extraction work; the changed extraction instructions use prompt v3. Current ownership, consent, owner review and erasure authorities remain in SQL. Existing image evidence records geometry, not observed artwork meaning or OCR.
+
+The manual research ledger retains nine selected source cards and five experiments, including the historical failed Actual213 result. New evidence 19 and research 15 checks, incumbent extraction 55, grounding 7, Mirror 25, canonical evidence 39 and citation-coordinate 7 checks passed offline. The existing compiler baseline passed 82 named checks plus 1,000 property trials. Forced TypeScript and scoped static gates passed; private dependencies were installed without changing the lockfile. Full release, browser journey, actual SQL and perception quality remain unverified. No paid calls, database/server work or deployment in this wave; remote dry-run is not a push. Read [the current handoff](../docs/gurukul/research/MULTIMODAL-LAYER-HANDOFF-20260927.md), then the historical handoff below for broader product gaps.
+
 ## START HERE: PRESERVATION HANDOFF (2026-09-09)
 
 Read [the canonical handoff](../docs/handoff/2026-09-09/START-HERE.md) before continuing. This active block supersedes older status below. The source is NOT publish-ready. User prioritized committing and pushing completed reviewed work; unfinished quality, runtime and release work remains explicitly documented. The complete coordinator context is archived under that handoff directory; retain this repository graph rather than replacing it with the archived graph. No new full tests or paid experiments were run for this handoff.
@@ -1503,4 +1511,3 @@ run.mjs`'s own RFC 8291 round-trip, reused unchanged, not re-measured here);
 ## START HERE: ISOLATED FRESH COMPARISON SEAM32 (2026-09-08)
 
 This worktree is an unaccepted integration candidate over frozen145 plus preparation146 and allocation147/followup. Fresh upload, completed-evidence selection and dedicated modern descriptor/issuer/Journey wiring are implemented; offline tests and final mounted34parent/6uploader groups at390/1440 pass with synthetic transport; receipts1788849093326/1788849077454. No real SQL, migration, provider, deployment, identity or voice-quality acceptance. Production remains dormant without finite GPU allocation authority and calibrated same-capture verification. Read docs/gurukul/research/COMPARISON-SEAM32-HANDOFF-20260908.md. Root accepted integration/local5177 remains release26; historical statements below are superseded for this worktree.
-

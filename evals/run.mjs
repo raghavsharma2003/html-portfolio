@@ -296,6 +296,8 @@ const suites = {
   // versioned materialization without inventing a second memory authority.
   // Observable expression expires and can never claim a person's inner state.
   experiencecompiler: "experience-compiler/run.mjs",
+  multimodalclaimevidence: "multimodal-claim-evidence/run.mjs",
+  researchcycle: "research-cycle/run.mjs",
   contextcanonical: "context-canonical-evidence/run.mjs",
   acceptedclaimrelational: "experience-compiler/relational-materializer.mjs",
   mirrorrelationalrecall: "mirrorcall-relational-recall/run.mjs",
