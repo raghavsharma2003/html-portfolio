@@ -25561,3 +25561,8 @@ A signed-in account can admit one fixed Hindi sample from an eligible owned enha
 ## person-private-rehearsal-20260927
 
 Personal private drafts use an explicit person projection: identity, life context, values, boundaries and declared language; teacher-only data is ignored. The selected snapshot/result identifies person kind. Teachers retain the old compiler behavior. Reverse only with a single typed projection that preserves these distinctions and their negative tests. Private preview remains distinct from public identity/voice approval.
+
+
+## private-ledger-version-fence-20260927
+
+Migration172 remains unapplied. Its parent foreign keys now use deferred NO ACTION, and the updated source-erasure transaction explicitly removes private rows only after its fenced storage sweep. Existing older previews remain reachable and must not cascade away the private cleanup ledger while an output write or GPU window still exists. Reverse only when all older deletion writers are retired and equivalent database enforcement plus cleanup proof remains.

@@ -49,7 +49,11 @@ try {
   await chooseWav();
   assert.equal(await page.locator(".workbench-sidebar nav button").evaluateAll((buttons) => buttons.length > 0 && buttons.every((button) => button.disabled)), true);
   assert.equal(await page.locator(".workbench-mobile-nav button").evaluateAll((buttons) => buttons.length > 0 && buttons.every((button) => button.disabled)), true);
-  pass("an unsaved private sample locks desktop and mobile workspace navigation");
+  await page.locator(".vx-header .vx-icon-button").click();
+  assert.equal(await page.locator(".vx-drawer__new").isDisabled(), true);
+  assert.equal(await page.locator(".vx-drawer__list button").evaluateAll(buttons => buttons.length > 0 && buttons.every(button => button.disabled)), true);
+  await page.locator(".vx-drawer__head button").click();
+  pass("an unsaved private sample locks desktop, mobile and workspace-switch navigation");
 
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByText("Your recording is being prepared.", { exact: true }).waitFor();

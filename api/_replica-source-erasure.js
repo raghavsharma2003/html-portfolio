@@ -3,7 +3,7 @@ import { REPLICA_POLICY_VERSION, replicaId } from "./_replica.js";
 import { sha256Hex } from "./_replica-processing/contracts.js";
 import { deleteReplicaSourceObjects, replicaStorageBucketDescriptor } from "./_replica-storage.js";
 import { primarySelectionQuery } from "./_replica-primary-selection.js";
-import {revokeDeletingPrivateVoice,privateVoiceSchemaPresent,privateVoiceSourceFence,privateVoiceSourcePaths} from './_private-voice-erasure.js';
+import {revokeDeletingPrivateVoice,privateVoiceSchemaPresent,privateVoiceSourceFence,privateVoiceSourcePaths,privateVoiceSourceRemoval} from './_private-voice-erasure.js';
 
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_PENDING_UPLOAD_STALE_MS = 24 * 60 * 60 * 1000;
@@ -711,13 +711,13 @@ export async function completeSourceErasure(db, lease) {
             and (select count(*) from mirror_conditioning)>=0
             and (select count(*) from mirror_turns)>=0
          returning w.window_id
-       ), removed as (
+       )${privateVoicePresent?privateVoiceSourceRemoval:""}, removed as (
          delete from vy_replica_source s using target t
           where s.source_id=t.source_id and s.replica_id=t.replica_id and s.owner_user_id=t.owner_user_id
            and (select count(*) from identity_cases)>=0 and (select count(*) from preserved_identity)>=0
            and (select count(*) from mirror_windows)>=0
            and (select count(*) from context_ingest_runs)>=0
-           and (select count(*) from identity_replica)>=0
+           and (select count(*) from identity_replica)>=0${privateVoicePresent?"\n           and (select count(*) from private_voice_removed)>=0":""}
         returning t.source_id,t.replica_id,t.owner_user_id,t.erasure_attempts
      ), attempted as (
        update vy_replica_source_erasure_attempt a set outcome='complete',failure_code='',finished_at=now()

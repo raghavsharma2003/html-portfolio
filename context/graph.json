@@ -20949,6 +20949,12 @@
       "kind": "measurement",
       "title": "One metered synthetic Azure text call succeeds",
       "at": "2026-09-27"
+    },
+    {
+      "id": "private-ledger-version-fence-20260927",
+      "kind": "decision",
+      "title": "Older erasers cannot cascade away private cleanup state",
+      "at": "2026-09-27"
     }
   ],
   "edges": [

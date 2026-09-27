@@ -1309,6 +1309,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
         setVoiceSaga(null);
         setVoiceBuildIntent(null);
         setUpload(null);
+        setCaptureNavigationLocked(false);
         retryRef.current = null;
         setReplacePrimary(false);
         URL.revokeObjectURL(sample.url);
@@ -1328,6 +1329,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
         setVoiceBuildIntent(null);
       }
       setUpload(null);
+      setCaptureNavigationLocked(false);
       uploadLockedRef.current = false;
       retryRef.current = null;
       setReplacePrimary(false);
@@ -1644,7 +1646,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
         scope={`${identity}:${selected?.replica_id || "new"}:${room}:${enrichView}`}
         hidden={readBlocked || drawerOpen || accountOpen}
         onDismissNotice={onDismissNotice} onDismissError={onDismissError} />
-      <WorkspaceDrawer open={drawerOpen} replicas={replicas} selected={selected} runtimeStatus={runtimeStatus} onClose={() => setDrawerOpen(false)} onSelect={(id) => { setDrawerOpen(false); void onSelectReplica(id); }} onNew={() => { setDrawerOpen(false); onStartNew(); }} onReplace={() => void replaceRecording()} onDelete={() => void onRevoke()} busy={revoking || Boolean(upload && upload.phase !== "failed")} reduceMotion={reduceMotion} />
+      <WorkspaceDrawer open={drawerOpen} replicas={replicas} selected={selected} runtimeStatus={runtimeStatus} onClose={() => setDrawerOpen(false)} onSelect={(id) => { setDrawerOpen(false); void onSelectReplica(id); }} onNew={() => { setDrawerOpen(false); onStartNew(); }} onReplace={() => void replaceRecording()} onDelete={() => void onRevoke()} busy={revoking || captureNavigationLocked || Boolean(upload && upload.phase !== "failed")} reduceMotion={reduceMotion} />
     </div>
   );
 }

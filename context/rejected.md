@@ -19331,3 +19331,6 @@ Production CSS exposed a second auth visibility issue: placing -webkit-backdrop-
 
 
 The Vercel environment-list endpoint did not return plaintext values even with decrypt=true. The initial canary preparation stopped before creating its single-use intent or any model call. Retrieve only the exact per-variable endpoints when authorized; never interpret a nonempty encrypted value as a usable configuration. After targeted retrieval, the single synthetic Azure call passed. The canary intent is consumed and must not be replayed.
+
+
+A private upload finishing before the recorder exit animation could retain its capture navigation lock and remount the local preview instead of opening the private service. Explicitly release that lock only after successful source finalization; leave it held for unsaved capture. The mounted private-upload test with a drawer open/close exposed this real timing bug.

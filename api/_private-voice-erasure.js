@@ -20,3 +20,12 @@ export function privateVoiceSourceFence(alias='s'){
 }
 export const privateVoiceSourcePaths=`union all select pv.output_storage_bucket bucket,pv.output_object_path path
  from vy_private_voice_run pv where pv.source_id=s.source_id and pv.replica_id=s.replica_id and pv.owner_user_id=s.owner_user_id`;
+
+// Retain the cleanup ledger against older deployed erasers. The migration's
+// non-cascading parent FKs require this explicit, lease-fenced removal after
+// the actual storage sweep; an older writer cannot silently discard it.
+export const privateVoiceSourceRemoval=`, private_voice_removed as (
+ delete from vy_private_voice_run pv using target t
+ where pv.source_id=t.source_id and pv.replica_id=t.replica_id and pv.owner_user_id=t.owner_user_id
+ returning pv.run_id
+)`;

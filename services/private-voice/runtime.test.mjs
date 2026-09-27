@@ -251,3 +251,16 @@ test('an owned run is discoverable without browser storage and discovery never s
   assert.equal((await t.request({replica_id:replica},'good','GET')).body.resume_run_id,null);
  }finally{await t.stop();}
 });
+
+test('older parent deletes cannot cascade away the private cleanup ledger',async()=>{
+ const migration=readFileSync(new URL('../../db/migrations/172_private_voice_run.sql',import.meta.url),'utf8');
+ assert.equal((migration.match(/on delete no action deferrable initially deferred/g)||[]).length,3);
+ assert(!migration.includes('on delete cascade'));
+ let completion='';
+ const db=async sql=>{if(sql.includes('to_regclass'))return[{private_voice_present:true}];completion=sql;return[];};
+ await assert.rejects(completeSourceErasure(db,{source:{sourceId:source,replicaId:replica,ownerUserId:owner},leaseToken:'x'.repeat(40)}));
+ assert(completion.includes('delete from vy_private_voice_run pv using target t'));
+ assert(completion.includes('pv.owner_user_id=t.owner_user_id'));
+ assert(completion.includes('and (select count(*) from private_voice_removed)>=0'));
+ assert(completion.includes('pv.output_write_not_after>now()'));
+});

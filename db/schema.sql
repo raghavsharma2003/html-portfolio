@@ -9134,9 +9134,9 @@ create table if not exists vy_private_voice_run (
  error_code text check(error_code ~ '^private_voice_[a-z0-9_]+$'),
  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
  expires_at timestamptz not null, revoked_at timestamptz,
- foreign key(replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete cascade,
- foreign key(source_id,replica_id,owner_user_id) references vy_replica_source(source_id,replica_id,owner_user_id) on delete cascade,
- foreign key(artifact_id,source_id,replica_id,owner_user_id) references vy_replica_processing_artifact(artifact_id,source_id,replica_id,owner_user_id) on delete cascade,
+ foreign key(replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete no action deferrable initially deferred,
+ foreign key(source_id,replica_id,owner_user_id) references vy_replica_source(source_id,replica_id,owner_user_id) on delete no action deferrable initially deferred,
+ foreign key(artifact_id,source_id,replica_id,owner_user_id) references vy_replica_processing_artifact(artifact_id,source_id,replica_id,owner_user_id) on delete no action deferrable initially deferred,
  constraint vy_private_voice_output_path check(output_object_path=owner_user_id::text||'/'||replica_id::text||'/'||source_id::text||'/derived/private-voice/'||run_id::text||'.wav'),
  constraint vy_private_voice_scope check((receipt->>'scope'='private_voice_test' and receipt->>'statement_set'='private-own-voice/v1'
    and receipt->>'method'='account_attestation' and receipt#>>'{attestations,own_voice_private_use}'='true'

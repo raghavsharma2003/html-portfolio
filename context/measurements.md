@@ -19169,3 +19169,6 @@ Later September27 checks: private runtime47/47 including scoped discovery withou
 ## azure-text-canary-20260927
 
 One actual Azure text adapter call with synthetic notes only passed at2026-09-27T07:56:57Z. Response model gpt-5.6-terra-2026-07-09,191 input tokens49 output tokens,3218ms from dispatch through metering settlement. Correct structured factual answer, no user data, no GPU. Existing vyakti-pilot-20260914 budget/1USD cap used unchanged; no budget reset. Receipt REBUILD27-TEXT-CANARY.json in ignored expert-tools. This proves adapter reachability/schema/usage settlement, not creator journey, memory quality or voice likeness.
+
+
+Private runtime48/48 passes after adding cross-version deletion constraints and explicit owned private-row removal; schema mirror passes. Private upload4 mounted groups also prove the workspace drawer cannot discard an unfinished sample. No migration or cloud writer ran. PostgreSQL behavior of the deferred FKs still requires actual SQL verification after accepted release.
