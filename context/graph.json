@@ -20907,6 +20907,24 @@
       "kind": "rejection",
       "title": "Public manifest persistence and unconditional private erasure SQL do not fit private admission",
       "at": "2026-09-27"
+    },
+    {
+      "id": "private-voice-reuse-existing-cpu27",
+      "kind": "decision",
+      "title": "Reuse the existing one-replica CPU and unchanged Hindi GPU for private voice",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "private-voice-readiness-api27",
+      "kind": "measurement",
+      "title": "Existing API sources supply voice secrets; private schema and GPU budget are absent",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "private-voice-sensitive-env-is-not-readable27",
+      "kind": "rejection",
+      "title": "Vercel sensitive bindings are not exportable credentials or a spending balance",
+      "at": "2026-09-27"
     }
   ],
   "edges": [
@@ -35467,6 +35485,16 @@
       "src": "private-voice-public-manifest-and-absent-erasure27",
       "rel": "caused_by",
       "dst": "private-voice-complete-runtime27"
+    },
+    {
+      "src": "private-voice-reuse-existing-cpu27",
+      "rel": "measured_by",
+      "dst": "private-voice-readiness-api27"
+    },
+    {
+      "src": "private-voice-sensitive-env-is-not-readable27",
+      "rel": "caused_by",
+      "dst": "private-voice-reuse-existing-cpu27"
     }
   ]
 }

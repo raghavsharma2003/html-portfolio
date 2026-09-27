@@ -25551,3 +25551,8 @@ Private sample capture is now distinguished in its durable upload intent. After 
 ## `private-voice-complete-runtime27`
 
 A signed-in account can admit one fixed Hindi sample from an eligible owned enhance artifact. The private ledger reuses source capture/storage authority, the existing exact-revision controller and GPU meter, protected PCM finalization and immutable storage. It creates no public generation, genome, identity or training permission. Vercel is only a bearer-preserving proxy; Azure CPU admission/status really call the consumer. Reversal condition: an existing authority contract can represent this exact private grant and its revocation without falsifying its public semantics. Migration172 remains unapplied,171 unused; live SQL, CPU deployment, supervisor and separately authorized spend canary remain prerequisites.
+
+
+## `private-voice-reuse-existing-cpu27`
+
+2026-09-27. Read-only deployment packet targets existing vyakti-internal-voice25 at0.5CPU/1Gi,min1/max1, preserving exact UMI and dormant HindiGPUmin0/max1. Existing allocation-aware broker can be retained subject to exact origin readback. No second always-on CPU is needed. An independent finite supervisor on an already authorized operator/CPU host is the canary path; no matching deployed Job exists. Reversal: measured CPU capacity or independent watchdog reliability requires a separately reviewed topology. No provisioning or spend action follows from this decision.
