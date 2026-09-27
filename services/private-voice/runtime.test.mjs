@@ -17,7 +17,7 @@ import {SQL,AUTHORITY} from './store.mjs';
 import {PRIVATE_LEDGER_SQL} from '../../api/_provenance/private-voice-ledger.js';
 import {GPU_WINDOW_SQL} from '../../api/_gpu-allocation-budget.js';
 import {VOICE_APP_SQL} from '../../api/_voice/allocation-boundary.js';
-import {PRIVATE_VOICE_CANDIDATES_SQL,PRIVATE_VOICE_READ_SQL,PRIVATE_VOICE_ADMIT_SQL,PRIVATE_VOICE_REVOKE_SQL,
+import {PRIVATE_VOICE_RECENT_SQL,PRIVATE_VOICE_CANDIDATES_SQL,PRIVATE_VOICE_READ_SQL,PRIVATE_VOICE_ADMIT_SQL,PRIVATE_VOICE_REVOKE_SQL,
  privateVoiceHash,PRIVATE_VOICE_STATEMENT_SET} from '../../api/_private-voice-store.js';
 const owner='11111111-1111-4111-8111-111111111111',replica='22222222-2222-4222-8222-222222222222';
 const source='33333333-3333-4333-8333-333333333333',artifact='44444444-4444-4444-8444-444444444444';
@@ -44,6 +44,7 @@ async function setup(options={}){
  const fenced=p=>{const r=owned(p,4);return current(r)&&r.source_id===p[2]&&r.artifact_id===p[3]&&r.state==='running'&&r.lease_token_hash===p[5]&&Date.parse(r.lease_expires_at)>now()?r:null;};
  const result=r=>r?[structuredClone(r)]:[];
  const db=async(sql,p=[])=>{
+  if(sql===PRIVATE_VOICE_RECENT_SQL){const r=[...runs.values()].reverse().find(r=>r.replica_id===p[0]&&r.owner_user_id===p[1]&&!r.revoked_at&&Date.parse(r.expires_at)>now()&&!(["revoked","expired"].includes(r.state)));return r?[{run_id:r.run_id}]:[];}
   if(sql===PRIVATE_VOICE_CANDIDATES_SQL)return authority&&p[0]===replica&&p[1]===owner&&(!p[2]||p[2]===source)&&(!p[3]||p[3]===artifact)?[{snapshot:structuredClone(snapshot)}]:[];
   if(sql===PRIVATE_VOICE_READ_SQL){const r=owned(p);if(!r)return [];const w=windows.get(r.window_id);return result({...r,window_state:w?.state,resource_released_at:w?.resource_released_at});}
   if(sql===PRIVATE_VOICE_ADMIT_SQL){if(!authority||runs.has(p[4]))return [];const r={run_id:p[4],replica_id:p[0],owner_user_id:p[1],source_id:p[2],artifact_id:p[3],request_hash:p[5],snapshot_hash:p[6],snapshot:JSON.parse(p[7]),receipt:JSON.parse(p[8]),receipt_hash:p[9],config:JSON.parse(p[10]),config_hash:p[11],expires_at:p[12],created_at:iso(),state:'queued',reference_sha256:snapshot.artifact_sha256,text_sha256:JSON.parse(p[10]).text_sha256,output_storage_bucket:bucket,output_object_path:`${owner}/${replica}/${source}/derived/private-voice/${p[4]}.wav`};runs.set(r.run_id,r);return result(r);}
@@ -237,5 +238,16 @@ test('Docker positive file list includes every static runtime import and exclude
 test('near-expiry write renews run authority through upload verification without dropping its erasure horizon',async()=>{
  const t=await setup({nearLeaseExpiry:true});try{const a=await t.generate();await t.drain();const row=t.runs.get(a.body.run.run_id);
   assert.equal(row.state,'ready',row.error_code);assert.ok(Date.parse(row.output_write_not_after)>t.f.options.now());assert.ok(row.output_sha256);
+ }finally{await t.stop();}
+});
+
+test('an owned run is discoverable without browser storage and discovery never synthesizes',async()=>{
+ const t=await setup();try{
+  const accepted=await t.generate();await t.drain();const before=t.calls.length;
+  const c=await t.request({replica_id:replica},'good','GET');
+  assert.equal(c.status,200);assert.equal(c.body.resume_run_id,accepted.body.run.run_id);assert.equal(t.calls.length,before);
+  assert.deepEqual(await t.db(PRIVATE_VOICE_RECENT_SQL,[replica,other]),[]);
+  await t.request({action:'revoke',replica_id:replica,run_id:accepted.body.run.run_id});
+  assert.equal((await t.request({replica_id:replica},'good','GET')).body.resume_run_id,null);
  }finally{await t.stop();}
 });

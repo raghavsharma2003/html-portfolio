@@ -243,6 +243,21 @@ try {
     await context.close();
   }
 
+
+  {
+    const id = "88888888-8888-4888-8888-888888888888";
+    let posts = 0, reads = 0;
+    const {context,page} = await pageWithRoute(route => {
+      const u = new URL(route.request().url());
+      if (route.request().method() === "POST") { posts++; return route.fulfill({status:500,body:"{}"}); }
+      if (u.searchParams.get("action") === "status") { reads++; return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({run:run(id,"failed")})}); }
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({...config(),resume_run_id:id})});
+    });
+    await page.getByRole("heading",{name:"Sample failed",exact:true}).waitFor();
+    assert.equal(reads,1);assert.equal(posts,0);
+    await context.close();
+    pass("a fresh browser discovers the account's saved request without a second generation");
+  }
   assert.deepEqual(errors, []);
   console.log(`PASS ${checks} mounted component groups; synthetic HTTP and WAV only, no provider, account, likeness or quality evidence.`);
 } finally {

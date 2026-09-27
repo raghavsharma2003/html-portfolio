@@ -26,6 +26,7 @@ export async function privateVoiceSqlPacket(){
  const config=admission.privateVoiceSampleConfig(),snapshot={owner_user_id:owner,replica_id:replica,source_id:source,artifact_id:artifact,
   artifact_sha256:hash,storage_bucket:'synthetic-private',object_path:`${owner}/${replica}/${source}/derived/reference.wav`,byte_size:240044,duration_ms:5000,mime:'audio/wav'};
  add('admission.candidates',admission.PRIVATE_VOICE_CANDIDATES_SQL,[replica,owner,source,artifact]);
+ add('admission.recent',admission.PRIVATE_VOICE_RECENT_SQL,[replica,owner]);
  add('admission.read',admission.PRIVATE_VOICE_READ_SQL,[replica,owner,run]);
  add('admission.admit',admission.PRIVATE_VOICE_ADMIT_SQL,[replica,owner,source,artifact,run,hash,hash,JSON.stringify(snapshot),'{}',hash,JSON.stringify(config),hash,'2030-01-01T00:00:00Z']);
  add('admission.revoke',admission.PRIVATE_VOICE_REVOKE_SQL,[replica,owner,run]);

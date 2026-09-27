@@ -81,6 +81,7 @@ export interface PrivateVoiceRun {
 }
 
 export interface PrivateVoiceAvailability {
+  resume_run_id?: string | null;
   enabled: true;
   scope: "private_voice_test";
   statement_set: "private-own-voice/v1";
@@ -137,6 +138,7 @@ function validateAvailability(value: unknown): PrivateVoiceAvailability {
       throw new PrivateVoiceApiError("private_voice_response_invalid", 502, value);
     }
   }
+  if (value.resume_run_id != null && (typeof value.resume_run_id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value.resume_run_id))) throw new PrivateVoiceApiError("private_voice_response_invalid", 502, value);
   if (value.run != null && !validRun(value.run)) {
     throw new PrivateVoiceApiError("private_voice_response_invalid", 502, value);
   }

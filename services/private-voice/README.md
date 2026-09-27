@@ -10,7 +10,7 @@ The worker rechecks source/consent authority, verifies the enhanced reference, u
 
 All requests require the current Supabase bearer token. The service validates it at `/auth/v1/user`; the Vercel proxy preserves it after its own `requireUser` boundary. No storage URL or locator reaches the browser. Disabled mode is 404 `{enabled:false,error:'private_voice_disabled'}`; invalid authentication is 401. Other failures return bounded `error` and `blocker_class`.
 
-- GET `?replica_id=UUID`: `{enabled:true,scope,statement_set,statement,config,candidates}`. Candidate fields: `source_id`, `artifact_id`, `reference_sha256`, `duration_ms`, `snapshot_hash`.
+- GET `?replica_id=UUID`: `{enabled:true,scope,statement_set,statement,config,candidates,resume_run_id}`. Candidate fields: `source_id`, `artifact_id`, `reference_sha256`, `duration_ms`, `snapshot_hash`.
 - POST `{action:'generate',replica_id,source_id,artifact_id,run_id,expected_snapshot_hash,statement_set:'private-own-voice/v1',attestations:{own_voice_private_use:true}}`: 202 `{created,run}`. UUID is caller-selected for idempotency, never authority. Extra fields are refused. One unfinished run and at most twelve admitted runs per replica per 24 hours; budget admission remains independently mandatory.
 - GET `?action=status&replica_id=UUID&run_id=UUID`: `{run}`.
 - GET `?action=audio&replica_id=UUID&run_id=UUID`: private WAV bytes. Rechecks grant and hash after storage read.
@@ -34,3 +34,5 @@ Revoked/expired/orphan results retain their exact output locator until the last 
 `node --test services/private-voice/runtime.test.mjs` runs the real HTTP server, consumer, account store, budget meter, Azure controller, Hindi provider and protection delivery pipeline using synthetic SQL, ARM, signed provider responses, protection primitives and storage. It also exercises the controller's existing tests. The release registry entry is `privatevoiceruntime`.
 
 This verifies transport/control flow only. Real SQL EXPLAIN, immutable CPU rebuild, secret bindings, supervisor deployment, real account recording and an explicitly authorized spend canary remain necessary. No voice likeness, Indian-accent quality, provider availability or new-account end-to-end success is claimed.
+
+Availability also returns only the most recent unexpired owner/replica request ID. A fresh browser can restore its actual status without generating again. Revoked/expired handles are excluded, and status/playback still recheck current authority.

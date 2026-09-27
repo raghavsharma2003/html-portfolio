@@ -77,6 +77,10 @@ export const PRIVATE_VOICE_CANDIDATE_CTES=`source_rows as materialized (
      and k.result->>'verified_input_sha256'=s.sha256 and k.result->>'manifest_hash'=ka.result_manifest_hash
      and ka.adapter_version<>'' and ka.adapter_family||' '||ka.adapter_name||' '||ka.adapter_version !~* '(fake|fixture|mock|test)'))
 )`;
+export const PRIVATE_VOICE_RECENT_SQL=`select run_id from vy_private_voice_run
+ where replica_id=$1::uuid and owner_user_id=$2::uuid and revoked_at is null
+ and expires_at>now() and state not in ('revoked','expired')
+ order by created_at desc,run_id desc limit 1`;
 export const PRIVATE_VOICE_CANDIDATES_SQL=`with ${PRIVATE_VOICE_CANDIDATE_CTES} select snapshot from candidates order by source_id,artifact_id limit 32`;
 export const PRIVATE_VOICE_READ_SQL=`select h.*,l.state window_state,w.resource_released_at from vy_private_voice_run h
  left join vy_voice_app_lifecycle l using(window_id) left join vy_gpu_allocation_window w using(window_id)
@@ -157,7 +161,8 @@ export function createPrivateVoiceStore({db,now=Date.now}={}){
    db,
    async candidates(owner,input){
      const rows=await query(db,PRIVATE_VOICE_CANDIDATES_SQL,tuple(owner,input,true));
-     return {scope:PRIVATE_VOICE_SCOPE,statement_set:PRIVATE_VOICE_STATEMENT_SET,statement:PRIVATE_VOICE_STATEMENT,config:privateVoiceSampleConfig(),
+     const recent=await query(db,PRIVATE_VOICE_RECENT_SQL,[id(input.replica_id),id(owner)]);
+     return {resume_run_id:recent[0]?.run_id||null,scope:PRIVATE_VOICE_SCOPE,statement_set:PRIVATE_VOICE_STATEMENT_SET,statement:PRIVATE_VOICE_STATEMENT,config:privateVoiceSampleConfig(),
        candidates:rows.map(row=>{const s=json(row.snapshot);return {source_id:s.source_id,artifact_id:s.artifact_id,reference_sha256:s.artifact_sha256,
          duration_ms:Number(s.duration_ms),snapshot_hash:privateVoiceHash(s)};})};
    },

@@ -310,14 +310,17 @@ export function PrivateVoiceTest({
         return;
       }
       if (runRef.current) return;
-      let storedRunId: string | null = null;
-      try { storedRunId = key ? sessionStorage.getItem(key) : null; } catch { /* no session storage */ }
+      let storedRunId: string | null = next.resume_run_id || null;
+      try { storedRunId ||= key ? sessionStorage.getItem(key) : null; } catch { /* no session storage */ }
       if (!storedRunId) return;
+      setRun({ run_id: storedRunId, state: "unknown" });
+      persistRunId(storedRunId);
       try {
         const restored = await readPrivateVoiceRun(capturedToken, capturedReplica, storedRunId, controller.signal);
-        if (!controller.signal.aborted && scopeRef.current === capturedScope) applyRun(restored);
+        if (!controller.signal.aborted && scopeRef.current === capturedScope && availabilityEpochRef.current === availabilityEpoch) applyRun(restored);
       } catch (cause) {
-        if (cause instanceof PrivateVoiceApiError && cause.status === 404) persistRunId(null);
+        if (controller.signal.aborted || scopeRef.current !== capturedScope || availabilityEpochRef.current !== availabilityEpoch) return;
+        if (cause instanceof PrivateVoiceApiError && cause.status === 404) { persistRunId(null); setRun(null); }
         else handleFailure(cause, capturedScope);
       }
     } catch (cause) {

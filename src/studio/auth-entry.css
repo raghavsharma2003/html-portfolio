@@ -210,9 +210,11 @@
     justify-self: end;
     overflow: auto;
     padding: clamp(26px, 3.3vw, 38px);
-    border: 1px solid #c7c7c5;
+    border: 1px solid #dce1e8;
     border-radius: 16px;
-    background: rgba(253, 252, 249, 0.97);
+    background: #ffffff;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     box-shadow: none;
     scrollbar-color: #bfc0c3 transparent;
     scrollbar-width: thin;
