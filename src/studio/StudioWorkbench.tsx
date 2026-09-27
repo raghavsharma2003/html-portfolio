@@ -62,9 +62,9 @@ export function WorkspaceNavigation({ locale, name, active, disabled, onNavigate
   </>;
 }
 
-export function WorkspaceOverview({ locale, name, knowledgeSaved, profileSaved, voiceSaved, onNavigate, onSources }: {
+export function WorkspaceOverview({ locale, name, knowledgeSaved, profileSaved, voiceSaved, onNavigate, onPrivateTest, onSources }: {
   locale: StudioLocale; name: string; knowledgeSaved: boolean; profileSaved: boolean; voiceSaved: boolean;
-  onNavigate: Props["onNavigate"]; onSources: () => void;
+  onNavigate: Props["onNavigate"]; onPrivateTest: () => void; onSources: () => void;
 }) {
   const copy = words[locale];
   const items: { id: WorkspaceDestination; title: string; note: string; saved: boolean }[] = [
@@ -77,7 +77,7 @@ export function WorkspaceOverview({ locale, name, knowledgeSaved, profileSaved, 
     <div className="workbench-setup-list">{items.map(item => <button type="button" key={item.id} onClick={() => onNavigate(item.id)}>
       <span><strong>{item.title}</strong><small>{item.note}</small></span><span className="workbench-row-action">{item.saved ? item.id === "voice" ? copy.sampleSaved : copy.saved : copy.add}<span aria-hidden="true">→</span></span>
     </button>)}</div>
-    <section className="workbench-test"><div><h2>{copy.testTitle}</h2><p>{copy.testNote}</p></div><button className="vx-button vx-button--primary" type="button" onClick={() => onNavigate("test")}>{copy.testAction}</button></section>
+    <section className="workbench-test"><div><h2>{copy.testTitle}</h2><p>{copy.testNote}</p></div><button className="vx-button vx-button--primary" type="button" onClick={onPrivateTest}>{copy.testAction}</button></section>
     <div className="workbench-secondary"><button type="button" onClick={onSources}>{copy.sources}</button><button type="button" onClick={() => onNavigate("share")}>{copy.preview}</button></div>
   </section>;
 }

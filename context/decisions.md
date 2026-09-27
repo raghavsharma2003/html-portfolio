@@ -25556,3 +25556,8 @@ A signed-in account can admit one fixed Hindi sample from an eligible owned enha
 ## `private-voice-reuse-existing-cpu27`
 
 2026-09-27. Read-only deployment packet targets existing vyakti-internal-voice25 at0.5CPU/1Gi,min1/max1, preserving exact UMI and dormant HindiGPUmin0/max1. Existing allocation-aware broker can be retained subject to exact origin readback. No second always-on CPU is needed. An independent finite supervisor on an already authorized operator/CPU host is the canary path; no matching deployed Job exists. Reversal: measured CPU capacity or independent watchdog reliability requires a separately reviewed topology. No provisioning or spend action follows from this decision.
+
+
+## person-private-rehearsal-20260927
+
+Personal private drafts use an explicit person projection: identity, life context, values, boundaries and declared language; teacher-only data is ignored. The selected snapshot/result identifies person kind. Teachers retain the old compiler behavior. Reverse only with a single typed projection that preserves these distinctions and their negative tests. Private preview remains distinct from public identity/voice approval.

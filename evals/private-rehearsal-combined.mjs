@@ -44,11 +44,14 @@ const oldAst=ast(prior('src/studio/CloneExperience.tsx')),nextAst=ast(read('src/
 // capture behavior is exercised by registered lifecycle/upload/mobile suites.
 for(const name of ['voiceSagaKey','readVoiceSaga','storeVoiceSaga']){
  const get=tree=>tree.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name)?.getText(tree);
- assert.ok(get(oldAst),name);assert.equal(get(nextAst),get(oldAst),name);
+ assert.ok(get(oldAst),name);
+ const current=get(nextAst);
+ const extension=", ...(parsed.privateSample === true ? { privateSample: true as const } : {})";
+ assert.equal(name === "readVoiceSaga" ? current.replace(extension, "") : current,get(oldAst),name);
 }
 for(const suite of ['recorder-lifecycle','recording-upload-repair','studio-capture-mobile'])
  assert.ok(read('evals/run.mjs').includes(`"${suite}":`),`${suite} remains registered`);
-pass('persisted voice saga functions unchanged; current capture behavior has registered runtime coverage');
+pass('legacy persisted voice saga contract retained with explicit private-mode extension; current capture behavior has registered runtime coverage');
 // WS-R159 (2026-09-13) reviewed and intentionally changed
 // src/studio/QuickVoiceCapture.tsx: every literal English string moved into
 // src/studio/copy.ts (t.quickVoiceCapture), zero logic/control-flow change

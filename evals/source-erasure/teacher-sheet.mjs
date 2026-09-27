@@ -1,6 +1,7 @@
 // Actual caller SQL and source contracts only. PostgreSQL behavior is proved
 // separately by the opt-in teacher-sheet-live harness, never by this fake DB.
 import assert from 'node:assert/strict';
+import {withoutPrivateVoiceSchema} from '../lib/private-voice-schema-fixture.mjs';
 import {readFile} from 'node:fs/promises';
 import {captureTeacherSheetErasureSql,runTeacherSheetErasureSqlProof} from './teacher-sheet-live.mjs';
 import {completeSourceErasure} from '../../api/_replica-source-erasure.js';
@@ -48,7 +49,7 @@ await check('original source delta, fragment, support and completion authority c
 });
 await check('completion still has exactly one injected SQL call and refuses a missing lease result',async()=>{
   let calls=0;
-  await assert.rejects(()=>completeSourceErasure(async(statement)=>{calls++;assert.equal(statement,sql);return [];},
+  await assert.rejects(()=>completeSourceErasure(withoutPrivateVoiceSchema(async(statement)=>{calls++;assert.equal(statement,sql);return [];}),
     {source:{sourceId:'11111111-1111-4111-8111-111111111111',replicaId:'22222222-2222-4222-8222-222222222222',ownerUserId:'33333333-3333-4333-8333-333333333333'},leaseToken:'synthetic-source-token-more-than-thirty-two-bytes'}),
     {code:'source_erasure_waiting_for_provider'});
   assert.equal(calls,1);

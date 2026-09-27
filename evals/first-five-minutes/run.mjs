@@ -130,7 +130,7 @@ async function main() {
     const rid = state.replicas[0]?.replica_id || "";
 
     const backToChoices = page.locator("button.vx-back", { hasText: "Back to choices" });
-    if (await backToChoices.count()) await backToChoices.click();
+    if (await backToChoices.count()) { await backToChoices.click(); await page.locator(".workbench-setup-list").getByRole("button", {name:/^Knowledge/}).click(); }
     const describeButton = page.locator("button", { hasText: "Describe me" });
     await describeButton.waitFor({ state: "visible", timeout: 20_000 });
     ok("Describe me: reachable with no recording made yet (never gated behind voice)", true);

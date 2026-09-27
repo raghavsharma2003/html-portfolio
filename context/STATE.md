@@ -1,5 +1,31 @@
 # STATE — read this first, then the graph
 
+## START HERE: REBUILD INTEGRATED, RELEASE NOT YET ACCEPTED (2026-09-27)
+
+Owner continues the full redesign/quality goal. New workbench, auth, private
+text composer and private voice client are integrated. Backend first Hindi
+private-sample slice is integrated as438f1b27; readiness packet as344b029a.
+Private source upload no longer requests public enrollment, and a duplicate
+public build request race is fixed. Personal drafts now project real HumanOS
+fields instead of quietly using teaching-only defaults. Runtime readiness is
+refreshed after real profile save/publication; source count is preloaded.
+
+Current changes are NOT deployed. The first broad438f CI failed stale UI
+contracts, three source fixtures, one prose measure and asset performance.
+Focused repairs pass; a new exact-head full25/25 gate is still required.
+Migration172 is NOT applied. No new CPU image/supervisor/budget is provisioned,
+no GPU activated, no fresh model/voice-quality result. All needed secret sources
+were found readable without asking the owner for keys; never print values.
+See docs/architecture/private-voice-deployment-readiness27.md. Backendplan keeps
+existingGPUmin0,CPU0.5/1Gi min1; old1USD cap is not a quality-program budget.
+
+Sub-agents reached usage limits. Primary continued locally, completed the
+partial personal compiler branch and validated compiler/store/client tests.
+Do not resume more agents merely to retry that quota. Existing accepted preview
+is still exjrjsy9f at4461b361. Preserve original dirty workspace and no personal
+Microsoft browser access. The personal phone/account journey is still unproved.
+
+
 ## START HERE: OWNER REOPENS FULL REBUILD (2026-09-27)
 
 The latest owner request supersedes the fast-wrap freeze below. They report

@@ -465,8 +465,8 @@ async function walkLocale(locale) {
     ok(`${locale}: the personal studio renders signed in, the seeded replica visible (no sign-in prompt)`,
       rootText.length > 0 && !/sign in with google/i.test(rootText), rootText.slice(0, 80));
 
-    const shareLabel = locale === "hi" ? "शेयर करें" : "Share";
-    await page.getByText(new RegExp(`^${shareLabel}$`)).first().click({ timeout: 15_000 });
+    const shareLabel = locale === "hi" ? "साझा करें" : "Share";
+    await page.locator(".workbench-mobile-nav").getByRole("button", {name:shareLabel,exact:true}).click({timeout:15000});
 
     const setupLabel = locale === "hi" ? "अपना रूम बनाएं" : "Set up your Room";
     await page.locator("#material-share-title").waitFor({ state: "visible", timeout: 15_000 });
@@ -476,7 +476,7 @@ async function walkLocale(locale) {
     state.personVoiceActive = true;
     replica.lifecycle = "active";
     await page.reload({ waitUntil: "networkidle" });
-    await page.getByText(new RegExp(`^${shareLabel}$`)).first().click({ timeout: 15_000 });
+    await page.locator(".workbench-mobile-nav").getByRole("button", {name:shareLabel,exact:true}).click({timeout:15000});
 
     const setupButton = page.getByRole("button", { name: setupLabel });
     await setupButton.waitFor({ state: "visible", timeout: 15_000 });

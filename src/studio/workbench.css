@@ -50,7 +50,7 @@
   .vx-workbench .vx-button--primary:hover:not(:disabled) { background: #344096; }
   .vx-workbench .vx-button--quiet { background: #fff; border: 1px solid #dce1e8; color: #20242d; }
   .vx-workbench button, .vx-workbench a, .vx-workbench input, .vx-workbench textarea, .vx-workbench select { -webkit-tap-highlight-color: transparent; }
-  .vx-workbench :is(button, a, input, textarea, select):focus-visible { outline: 2px solid #4452bd; outline-offset: 3px; }
+  .vx-workbench :is(button, a, input, textarea, select):focus-visible { outline: 3px solid #4452bd; outline-offset: 3px; }
   .vx-workbench textarea, .vx-workbench input { caret-color: #4452bd; }
   .vx-workbench ::selection { background: #dce2ff; color: #20242d; }
   .vx-workbench .vx-main { scrollbar-width: thin; scrollbar-color: #bbc3ce transparent; }
@@ -138,3 +138,5 @@
 .vx-studio27 .vx-agreement .vx-stage-title h1 { font-size: clamp(28px, 4vw, 38px); line-height: 1.16; }
 .vx-studio27 .vx-agreement .vx-stage-title p { font-size: 15px; }
 .vx-studio27 .vx-agreement__body { background: #fff; border-radius: 14px; }
+
+.teacher-sheet-publication > p { max-width: 65ch; line-height: 1.6; }

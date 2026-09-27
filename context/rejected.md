@@ -19317,3 +19317,8 @@ Audit follow-up: a single unrenewed ten-minute lease could expire after cold sta
 ## `private-voice-sensitive-env-is-not-readable27`
 
 2026-09-27. Preview listed the needed sensitive provenance/cron bindings, but targeted decrypt API calls did not return readable values. Asking the owner to paste them would miss existing Azure sources: the isolated preview vault already supplies all three. Conversely the old CPU policy cap1000000microusd/reservation831600 is only configuration: realneondb has zero GPU budget rows and that policy has no budget_id. Reusing its expired retained-owner grant or relabeling that cap as balance/current authority would be false. Keep budget initialization and canary authorization explicit; the runplan changes no limits.
+
+
+## private-profile-and-upload-seams-20260927
+
+A personal sheet inherited a teaching subject and its private compiler discarded HumanOS values/life/language. Added an explicit person projection without a fabricated school domain and kept teacher output stable. A public upload requested the same build once in submit and again immediately from its polling effect; defer polling while upload/reissue runs, then delay the first poll for an already-issued intent. Private uploads never issue that public build. Review also found nondeterministic private-test routing, an item-specific Teach button discarding its item ID, recovery showing an unusable compose form, and inconsistent warm/cool surfaces; corrected these rather than calling the first screenshots approved. Sub-agent usage expiry left partial compiler work; primary reviewed and completed it, never treated it as tested agent output.

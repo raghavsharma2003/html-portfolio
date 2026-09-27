@@ -67,8 +67,8 @@ for (const room of ["enrich", "evolve", "call", "share", "voice"]) {
   });
 }
 for (const query of ["", "?view=", "?view=invalid", "?view=CALL", "?view=%3Cscript%3E"]) {
-  check(`missing/invalid destination defaults to voice: ${query || "empty query"}`, () => {
-    const h = harness(source, query); h.select(null); h.select("first"); assert.equal(h.state.room, "voice");
+  check(`missing/invalid destination opens setup: ${query || "empty query"}`, () => {
+    const h = harness(source, query); h.select(null); h.select("first"); assert.equal(h.state.room, "enrich");
   });
 }
 check("already hydrated first mount preserves URL room", () => {
@@ -102,3 +102,19 @@ check("negative control: original unconditional reset fails the delayed selectio
   assert.throws(() => assert.equal(h.state.room, "enrich"), assert.AssertionError);
 });
 console.log(`PASS ${checks} actual initializer/effect regression checks; no browser or model calls.`);
+
+check("enrolling text-ready workspaces are not marked stopped by the actual parent", () => {
+  const ast = ts.createSourceFile("parent.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let expression;
+  function visit(node) {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === "ExpertConversation") {
+      const attr = node.attributes.properties.find(p => ts.isJsxAttribute(p) && p.name.text === "stopped");
+      expression = attr?.initializer?.expression?.getText(ast);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast); assert.ok(expression);
+  for (const [lifecycle, expected] of [["enrolling", false], ["ready", false], ["active", false], ["paused", true], ["revoked", true], ["purging", true]]) {
+    assert.equal(new Script(expression).runInNewContext({selected:{lifecycle}}), expected);
+  }
+});

@@ -48,7 +48,7 @@ function useActionFocus() {
 
 export type PrivateTextReturnDraft = { question: string; sheetId: string; contextItemId: string };
 
-type Props = { initialDraft?: PrivateTextReturnDraft; token: string; replicaId: string; lifecycle: ReplicaLifecycle; onBack: () => void; onEditContext: (draft: PrivateTextReturnDraft) => void; onAuthError: (cause: unknown) => void };
+type Props = { onEditProfile?: () => void; initialDraft?: PrivateTextReturnDraft; token: string; replicaId: string; lifecycle: ReplicaLifecycle; onBack: () => void; onEditContext: (draft: PrivateTextReturnDraft) => void; onAuthError: (cause: unknown) => void };
 const REQUEST_PARAM = "rehearsal_request";
 function savedRequest(replicaId: string) {
   const query = new URLSearchParams(location.search);
@@ -90,8 +90,9 @@ function StoppedPrivateText({ token, replicaId, lifecycle, onBack, onAuthError }
   }
   return <section className="ptr-panel"><div className="ptr-content"><button type="button" onClick={onBack}>Back to your workspace</button><h1>Private draft test is stopped.</h1><p>{lifecycle === "purging" ? "Erasure is already underway for this AI." : "This workspace must be available before a private answer can be requested or read."}</p>{error ? <p role="alert">{error}</p> : null}{removed && unresolvedUsage(billing) ? <p>Removing a test does not cancel incurred usage.</p> : null}{removed ? <p role="status">This saved test's private payload has been removed.</p> : id && lifecycle !== "purging" ? <button type="button" disabled={busy} onClick={() => void remove()}>{busy ? "Removing saved test" : "Remove saved test"}</button> : null}</div></section>;
 }
-function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditContext, onAuthError }: Props) {
+function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditContext, onEditProfile, onAuthError }: Props) {
   const [readiness, setReadiness] = useState<PrivateTextReadiness | null>(null);
+  const [readinessError, setReadinessError] = useState(false);
   const [selection, setSelection] = useState(() => ({ sheetId: isPrivateTextId(initialDraft?.sheetId) ? initialDraft.sheetId : "", contextItemId: isPrivateTextId(initialDraft?.contextItemId) ? initialDraft.contextItemId : "" }));
   const [question, setQuestion] = useState(() => typeof initialDraft?.question === "string" && initialDraft.question.length <= 2000 ? initialDraft.question : "");
   const [attested, setAttested] = useState<PrivateTextAttestation[]>([]);
@@ -125,13 +126,13 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; operation.current++; controller.current?.abort(); }; }, []);
   useEffect(() => {
     const abort = new AbortController(); const attempt = ++readOperation.current;
-    setLoading(true); setReadiness(null); setAttested(value => parentRequestId ? value : []);
+    setLoading(true); setReadiness(null); setReadinessError(false); setAttested(value => parentRequestId ? value : []);
     void readPrivateTextReadiness(token, replicaId, selection, abort.signal).then(next => {
       if (!mounted.current || attempt !== readOperation.current) return;
       setReadiness(next); setLoading(false);
     }).catch(cause => {
       if (!mounted.current || attempt !== readOperation.current || abort.signal.aborted) return;
-      setLoading(false); handleError(cause, "We could not check the saved draft and source. Refresh availability to try the read again.");
+      setLoading(false); setReadinessError(true); handleError(cause, "We could not check the saved draft and source. Refresh availability to try the read again.");
     });
     return () => abort.abort();
   }, [token, replicaId, selection.sheetId, selection.contextItemId, refresh, parentRequestId]);
@@ -206,6 +207,7 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   }
   async function editDraft() {
     if (requestId) return;
+    if (onEditProfile && selected?.material.draft.sheetKind === "person") { onEditProfile(); return; }
     await act("edit", async (signal, current) => {
       const view = await readPrivateRehearsalDraft(token, replicaId, signal);
       if (!current()) return;
@@ -238,24 +240,25 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
         <h1 id="ptr-title">Test your private draft.</h1>
         <p>Choose saved material, ask once, then review or correct the answer.</p>
       </header>
-      {error ? <p className="ptr-message" role="alert">{error}</p> : null}
+      {error && (!readinessError || requestId) ? <p className="ptr-message" role="alert">{error}</p> : null}
       {requestId ? <section className="ptr-result" aria-label="Saved private test">
         <h2 ref={resultHeading} tabIndex={-1}>{erased || result?.state === "withdrawn" ? "Private test removed." : result?.state === "complete" ? "Your private text answer" : "Check your private request."}</h2>
         {!erased && result?.state === "complete" ? <>
           <p className="ptr-answer">{result.answer}</p>
-          <p className="ptr-source">Source: {readiness?.context_items.find(item => item.item_id === result.source.context_item_id)?.source_name || "Selected private source"}. Teaching draft: {readiness?.drafts.find(item => item.sheet_id === result.source.sheet_id)?.name || "Selected private draft"}.</p>
+          <p className="ptr-source">Source: {readiness?.context_items.find(item => item.item_id === result.source.context_item_id)?.source_name || "Selected private source"}. Profile: {readiness?.drafts.find(item => item.sheet_id === result.source.sheet_id)?.name || "Selected private draft"}.</p>
         </> : erased || result?.state === "withdrawn" ? <p>This request is closed. Any saved question and answer have been removed.</p> : <p>{result?.state === "blocked" ? "This answer is unavailable under the current draft or source permissions." : "An answer is not confirmed yet. Checking the saved result does not send another question."}</p>}
-        {!erased && (result?.state === "complete" || result?.state === "blocked" && result.can_review_teaching === true) && result.billing_state === "settled" ? <PrivateTeachingRefinement recoveryOnly={result.state !== "complete"} token={token} replicaId={replicaId} requestId={result.request_id} sheetId={result.source.sheet_id} disabled={Boolean(busy)} onOpenChange={setRefinementOpen} onAuthError={onAuthErrorRef.current} onNextQuestion={newQuestion} onDraftChanged={view => {
+        {!erased && result?.source?.sheet_kind !== "person" && (result?.state === "complete" || result?.state === "blocked" && result.can_review_teaching === true) && result.billing_state === "settled" ? <PrivateTeachingRefinement recoveryOnly={result.state !== "complete"} token={token} replicaId={replicaId} requestId={result.request_id} sheetId={result.source.sheet_id} disabled={Boolean(busy)} onOpenChange={setRefinementOpen} onAuthError={onAuthErrorRef.current} onNextQuestion={newQuestion} onDraftChanged={view => {
           readOperation.current++; setReadiness(null); setAttested([]);
           setSelection({sheetId: view.sheet_id, contextItemId: result.source.context_item_id}); setRefresh(value => value + 1);
         }} /> : null}
+        {!erased && result?.state === "complete" && result.source.sheet_kind === "person" && onEditProfile ? <button className="vx-button vx-button--quiet" type="button" onClick={onEditProfile}>Adjust personality</button> : null}
         {unresolvedUsage(withdrawalBilling || result?.billing_state) ? <p role="status">Removing a test does not cancel incurred usage.</p> : null}
         {result?.failure_code ? <details className="ptr-request-details"><summary>Request details</summary><p>{result.failure_code.replaceAll("_", " ")}</p></details> : null}
         <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <>
           <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button>
           <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button>
         </> : null}{canStartAnother && !refinementOpen ? <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => newQuestion(result?.state === "complete" ? result.request_id : null)}>{result?.state === "complete" ? "Ask a follow-up" : "Prepare another question"}</button> : null}</div>
-      </section> : <div className="ptr-compose">
+      </section> : readinessError ? <section className="ptr-recovery" role="alert"><h2>We could not load your material.</h2><p>Your saved work has not changed.</p><button className="vx-button vx-button--primary" type="button" onClick={() => { setError(""); setRefresh(value => value + 1); }}>Try again</button></section> : <div className="ptr-compose">
         <section className="ptr-material" aria-label="Selected material">
           <div className="ptr-section-heading">
             <div><h2 ref={materialHeading} tabIndex={-1}>Choose what the answer uses.</h2><p>One draft and one source.</p></div>
@@ -263,7 +266,7 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
           </div>
           {loading ? <p className="ptr-loading" role="status">Checking saved draft and source</p> : null}
           <div className="ptr-fields">
-            <label>Teaching draft<select value={selection.sheetId || selected?.sheet_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, sheetId: event.target.value })}><option value="">Choose a saved draft</option>{readiness?.drafts.map(draft => <option key={draft.sheet_id} value={draft.sheet_id}>{draft.name || "Unnamed draft"}</option>)}</select></label>
+            <label>{selected?.material.draft.sheetKind === "person" ? "Personal profile" : "Teaching draft"}<select value={selection.sheetId || selected?.sheet_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, sheetId: event.target.value })}><option value="">Choose a saved draft</option>{readiness?.drafts.map(draft => <option key={draft.sheet_id} value={draft.sheet_id}>{draft.name || "Unnamed draft"}</option>)}</select></label>
             <label>Extracted source<select value={selection.contextItemId || selected?.context_item_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, contextItemId: event.target.value })}><option value="">Choose a saved text source</option>{readiness?.context_items.map(item => <option key={item.item_id} value={item.item_id} disabled={!item.eligible}>{item.source_name}{item.eligible ? "" : " (unavailable)"}</option>)}</select></label>
           </div>
           {readiness?.blockers.length ? <ul className="ptr-blockers">{readiness.blockers.map((blocker, index) => <li key={`${blocker.code}:${index}`}><strong>{blocker.responsibility === "platform" ? "Waiting on us: " : "Needs your input: "}</strong>{blocker.field ? `${blocker.field}: ` : ""}{blocker.code.replaceAll("_", " ")}</li>)}</ul> : null}
@@ -283,7 +286,7 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
           {selected && !editor ? <details className="ptr-review">
             <summary><span>Review source: {selected.material.context.source_name}</span><small>{selected.material.draft.name}</small></summary>
             <div className="ptr-review-content">
-              <div><h3>Teaching draft</h3><strong>{selected.material.draft.name}</strong><p>{selected.material.draft.identityWho}</p><p>Subject: {selected.material.draft.subjectDomain}</p></div>
+              <div><h3>{selected.material.draft.sheetKind === "person" ? "Personal profile" : "Teaching draft"}</h3><strong>{selected.material.draft.name}</strong><p>{selected.material.draft.identityWho}</p>{selected.material.draft.sheetKind !== "person" ? <p>Subject: {selected.material.draft.subjectDomain}</p> : null}</div>
               <div><h3>Source text</h3><p className="ptr-source-body">{selected.material.context.body}</p></div>
             </div>
           </details> : null}

@@ -20925,6 +20925,24 @@
       "kind": "rejection",
       "title": "Vercel sensitive bindings are not exportable credentials or a spending balance",
       "at": "2026-09-27"
+    },
+    {
+      "id": "person-private-rehearsal-20260927",
+      "kind": "decision",
+      "title": "Personal private rehearsal carries actual person traits",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "rebuild-integration-checks-20260927",
+      "kind": "measurement",
+      "title": "Focused rebuild checks and their live limits",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "private-profile-and-upload-seams-20260927",
+      "kind": "rejection",
+      "title": "Teaching-only projection and duplicate/public upload dispatch",
+      "at": "2026-09-27"
     }
   ],
   "edges": [

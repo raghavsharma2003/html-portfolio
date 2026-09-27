@@ -63,7 +63,7 @@ try{
    if(url.pathname.startsWith('/api/')){
     let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):{},op=body.op||url.searchParams.get('op');
     requests.push({path:url.pathname,method:req.method,op});assert.equal(req.headers.authorization,`Bearer ${TOKEN}`);
-    if(req.method==='GET'&&url.pathname==='/api/internal-voice')return send(404,{enabled:false,error:'internal_voice_disabled'});
+    if(req.method==='GET'&&(url.pathname==='/api/internal-voice'||url.pathname==='/api/private-voice'))return send(404,{enabled:false,error:'internal_voice_disabled'});
     if(url.pathname==='/api/replica')return send(200,url.searchParams.has('replica_id')?{replica:replica()}:{replicas:[replica()]});
     if(url.pathname==='/api/replica-consent'&&op==='list')return send(200,{consents:grants()});
     if(url.pathname==='/api/replica-source'&&op==='list')return send(200,{sources:[]});
@@ -109,24 +109,24 @@ try{
    await open('old',width,{view:'share'});await page.getByRole('button',{name:'Add knowledge first',exact:true}).waitFor();assert.equal(await page.getByRole('heading',{name:'Share your knowledge',exact:true}).count(),0);noMutation();
   });
   await check(`${width} actual default shell: Knowledge to Share and back without voice`,async()=>{
-   await open('current',width);await page.getByRole('button',{name:'Add knowledge first',exact:true}).click();await page.getByRole('button',{name:/Share your knowledge/}).click();
+   await open('current',width);await page.locator('.workbench-overview').waitFor();await page.getByRole('button',{name:'Preview sharing',exact:true}).click();
    await page.getByRole('heading',{name:'Share your knowledge',exact:true}).waitFor();assert.equal(new URL(page.url()).searchParams.get('view'),'share');await page.waitForFunction(()=>document.activeElement===document.querySelector('.vx-expert-share h1'));await snap(`share-from-menu-${width}`);await noVoiceRooms();
-   await page.getByRole('button',{name:'Back to knowledge',exact:true}).click();await page.getByRole('heading',{name:'Add more of you.',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='knowledge-menu-title');await snap(`back-to-menu-${width}`);noMutation();
+   await page.getByRole('button',{name:'Back to knowledge',exact:true}).click();await page.getByRole('heading',{name:'Build your AI.',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='knowledge-menu-title');await snap(`back-to-menu-${width}`);noMutation();
   });
   await check(`${width} Files to Share retains source and returns to Files`,async()=>{
-   await page.getByRole('button',{name:/Files, images, links/}).click();await page.getByRole('heading',{name:'Bring your context',exact:true}).waitFor();
-   await page.getByRole('button',{name:'Review text sharing',exact:true}).click();await page.getByRole('heading',{name:'Share your knowledge',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement===document.querySelector('.vx-expert-share h1'));await snap(`share-from-files-${width}`);
+   await page.locator('.workbench-setup-list').getByRole('button',{name:/^Knowledge/}).click();await page.getByRole('heading',{name:'Bring your context',exact:true}).waitFor();
+   await page.locator(width<761?'.workbench-mobile-nav':'.workbench-sidebar').getByRole('button',{name:'Share',exact:true}).click();await page.getByRole('heading',{name:'Share your knowledge',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement===document.querySelector('.vx-expert-share h1'));await snap(`share-from-files-${width}`);
    await page.getByRole('button',{name:'Back to knowledge',exact:true}).click();await page.getByRole('heading',{name:'Bring your context',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='context-locker-title');await snap(`back-to-files-${width}`);
    await page.getByText(item.source_name,{exact:true}).first().waitFor();noMutation();await noVoiceRooms();
   });
   await check(`${width} early lifecycle real four statement review grants no implicit publication`,async()=>{
-   await page.getByRole('button',{name:'Review text sharing',exact:true}).click();await page.getByLabel('Teaching profile').selectOption(SHEET);await page.getByRole('combobox',{name:/^Material/}).selectOption(ITEM);
+   await page.locator(width<761?'.workbench-mobile-nav':'.workbench-sidebar').getByRole('button',{name:'Share',exact:true}).click();await page.getByLabel('Teaching profile').selectOption(SHEET);await page.getByRole('combobox',{name:/^Material/}).selectOption(ITEM);
    await page.getByRole('heading',{name:'Review what you will share',exact:true}).waitFor();const publish=page.getByRole('button',{name:'Publish link',exact:true});assert(await publish.isDisabled());
    for(let i=0;i<statements.length;i++){await page.getByLabel(statements[i].text,{exact:true}).check();assert.equal(await publish.isEnabled(),i===statements.length-1);}
    assert.equal(lifecycle,'consent_pending');await noVoiceRooms();noMutation();await page.screenshot({path:join(out,`early-share-${width}.png`),fullPage:true});
   });
   await check(`${width} delayed readiness never steals focus after explicit navigation`,async()=>{
-   await open('current',width);holdReadiness=true;await page.getByRole('button',{name:'Add knowledge first',exact:true}).click();await page.getByRole('button',{name:/Share your knowledge/}).click();
+   await open('current',width);holdReadiness=true;await page.locator('.workbench-overview').waitFor();await page.getByRole('button',{name:'Preview sharing',exact:true}).click();
    await page.waitForFunction(()=>document.activeElement===document.querySelector('.vx-expert-share h1'));
    await page.keyboard.press('Shift+Tab');assert.equal(await page.getByRole('button',{name:'Back to knowledge',exact:true}).evaluate(el=>el===document.activeElement),true);
    const deadline=Date.now()+5000;while(!heldReadiness.length&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10));assert(heldReadiness.length,'actual readiness HTTP held');

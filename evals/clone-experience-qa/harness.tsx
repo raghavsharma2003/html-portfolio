@@ -29,6 +29,8 @@ type QaCounters = {
   buildCandidate: string;
   uploadIntent: string;
   languageHint: string;
+  refreshCalls: number;
+  privateGenerateCalls: number;
 };
 
 declare global { interface Window { __cloneQa: QaCounters } }
@@ -55,7 +57,9 @@ const candidateSourceId = "30000000-0000-4000-8000-000000000003";
 const uploadIntentId = "40000000-0000-4000-8000-000000000004";
 const buildIntentId = "50000000-0000-4000-8000-000000000005";
 const sagaKey = `vyakti:experience:voice-saga:v1:${replicaId}`;
-const scenario = (new URLSearchParams(location.search).get("scenario") || "replacement-old-draft") as Scenario;
+const query = new URLSearchParams(location.search);
+const scenario = (query.get("scenario") || "replacement-old-draft") as Scenario;
+const privateFixture = query.get("private") === "1";
 
 const replica: Replica = {
   replica_id: replicaId, display_name: "Me", subject_mode: "self", lifecycle: "enrolling",
@@ -95,11 +99,13 @@ const emptyActivity: ActivityView = {
   replica_id: replicaId, generated_at: "2026-09-02T00:00:00.000Z", jobs: [], lanes: [], in_flight: false, next_poll_ms: null,
 };
 
-window.__cloneQa = { createCalls: 0, retryCalls: 0, finalizeCalls: 0, xhrSends: 0, buildCalls: 0, buildCandidate: "", uploadIntent: "", languageHint: "" };
+window.__cloneQa = { createCalls: 0, retryCalls: 0, finalizeCalls: 0, xhrSends: 0, buildCalls: 0, buildCandidate: "", uploadIntent: "", languageHint: "", refreshCalls: 0, privateGenerateCalls: 0 };
 for (const [name, value] of Object.entries(window.__cloneQa)) exposeCounter(name as keyof QaCounters, value);
 sessionStorage.removeItem("vyakti:experience:reveal");
 localStorage.removeItem(sagaKey);
-if (scenario === "replacement-old-draft" || scenario === "candidate-ready" || scenario === "missing-receipt") {
+if (privateFixture && query.get("privateReload") === "1") {
+  localStorage.setItem(sagaKey, JSON.stringify({ uploadIntentId, buildIntentId, sourceId: candidateSourceId, language: "hinglish", privateSample: true }));
+} else if (scenario === "replacement-old-draft" || scenario === "candidate-ready" || scenario === "missing-receipt") {
   localStorage.setItem(sagaKey, JSON.stringify({
     uploadIntentId, buildIntentId,
     sourceId: scenario === "missing-receipt" ? null : candidateSourceId,
@@ -111,6 +117,36 @@ const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
   if (url.pathname === "/api/replica-activity") return new Response(JSON.stringify(emptyActivity), { status: 200, headers: { "content-type": "application/json" } });
+  if (privateFixture && url.pathname === "/api/context-items" && (init?.method || "GET") === "GET") return new Response(JSON.stringify({
+    items: [], quota: { items: 0, bytes: 0, max_items: 50, max_bytes: 10_000_000 },
+    limits: { max_item_bytes: 2_000_000, accepted_file_formats: ["text/plain"], routed_elsewhere: {} },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  if (privateFixture && url.pathname === "/api/private-voice") {
+    const method = init?.method || "GET";
+    if (method === "POST") {
+      const body = JSON.parse(String(init?.body || "{}")) as { action?: string };
+      if (body.action === "generate") exposeCounter("privateGenerateCalls", window.__cloneQa.privateGenerateCalls + 1);
+      return new Response(JSON.stringify({ error: "private_voice_fixture_write_refused" }), { status: 409, headers: { "content-type": "application/json" } });
+    }
+    if (!url.searchParams.get("action") && url.searchParams.get("replica_id") === replicaId) return new Response(JSON.stringify({
+      enabled: true,
+      scope: "private_voice_test",
+      statement_set: "private-own-voice/v1",
+      statement: "यह मेरी अपनी आवाज़ का निजी परीक्षण है।",
+      config: {
+        version: "private-hindi-sample/v1", scope: "private_voice_test", text: "यह मेरी अपनी आवाज़ का निजी परीक्षण है।",
+        text_sha256: "a".repeat(64), language_id: "hi", model_arm: "hindi_v3", model_commitment: "b".repeat(64), seed: 31001,
+        style: { exaggeration: 0.2, cfgWeight: 0.78, temperature: 0.6 },
+        conditioning: { referenceLanguageMode: "unknown", referenceLanguageEvidenceScope: "unverified", textLanguageMode: "devanagari", requestedCfgWeight: 0.78, effectiveCfgWeight: 0, qualityState: "reference_language_unverified", qualityWarnings: [] },
+        text_provenance: "server_fixed_sample", reference_language_provenance: "unassessed", identity_scope: "account_self_attestation",
+        identity_claim_allowed: false, release_eligible: false, training_allowed: false,
+      },
+      candidates: [],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ error: "private_voice_request_unavailable" }), { status: 404, headers: { "content-type": "application/json" } });
+  }
+  if (url.pathname === "/api/private-voice") return new Response(JSON.stringify({ enabled: false, error: "private_voice_disabled" }), { status: 404, headers: { "content-type": "application/json" } });
+  if (privateFixture && url.origin === location.origin) return new Response(JSON.stringify({ error: "private_fixture_route_not_stubbed", path: url.pathname }), { status: 404, headers: { "content-type": "application/json" } });
   if (url.origin === location.origin) return new Response(JSON.stringify({}), { status: 200, headers: { "content-type": "application/json" } });
   return nativeFetch(input, init);
 };
@@ -152,14 +188,17 @@ function Harness() {
     exposeCounter("languageHint", input.languageHint || "");
     if (new URLSearchParams(location.search).has("uploadHold")) await new Promise(() => {});
     if (new URLSearchParams(location.search).has("uploadFail")) throw new Error("The upload could not connect. Your recording is still here.");
-    const created = candidate("ready");
+    const created = candidate(privateFixture ? "pending_upload" : "ready");
     setSources([created]);
+    if (privateFixture) return { source: created, upload: {
+      method: "PUT", url: "https://private-upload.fixture/owner-voice.wav", headers: { "x-fixture-upload": "private" }, expires_at: "2026-09-02T01:00:00.000Z",
+    } satisfies SignedUpload, replayed: false, finalized: false };
     return { source: created, upload: null as SignedUpload | null, replayed: true, finalized: true };
   }
   async function requestBuild(input: { candidateSourceId: string; buildIntentId: string }) {
     exposeCounter("buildCalls", window.__cloneQa.buildCalls + 1);
     exposeCounter("buildCandidate", input.candidateSourceId);
-    return queuedIntent(input.candidateSourceId);
+    return { ...queuedIntent(input.candidateSourceId), intent_id: input.buildIntentId };
   }
   const neverChallenge = async (): Promise<LivenessChallenge> => { throw new Error("not used by this fixture"); };
 
@@ -173,9 +212,9 @@ function Harness() {
     onSelectReplica={async () => undefined} onStartNew={() => undefined} onRevoke={async () => undefined}
     onCreateUpload={createUpload as never}
     onRetryUpload={async () => { exposeCounter("retryCalls", window.__cloneQa.retryCalls + 1); return { source: candidate("ready"), upload: null, replayed: true, finalized: true }; }}
-    onFinalizeUpload={async () => { exposeCounter("finalizeCalls", window.__cloneQa.finalizeCalls + 1); return candidate("ready"); }}
+    onFinalizeUpload={async () => { exposeCounter("finalizeCalls", window.__cloneQa.finalizeCalls + 1); const finalized = candidate(privateFixture ? "processing" : "ready"); if (privateFixture) setSources([finalized]); return finalized; }}
     onRequestVoiceBuild={requestBuild} onDeleteSource={async () => "complete"}
-    onRefreshEnrollment={async () => undefined} onRefreshReview={async () => undefined}
+    onRefreshEnrollment={async () => { exposeCounter("refreshCalls", window.__cloneQa.refreshCalls + 1); }} onRefreshReview={async () => undefined}
     onIssueChallenge={neverChallenge as never} onStartFaceSession={neverChallenge as never}
     onPollFaceSession={neverChallenge as never} onCancelChallenge={neverChallenge as never}
     onCreateLivenessUpload={neverChallenge as never} onFinalizeLiveness={neverChallenge as never}

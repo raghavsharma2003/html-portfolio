@@ -131,40 +131,31 @@ try{
  const waitPending=async()=>{const end=Date.now()+5000;while(!pending.length&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,20));assert(pending.length,'bounded delayed request barrier');};
  const askCount=()=>requests.filter(r=>r.path==='/api/replica-text-rehearsal'&&r.op==='ask').length;
  const fill=async()=>{await page.locator('#ptr-question').fill('What is the period of this pendulum?');for(const box of await page.locator('.ptr-attestation input').all())await box.check();};
- // WS-R166 moved this menu row's own strings into the studio copy registry
- // (src/studio/copy.ts's EN_CLONE_EXPERIENCE_SHELL.rooms.enrich.testDraftTitle,
- // src/studio/hiCopy.ts's matching HI block); `open()` below always requests
- // `lang=hi`, so the REAL registry-driven button now renders the Hindi
- // string, not the English literal this suite was written against before the
- // conversion existed. The English text itself did not change (byte
- // identical to the pre-conversion default), so the fix is the same one this
- // file already uses for the teach/test-source buttons a few lines down: the
- // suite accepts either locale's real string rather than pinning a language
- // the fixture does not actually request English for
- // (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
- const testDraftButton=()=>page.getByRole('button',{name:/Test a private draft|एक निजी ड्राफ्ट टेस्ट करें/});
- // Same WS-R166 registry move as testDraftButton above, for the two other
- // CloneExperience/ContextLockerPanel controls this walk clicks through
- // while `lang=hi` is active: the enrich menu's "Files, images, links" row
- // (copy.ts's filesTitle) and its own "Back to choices" back button
- // (copy.ts's backToChoices).
- const filesMenuButton=()=>page.getByRole('button',{name:/Files, images, links|फ़ाइलें, तस्वीरें, लिंक/});
+ // Full-entry walks now use the visible workbench actions. Direct-scope
+ // fixtures still mount the private rehearsal itself.
+ const testDraftButton=()=>page.getByRole('button',{name:baselineOnly?/Test a private draft|एक निजी ड्राफ्ट टेस्ट करें/:/Open private test|निजी टेस्ट खोलें/});
+ const openKnowledge=async()=>{
+  if(await page.locator('#context-locker-title').count())return;
+  const desktop=page.locator('.workbench-sidebar').getByRole('button',{name:/^(Knowledge|जानकारी)$/});
+  if(await desktop.isVisible().catch(()=>false)){await desktop.click();return;}
+  await page.locator('.workbench-mobile-nav').getByRole('button',{name:/^(Build|बनाएँ)$/}).click();
+  await page.locator('.workbench-setup-list').getByRole('button',{name:/^(Knowledge|जानकारी)/}).click();
+ };
  const backToChoicesButton=()=>page.getByRole('button',{name:/^(Back to choices|चुनावों पर लौटें)$/});
  const open=async(name='ready',full=false,extra='')=>{scenario=name;activeSheet=SHEET;draftStatus=name==='published'?'published':'draft';pending=[];requests=[];await page.goto(`${origin}${full?'/studio':'/evals/private-text-rehearsal/scope.html'}?mode=replica&replica=${RID}&view=${full?'enrich':'rehearsal'}&lang=hi${extra}`);if(full){await testDraftButton().waitFor();await testDraftButton().click();}await page.locator('#ptr-title').waitFor();if(!name.startsWith('late')&&name!=='incomplete'&&!extra.includes('rehearsal_request=')){await page.locator('.ptr-fields select').nth(0).selectOption(SHEET);await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});await page.locator('.ptr-fields select').nth(1).selectOption(ITEM);await page.getByText('Review source: pendulum-notes.txt').waitFor();}};
  const check=async(name,fn)=>{await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);};
 
 
  if(teachOnly){
- const teachSource=()=>page.getByRole('button',{name:/^(Teach your AI|अपने AI को सिखाएँ)$/});
- const testSource=()=>page.getByRole('button',{name:/^(Test this source|इस सामग्री से पूछें)$/});
+ const testSource=()=>page.locator(`[data-test-source="${ITEM}"]`);
  const assertFeedControlLayout=async(width,lang)=>{
   const metrics=await page.evaluate(()=>{
    const field=document.querySelector('.context-links-field'),label=field?.querySelector('span'),textarea=field?.querySelector('textarea'),add=document.querySelector('.context-links-add');
-   const quiet=[...document.querySelectorAll('.vx-text-button')];
-   if(!field||!label||!textarea||!add||quiet.length<2)return null;
+   const back=document.querySelector('.vx-back'),quiet=[...document.querySelectorAll('.vx-text-button')];
+   if(!field||!label||!textarea||!add||!back)return null;
    const rect=element=>{const value=element.getBoundingClientRect();return {left:value.left,right:value.right,top:value.top,bottom:value.bottom,width:value.width,height:value.height};};
    const fieldRect=rect(field),labelRect=rect(label),textareaRect=rect(textarea),addRect=rect(add);
-   return {fieldRect,labelRect,textareaRect,addRect,quiet:quiet.map(element=>{const style=getComputedStyle(element);return {...rect(element),fontWeight:Number(style.fontWeight),borderRadius:parseFloat(style.borderTopLeftRadius)};}),scrollWidth:document.documentElement.scrollWidth,viewport:innerWidth,fieldDisplay:getComputedStyle(field).display};
+   return {fieldRect,labelRect,textareaRect,addRect,back:rect(back),quiet:quiet.map(element=>{const style=getComputedStyle(element);return {...rect(element),fontWeight:Number(style.fontWeight),borderRadius:parseFloat(style.borderTopLeftRadius)};}),scrollWidth:document.documentElement.scrollWidth,viewport:innerWidth,fieldDisplay:getComputedStyle(field).display};
   });
   assert(metrics,'Feed controls mounted');
   assert.equal(metrics.fieldDisplay,'grid');
@@ -172,35 +163,36 @@ try{
   assert(metrics.labelRect.bottom<=metrics.textareaRect.top);
   assert(metrics.textareaRect.bottom<=metrics.addRect.top);
   assert(metrics.addRect.height>=44);
+  assert(metrics.back.height>=44);
   assert(metrics.quiet.every(control=>control.height>=44&&control.fontWeight>=700&&control.borderRadius>=10),JSON.stringify(metrics.quiet));
   assert.equal(metrics.scrollWidth,metrics.viewport);
   await page.screenshot({path:join(artifact,`feed-controls-${lang}-${width}.png`),fullPage:true});
-  await page.locator('.vx-back').focus();await page.keyboard.press('Tab');
-  assert.equal(await page.evaluate(()=>document.activeElement?.classList.contains('vx-text-button')),true);
-  const quietOutline=await page.evaluate(()=>parseFloat(getComputedStyle(document.activeElement).outlineWidth));assert(quietOutline>=3);
+  await page.locator('.vx-back').focus();
+  const backOutline=await page.evaluate(()=>parseFloat(getComputedStyle(document.activeElement).outlineWidth));assert(backOutline>=3);
   const textarea=page.locator('.context-links-field textarea');await textarea.fill('https://example.com/my-essay');await textarea.press('Tab');
   assert.equal(await page.evaluate(()=>document.activeElement?.classList.contains('context-links-add')),true);
   const addOutline=await page.evaluate(()=>parseFloat(getComputedStyle(document.activeElement).outlineWidth));assert(addOutline>=3);
-  feedLayout.push({width,lang,...metrics,quietOutline,addOutline});
+  feedLayout.push({width,lang,...metrics,backOutline,addOutline});
   await page.screenshot({path:join(artifact,`feed-controls-focus-${lang}-${width}.png`),fullPage:true});await textarea.fill('');
  };
- for(const width of [390,1440])await check(`saved own-writing source ${width}: explicit teaching path without auto-navigation`,async()=>{
+ for(const width of [390,1440])await check(`saved own-writing source ${width}: unsupported generic correction is absent and exact-source testing stays explicit`,async()=>{
   scenario='ready';pending=[];requests=[];await page.setViewportSize({width,height:900});const lang=width===390?'hi':'en';
   await page.goto(`${origin}/studio?mode=replica&replica=${RID}&view=enrich&lang=${lang}`);
-  await filesMenuButton().click();await page.locator('#context-locker-title').waitFor();
+  await openKnowledge();await page.locator('#context-locker-title').waitFor();
   await assertFeedControlLayout(width,lang);
-  assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');assert.equal(await teachSource().count(),1);assert.equal(await testSource().count(),1);
+  assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');assert.equal(await page.locator('[data-teach-source]').count(),0);assert.equal(await testSource().count(),1);
   await page.locator('input[type=file].context-file-input').setInputFiles([
    {name:'batch-one.txt',mimeType:'text/plain',buffer:Buffer.from('First owner-written source.')},
    {name:'batch-two.txt',mimeType:'text/plain',buffer:Buffer.from('Second owner-written source.')},
   ]);
   await page.getByText('batch-two.txt',{exact:true}).waitFor();assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');
-  assert.equal(await page.getByRole('heading',{name:/^(Bring your context|अपना कॉन्टेक्स्ट लाएं)$/}).count(),1);assert.equal(await teachSource().count(),1);
+  assert.equal(await page.getByRole('heading',{name:/^(Bring your context|अपना कॉन्टेक्स्ट लाएं)$/}).count(),1);assert.equal(await page.locator('[data-teach-source]').count(),0);assert.equal(await testSource().count(),1);
   const add=requests.find(row=>row.path==='/api/context-items'&&row.op==='add_files');assert(add);assert.equal(add.body.files.length,2);
-  await teachSource().scrollIntoViewIfNeeded();await page.screenshot({path:join(artifact,`teach-source-${width}.png`)});
-  await teachSource().click();await page.getByRole('heading',{name:/^(Choose what becomes you\.|चुनें कि आप क्या बनते हैं।)$/}).waitFor();await page.locator('#person-model-studio').waitFor();
-  assert.equal(new URL(page.url()).searchParams.get('view'),'evolve');assert.equal(requests.filter(row=>row.path==='/api/replica-claims'&&row.method==='GET').length>0,true);
-  await page.screenshot({path:join(artifact,`teach-evolve-${width}.png`)});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await testSource().scrollIntoViewIfNeeded();await page.screenshot({path:join(artifact,`test-source-${width}.png`)});
+  await testSource().click();await page.getByText('Review source: pendulum-notes.txt').waitFor();
+  assert.equal(new URL(page.url()).searchParams.get('view'),'rehearsal');assert.equal(await page.locator('.ptr-fields select').nth(1).inputValue(),ITEM);assert.equal(askCount(),0);
+  const readinessRead=requests.filter(row=>row.op==='readiness').at(-1);assert.equal(readinessRead.query.context_item_id,ITEM);assert.equal(readinessRead.query.replica_id,RID);
+  await page.screenshot({path:join(artifact,`test-source-return-${width}.png`)});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  });
  }else if(baselineOnly){
  await check('executed checkpoint23 missing return and discarded unsent question',async()=>{
@@ -235,12 +227,12 @@ try{
   await page.setViewportSize({width,height:900});await open('mined',true);await page.locator('#ptr-question').fill('Use this mined source');await editSources();await testSource().waitFor();assert.equal(await page.getByRole('button',{name:/^(View phrases|वाक्यांश देखें)$/}).count(),1);await testSource().click();await page.getByText('Review source: pendulum-notes.txt').waitFor();assert.equal(await page.locator('#ptr-question').inputValue(),'Use this mined source');assert.equal(await page.locator('.ptr-fields select').nth(1).inputValue(),ITEM);const read=requests.filter(r=>r.op==='readiness').at(-1);assert.equal(read.query.context_item_id,ITEM);assert.equal(read.query.replica_id,RID);assert.equal(read.auth,'Bearer '+TOKEN);assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);assert.deepEqual(mutations(),[]);
  });
  await check('direct saved source entry chooses only that source and needs an explicit draft and question',async()=>{
-  await open('ready',true);await page.getByRole('button',{name:'Back to your workspace'}).click();await filesMenuButton().click();await testSource().click();await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});
+  await open('ready',true);await page.getByRole('button',{name:'Back to your workspace'}).click();await openKnowledge();await testSource().click();await page.locator('.ptr-fields select').nth(1).locator(`option[value="${ITEM}"]`).waitFor({state:'attached'});
   assert.equal(await page.locator('.ptr-fields select').nth(1).inputValue(),ITEM);assert.equal(await page.locator('.ptr-fields select').nth(0).inputValue(),'');assert.equal(await page.locator('#ptr-question').inputValue(),'');assert.deepEqual(mutations(),[]);
  });
  for(const kind of ['reference','unknown','refused','routed','image'])await check(`${kind} restored source has no private-test shortcut`,async()=>{await open(kind,true);await editSources();assert.equal(await testSource().count(),0);assert.deepEqual(mutations(),[]);});
  await check('source removed after the visible row is revalidated without fallback or a paid ask',async()=>{await open('ready',true);await page.locator('#ptr-question').fill('Do not replace this source');await editSources();scenario='removed';await testSource().click();await page.getByText(/selected source unavailable/).waitFor();assert(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled());assert.equal(await page.locator('#ptr-question').inputValue(),'Do not replace this source');assert.equal(await page.locator('.ptr-source-body').count(),0);assert.deepEqual(mutations(),[]);});
- await check('existing saved request is never silently replaced by a source shortcut',async()=>{await open('ready',true);await fill();await page.getByRole('button',{name:'Ask privately',exact:true}).click();await page.locator('.ptr-answer').waitFor();const id=new URL(page.url()).searchParams.get('rehearsal_request');await page.getByRole('button',{name:'Back to your workspace'}).click();await filesMenuButton().click();await page.getByText('pendulum-notes.txt',{exact:true}).waitFor();assert.equal(await testSource().count(),0);assert.equal(new URL(page.url()).searchParams.get('rehearsal_request'),id);assert.equal(askCount(),1);await backToChoicesButton().click();await testDraftButton().click();await page.locator('.ptr-answer').waitFor();assert.equal(askCount(),1);});
+  await check('existing saved request is never silently replaced by a source shortcut',async()=>{await open('ready',true);await fill();await page.getByRole('button',{name:'Ask privately',exact:true}).click();await page.locator('.ptr-answer').waitFor();const id=new URL(page.url()).searchParams.get('rehearsal_request');await page.getByRole('button',{name:'Back to your workspace'}).click();await openKnowledge();await page.getByText('pendulum-notes.txt',{exact:true}).waitFor();assert.equal(await testSource().count(),0);assert.equal(new URL(page.url()).searchParams.get('rehearsal_request'),id);assert.equal(askCount(),1);await backToChoicesButton().click();await testDraftButton().click();await page.locator('.ptr-answer').waitFor();assert.equal(askCount(),1);});
  await check('late readiness keeps asks disabled and leaving the returned test does not resurrect an old question',async()=>{await open('ready',true);await page.locator('#ptr-question').fill('Only this workspace');await editSources();scenario='late-readiness';await testSource().click();await waitPending();assert(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled());assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);await page.getByRole('button',{name:'Back to your workspace'}).click();scenario='ready';pending.splice(0).forEach(release=>release());await backToChoicesButton().click();await testDraftButton().click();await page.locator('#ptr-question').waitFor();assert.equal(await page.locator('#ptr-question').inputValue(),'');assert.equal(askCount(),0);});
  }
  if(!baselineOnly && process.argv.includes('--incumbents')){

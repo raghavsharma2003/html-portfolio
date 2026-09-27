@@ -14,7 +14,7 @@ function stable(value: unknown): string {
 }
 const COPY = {
   en: {
-    title:"Review sheet publication", intro:"Publish this saved teaching sheet for Room setup. Voice activation and opening a Room remain separate.",
+    title:"Review sheet publication", intro:"Publish your saved profile. You can review Room readiness next.",
     review:"Review saved sheet", checking:"Checking saved sheet…", checked:"I reviewed this saved sheet and want to publish it.", publish:"Publish teaching sheet", publishing:"Publishing…",
     check:"Check saved status", published:"This teaching sheet is published.", next:"Continue to Room setup", unsaved:"Save your changes above, then review the saved sheet again.",
     unavailable:"Publication checks are unavailable. Your draft remains editable.", uncertain:"Publication status is unknown. Check saved status before trying again.", refused:"Publication did not complete. Review the saved sheet again.",

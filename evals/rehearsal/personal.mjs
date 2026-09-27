@@ -59,8 +59,8 @@
 // -> voice-build request, the wait (a real `voice_genomes` row is what makes
 // `currentVoiceReady` true — `CloneExperience.tsx`'s own gate for opening
 // Meet — proven by polling the real `/api/replica-review` door directly and
-// observing a real non-ready phase before a real ready one), Describe me
-// (the existing `insert into vy_context_item` fixture, unchanged), Evolve
+// observing a real non-ready phase before a real ready one), one owner-written
+// Knowledge file (the existing `insert into vy_context_item` fixture), Evolve
 // (one seeded claim decided for real through `/api/replica-person-model`,
 // a profile version built from it), Deploy (`/api/replica-runtime`'s real
 // `clientRuntimeStatus` transform, imported directly, fed a fixture row),
@@ -290,9 +290,9 @@ function personalPatterns(state, sql, params, has) {
     return row ? [{ ...row }] : [];
   }
   // api/_replica-storage-writer.js's acquireContextSourceStorageWriter — the
-  // gate Describe me's own `addContextFiles` -> `createStoredContextSource`
+  // gate Knowledge's own `addContextFiles` -> `createStoredContextSource`
   // sits behind before it may write bytes at all. Found necessary, not
-  // assumed: without this match Describe me answered a real, honest
+  // assumed: without this match the visible Knowledge upload answered a real, honest
   // `source_storage_writer_acquire_denied` for a source this walk itself had
   // just created, because the writer-acquire statement was unfixtured, not
   // because the real gate was ever meant to refuse it — see context/
@@ -987,30 +987,15 @@ async function main() {
     ok("agreement: enrollment consent (capture/transcription/storage) is a real, granted row", (state.consents || []).filter((c) => c.replica_id === rid && !c.revoked_at).length === 3);
     timings.agreementMs = Date.now() - tStep;
 
-    // ── DESCRIBE ME — driven here, BEFORE recording, on purpose: once a
-    //    voice build is in flight, `CloneExperience.tsx`'s own
-    //    `showVerification` gate takes over the whole screen regardless of
-    //    `room`/`enrichView` (a real product fact this walk found by trying
-    //    the reverse order first — a pending build blocks every other room,
-    //    Describe me included, until it resolves; see this file's own
-    //    "record" section for why this walk's own build never resolves).
+    // ── KNOWLEDGE — add owner-written context before recording. Once a voice
+    //    build is in flight, the verification gate takes over the workspace,
+    //    so this real visible setup action still belongs first.
     tStep = Date.now();
-    const backToChoices = page.locator("button.vx-back", { hasText: "Back to choices" });
-    if (await backToChoices.count()) await backToChoices.click();
-    const describeButton = page.locator("button", { hasText: "Describe me" });
-    if (await describeButton.count()) {
-      await describeButton.click();
-      const describeText = page.locator(".vx-describe textarea");
-      await describeText.waitFor({ state: "visible", timeout: 10_000 });
-      await describeText.fill("I am warm with close friends, direct at work, and I switch to Hindi when I get excited.");
-      await page.locator("button.vx-button--primary", { hasText: "Add to my context" }).click();
-      await page.locator(".vx-describe [role=status]").waitFor({ state: "visible", timeout: 15_000 });
-      if (process.env.RH_DEBUG === "1") console.log("DEBUG describe status message:", await page.locator(".vx-describe [role=status]").innerText(), "contextItems:", JSON.stringify(state.contextItems), "rid:", rid);
-      ok("Describe me: a real context item was saved through the real door", state.contextItems.some((i) => i.replica_id === rid));
-    } else {
-      if (process.env.RH_DEBUG === "1") console.log("DEBUG no 'Describe me' button; body:", JSON.stringify((await page.locator("body").innerText())));
-      ok("Describe me: the entry point was reachable", false, "Describe me button not found");
-    }
+    const contextInput = page.locator('input[type=file].context-file-input');
+    await contextInput.waitFor({ state: "attached", timeout: 10_000 });
+    await contextInput.setInputFiles({ name: "about-me.txt", mimeType: "text/plain", buffer: Buffer.from("I am warm with close friends, direct at work, and I switch to Hindi when I get excited.") });
+    await page.getByText("about-me.txt", { exact: true }).first().waitFor({ state: "visible", timeout: 15_000 });
+    ok("Knowledge: a real owner-written context item was saved through the real door", state.contextItems.some((i) => i.replica_id === rid));
     timings.describeMeMs = Date.now() - tStep;
     // Dismiss any error toast left by a secondary, unfixtured effect of
     // saving (context evidence mining, out of this walk's own scope) — it
@@ -1020,8 +1005,8 @@ async function main() {
 
     // ── RECORD (>= 12s, a real fake microphone) + Finish and build ────────
     tStep = Date.now();
-    const backToVoice = page.locator("button.vx-text-button", { hasText: "Record my voice instead" });
-    if (await backToVoice.count()) await backToVoice.click();
+    await page.getByRole("button", { name: "Back to choices", exact: true }).click();
+    await page.locator(".workbench-setup-list").getByRole("button", { name: /^Voice/ }).click();
     const recordButton = page.locator("button.vx-record-button");
     await recordButton.waitFor({ state: "visible", timeout: 20_000 });
 
@@ -1281,6 +1266,10 @@ async function main() {
     // something text never needed") rather than a stuck voice attempt.
     await page.evaluate((rid) => localStorage.removeItem(`vyakti:experience:voice-saga:v1:${rid}`), rid);
     await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("heading", { name: "Build your AI." }).waitFor({ state: "visible", timeout: 20_000 });
+    const desktopTest = page.locator(".workbench-sidebar").getByRole("button", { name: "Test", exact: true });
+    if (await desktopTest.isVisible().catch(() => false)) await desktopTest.click();
+    else await page.locator(".workbench-mobile-nav").getByRole("button", { name: "Test", exact: true }).click();
     try {
       await page.locator(".vx-conversation-switch, .vx-record-button, .vx-verification, #vx-verification-pending-title").first().waitFor({ state: "visible", timeout: 20_000 });
     } catch (cause) {
@@ -1297,7 +1286,7 @@ async function main() {
       throw cause;
     }
     const meetOpenWithoutVoice = await page.locator(".vx-conversation-switch").count() > 0;
-    ok("Meet: opens (the conversation switch renders) as soon as text_ready is true, with no voice recorded and no voice pipeline reached", meetOpenWithoutVoice);
+    ok("Meet: the visible Test action opens conversation as soon as text_ready is true, with no voice pipeline required", meetOpenWithoutVoice);
     if (meetOpenWithoutVoice) {
       const sampleTabAfterApproval = page.locator('button[aria-pressed]', { hasText: "Voice sample" });
       if (await sampleTabAfterApproval.count()) {
@@ -1564,8 +1553,8 @@ async function main() {
 
     // WS-R164's own three named transitions, aggregated from the granular
     // steps above rather than measured a second time. This walk's own
-    // "first source" is Describe me (driven before recording, this file's
-    // own "record" section explains why); the third bucket therefore still
+    // "first source" is the owner-written Knowledge file (added before recording;
+    // this file's own "record" section explains why); the third bucket therefore still
     // includes the voice detour this SAME walk also drives — the dedicated
     // text-only measurement (no recording at all) is
     // `evals/first-five-minutes/run.mjs`'s own job, not a second copy of

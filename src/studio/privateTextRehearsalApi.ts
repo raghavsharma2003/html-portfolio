@@ -7,7 +7,7 @@ export type PrivateTextAttestation = typeof PRIVATE_TEXT_ATTESTATIONS[number];
 export interface PrivateTextSelection {
   sheet_id: string; sheet_hash: string; context_item_id: string; context_hash: string;
   source_id: string; source_hash: string; evidence_hash: string; authority_epoch: string; snapshot_hash: string;
-  material: { draft: { name: string; identityWho: string; subjectDomain: TeacherSubject }; context: { source_name: string; format: string; body: string } };
+  material: { draft: { name: string; identityWho: string; sheetKind?: "person" | "teacher"; subjectDomain?: TeacherSubject }; context: { source_name: string; format: string; body: string } };
 }
 export interface PrivateTextReadiness {
   replica_id: string; state: "ready" | "needs_input" | "unavailable" | "stopped";
@@ -22,7 +22,7 @@ export type PrivateTextBillingState = "not_started" | "reserved" | "in_flight" |
 interface PrivateTextBoundResult {
   replica_id: string; request_id: string; state: "complete" | "pending" | "uncertain" | "blocked" | "withdrawn";
   answer?: string; consent: { consent_id: string; receipt_hash: string; statement_set: string; expires_at: string };
-  source: { sheet_id: string; sheet_hash: string; context_item_id: string; source_id: string; source_hash: string; evidence_hash: string };
+  source: { sheet_kind?: "person"; sheet_id: string; sheet_hash: string; context_item_id: string; source_id: string; source_hash: string; evidence_hash: string };
   billing_state: Exclude<PrivateTextBillingState, "unknown">;
   failure_code?: string; can_review_teaching?: true; can_voice: false; created_at: string;
 }
@@ -59,7 +59,7 @@ export function validatePrivateTextReadiness(value: PrivateTextReadiness, replic
     || ![selected.sheet_hash, selected.context_hash, selected.source_hash, selected.evidence_hash, selected.snapshot_hash].every(hash)
     || typeof selected.authority_epoch !== "string" || !/^[0-9]{1,19}$/u.test(selected.authority_epoch)
     || !selected.material || !text(selected.material.draft?.name, 500) || !text(selected.material.draft?.identityWho, 2000)
-    || !["physics", "chemistry", "maths"].includes(selected.material.draft?.subjectDomain)
+    || (selected.material.draft?.sheetKind === "person" ? selected.material.draft.subjectDomain !== undefined : (selected.material.draft?.sheetKind !== undefined && selected.material.draft.sheetKind !== "teacher") || !["physics", "chemistry", "maths"].includes(selected.material.draft?.subjectDomain || ""))
     || !text(selected.material.context?.source_name, 1000) || !["text", "markdown", "pdf", "docx"].includes(selected.material.context?.format) || !text(selected.material.context?.body, 8000))) throw failure();
   if (selected && (!value.drafts.some(row => row.sheet_id === selected.sheet_id)
     || !value.context_items.some(row => row.item_id === selected.context_item_id && row.eligible))) throw failure();
@@ -80,7 +80,7 @@ export function validatePrivateTextResult(value: PrivateTextResult, replicaId: s
     || (value.state === "complete" ? !text(value.answer, 4000) || !value.answer?.trim() : value.answer !== undefined)
     || !value.consent || !isPrivateTextId(value.consent.consent_id) || !hash(value.consent.receipt_hash)
     || value.consent.statement_set !== PRIVATE_TEXT_STATEMENT_SET || !Number.isFinite(Date.parse(value.consent.expires_at))
-    || !value.source || !isPrivateTextId(value.source.sheet_id) || !isPrivateTextId(value.source.context_item_id)
+    || !value.source || value.source.sheet_kind !== undefined && value.source.sheet_kind !== "person" || !isPrivateTextId(value.source.sheet_id) || !isPrivateTextId(value.source.context_item_id)
     || !isPrivateTextId(value.source.source_id) || ![value.source.sheet_hash, value.source.source_hash, value.source.evidence_hash].every(hash)) throw failure();
   return value;
 }

@@ -1,7 +1,7 @@
 /* Entry tokens and sign-in styles stay eager; signed-in scenes load with CloneExperience. */
 @layer components {
   .auth-page {
-    --vx-paper: #f5f3ef;
+    --vx-paper: #f7f8fa;
     --vx-paper-deep: #e9e7e2;
     --vx-ink: #202123;
     --vx-muted: #5d5f65;
@@ -20,7 +20,7 @@
   body:has(.auth-page) {
     margin: 0;
     overflow: hidden;
-    background: #f5f3ef;
+    background: #f7f8fa;
     font-family: "Instrument Sans Variable", "Noto Sans Devanagari", system-ui, sans-serif;
   }
 
@@ -46,7 +46,7 @@
     color: var(--vx-ink);
     background:
       radial-gradient(circle at 12% 88%, rgba(168, 169, 181, 0.13), transparent 29rem),
-      linear-gradient(112deg, #faf9f6 0%, #f4f2ee 62%, #eeece8 100%);
+      linear-gradient(112deg, #ffffff 0%, #f7f8fa 62%, #edf0f5 100%);
     font-family: var(--vx-font);
     isolation: isolate;
   }

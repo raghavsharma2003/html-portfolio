@@ -55,6 +55,8 @@ const suites = {
   azureweb: "azure-web/run.mjs",
   azurewebpack: "azure-web/package-run.mjs",
   "expert-answer-render": "expert-answer-render/run.mjs",
+  "private-person-rehearsal": "private-person-rehearsal.mjs",
+  "private-voice-upload27": "private-voice-upload27/run.mjs",
   "private-voice-test27": "private-voice-test27/run.mjs",
   "studio-workbench27": "studio-workbench27/run.mjs",
   "expert-share-readiness": "expert-share-readiness/run.mjs",

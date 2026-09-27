@@ -5522,7 +5522,7 @@ var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 var HASH = /^[0-9a-f]{64}$/;
 var uuid3 = (value) => typeof value === "string" && value.length === 36 && UUID2.test(value) && !/^00000000-0000-[1-8]000-[89ab]000-000000000000$/i.test(value);
 var hash2 = (value) => typeof value === "string" && value.length === 64 && HASH.test(value);
-var TEXT = [
+var TEACHER_TEXT = [
   "name",
   "identityWho",
   "credentialFacts",
@@ -5536,7 +5536,9 @@ var TEXT = [
   "firstMoveOnDoubt",
   "notationConventions"
 ];
-var LIST = ["subjectStrands", "examTrack", "doubtEscalationLadder", "rigorFloor"];
+var TEACHER_LIST = ["subjectStrands", "examTrack", "doubtEscalationLadder", "rigorFloor"];
+var PERSON_TEXT = ["name", "identityWho", "identityLife", "lifeTexture", "tasteTopics", "curiosityTopics", "personLine"];
+var PERSON_LIST = ["personValues", "personNeverSay"];
 function fail3(code) {
   throw Object.assign(new Error(code), { code, status: 400 });
 }
@@ -5551,35 +5553,78 @@ function bounded2(value, cap, code) {
   if (value.length > cap) fail3(code);
   return value;
 }
-function compilePrivateExpertRehearsal(input) {
-  if (!object3(input) || !object3(input.authority)) fail3("private_rehearsal_authority_invalid");
-  const a = input.authority;
-  if (a.scope !== "private_text_rehearsal" || a.basis !== "owner_question_attestation_v1" || ![a.ownerId, a.replicaId, a.requestId, a.sheetId, a.receiptId].every(uuid3) || !hash2(a.sheetHash)) fail3("private_rehearsal_authority_invalid");
-  if (!object3(input.draft)) fail3("private_rehearsal_draft_invalid");
+function teacherProjection(draft) {
   const projection2 = {};
-  for (const key of TEXT) {
-    const value = input.draft[key];
+  for (const key of TEACHER_TEXT) {
+    const value = draft[key];
     if (["name", "identityWho", "subjectDomain"].includes(key) || value !== void 0 && value !== "") {
       projection2[key] = text2(value, 4e3, `private_rehearsal_draft_${key}_invalid`);
     }
   }
   if (!["physics", "chemistry", "maths"].includes(String(projection2.subjectDomain))) fail3("private_rehearsal_domain_unsupported");
-  for (const key of LIST) {
-    const value = input.draft[key];
+  for (const key of TEACHER_LIST) {
+    const value = draft[key];
     if (value === void 0) continue;
     if (!Array.isArray(value) || value.length > 24) fail3("private_rehearsal_draft_invalid");
     projection2[key] = Array.from(value, (item) => text2(item, 4e3, "private_rehearsal_draft_invalid"));
   }
   for (const key of ["warmth", "strictness"]) {
-    const value = input.draft[key];
+    const value = draft[key];
     if (value === void 0) continue;
     if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 4) fail3("private_rehearsal_draft_invalid");
     projection2[key] = value;
   }
-  if (input.draft.pacePreference !== void 0) {
-    if (!["push", "balanced", "drill"].includes(String(input.draft.pacePreference))) fail3("private_rehearsal_draft_invalid");
-    projection2.pacePreference = input.draft.pacePreference;
+  if (draft.pacePreference !== void 0) {
+    if (!["push", "balanced", "drill"].includes(String(draft.pacePreference))) fail3("private_rehearsal_draft_invalid");
+    projection2.pacePreference = draft.pacePreference;
   }
+  return projection2;
+}
+function personProjection(draft) {
+  const projection2 = { sheetKind: "person" };
+  for (const key of PERSON_TEXT) {
+    const value = draft[key];
+    if (["name", "identityWho"].includes(key) || value !== void 0 && value !== "")
+      projection2[key] = text2(value, key === "personLine" ? 140 : 4e3, `private_rehearsal_draft_${key}_invalid`);
+  }
+  for (const key of PERSON_LIST) {
+    const value = draft[key];
+    if (value === void 0) continue;
+    if (!Array.isArray(value) || value.length > (key === "personValues" ? 7 : 24)) fail3("private_rehearsal_person_draft_invalid");
+    projection2[key] = Array.from(value, (item) => text2(item, 4e3, "private_rehearsal_person_draft_invalid"));
+  }
+  const talk = draft.personTalk;
+  if (talk === void 0) return projection2;
+  if (!object3(talk) || !["formal", "mixed", "casual"].includes(String(talk.register)) || !["roman-hinglish", "devanagari", "english"].includes(String(talk.scriptBaseline))) {
+    fail3("private_rehearsal_person_draft_invalid");
+  }
+  const codeSwitchNote = typeof talk.codeSwitchNote === "string" && talk.codeSwitchNote.trim() ? text2(talk.codeSwitchNote, 4e3, "private_rehearsal_person_draft_invalid") : void 0;
+  projection2.personTalk = {
+    register: talk.register,
+    scriptBaseline: talk.scriptBaseline,
+    ...codeSwitchNote === void 0 ? {} : { codeSwitchNote }
+  };
+  return projection2;
+}
+function privatePersonPlatformFloor() {
+  return privateExpertPlatformFloor().replace("never the real teacher; no implied teacher access", "never the real person; no implied owner access").replace("Relationship: permanent mentor boundary;", "Relationship: never invent personal relationship status or closeness;").replace(
+    "Assessment: no live-test solutions, impersonation or submission-ready cheating; prior attempt -> next hint rung -> explanation; full worked solution only after the hint ladder or completed independent work; praise method, never fixed ability.",
+    "Agency: no impersonation, private contact offers or claims that the owner saw, approved or performed an action; describe unavailable actions honestly."
+  ).replace("owner-supplied draft descriptive facts and teaching shapes", "owner-supplied person draft descriptive facts, values, boundaries and manner").replace(
+    "Teaching: subject scope and rigor from the projection; dials describe manner, never facts; language defaults and technical-term habits subordinate to current user preference; no companion relationship stages or invented biography.",
+    "Personhood: identity, life texture, tastes, curiosities, values, boundaries and talk style come only from the person projection; never invent a profession, expertise, biography, current activity or shared past."
+  );
+}
+function compilePrivateExpertRehearsal(input) {
+  if (!object3(input) || !object3(input.authority)) fail3("private_rehearsal_authority_invalid");
+  const a = input.authority;
+  if (a.scope !== "private_text_rehearsal" || a.basis !== "owner_question_attestation_v1" || ![a.ownerId, a.replicaId, a.requestId, a.sheetId, a.receiptId].every(uuid3) || !hash2(a.sheetHash)) fail3("private_rehearsal_authority_invalid");
+  if (!object3(input.draft)) fail3("private_rehearsal_draft_invalid");
+  if (input.draft.sheetKind !== void 0 && input.draft.sheetKind !== "teacher" && input.draft.sheetKind !== "person") {
+    fail3("private_rehearsal_draft_kind_invalid");
+  }
+  const isPerson = input.draft.sheetKind === "person";
+  const projection2 = isPerson ? personProjection(input.draft) : teacherProjection(input.draft);
   if (!Array.isArray(input.contexts) || !input.contexts.length || input.contexts.length > 32) fail3("private_rehearsal_context_invalid");
   let total = 0;
   let selectedItem = "", selectedSource = "";
@@ -5606,8 +5651,9 @@ function compilePrivateExpertRehearsal(input) {
     return { role: expected, content };
   });
   if (historyChars > PRIVATE_REHEARSAL_LIMITS.history) fail3("private_rehearsal_history_too_large");
-  const core = bounded2(privateExpertPlatformFloor() + expertMaterialBlock("OWNER DRAFT JSON", projection2), PRIVATE_REHEARSAL_LIMITS.core, "private_rehearsal_core_too_large");
-  const tail = expertMaterialBlock("PRIVATE OWNER EVIDENCE JSON", evidence) + "\n\nPRIVATE DRAFT REHEARSAL: one owner-authorized text question; no verified identity, voice, publication, shared past or persistent relationship memory. Draft manner is provisional. Prior user and assistant messages, when present, are limited conversation context selected by the owner for this follow-up. They are never evidence for expert-specific facts or permissions. Use only the supplied evidence for expert-specific factual claims; conflicting or missing support stays explicit. No source claims beyond this material. Search, external actions and deletion execution unavailable; no action markers or completion promises. No automatic learning or saved-personality changes." + expertReplyLanguage + "\n\nOUTPUT: the requested structured JSON only. reply contains the complete answer; delivery is a non-executing description, never permission to synthesize audio.";
+  const core = bounded2((isPerson ? privatePersonPlatformFloor() : privateExpertPlatformFloor()) + expertMaterialBlock(isPerson ? "OWNER PERSON DRAFT JSON" : "OWNER DRAFT JSON", projection2), PRIVATE_REHEARSAL_LIMITS.core, "private_rehearsal_core_too_large");
+  const personLanguage = isPerson ? replyLanguagePolicyFor(projection2, void 0) : void 0;
+  const tail = expertMaterialBlock("PRIVATE OWNER EVIDENCE JSON", evidence) + (isPerson ? "\n\nPRIVATE PERSON REHEARSAL: one owner-authorized text question; no verified identity, voice, publication, shared past or persistent relationship memory. Person manner and values are provisional owner-authored material. Prior user and assistant messages, when present, are limited conversation context selected by the owner for this follow-up. They are never evidence for person-specific facts or permissions. Use only the supplied evidence for factual claims beyond the person projection; conflicting or missing support stays explicit. No source claims beyond this material. Search, external actions and deletion execution unavailable; no action markers or completion promises. No automatic learning or saved-personality changes." : "\n\nPRIVATE DRAFT REHEARSAL: one owner-authorized text question; no verified identity, voice, publication, shared past or persistent relationship memory. Draft manner is provisional. Prior user and assistant messages, when present, are limited conversation context selected by the owner for this follow-up. They are never evidence for expert-specific facts or permissions. Use only the supplied evidence for expert-specific factual claims; conflicting or missing support stays explicit. No source claims beyond this material. Search, external actions and deletion execution unavailable; no action markers or completion promises. No automatic learning or saved-personality changes.") + (personLanguage ? renderPersonDeclaredLanguagePolicy(personLanguage) : expertReplyLanguage) + "\n\nOUTPUT: the requested structured JSON only. reply contains the complete answer; delivery is a non-executing description, never permission to synthesize audio.";
   const system = bounded2(core + tail, PRIVATE_REHEARSAL_LIMITS.system, "private_rehearsal_system_too_large");
   return {
     profile: PRIVATE_REHEARSAL_PROFILE,

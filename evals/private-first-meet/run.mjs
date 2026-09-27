@@ -28,11 +28,16 @@ try {
     await page.locator(".vx-shell").waitFor();
   };
 
+  const openOverviewItem = async name => {
+    const list = page.locator(".workbench-setup-list");
+    await list.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+  };
+
   await open("view=enrich&saved=1&text=1");
-  await page.getByRole("button", { name: "Files, images, links" }).click();
+  await openOverviewItem("Knowledge");
   await page.getByText("My notes.txt").waitFor();
   await page.getByRole("button", { name: "Back to choices" }).click();
-  await page.getByRole("button", { name: "Back to voice" }).click();
+  await openOverviewItem("Voice");
   await page.getByRole("heading", { name: "Voice verification is not available yet." }).waitFor();
   const pending = page.locator('[aria-labelledby="vx-verification-pending-title"]');
   assert.equal(await pending.getByRole("button", { name: "Test a private draft" }).count(), 1);
@@ -42,13 +47,13 @@ try {
 
   await open("view=enrich&saved=1&text=0");
   assert.equal(await page.evaluate(() => window.privateMeetProbe.hasText), false);
-  await page.getByRole("button", { name: "Files, images, links" }).click();
+  await openOverviewItem("Knowledge");
   await page.getByRole("button", { name: "Back to choices" }).click();
-  await page.getByRole("button", { name: "Back to voice" }).click();
+  await openOverviewItem("Voice");
   const blockedPending = page.locator('[aria-labelledby="vx-verification-pending-title"]');
   assert.equal(await blockedPending.getByRole("button", { name: "Test a private draft" }).count(), 0);
   await blockedPending.getByRole("button", { name: "Back to knowledge" }).click();
-  await page.getByRole("heading", { name: "Add more of you." }).waitFor();
+  await page.getByRole("heading", { name: "Build your AI." }).waitFor();
   console.log("ok 2 - missing text material exposes an honest, usable knowledge exit");
 
   await open("view=enrich&enrichView=humanos&saved=0&text=1");
