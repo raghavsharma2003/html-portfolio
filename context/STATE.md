@@ -1,5 +1,11 @@
 # STATE — read this first, then the graph
 
+## START HERE: BOUNDED RELEASE-BLOCKER CANDIDATE (2026-09-27, later checkpoint)
+
+The user's continuation authorizes repairing the observed release blockers on `codex/multimodal-layer-20260927`, after published head `14914bfcd6ac42cf2f3482c0b8b3dfe9d1205b96`. Keep the original coordinator checkout intact. Release run `36301775017`, Node 24 job `108570649583`, failed two of 24 gates: evaluation and Room doors (2,236 passes/two failures). Other gates, including layout, performance, accessibility and security, passed in that job. APK run `36301775018` failed with the old prerequisites. These results precede the current repairs; no combined candidate is accepted yet.
+
+Current repairs prepare pinned historical Git objects and APK browser/build/font fixtures; strengthen stale worker, memory, Room-door and GPU-observer tests; export the owner's existing GPU authority rows with a 503 on query failure; and pass the compiler's explicit turn clock into relationship rendering and both age labels. The latter fixes a real runtime dependency on the host clock. Local focused validation is complete: CI prerequisites 13, worker 47, config eight, Room doors 2,268, incidents 146 and export 70 checks passed; compiler clock regressions, forced TypeScript and static gates passed. A fresh remote archive fetch passed five selected historical lookups. Full hosted release, actual SQL, media quality and user-journey acceptance remain separate. Draft PR 8 stays blocked on the complete release gate. Read [the current handoff](../docs/gurukul/research/MULTIMODAL-LAYER-HANDOFF-20260927.md) for exact evidence and limitations.
+
 ## START HERE: MULTIMODAL EVIDENCE CONTINUATION (2026-09-27)
 
 This block scopes the current source work; it does not supersede the preserved product's unverified release and owner-quality limits. The user authorized continuing the multimodal layer in the successor repository. Active branch: `codex/multimodal-layer-20260927`; worktree: `C:/Users/raghav.s/Desktop/build/Vyakti-platform-multimodal-20260927`, based on `codex/handoff206` at `20263775f06d471f7d69a09d4b4aa711955ee952`. The original coordinator checkout and its dirty work remain intact.

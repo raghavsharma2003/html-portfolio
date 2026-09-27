@@ -1798,7 +1798,7 @@ ${lines.map((l) => `- ${l}`).join("\n")}` : "";
 }
 function renderRelSnapshot(state, meta = { lastHonorificMoveAt: null }, now = /* @__PURE__ */ new Date()) {
   const lines = [];
-  lines.push(`honorific: ${state.honorific} (${honorificAgeLabel(meta.lastHonorificMoveAt)})`);
+  lines.push(`honorific: ${state.honorific} (${honorificAgeLabel(meta.lastHonorificMoveAt, now)})`);
   lines.push(`trust: ${bandTrust(state.trust)}`);
   const stance = ruptureStance(
     {
@@ -1809,7 +1809,7 @@ function renderRelSnapshot(state, meta = { lastHonorificMoveAt: null }, now = /*
     },
     now
   );
-  const repairLabel = stance === "open" ? `${state.repair_state} (open)` : stance === "settled" ? `${state.repair_state} (settled ${honorificAgeLabel(meta.lastRuptureMoveAt ?? null)}, not currently held)` : state.repair_state;
+  const repairLabel = stance === "open" ? `${state.repair_state} (open)` : stance === "settled" ? `${state.repair_state} (settled ${honorificAgeLabel(meta.lastRuptureMoveAt ?? null, now)}, not currently held)` : state.repair_state;
   lines.push(`repair: ${repairLabel}`);
   const csLabel = state.cs_on_stress === "retreat_l2" ? "retreats toward english under stress" : state.cs_on_stress === "intensify_l1" ? "leans more hindi under stress" : "direction unclear";
   const csBase = state.cs_ratio === null ? "baseline unknown" : `baseline ${bandCsRatio(state.cs_ratio)}`;
@@ -3971,7 +3971,7 @@ function compile(input) {
         lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
         lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
         warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture
-      });
+      }, input.nowMs === void 0 ? void 0 : new Date(input.nowMs));
       if (t2.text) tail += `
 
 ${t2.text}`;

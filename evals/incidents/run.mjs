@@ -15,6 +15,7 @@
 // risk runs the other way too: a fixture pulled in for one field it does
 // not use is a fixture nobody notices drifting for that field).
 import fs from "node:fs";
+import assert from "node:assert/strict";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripComments } from "../lib/source-scan.mjs";
@@ -861,6 +862,7 @@ const INJECTED_PROVIDER_EXCLUSIONS = {
   "_liveness/providers/azure-composite.js": "Owner liveness verification evidence lifecycle, not follower delivery.",
   "_provenance/providers/azure-protection.js": "Protected artifact sealing/provenance lifecycle; not the Room incident provider taxonomy.",
   "_room-memory-consolidation.js": "Opt-in Room memory consolidation via consolidate-sweep.js; checked below for exact caller, lease/budget, bounded Azure transport and sweep-failure observation wiring.",
+  "_replica-processing/gpu-observer.js": "Azure management metadata GETs for private source-processing admission and natural-zero recovery; checked below for exact callers, bounded read-only transport and refusal behavior. It does not send Room replies or claim Room incident coverage.",
   "_replica-processing/providers/azure-fast-transcription.js": "Enrollment processing job transcription lifecycle.",
   "_replica-processing/providers/azure-voice-evidence.js": "Enrollment processing voice-evidence job lifecycle.",
   "_replica-storage.js": "Private storage upload/read/erasure lifecycle; not a Room provider delivery seam.",
@@ -950,6 +952,95 @@ for (const [name, source, changed] of [
 }
 ok('negative control: Room memory inventory refuses missing transport deadline', !roomMemoryContract(roomMemorySweep, roomMemoryWorker, consolidationConfig, consolidationTransport.replaceAll('AbortSignal.timeout(45_000)', 'REMOVED_CONTROL'), sweepRun));
 ok('negative control: Room memory inventory refuses missing heartbeat classification', !roomMemoryContract(roomMemorySweep, roomMemoryWorker, consolidationConfig, consolidationTransport, sweepRun.replace('"errors", "errored", "failed"', 'REMOVED_CONTROL')));
+
+// This is a metadata reader, not a Room delivery transport. Its exclusion
+// depends on actual worker/recovery wiring and bounded read-only behavior,
+// rather than treating every file under the processing directory as exempt.
+{
+  const readSource = path => scanned(fs.readFileSync(join(REPO, path), "utf8"));
+  const observerSource = readSource("api/_replica-processing/gpu-observer.js");
+  const canarySource = readSource("api/_replica-processing/canary-observer.js");
+  const workerSource = readSource("services/replica-processing-worker/run-once.js");
+  const recoverySource = readSource("scripts/azure-processing-gpu-observe.mjs");
+  const contract = (observer, canary, worker, recovery) =>
+    canary.includes("createProcessingGpuObserver({env,clock})")
+    && worker.includes("observe:createProcessingAdmissionObserver()")
+    && recovery.includes("createProcessingGpuObserver({env})")
+    && recovery.includes("releaseNaturallyIdleProcessingGpu({db:query,plan,observation})")
+    && recovery.includes("AZURE_PROCESSING_GPU_OBSERVER_ENABLED!=='1'")
+    && recovery.includes("console.error('processing_gpu_observation_unknown')")
+    && recovery.includes("process.exitCode=1")
+    && observer.includes("method:'GET'") && observer.includes("redirect:'error'")
+    && observer.includes("AbortSignal.timeout(15000)") && observer.includes("n>1048576");
+  ok("GPU observer inventory follows real processing/recovery callers and bounded metadata transport",
+    contract(observerSource, canarySource, workerSource, recoverySource));
+  for (const [name, index, needle] of [
+    ["worker admission observer", 2, "observe:createProcessingAdmissionObserver()"],
+    ["ordinary observer", 1, "createProcessingGpuObserver({env,clock})"],
+    ["recovery observer", 3, "createProcessingGpuObserver({env})"],
+    ["failure reporting", 3, "process.exitCode=1"],
+    ["metadata deadline", 0, "AbortSignal.timeout(15000)"],
+    ["metadata size limit", 0, "n>1048576"],
+  ]) {
+    const sources = [observerSource, canarySource, workerSource, recoverySource];
+    sources[index] = sources[index].replaceAll(needle, "REMOVED_CONTROL");
+    ok(`negative control: GPU observer inventory refuses missing ${name}`, !contract(...sources));
+  }
+
+  const { createProcessingGpuObserver } = await import(pathToFileURL(join(REPO, "api/_replica-processing/gpu-observer.js")).href);
+  const { canonicalJson, sha256Hex } = await import(pathToFileURL(join(REPO, "api/_provenance/contracts.js")).href);
+  const resource = "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/containerapps/vyakti-voice-evidence";
+  const revision = "vyakti-voice-evidence--incident-fixture";
+  const imageHash = "a".repeat(64);
+  const configuration = { ingress: { external: false } };
+  const template = { containers: [{ image: `fixture.azurecr.io/evidence@sha256:${imageHash}` }], scale: { minReplicas: 0, maxReplicas: 1 } };
+  const hash = value => sha256Hex(canonicalJson(value));
+  const plan = { resource_id: resource, image_sha256: imageHash, revision_sha256: hash({ configuration, template }), active_revision_name: revision, active_revision_template_sha256: hash(template) };
+  const urls = [resource, `${resource}/revisions`, `${resource}/revisions/${revision}/replicas`]
+    .map(path => `https://management.azure.com${path}?api-version=2025-07-01`);
+  function fixture(mode = "idle") {
+    const calls = [];
+    const observe = createProcessingGpuObserver({
+      env: {}, getToken: async () => "synthetic-never-valid", clock: () => 12345,
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init });
+        assert.ok(urls.includes(url), "no endpoint outside the exact metadata resource");
+        assert.equal(init.method, "GET");
+        assert.equal(init.redirect, "error");
+        assert.equal(init.body, undefined);
+        assert.ok(init.signal instanceof AbortSignal);
+        if (mode === "transport_failure") throw new Error("synthetic metadata unavailable");
+        if (mode === "status_failure") return new Response("unavailable", { status: 503 });
+        if (mode === "oversized") return new Response("x".repeat(1048577));
+        if (url === urls[0]) return Response.json({ id: resource, properties: { configuration, template: mode === "drift" ? { ...template, scale: { minReplicas: 1 } } : template } });
+        if (url === urls[1]) return Response.json({
+          value: [{ id: `${resource}/revisions/${revision}`, name: revision, properties: { active: true, template } }],
+          ...(mode === "paged" ? { nextLink: "https://foreign.invalid/metadata" } : {}),
+        });
+        return Response.json({ value: mode === "busy" ? [{ id: `${resource}/revisions/${revision}/replicas/one` }] : [] });
+      },
+    });
+    return { observe, calls };
+  }
+  const idle = fixture();
+  const result = await idle.observe(plan);
+  ok("GPU observer performs only three exact management GETs and returns content-free natural-zero evidence",
+    JSON.stringify(idle.calls.map(call => call.url)) === JSON.stringify(urls)
+    && result.observed_at_ms === 12345 && result.revisions.length === 1
+    && result.revisions[0].replicas === 0 && !JSON.stringify(result).includes("synthetic-never-valid"));
+  const busy = await fixture("busy").observe(plan);
+  ok("GPU observer reports an occupied replica instead of treating it as natural zero", busy.revisions[0].replicas === 1);
+  const foreign = fixture();
+  await assert.rejects(foreign.observe({ ...plan, resource_id: `${resource}-foreign` }), { code: "processing_gpu_metadata_unverified" });
+  ok("GPU observer refuses a foreign resource before making any metadata request", foreign.calls.length === 0);
+  for (const mode of ["drift", "paged", "oversized", "status_failure"]) {
+    const test = fixture(mode);
+    await assert.rejects(test.observe(plan), { code: "processing_gpu_metadata_unverified" });
+    ok(`GPU observer fails closed on ${mode} metadata`, true);
+  }
+  await assert.rejects(fixture("transport_failure").observe(plan), /synthetic metadata unavailable/);
+  ok("GPU observer propagates transport failure instead of inventing release evidence", true);
+}
 
 const PROVIDER_EXCLUDED = [
   "_azure.js", "_channel-secrets.js", "_db.js", "_embed.js", "_gcache.js", "_push.js", "_room-embed.js",

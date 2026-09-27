@@ -93,6 +93,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # Existing regression controls read original Git objects preserved by
+      # this archive. Depth 2 includes its direct parents without merging it.
+      - name: Fetch pinned historical regression controls
+        run: git fetch --no-tags --depth=2 origin 7a8ad90dd63fd30ea5a1a64bde4cf8dc016b3fb4:refs/remotes/origin/codex/handoff-history-20260909
 
       - uses: actions/setup-node@v4
         with:
@@ -179,9 +183,20 @@ jobs:
       # is set, which this job never does; see the header above). This is
       # the ONE command whose exit code this job's own status is allowed to
       # depend on for its central claim ("CI ran the whole gate"): every
-      # step before this one is setup, and every step after it (none) would
-      # be reporting, never gating.
+      # step before this one is setup, and every step after it is
+      # reporting, never gating.
       - run: node scripts/verify-release.mjs
+
+      # The console prints only the tail of each failed gate. Preserve the
+      # complete sanitized output written by safeGateOutput for diagnosis.
+      - name: Upload sanitized release failure logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-failure-logs-node-${{ matrix.node-version }}
+          path: scratchpad/release-logs/
+          retention-days: 7
+          if-no-files-found: warn
 
   # WS-R122. THE HINDI WALKS, on a schedule nobody has to remember. Both
   # rehearsals (`evals/rehearsal/creator.mjs`, `follower.mjs`) are already

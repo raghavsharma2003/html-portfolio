@@ -319,6 +319,15 @@ function seedWorld() {
       { card_id: "rc-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, prompt_text: "q" },
       { card_id: "rc-b", replica_id: REPLICA_B, owner_user_id: OWNER_B, prompt_text: "q" },
     ],
+    vy_processing_gpu_authority: [
+      { window_id: "gpu-a", source_id: "s-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, revision: 1, source_sha256: "a".repeat(64) },
+      { window_id: "gpu-b", source_id: "s-b", replica_id: REPLICA_B, owner_user_id: OWNER_B, revision: 2, source_sha256: "b".repeat(64) },
+    ],
+    // These survive source erasure to retain outstanding infrastructure debt;
+    // sharing a window with an owner must not make them owner export data.
+    vy_processing_gpu_lifecycle: [{ window_id: "gpu-a", resource_id: "PRIVATE_GPU_INFRASTRUCTURE", observation: { marker: "PRIVATE_GPU_OBSERVATION" } }],
+    vy_processing_gpu_child: [{ window_id: "gpu-a", job_sha256: "c".repeat(64), state: "claimed" }],
+    vy_gpu_allocation_window: [{ window_id: "gpu-a", state: "in_flight", reserved_microusd: 123 }],
     // ── owner scope ──
     vy_text_publication: [
       { publication_id:'publication-a',replica_id:REPLICA_A,owner_user_id:OWNER_A,state:'active',projection:{name:'Owner A'},receipt:{marker:'own-publication-consent'} },
@@ -396,6 +405,50 @@ ok("storage pointers are derived from vy_replica_source and carry a size, never 
   dump.storage[0].byte_size === 4096 && !("body" in dump.storage[0]));
 
 const dumpJson = JSON.stringify(dump);
+{
+  const table = "vy_processing_gpu_authority";
+  ok("GPU authority export returns the owner's exact source binding and digest",
+    JSON.stringify(dump.tables[table]) === JSON.stringify(world[table].slice(0, 1)));
+  ok("GPU authority manifest reports its actual owner row count",
+    dump.manifest.find(m => m.table === table)?.rows === 1);
+  ok("GPU authority export does not include shared lifecycle, children, monetary holds or observations",
+    ["vy_processing_gpu_lifecycle", "vy_processing_gpu_child", "vy_gpu_allocation_window"].every(t => !manifestSet.has(t) && !(t in dump.tables))
+    && !dumpJson.includes("PRIVATE_GPU_INFRASTRUCTURE") && !dumpJson.includes("PRIVATE_GPU_OBSERVATION"));
+  ok("GPU authority is an exported owner table, never a deliberate coverage gap",
+    expected.has(table) && manifestSet.has(table) && !OWNER_LANE_DELIBERATE_GAPS.includes(table));
+  ok("GPU authority DDL contains only the six source-binding columns, no tokens or observations",
+    JSON.stringify(Object.keys(schema[table]).sort()) === JSON.stringify([
+      "owner_user_id", "replica_id", "revision", "source_id", "source_sha256", "window_id",
+    ]));
+  const entry = OWNER_LANE_TABLES.find(t => t.table === table);
+  const query = scopedQuery(entry, { replicaIds: [REPLICA_A, REPLICA_B], ownerUserId: OWNER_A });
+  const rows = await db(query.sql, query.params);
+  ok("GPU authority requires the authenticated owner even with a foreign replica in the supplied set",
+    rows.length === 1 && rows[0].window_id === "gpu-a");
+  const wrongReplica = scopedQuery(entry, { replicaIds: [REPLICA_B], ownerUserId: OWNER_A });
+  ok("GPU authority rejects a replica owned by someone else",
+    (await db(wrongReplica.sql, wrongReplica.params)).length === 0);
+  const mutant = query.sql.replace(" and owner_user_id = $2::uuid", "");
+  ok("negative control: removing GPU authority's owner predicate exposes the foreign binding",
+    (await db(mutant, query.params)).some(row => row.window_id === "gpu-b"));
+  const other = await creatorExport(db, OWNER_B, { tableApplied: async () => true });
+  ok("the other owner gets only their own GPU authority row",
+    JSON.stringify(other.tables[table]) === JSON.stringify(world[table].slice(1)));
+  await assert.rejects(creatorExport(async (sql, params) => {
+    if (sql.includes(`from ${table} `)) throw new Error("synthetic GPU authority query failure");
+    return db(sql, params);
+  }, OWNER_A, { tableApplied: async () => true }), { code: "creator_export_processing_gpu_authority_unavailable", status: 503 });
+  ok("GPU authority SQL failure cannot become a successful empty export", true);
+  const unapplied = await creatorExport(db, OWNER_A, { tableApplied: async name => name !== table });
+  ok("an unapplied GPU authority migration is absent from both tables and manifest",
+    !(table in unapplied.tables) && !unapplied.manifest.some(m => m.table === table));
+  const migration = readFileSync(join(REPO, "db/migrations/161_processing_gpu_authority.sql"), "utf8");
+  ok("GPU source authority retains source and replica deletion cascades",
+    /foreign key\(source_id,replica_id,owner_user_id\) references vy_replica_source\(source_id,replica_id,owner_user_id\) on delete cascade/.test(migration)
+    && /foreign key\(replica_id,owner_user_id\) references vy_replica\(replica_id,owner_user_id\) on delete cascade/.test(migration));
+  ok("full erasure still deletes GPU authority by both replica and owner",
+    /delete from vy_processing_gpu_authority x using target t where x\.replica_id=t\.replica_id and x\.owner_user_id=t\.owner_user_id/.test(erasureSrc));
+}
 ok('owner export includes exact own active and revoked publication records',
   JSON.stringify(dump.tables.vy_text_publication) === JSON.stringify(world.vy_text_publication.slice(0,2)));
 ok('publication export excludes foreign owner and visitor admission/request records',

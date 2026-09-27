@@ -196,6 +196,9 @@ export const OWNER_LANE_TABLES = Object.freeze([
   // ── operational history ─────────────────────────────────────────────────
   { table: "vy_replica_activity", scope: "replica" },
   { table: "vy_replica_audit", scope: "replica" },
+  // Owner/source authority only; shared GPU lifecycle and monetary holds are
+  // infrastructure records and are not joined into this owner's export.
+  { table: "vy_processing_gpu_authority", scope: "replica" },
   { table: "vy_replica_readiness", scope: "replica" },
   // 127 (WS-R101). The recall run's own scored history, readiness's own
   // precedent immediately above restated one instrument over.
@@ -417,6 +420,11 @@ export async function creatorExport(db, ownerUserId, options = {}) {
     if (!(await isApplied(entry.table))) continue;
     const { sql, params } = scopedQuery(entry, ctx);
     let rows = await db(sql, params).catch(() => {
+      if (entry.table === "vy_processing_gpu_authority") {
+        throw Object.assign(new Error("creator_export_processing_gpu_authority_unavailable"), {
+          code: "creator_export_processing_gpu_authority_unavailable", status: 503,
+        });
+      }
       if (entry.table === "vy_replica_comparison_preparation" || entry.table === "vy_replica_comparison_dispatch") {
         throw Object.assign(new Error("creator_export_comparison_preparation_unavailable"), {code:"creator_export_comparison_preparation_unavailable",status:503});
       }

@@ -17982,6 +17982,42 @@
       "kind": "rejection",
       "title": "Focused passes and two baseline reproductions do not establish release acceptance",
       "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-bounded-prerequisites-and-fixtures",
+      "kind": "decision",
+      "title": "Repair observed release prerequisites and stale controls with retained authority",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-owner-gpu-export",
+      "kind": "decision",
+      "title": "Export owned GPU source authority and refuse an incomplete query result",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-explicit-turn-clock",
+      "kind": "decision",
+      "title": "Use one explicit turn clock for relationship stance and age labels",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-blocker-repair-evidence",
+      "kind": "measurement",
+      "title": "Bounded release repair focused evidence and retained failed hosted receipts",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-stale-fixtures-not-product-regressions",
+      "kind": "rejection",
+      "title": "Do not mistake obsolete exact calls and superseded SQL pins for current regressions",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-host-clock-and-silent-export",
+      "kind": "rejection",
+      "title": "Host-time replay drift and silently incomplete owner exports are real defects",
+      "at": "2026-09-27"
     }
   ],
   "edges": [
@@ -30457,6 +30493,36 @@
       "src": "multimodal20260927-existing-compiler",
       "rel": "caused_by",
       "dst": "multimodal20260927-no-green-ci-inference"
+    },
+    {
+      "src": "release20260927-bounded-prerequisites-and-fixtures",
+      "rel": "measured_by",
+      "dst": "release20260927-blocker-repair-evidence"
+    },
+    {
+      "src": "release20260927-bounded-prerequisites-and-fixtures",
+      "rel": "caused_by",
+      "dst": "release20260927-stale-fixtures-not-product-regressions"
+    },
+    {
+      "src": "release20260927-owner-gpu-export",
+      "rel": "measured_by",
+      "dst": "release20260927-blocker-repair-evidence"
+    },
+    {
+      "src": "release20260927-owner-gpu-export",
+      "rel": "caused_by",
+      "dst": "release20260927-host-clock-and-silent-export"
+    },
+    {
+      "src": "release20260927-explicit-turn-clock",
+      "rel": "measured_by",
+      "dst": "release20260927-blocker-repair-evidence"
+    },
+    {
+      "src": "release20260927-explicit-turn-clock",
+      "rel": "caused_by",
+      "dst": "release20260927-host-clock-and-silent-export"
     }
   ]
 }

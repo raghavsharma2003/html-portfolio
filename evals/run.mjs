@@ -298,6 +298,7 @@ const suites = {
   experiencecompiler: "experience-compiler/run.mjs",
   multimodalclaimevidence: "multimodal-claim-evidence/run.mjs",
   researchcycle: "research-cycle/run.mjs",
+  ciprerequisites: "ci-prerequisites/run.mjs",
   contextcanonical: "context-canonical-evidence/run.mjs",
   acceptedclaimrelational: "experience-compiler/relational-materializer.mjs",
   mirrorrelationalrecall: "mirrorcall-relational-recall/run.mjs",
