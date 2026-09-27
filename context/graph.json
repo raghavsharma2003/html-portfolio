@@ -17970,6 +17970,18 @@
       "kind": "rejection",
       "title": "No parallel runtime, blind context import or schema-triggered replay",
       "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-publication-ci",
+      "kind": "measurement",
+      "title": "Published draft has focused hosted passes and unresolved full CI failures",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-no-green-ci-inference",
+      "kind": "rejection",
+      "title": "Focused passes and two baseline reproductions do not establish release acceptance",
+      "at": "2026-09-27"
     }
   ],
   "edges": [
@@ -30435,6 +30447,16 @@
       "src": "multimodal20260927-bounded-research-cycle",
       "rel": "measured_by",
       "dst": "multimodal20260927-focused-evidence"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "measured_by",
+      "dst": "multimodal20260927-publication-ci"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "caused_by",
+      "dst": "multimodal20260927-no-green-ci-inference"
     }
   ]
 }

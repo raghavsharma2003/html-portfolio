@@ -31,7 +31,17 @@ Both new suites also passed through the actual `evals/run.mjs` registry. Forced 
 
 Root reproduced a sparse two-slot array with only index one present passing validation, then added an own-index guard and sparse/inherited-index regressions. Initial copy checking lacked TypeScript in the isolated worktree; the unchanged handoff passed. A private `npm ci --ignore-scripts --no-audit --no-fund` installed 160 packages without changing the lockfile, after which current copy checking passed. These observed failures and fixes remain in the context log.
 
-Full release/browser gates were not run. No actual PostgreSQL statement, perception provider, paid call, local server or deployment was executed. Existing SQL predicates and ordering are unchanged; only four selected metadata columns were added. Offline fixtures establish shape and caller behavior, not SQL semantics, owner usefulness, visual interpretation or voice likeness. A remote dry-run confirmed `origin/codex/multimodal-layer-20260927` is writable; it is not an actual push. Hosted CI may add evidence after a push, but no such result is claimed here.
+Full release/browser gates were not run locally. No actual PostgreSQL statement, perception provider, paid call, local server or deployment was executed in this wave. Existing SQL predicates and ordering are unchanged; only four selected metadata columns were added. Offline fixtures establish shape and caller behavior, not SQL semantics, owner usefulness, visual interpretation or voice likeness.
+
+## Publication and hosted CI checkpoint
+
+Commit `ba3169cb6e8ecd112d81f76cd686a06641a0932b` was actually pushed to `origin/codex/multimodal-layer-20260927` and verified with `ls-remote`, superseding the earlier dry-run-only status. [Draft PR 8](https://github.com/raghavsharma2003/html-portfolio/pull/8) targets `codex/handoff206`.
+
+APK [run 36301230958](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36301230958), job `108569122606`, failed its eval step with 55 failed suites. The hosted log explicitly passes both new suites plus context grounding, canonical-context evidence and replica claim extraction. It also shows widespread missing Chromium, built-fixture and historical Git-object prerequisites. Five relevant suite passes do not make the failed run green.
+
+Root reproduced two exact failures on untouched handoff `20263775` using the network-blocked preload: consolidation config's `ROOM_MEMORY_COMMIT_SQL` hash mismatch and processing-worker's line-342 eight-stage-to-VoiceGenome assertion. Those source/eval files are unchanged by this PR. Only these two have the stated baseline reproduction; the remaining 53 have not each been classified. Release-gate [run 36301230948](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36301230948) remained in progress on Node 22/24 at this checkpoint. No final result is inferred.
+
+The PR remains draft and blocked on full-release acceptance. No workflow patch or broad inherited-source repair was included. The context log retains the actual failed run and bounded baseline evidence for the next review.
 
 ## Handoff boundary
 
