@@ -20853,6 +20853,24 @@
       "kind": "rejection",
       "title": "Do not treat a testing intention as product acceptance",
       "at": "2026-09-21"
+    },
+    {
+      "id": "pilot-resume-20260927",
+      "kind": "decision",
+      "title": "Resume existing private pilot without speculative expansion",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "pilot-health-20260927",
+      "kind": "measurement",
+      "title": "Seven focused live health checks passed",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "broad-probe-resume-20260927",
+      "kind": "rejection",
+      "title": "Do not turn an overlong health recheck into a completion claim",
+      "at": "2026-09-27"
     }
   ],
   "edges": [

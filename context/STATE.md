@@ -1,5 +1,22 @@
 # STATE — read this first, then the graph
 
+## START HERE: SEPTEMBER 27 RESUMPTION; PHONE TEST STILL PENDING
+
+Resumed clean integration checkout at6d7d9bcd, preserving original dirty tree.
+Owner confirms they have NOT tested the September21 preview. Keep fast-wrap
+scope: fix concrete pilot blockers, no feature expansion or automatic voice
+WIP merge. Existing protected exjrjsy9f preview remains READY and serves the
+accepted4461b361 product fingerprint. Focused live read-only check n7 passed:
+two Studio entries/CSP, release marker, four core API bearer boundaries.
+These are NOT a signed-in account, provider response or voice-quality test.
+Three API boundary responses took7.25,8.03,8.83 seconds in this single sample;
+no cause attributed. Broad60-surface rerun was stopped after prolonged wait,
+not counted as passing; Sept21 full probe evidence remains historical only.
+No deployment, migration, cloud write, GPU activation or paid model call.
+Owner phone sign-in -> knowledge -> profile -> private text remains pending.
+No personal Microsoft browser access. Details appended to Sept21 WRAP-UP.
+
+
 ## START HERE: REPAIRED PRIVATE PREVIEW LIVE (2026-09-21)
 
 Owner prioritizes fast wrap-up and low token waste. Stop feature expansion.

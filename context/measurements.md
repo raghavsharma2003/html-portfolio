@@ -19132,3 +19132,8 @@ Focused correction checks on2026-09-21: verification-knowledge14 mounted checks;
 ## owner-phone-test-status-20260921
 
 2026-09-21, n=1 explicit owner response: I will test it myself on my phone. Method: conversation reply. This records a testing preference, not a completed test. No new browser, model, voice or deployment measurement was run during this context-only update.
+
+
+## pilot-health-20260927
+
+2026-09-27: current checkout6d7d9bcd clean; graph3458 nodes/2909 edges before logging. Vercel dpl_H8iEKeWY4HFWeGSshczwLwHS5K9y READY, private protection retained. n7 read-only requests: Studio and studio.html200 with exact CSP, release marker200 matches7b8159561fcaa140201d7fad4f0b23249da7ac75b8029b63ac303278623b3705; replica/context-items/teacher-sheet/replica-text-rehearsal each401. Measured request seconds0.09,0.09,0.09,0.31,7.25,8.03,8.83, one sample each, no latency cause inferred. Receipt scratchpad/expert-tools/RESUME-20260927-HEALTH.json in original checkout. No provider calls/cloud writes. Owner explicitly says phone preview not tested.

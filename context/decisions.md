@@ -25534,3 +25534,8 @@ Deploy accepted4461b361 as protected Preview after exact-head25/25 on Node22 and
 ## owner-phone-test-20260921
 
 The owner explicitly chose independent phone testing. Await their feedback and address concrete blockers; keep feature expansion frozen. Do not repeat the desktop sign-in request. Reverse if the owner requests agent-driven testing or resumes implementation.
+
+
+## pilot-resume-20260927
+
+Resumption request and owner confirmation of no phone test keep the low-token private-pilot scope. Check current live deployment and await concrete real-account feedback; do not revive unfinished voice migration171 or expired retained-owner diagnostics. Reverse if the owner explicitly resumes feature/voice development or a reproducible blocker requires code changes.

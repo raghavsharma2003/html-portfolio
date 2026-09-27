@@ -19293,3 +19293,8 @@ The new preview renders email/Google sign-in, but no user session is available i
 ## phone-test-choice-not-acceptance-20260921
 
 The owner choosing phone testing does not demonstrate successful sign-in, upload, conversation or cloned voice. Preserve the prior deployment evidence separately from outstanding real-user journey evidence; do not mark the whole product complete.
+
+
+## broad-probe-resume-20260927
+
+The reused broad protected probe produced no report during the resumption assessment and was stopped by verified owned process IDs. Its result is incomplete, not passing and not evidence of a product outage. Replaced this assessment with seven bounded read-only checks using the existing authorized automation access. Do not rerun the entire release or redesign the product solely because the broad probe was slow.

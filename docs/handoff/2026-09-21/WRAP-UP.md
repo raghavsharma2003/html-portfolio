@@ -48,3 +48,16 @@ on sign-in, knowledge, profile and private text conversation. No desktop login,
 new credential or Microsoft login is requested. Do not count that choice as
 evidence of a successful real-account journey. Next work should address actual
 reported blockers while preserving the fast-wrap, low-token scope.
+
+
+## September27 resumption
+
+Owner confirmed the phone preview has not been tested. Checkout6d7d9bcd was
+clean. The same protected deployment remains READY. Seven focused live checks
+passed (two Studio pages/CSP, release marker, four core API auth boundaries).
+Three APIs took7-9s for one unauthenticated request each; cause is unconfirmed.
+The broad probe was stopped after prolonged waiting, not counted as passed.
+No application change, deployment, database migration, GPU or provider call.
+Continue from owner-reported pilot blockers; do not infer a successful account
+journey or revive voice WIP automatically. Local safe receipt:
+C:/Users/raghav.s/Desktop/build/Vyakti-platform/scratchpad/expert-tools/RESUME-20260927-HEALTH.json.
