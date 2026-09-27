@@ -73,7 +73,7 @@ ok("actual CloneExperience JSX passes exact lifecycle without weakening its exis
       accessToken: "synthetic-token", runtimeStatus: null, onAuthError: () => {}, chooseRoom: () => {} };
     runInNewContext(callerJs, state);
     assert.equal(state.result.replicaId, RID); assert.equal(state.result.lifecycle, lifecycle);
-    assert.equal(state.result.stopped, lifecycle !== "active" && lifecycle !== "ready");
+    assert.equal(state.result.stopped, ["paused", "revoked", "purging"].includes(lifecycle));
   }
 });
 console.log(`${checks} navigation/dispatch checks passed; no browser or network calls.`);

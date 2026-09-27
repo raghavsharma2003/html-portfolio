@@ -19328,3 +19328,6 @@ The initial rebuilt auth card inherited backdrop-filter:blur(18px) from studio.c
 
 
 Production CSS exposed a second auth visibility issue: placing -webkit-backdrop-filter:none after the standard declaration made the optimizer retain only the prefixed reset, leaving the older standard blur active in Chromium. A built-page computed-style read confirmed blur(18px), while Vite source showed none. Keep only the standard reset in source (the build emits both correctly) and a scoped .auth-page .auth-card override. Hindi visibility is observed after the fix, but local throttled timing still exceeded budgets on this laptop; only a new quiet CI run can accept the release. No timing budget was weakened.
+
+
+The Vercel environment-list endpoint did not return plaintext values even with decrypt=true. The initial canary preparation stopped before creating its single-use intent or any model call. Retrieve only the exact per-variable endpoints when authorized; never interpret a nonempty encrypted value as a usable configuration. After targeted retrieval, the single synthetic Azure call passed. The canary intent is consumed and must not be replayed.

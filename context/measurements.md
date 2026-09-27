@@ -19164,3 +19164,8 @@ Primary reruns: personal compiler/store/client7groups plus foreign-owner refusal
 
 
 Later September27 checks: private runtime47/47 including scoped discovery without extra synthesis; privatevoice UI9/9 including a fresh-browser resume with zero POST; first-use18, sharing18, refresh12, personal64, person-room20, first-five-minutes10, capture20 mounted states all passed. An accidental --help invocation of check-performance ran against the prior dist and is NOT a current-source measurement; its old filter failure and local timing must not be reported as new acceptance. The script supports --target, not --help.
+
+
+## azure-text-canary-20260927
+
+One actual Azure text adapter call with synthetic notes only passed at2026-09-27T07:56:57Z. Response model gpt-5.6-terra-2026-07-09,191 input tokens49 output tokens,3218ms from dispatch through metering settlement. Correct structured factual answer, no user data, no GPU. Existing vyakti-pilot-20260914 budget/1USD cap used unchanged; no budget reset. Receipt REBUILD27-TEXT-CANARY.json in ignored expert-tools. This proves adapter reachability/schema/usage settlement, not creator journey, memory quality or voice likeness.

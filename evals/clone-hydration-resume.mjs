@@ -37,7 +37,7 @@ function harness(code, search, initialReplica = null) {
   const context = createContext({
     window: { location: { search } }, URLSearchParams,
     selected: initialReplica ? { replica_id: initialReplica } : null,
-    activeReplicaRef: { current: initialReplica }, retryRef: { current: null },
+    activeReplicaRef: { current: initialReplica }, privateCaptureRequested: { current: false }, retryRef: { current: null },
     uploadAttemptRef: { current: 0 }, uploadLockedRef: { current: false },
     URL: { revokeObjectURL: value => revoked.push(value) },
     readVoiceSaga: replicaId => ({ replicaId }),

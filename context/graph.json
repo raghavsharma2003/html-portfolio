@@ -20943,6 +20943,12 @@
       "kind": "rejection",
       "title": "Teaching-only projection and duplicate/public upload dispatch",
       "at": "2026-09-27"
+    },
+    {
+      "id": "azure-text-canary-20260927",
+      "kind": "measurement",
+      "title": "One metered synthetic Azure text call succeeds",
+      "at": "2026-09-27"
     }
   ],
   "edges": [
