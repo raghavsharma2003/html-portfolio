@@ -23,3 +23,11 @@ gate does not establish a successful live user journey or competitive quality.
 
 Current measured implementation and remaining proof live in context/STATE.md
 and docs/handoff/2026-09-14/PRODUCT-STATUS.md. Do not infer delivery from this brief.
+
+
+September27 owner directive: replace the whole interface and close the full
+creator journey, including personality, relationship memory and emotional
+response controls. The latest request supersedes the private-text-only freeze.
+Quality leadership is an evaluation objective, not an established result.
+Platform: responsive web, packaged in Capacitor for mobile; this redesign is
+the web interface, not a native Android rewrite.

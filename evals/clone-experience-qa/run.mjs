@@ -24,11 +24,10 @@ ok("knowledge can open independently while voice workspace authority stays exact
   && /textWorkspaceOpen = knowledgeOpen \|\| textShareOpen \|\| textReviewOpen/.test(experience)
   && /showRooms = voiceWorkspaceReady \|\| textWorkspaceOpen/.test(experience)
   && /firstMeetSurface\(\{ voiceWorkspaceReady, textReady/.test(experience)
-  // WS-R161 (wave twenty-two): RoomNav's own gate widened, on purpose, to
-  // ALSO open on `textReady` (an approved person sheet, Meet opens with no
-  // voice recorded) -- `voiceWorkspaceReady` remains the exact first
-  // operand, with the active runtime requirement asserted above.
-  && /\(voiceWorkspaceReady \|\| textReady\) && <RoomNav/.test(experience)
+  // Navigation is now available during preparation. Runtime eligibility
+  // remains guarded above; opening a section does not grant voice authority.
+  && /workbenchVisible = Boolean\(selected && consentActive && !needsAgreement/.test(experience)
+  && /<WorkspaceNavigation/.test(experience)
   && /captureState === "idle" && !sample && onKnowledge/.test(experience));
 ok("the replacement candidate resolves only by its exact source or upload intent",
   /source\.source_id === voiceSaga\.sourceId \|\| source\.upload_intent_id === voiceSaga\.uploadIntentId/.test(experience));

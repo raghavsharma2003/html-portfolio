@@ -3,13 +3,15 @@ import "./voice-field.css";
 import "./clone-verification-journey.css";
 import "./ListeningTest.css";
 import "./emotionos-studio.css";
+import "./workbench.css";
+import { WorkspaceNavigation, WorkspaceOverview, type WorkspaceDestination } from "./StudioWorkbench";
 import { firstMeetSurface, initialMeetView } from "./workspaceNavigation";
 import { readVoiceLikeness } from "./calibrationApi";
 import { ReplicaApiError } from "./replicaApi";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ActivityPanel from "./ActivityPanel";
-import ContextLockerPanel from "./ContextLockerPanel";
+import ContextLockerPanel, { isTeachableContextSource } from "./ContextLockerPanel";
 import type { PrivateTextReturnDraft } from "./PrivateTextRehearsal";
 import { isPrivateTextId } from "./privateTextRehearsalApi";
 import VideoEnrollPanel from "./VideoEnrollPanel";
@@ -60,6 +62,7 @@ const PrivateTextRehearsal = lazy(() => import("./PrivateTextRehearsal"));
 const HumanOsStudio = lazy(() => import("./HumanOsStudio"));
 const ListeningTest = lazy(() => import("./ListeningTest"));
 const InternalVoicePanel = lazy(() => import("./InternalVoicePanel"));
+const PrivateVoiceTest = lazy(() => import("./PrivateVoiceTest"));
 const SourcesStudio = lazy(() => import("./SourcesStudio"));
 
 type ListeningLoadState = "idle" | "loading" | "ready" | "unavailable" | "error";
@@ -75,6 +78,7 @@ export type VoiceReissueSnapshot = { replica: Replica; sources: ReplicaSource[];
 const SELECTION_REISSUE_CODES = new Set(["primary_selection_snapshot_missing", "primary_voice_selection_changed"]);
 
 type VoiceCreationSaga = {
+  privateSample?: true;
   uploadIntentId: string;
   buildIntentId: string;
   sourceId: string | null;
@@ -97,7 +101,7 @@ function readVoiceSaga(replicaId: string | null): VoiceCreationSaga | null {
     const parsed = JSON.parse(window.localStorage.getItem(voiceSagaKey(replicaId)) || "null") as Partial<VoiceCreationSaga> | null;
     if (!parsed || !/^[0-9a-f-]{36}$/iu.test(parsed.uploadIntentId || "") || !/^[0-9a-f-]{36}$/iu.test(parsed.buildIntentId || "")) return null;
     if (!parsed.language || !(parsed.language in LANGUAGE_HINT)) return null;
-    return { uploadIntentId: parsed.uploadIntentId!, buildIntentId: parsed.buildIntentId!, sourceId: parsed.sourceId || null, language: parsed.language };
+    return { uploadIntentId: parsed.uploadIntentId!, buildIntentId: parsed.buildIntentId!, sourceId: parsed.sourceId || null, language: parsed.language, ...(parsed.privateSample === true ? { privateSample: true as const } : {}) };
   } catch {
     return null;
   }
@@ -211,12 +215,15 @@ function Icon({ name }: { name: "menu" | "voice" | "add" | "spark" | "call" | "c
   );
 }
 
-function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: boolean; onKnowledge?: () => void; onProceed: (sample: VoiceSample, language: EnrollmentLanguage) => void }) {
+function ResonanceRecorder({ disabled, onProceed, onKnowledge, onBusyChange }: { onBusyChange?: (busy: boolean) => void; disabled?: boolean; onKnowledge?: () => void; onProceed: (sample: VoiceSample, language: EnrollmentLanguage) => void }) {
   const { t } = useStudioLocale();
   const copy = t.cloneExperienceShell.capture;
   const reduceMotion = useReducedMotion();
   const [captureState, setCaptureState] = useState<CaptureState>("idle");
   const [sample, setSample] = useState<VoiceSample | null>(null);
+  const captureBusyCallback = useRef(onBusyChange); captureBusyCallback.current = onBusyChange;
+  useEffect(() => { captureBusyCallback.current?.(captureState !== "idle" || Boolean(sample)); }, [captureState, sample]);
+  useEffect(() => () => captureBusyCallback.current?.(false), []);
   const [language, setLanguage] = useState<EnrollmentLanguage>("hinglish");
   const [fileOwnershipConfirmed, setFileOwnershipConfirmed] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -583,27 +590,6 @@ function Agreement({ busy, error, onContinue }: { busy: boolean; error: string; 
   );
 }
 
-function RoomNav({ room, onChange }: { room: MainRoom; onChange: (room: MainRoom) => void }) {
-  const { t } = useStudioLocale();
-  const copy = t.cloneExperienceShell.roomNav;
-  const rooms: Array<{ id: MainRoom; label: string; icon: "voice" | "add" | "spark" | "call" }> = [
-    { id: "voice", label: copy.meet, icon: "voice" },
-    { id: "enrich", label: copy.knowledge, icon: "add" },
-    { id: "evolve", label: copy.review, icon: "spark" },
-    { id: "call", label: copy.call, icon: "call" },
-    { id: "share", label: copy.share, icon: "add" },
-  ];
-  return (
-    <nav className="vx-room-nav" aria-label={copy.ariaLabel}>
-      {rooms.map((item) => (
-        <button key={item.id} type="button" className={room === item.id ? "is-active" : ""} aria-current={room === item.id ? "page" : undefined} onClick={() => onChange(item.id)}>
-          <Icon name={item.icon} /><span>{item.label}</span>
-        </button>
-      ))}
-    </nav>
-  );
-}
-
 function DescribeMe({ token, replicaId, onAuthError, onSaved }: { token: string; replicaId: string; onAuthError: (cause: unknown) => void; onSaved: (count: number) => void }) {
   const { t } = useStudioLocale();
   const copy = t.cloneExperienceShell.describeMe;
@@ -809,6 +795,17 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [privateTextItems, setPrivateTextItems] = useState<{ replicaId: string; count: number } | null>(null);
+  useEffect(() => {
+    const replicaId = selected?.replica_id;
+    let current = true;
+    setPrivateTextItems(null);
+    if (replicaId && workspaceReadState === "ready") {
+      void loadContextLocker(accessToken, replicaId).then(view => {
+        if (current) setPrivateTextItems({ replicaId, count: view.items.filter(isTeachableContextSource).length });
+      }).catch(() => { /* The destination displays the actual failed read and retry. */ });
+    }
+    return () => { current = false; };
+  }, [accessToken, selected?.replica_id, workspaceReadState, wizardInput.contextItemCount]);
   const onPrivateTextItemCount = useCallback((count: number) => {
     if (!selected) return;
     setPrivateTextItems((current) => current?.replicaId === selected.replica_id && current.count === count
@@ -829,14 +826,17 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
   const [installReady, setInstallReady] = useState(false);
   const [installDismissed, setInstallDismissed] = useState(false);
+  const [captureNavigationLocked, setCaptureNavigationLocked] = useState(false);
   const [room, setRoom] = useState<MainRoom>(() => {
     const view = new URLSearchParams(window.location.search).get("view");
-    return view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : view === "emotionos" ? "emotionos" : "voice";
+    return view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : view === "emotionos" ? "emotionos" : view === "voice" || (selected && readVoiceSaga(selected.replica_id)) ? "voice" : "enrich";
   });
   // WS-R161: a text-ready-only visit (no voice active yet) still opens on
   // "conversation", never the sample tab a not-yet-existing voice cannot
   // answer for.
   const [meetView, setMeetView] = useState<"conversation" | "sample">(() => initialMeetView(window.location.search, Boolean(runtimeStatus?.active || runtimeStatus?.text_ready)));
+  const [privateVoiceAvailability, setPrivateVoiceAvailability] = useState<"unknown" | "enabled" | "disabled">("unknown");
+  useEffect(() => setPrivateVoiceAvailability("unknown"), [accessToken, selected?.replica_id]);
   const [internalVoiceAvailability, setInternalVoiceAvailability] = useState<"unknown" | "enabled" | "disabled">("unknown");
   useEffect(() => setInternalVoiceAvailability("unknown"), [accessToken, selected?.replica_id]);
   // The two full-screen enrich fixtures deep-link straight past the menu:
@@ -844,7 +844,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
   // those exact values still opens on the unchanged menu.
   const [enrichView, setEnrichView] = useState<EnrichView>(() => {
     const requested = new URLSearchParams(window.location.search).get("enrichView");
-    return requested === "humanos" || requested === "sources" ? requested : "menu";
+    return requested === "humanos" || requested === "sources" || requested === "files" ? requested : "menu";
   });
   const [showListeningTest, setShowListeningTest] = useState(
     () => new URLSearchParams(window.location.search).get("listening") === "1",
@@ -858,7 +858,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [replacePrimary, setReplacePrimary] = useState(false);
   const [upload, setUpload] = useState<UploadState | null>(null);
-  const retryRef = useRef<{ sample: VoiceSample; language: EnrollmentLanguage; sourceId: string | null; uploaded: boolean; finalized: boolean; intentBound: boolean; uploadIntentId: string; buildIntentId: string } | null>(null);
+  const retryRef = useRef<{ privateSample?: true; sample: VoiceSample; language: EnrollmentLanguage; sourceId: string | null; uploaded: boolean; finalized: boolean; intentBound: boolean; uploadIntentId: string; buildIntentId: string } | null>(null);
   const uploadAttemptRef = useRef(0);
   const uploadLockedRef = useRef(false);
   const activeReplicaRef = useRef<string | null>(selected?.replica_id ?? null);
@@ -1033,7 +1033,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
   }, [selected, sources, voiceSaga]);
 
   useEffect(() => {
-    if (!selected || !voiceSaga?.sourceId) return;
+    if (!selected || !voiceSaga?.sourceId || voiceSaga.privateSample) return;
     const candidate = sources.find((source) => source.source_id === voiceSaga.sourceId) ?? null;
     if (!candidate || candidate.state === "pending_upload" || candidate.state === "uploaded" || candidate.state === "rejected" || candidate.state === "deleting") return;
     let live = true;
@@ -1082,7 +1082,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
   useEffect(() => {
     const onPop = () => {
       const view = new URLSearchParams(window.location.search).get("view");
-      setRoom(view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : "voice");
+      setRoom(view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : view === "emotionos" ? "emotionos" : "voice");
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -1112,7 +1112,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
     routeFocus.current = document.activeElement;
     setRoom(next);
     const params = new URLSearchParams(window.location.search);
-    params.set("step", "meet");
+    params.set("step", next === "enrich" ? "feed" : next === "share" ? "deploy" : "meet");
     params.set("view", next);
     if (selected) params.set("replica", selected.replica_id);
     window.history.replaceState({ replica: selected?.replica_id, view: next }, "", `?${params.toString()}`);
@@ -1196,10 +1196,12 @@ export default function CloneExperience(props: CloneExperienceProps) {
       buildIntentId: crypto.randomUUID(),
       sourceId: null,
       language,
+      ...(privateVoiceAvailability === "enabled" ? { privateSample: true as const } : {}),
     };
     const operation = retry && resume ? retry : {
       sample,
       language,
+      ...(durable.privateSample ? { privateSample: true as const } : {}),
       sourceId: durable.sourceId,
       uploaded: false,
       finalized: false,
@@ -1208,7 +1210,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
       buildIntentId: durable.buildIntentId,
     };
     retryRef.current = operation;
-    const initialSaga = { uploadIntentId: operation.uploadIntentId, buildIntentId: operation.buildIntentId, sourceId: operation.sourceId, language: operation.language };
+    const initialSaga = { uploadIntentId: operation.uploadIntentId, buildIntentId: operation.buildIntentId, sourceId: operation.sourceId, language: operation.language, ...(operation.privateSample ? { privateSample: true as const } : {}) };
     storeVoiceSaga(replicaId, initialSaga);
     setVoiceSaga(initialSaga);
     const active = () => uploadAttemptRef.current === attempt
@@ -1230,7 +1232,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
         operation.intentBound = true;
         operation.finalized = created.finalized;
         operation.uploaded = created.finalized;
-        const boundSaga = { uploadIntentId: operation.uploadIntentId, buildIntentId: operation.buildIntentId, sourceId, language: operation.language };
+        const boundSaga = { uploadIntentId: operation.uploadIntentId, buildIntentId: operation.buildIntentId, sourceId, language: operation.language, ...(operation.privateSample ? { privateSample: true as const } : {}) };
         storeVoiceSaga(replicaId, boundSaga);
         setVoiceSaga(boundSaga);
         rememberSourceLanguage(replicaId, sourceId, language);
@@ -1291,8 +1293,22 @@ export default function CloneExperience(props: CloneExperienceProps) {
         if (!active()) return;
         operation.finalized = true;
       }
+      if (operation.privateSample) {
+        // Processing was enqueued by finalize. Private sampling never asks
+        // the public enrollment builder to promote a voice or identity.
+        await onRefreshEnrollment();
+        if (!active()) return;
+        storeVoiceSaga(replicaId, null);
+        setVoiceSaga(null);
+        setVoiceBuildIntent(null);
+        setUpload(null);
+        retryRef.current = null;
+        setReplacePrimary(false);
+        URL.revokeObjectURL(sample.url);
+        return;
+      }
       setUpload({ phase: "select", progress: 0, message: copy.upload.selectMessage });
-      const nextSaga = { uploadIntentId: operation.uploadIntentId, buildIntentId: operation.buildIntentId, sourceId, language: operation.language };
+      const nextSaga = { uploadIntentId: operation.uploadIntentId, buildIntentId: operation.buildIntentId, sourceId, language: operation.language, ...(operation.privateSample ? { privateSample: true as const } : {}) };
       storeVoiceSaga(replicaId, nextSaga);
       setVoiceSaga(nextSaga);
       const intent = await onRequestVoiceBuild({ candidateSourceId: sourceId, buildIntentId: operation.buildIntentId });
@@ -1314,7 +1330,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
     } finally {
       if (active()) uploadLockedRef.current = false;
     }
-  }, [onCreateUpload, onFinalizeUpload, onRefreshEnrollment, onRefreshReview, onRequestVoiceBuild, onRetryUpload, selected, copy]);
+  }, [onCreateUpload, onFinalizeUpload, onRefreshEnrollment, onRefreshReview, onRequestVoiceBuild, onRetryUpload, selected, privateVoiceAvailability, copy]);
 
   async function discardFailedAndRetake() {
     const retry = retryRef.current;
@@ -1364,7 +1380,8 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const knowledgeOpen = Boolean(selected && consentActive && room === "enrich" && !upload);
   const textShareOpen = Boolean(selected && consentActive && room === "share" && !upload);
   const textReviewOpen = Boolean(selected && consentActive && room === "evolve" && !upload);
-  const textWorkspaceOpen = knowledgeOpen || textShareOpen || textReviewOpen;
+  const textStyleOpen = Boolean(selected && consentActive && room === "emotionos" && !upload);
+  const textWorkspaceOpen = knowledgeOpen || textShareOpen || textReviewOpen || textStyleOpen;
   // WS-R161 (wave twenty-two). `text_ready` (an approved person sheet, no
   // voice needed — `api/_replica-runtime.js#textBlockers`) is what lets
   // Meet open before the voice recorder has ever run. Read off the SAME
@@ -1394,6 +1411,27 @@ export default function CloneExperience(props: CloneExperienceProps) {
     && firstMeetSurface({ voiceWorkspaceReady, textReady, hasSavedSheet: wizardInput.sheetPersisted,
       hasTextMaterial: privateTextEntryEligible }) === "private-rehearsal");
   const showRooms = voiceWorkspaceReady || textWorkspaceOpen || (textReady && !upload && !voiceSaga && !activeCandidate);
+  const workbenchVisible = Boolean(selected && consentActive && !needsAgreement && workspaceReadState === "ready" && consentReadState === "ready");
+  const navigationLocked = captureNavigationLocked || Boolean(upload);
+  const workspaceDestination: WorkspaceDestination = room === "enrich"
+    ? enrichView === "humanos" ? "personality" : enrichView === "menu" ? "overview" : "knowledge"
+    : room === "rehearsal" ? "test" : room === "evolve" ? "review" : room === "emotionos" ? "style"
+    : room === "share" ? "share" : room === "call" || meetView === "conversation" ? "test" : "voice";
+  function navigateWorkspace(destination: WorkspaceDestination) {
+    if (navigationLocked) return;
+    if (destination === "overview" || destination === "knowledge" || destination === "personality") {
+      setEnrichView(destination === "overview" ? "menu" : destination === "knowledge" ? "files" : "humanos");
+      chooseRoom("enrich");
+      const params = new URLSearchParams(window.location.search);
+      params.set("enrichView", destination === "overview" ? "menu" : destination === "knowledge" ? "files" : "humanos");
+      window.history.replaceState(null, "", `?${params.toString()}`);
+    } else if (destination === "voice") {
+      setMeetView("sample"); chooseRoom("voice");
+    } else if (destination === "test") {
+      if (textReady || voiceWorkspaceReady) { setMeetView("conversation"); chooseRoom("voice"); }
+      else chooseRoom("rehearsal");
+    } else chooseRoom(destination === "review" ? "evolve" : destination === "style" ? "emotionos" : "share");
+  }
   const readBlocked = workspaceReadState !== "ready" || Boolean(selected && !creatingNew && !agreementBusy && room !== "rehearsal" && consentReadState !== "ready");
 
   // WS-R164: the first five minutes' own small rail — only for a person who
@@ -1463,7 +1501,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
   }, [installEvent, dismissInstall]);
 
   return (
-    <div className="vx-shell" lang={locale}>
+    <div className={`vx-shell vx-studio27${workbenchVisible ? " vx-workbench" : ""}`} lang={locale}>
       <header className="vx-header">
         <button className="vx-icon-button" type="button" aria-label={copy.header.openClonesAria} onClick={() => setDrawerOpen(true)}><Icon name="menu" /></button>
         <a className="vx-wordmark" href="/" aria-label={copy.header.homeAria}><VyaktiMark /></a>
@@ -1474,14 +1512,20 @@ export default function CloneExperience(props: CloneExperienceProps) {
         {firstFiveMinutesStepId && <FirstFiveMinutesRail step={firstFiveMinutesStepId} />}
 
 
+      {workbenchVisible && selected && <WorkspaceNavigation locale={locale} name={selected.display_name} active={workspaceDestination} disabled={navigationLocked} onNavigate={navigateWorkspace} />}
       <main className="vx-main" ref={mainRef}>
-        {selected && room === "voice" && meetView === "sample" && internalVoiceAvailability === "unknown" ? <Suspense fallback={null}>
+        {selected && consentActive && room === "voice" && meetView === "sample" && privateVoiceAvailability === "unknown" ? <Suspense fallback={null}>
+          <PrivateVoiceTest key={`private-probe:${selected.replica_id}`} token={accessToken} replicaId={selected.replica_id} locale={locale} sourceRevision={sources.map(source => `${source.source_id}:${source.state}`).join("|")} sourceProcessing={sources.some(source => ["uploaded", "processing"].includes(source.state))} onAuthError={onAuthError} onAddRecording={() => void replaceRecording()} probeOnly onAvailability={available => setPrivateVoiceAvailability(available ? "enabled" : "disabled")} />
+        </Suspense> : null}
+        {selected && room === "voice" && meetView === "sample" && privateVoiceAvailability === "disabled" && internalVoiceAvailability === "unknown" ? <Suspense fallback={null}>
           <InternalVoicePanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} probeOnly
             onAvailability={(available) => setInternalVoiceAvailability(available ? "enabled" : "disabled")} />
         </Suspense> : null}
         <AnimatePresence mode="wait" initial={false}>
           {workspaceReadState !== "ready" ? (
             <section className="vx-scene vx-read-state" key="workspace-read" aria-live="polite"><div className="vx-stage-title"><h1>{workspaceReadState === "error" ? copy.readStates.workspaceError : copy.readStates.workspaceLoading}</h1></div>{workspaceReadState === "error" ? <button className="vx-button vx-button--primary" type="button" onClick={onRetryWorkspace}>{copy.readStates.tryAgain}</button> : <p role="status">{copy.readStates.checkingSavedClones}</p>}</section>
+          ) : privateVoiceAvailability === "enabled" && selected && consentActive && room === "voice" && meetView === "sample" && !replacePrimary && !upload ? (
+            <motion.div className="vx-scene vx-room" key={`private-voice:${selected.replica_id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><Suspense fallback={<p role="status">{copy.rooms.voice.openingConversation}</p>}><PrivateVoiceTest token={accessToken} replicaId={selected.replica_id} locale={locale} sourceRevision={sources.map(source => `${source.source_id}:${source.state}`).join("|")} sourceProcessing={sources.some(source => ["uploaded", "processing"].includes(source.state))} onAuthError={onAuthError} onAddRecording={() => void replaceRecording()} /></Suspense></motion.div>
           ) : internalVoiceAvailability === "enabled" && selected && room === "voice" && meetView === "sample" ? (
             <motion.div className="vx-scene vx-room" key={`internal-voice:${selected.replica_id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <section className="vx-room__panel vx-room__voice vx-room__scroll"><Suspense fallback={null}>
@@ -1514,7 +1558,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
           ) : showSagaRecovery && !textWorkspaceOpen ? (
             <motion.section className="vx-scene vx-saga-recovery" key="saga-recovery" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-labelledby="vx-saga-title"><div className="vx-upload__center"><VoiceField level={0.08} calm /></div><div className="vx-stage-title"><h1 id="vx-saga-title">{copy.sagaRecovery.heading}</h1><p>{copy.sagaRecovery.body}</p></div><div className="vx-upload__actions"><button className="vx-button vx-button--primary" type="button" onClick={() => void onRefreshEnrollment()}>{copy.sagaRecovery.checkReceipt}</button><button className="vx-button vx-button--quiet" type="button" onClick={() => void replaceRecording()}>{copy.sagaRecovery.startAgain}</button></div></motion.section>
           ) : showRecorder && !textWorkspaceOpen ? (
-            <motion.div className="vx-scene" key="record" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><ResonanceRecorder key={selected?.replica_id} onKnowledge={() => chooseRoom("enrich")} onProceed={(sample, language) => void submitRecording(sample, language)} /></motion.div>
+            <motion.div className="vx-scene" key="record" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><ResonanceRecorder key={selected?.replica_id} onBusyChange={setCaptureNavigationLocked} onKnowledge={() => chooseRoom("enrich")} onProceed={(sample, language) => void submitRecording(sample, language)} /></motion.div>
           ) : voiceVerificationPending && selected && !textWorkspaceOpen ? (
             <motion.section className="vx-scene vx-saga-recovery" key="voice-verification-pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-labelledby="vx-verification-pending-title"><div className="vx-stage-title"><h1 id="vx-verification-pending-title">{copy.verification.platformPendingHeading}</h1><p>{privateTextEntryEligible ? copy.verification.platformPendingReadyBody : copy.verification.platformPendingBody}</p></div><div className="vx-upload__actions">{privateTextEntryEligible ? <button className="vx-button vx-button--primary" type="button" onClick={() => chooseRoom("rehearsal")}>{copy.verification.testPrivateDraft}</button> : null}<button className="vx-button vx-button--quiet" type="button" onClick={() => { setEnrichView("menu"); chooseRoom("enrich"); }}>{copy.verification.backToKnowledge}</button></div></motion.section>
           ) : showVerification && selected && !textWorkspaceOpen ? (
@@ -1545,7 +1589,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
                 )
               ) : meetView === "conversation" ? <Suspense fallback={<p role="status">{copy.rooms.voice.openingConversation}</p>}><ExpertConversation key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} runtimeStatus={runtimeStatus} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} /></Suspense> : <VoicePreviewPanel token={accessToken} replicaId={selected.replica_id} wizardInput={wizardInput} onAuthError={onAuthError} testEnvironment onManageSources={() => chooseRoom("enrich")} />}</section>}
               {room === "share" && <section className="vx-room__panel vx-room__scroll">{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => chooseRoom("enrich")}>{copy.rooms.share.backToKnowledge}</button>}<Suspense fallback={<p role="status">{copy.rooms.share.openingSharing}</p>}><ExpertSharePanel key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} voiceWorkspaceReady={voiceWorkspaceReady} /></Suspense></section>}
-              {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-back" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}>{copy.rooms.enrich.backToVoice}</button>}<div className="vx-stage-title"><h1 id="knowledge-menu-title">{copy.rooms.enrich.heading}</h1><p>{copy.rooms.enrich.body}</p></div><div className="vx-enrich-menu">{!voiceWorkspaceReady && <button type="button" onClick={() => chooseRoom("share")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.shareKnowledgeTitle}</strong><small>{copy.rooms.enrich.shareKnowledgeNote}</small></span><Icon name="chevron" /></button>}<button type="button" onClick={() => setEnrichView("sources")}><Icon name="add" /><span><strong>{copy.rooms.enrich.sourcesTitle}</strong><small>{copy.rooms.enrich.sourcesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => chooseRoom("rehearsal")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.testDraftTitle}</strong><small>{copy.rooms.enrich.testDraftNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("describe")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.describeMeTitle}</strong><small>{copy.rooms.enrich.describeMeNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("humanos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.whoYouAreTitle}</strong><small>{copy.rooms.enrich.whoYouAreNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("files")}><Icon name="add" /><span><strong>{copy.rooms.enrich.filesTitle}</strong><small>{copy.rooms.enrich.filesNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => setEnrichView("video")}><Icon name="voice" /><span><strong>{copy.rooms.enrich.videoTitle}</strong><small>{copy.rooms.enrich.videoNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}><Icon name="voice" /><span><strong>{copy.rooms.enrich.improveVoiceTitle}</strong><small>{copy.rooms.enrich.improveVoiceNote}</small></span><Icon name="chevron" /></button><button type="button" onClick={() => chooseRoom("emotionos")}><Icon name="spark" /><span><strong>{copy.rooms.enrich.vibeTitle}</strong><small>{copy.rooms.enrich.vibeNote}</small></span><Icon name="chevron" /></button></div></> : <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>{copy.rooms.enrich.backToChoices}</button>{!voiceWorkspaceReady && <button className="vx-text-button" type="button" onClick={() => { setReplacePrimary(true); chooseRoom("voice"); }}>{copy.rooms.enrich.recordInstead}</button>}{enrichView === "sources" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingSources}</p>}><SourcesStudio token={accessToken} replicaId={selected.replica_id} onSourcesChanged={onRefreshEnrollment} /></Suspense> : null}{enrichView === "files" ? <>{!voiceWorkspaceReady && <button type="button" className="vx-text-button" onClick={() => chooseRoom("share")}>{copy.rooms.enrich.reviewTextSharing}</button>}{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} onPrivateTextItemCount={onPrivateTextItemCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
+              {room === "enrich" && <section className={`vx-room__panel${enrichView === "menu" ? "" : " vx-room__scroll"}`}>{enrichView === "menu" ? <WorkspaceOverview locale={locale} name={selected.display_name} knowledgeSaved={(wizardInput.contextItemCount ?? 0) > 0} profileSaved={wizardInput.sheetPersisted} voiceSaved={sources.some(source => source.state === "ready" && (source.kind === "audio" || source.kind === "video") && source.voice_role === "primary")} onNavigate={navigateWorkspace} onSources={() => setEnrichView("sources")} />: <><button className="vx-back" type="button" onClick={() => setEnrichView("menu")}>{copy.rooms.enrich.backToChoices}</button>{enrichView === "sources" ? <Suspense fallback={<p role="status">{copy.rooms.enrich.openingSources}</p>}><SourcesStudio token={accessToken} replicaId={selected.replica_id} onSourcesChanged={onRefreshEnrollment} /></Suspense> : null}{enrichView === "files" ? <>{rehearsalReturn.current ? <button type="button" className="vx-text-button" onClick={() => chooseRoom("rehearsal")}>{feedCopy.back}</button> : null}<ContextLockerPanel token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError as never} onItemCount={onContextCount} onPrivateTextItemCount={onPrivateTextItemCount} teachSourceLabel={feedCopy.teach} onTeachSource={source => {
                   if (!reissueMounted.current || reissueCurrent.current.identity !== identity || source.replicaId !== selected.replica_id || !isPrivateTextId(source.itemId) || reissueCurrent.current.accessToken !== accessToken || reissueCurrent.current.selected?.replica_id !== source.replicaId) return;
                   chooseRoom("evolve");
                 }} testSourceLabel={feedCopy.test} onTestSource={savedRehearsal ? undefined : source => {
@@ -1561,7 +1605,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
         </AnimatePresence>
       </main>
 
-      {room !== "rehearsal" && (voiceWorkspaceReady || textReady) && <RoomNav room={room} onChange={chooseRoom} />}
+
       {/* WS-R157: the install card. `shouldShowInstallCard` (above) decides
           whether this renders at all; this block only decides which of the
           two variants — a browser with a captured `beforeinstallprompt` gets

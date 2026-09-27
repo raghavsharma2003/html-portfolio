@@ -1,5 +1,19 @@
 # STATE — read this first, then the graph
 
+## START HERE: OWNER REOPENS FULL REBUILD (2026-09-27)
+
+The latest owner request supersedes the fast-wrap freeze below. They report
+all three: unclear next step, broken/cluttered UI, failed recording/upload/test.
+Rebuild the full creator product and test the integrated journey. Root owns
+workspace/navigation; parallel bounded work covers auth presentation, current
+voice research, journey/runtime gap audits and one brand artwork asset.
+Azure-only serving and no personal Microsoft browser access remain. No new
+GPU spend, expired diagnostic reuse or migration171 application is implied.
+Keep per-account state real, retain existing data, and compare actual Hindi,
+Hinglish and English outputs before competitive quality claims. The old preview
+is not evidence that this redesign or general private voice is finished.
+
+
 ## START HERE: SEPTEMBER 27 RESUMPTION; PHONE TEST STILL PENDING
 
 Resumed clean integration checkout at6d7d9bcd, preserving original dirty tree.

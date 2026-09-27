@@ -8,7 +8,6 @@ import {
 } from "./studioAuth";
 import { restoreSession, writeStoredSession } from "./session";
 import type { StudioSession } from "./types";
-import ExpertEntryVisual from "./ExpertEntryVisual";
 import VyaktiMark from "./VyaktiMark";
 import { PersonalAuthLoading, usePersonalAuthLocale } from "./personalAuthLocale";
 import type { StepId } from "./wizardModel";
@@ -134,32 +133,24 @@ export default function PersonalAuthGate({
   if (!ready) return <PersonalAuthLoading locale={locale} failed={failed} retry={retry} switchLocale={switchLocale} testEnvironment={testEnvironment} />;
 
   return (
-    <main className="auth-page" lang={locale} data-studio-auth-locale={locale} data-auth-theme={testEnvironment ? "test" : "general"}>
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
+    <main
+      className="auth-page"
+      data-auth-visual={testEnvironment ? undefined : "true"}
+      lang={locale}
+      data-studio-auth-locale={locale}
+      data-auth-theme={testEnvironment ? "test" : "general"}
+    >
       <header className="auth-brand">
         <a href="/" aria-label={t.homeAriaLabel}><VyaktiMark /></a>
-        <label className="visually-hidden" htmlFor="studio-auth-language">{locale === "hi" ? "भाषा" : "Language"}</label>
-        <select id="studio-auth-language" className="auth-language-select" value={locale} onChange={event => switchLocale(event.target.value === "hi" ? "hi" : "en")}>
-          <option value="en" lang="en">English</option><option value="hi" lang="hi">हिन्दी</option>
-        </select>
-        <span className="brand-rule" />
-        <span>{intro.brandTag}</span>
+        <div className="auth-brand-actions">
+          <label className="visually-hidden" htmlFor="studio-auth-language">{locale === "hi" ? "भाषा" : "Language"}</label>
+          <select id="studio-auth-language" className="auth-language-select" value={locale} onChange={event => switchLocale(event.target.value === "hi" ? "hi" : "en")}>
+            <option value="en" lang="en">English</option><option value="hi" lang="hi">हिन्दी</option>
+          </select>
+        </div>
       </header>
 
-      <section className="auth-intro" aria-labelledby="studio-title">
-        {intro.introEyebrow && <p className="eyebrow">{intro.introEyebrow}</p>}
-        <h1 id="studio-title">{intro.introTitle}</h1>
-        <p>{intro.introBody}</p>
-        {!testEnvironment && <ExpertEntryVisual copy={{alt: t.visualAlt, ...t.visualCaptions}} />}
-        {!testEnvironment && <div className="trust-strip" aria-label={t.safeguardsAriaLabel}>
-          <span><i />{t.privateByDefault}</span>
-          <span><i />{t.everyClipDisclosed}</span>
-          <span><i />{t.deleteAnytime}</span>
-        </div>}
-      </section>
-
-      <section className="auth-card" aria-labelledby="signin-title">
+      <section className="auth-card" aria-labelledby="signin-title" aria-busy={busy || checkingLink} data-auth-step={step}>
         <h2 id="signin-title">{step === "email" ? (resumeIntent ? t.welcomeBackTitle : t.emailTitle) : t.inboxTitle}</h2>
         {resumeIntent && step === "email" ? (
           <div className="auth-resume-note" role="status">
@@ -175,8 +166,9 @@ export default function PersonalAuthGate({
             : t.inboxBodyTemplate.replace("{email}", email)}
         </p>
 
-        {step === "email" ? (
-          <>
+        <div className="auth-form">
+          {step === "email" ? (
+            <>
             <label className="field-label" htmlFor="studio-email">{t.emailLabel}</label>
             <input
               ref={emailRef}
@@ -185,9 +177,14 @@ export default function PersonalAuthGate({
               type="email"
               inputMode="email"
               autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
               placeholder={t.emailPlaceholder} lang="en"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (error) setError("");
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && email.includes("@") && !busy) void sendCode();
               }}
@@ -217,9 +214,9 @@ export default function PersonalAuthGate({
               <span className="google-g" aria-hidden="true">G</span>
               {t.google}
             </button>
-          </>
-        ) : (
-          <>
+            </>
+          ) : (
+            <>
             <p className="inbox-status" id="studio-inbox-help" role="status">
               {t.inboxHelp}
             </p>
@@ -244,7 +241,10 @@ export default function PersonalAuthGate({
               maxLength={6}
               placeholder={t.codePlaceholder}
               value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              onChange={(event) => {
+                setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                if (error) setError("");
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && code.length === 6 && !busy) void verifyCode();
               }}
@@ -269,12 +269,40 @@ export default function PersonalAuthGate({
             >
               {t.differentEmail}
             </button>
-          </>
-        )}
-        {error && <p className="inline-error" role="alert">{String(t[error])}</p>}
+            </>
+          )}
+        </div>
+        {error && <p className="inline-error" id="studio-auth-error" role="alert">{String(t[error])}</p>}
         {!testEnvironment && <p className="legal-copy">
           {t.legalNotice}
         </p>}
+      </section>
+
+      <section className="auth-intro" aria-labelledby="studio-title">
+        <div className="auth-intro-copy">
+          <h1 id="studio-title">{intro.introTitle}</h1>
+          <p>{intro.introBody}</p>
+        </div>
+        {!testEnvironment && (
+          <figure className="expert-entry-visual">
+            <picture>
+              <source media="(max-width: 720px)" srcSet="/expert/studio-workbench-27-640.webp" />
+              <img
+                src="/expert/studio-workbench-27-1200.webp"
+                alt={t.visualAlt}
+                width="1586"
+                height="992"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+            <figcaption>
+              <span>{t.visualCaptions.knowledge}</span>
+              <span>{t.visualCaptions.voice}</span>
+              <span>{t.visualCaptions.people}</span>
+            </figcaption>
+          </figure>
+        )}
       </section>
     </main>
   );

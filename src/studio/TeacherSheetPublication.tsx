@@ -35,22 +35,29 @@ const COPY = {
   },
 } as const;
 
-export default function TeacherSheetPublication({token,replicaId,draft,api,onAuthError,disabled=false,savedLoadRevision=0,locale="en"}: {
+export default function TeacherSheetPublication({token,replicaId,draft,api,onAuthError,onPublished,disabled=false,savedLoadRevision=0,locale="en"}: {
   token:string; replicaId:string; draft:Partial<TeacherSheet>; api:typeof teacherSheetPublicationClient;
-  onAuthError:(cause:unknown)=>void; disabled?:boolean; savedLoadRevision?:number; locale?:"en"|"hi";
+  onAuthError:(cause:unknown)=>void;
+  /** Fires only after an authoritative publication review read says that this
+   * exact saved draft is published. The caller may use it as an invalidation
+   * hint, but the returned server review remains the publication authority. */
+  onPublished?:(result:TeacherSheetPublicationReview)=>void;
+  disabled?:boolean; savedLoadRevision?:number; locale?:"en"|"hi";
 }) {
   const c=COPY[locale], draftKey=stable(draft);
   const mounted=useRef(false),generation=useRef(0),busyRef=useRef(false);
-  const scope=useRef({token,replicaId,draftKey,api,onAuthError,disabled,savedLoadRevision});
-  if(scope.current.token!==token || scope.current.replicaId!==replicaId || scope.current.draftKey!==draftKey || scope.current.api!==api || scope.current.onAuthError!==onAuthError || scope.current.disabled!==disabled || scope.current.savedLoadRevision!==savedLoadRevision){
-    scope.current={token,replicaId,draftKey,api,onAuthError,disabled,savedLoadRevision}; generation.current++; busyRef.current=false;
+  const scope=useRef({token,replicaId,draftKey,api,onAuthError,onPublished,disabled,savedLoadRevision});
+  if(scope.current.token!==token || scope.current.replicaId!==replicaId || scope.current.draftKey!==draftKey || scope.current.api!==api || scope.current.onAuthError!==onAuthError || scope.current.onPublished!==onPublished || scope.current.disabled!==disabled || scope.current.savedLoadRevision!==savedLoadRevision){
+    scope.current={token,replicaId,draftKey,api,onAuthError,onPublished,disabled,savedLoadRevision}; generation.current++; busyRef.current=false;
   }
   const [review,setReview]=useState<TeacherSheetPublicationReview|null>(null);
   const [busy,setBusy]=useState(false),[confirmed,setConfirmed]=useState(false),[uncertain,setUncertain]=useState(false),[notice,setNotice]=useState("");
   const expected=useRef<TeacherSheetPublicationKey|null>(null);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;generation.current++;busyRef.current=false;};},[]);
-  useEffect(()=>{setReview(null);setBusy(false);setConfirmed(false);setUncertain(false);setNotice("");expected.current=null;},[token,replicaId,draftKey,api,onAuthError,disabled,savedLoadRevision]);
+  useEffect(()=>{setReview(null);setBusy(false);setConfirmed(false);setUncertain(false);setNotice("");expected.current=null;},[token,replicaId,draftKey,api,onAuthError,onPublished,disabled,savedLoadRevision]);
   const same=(a:TeacherSheetPublicationKey|null,b:TeacherSheetPublicationKey|null)=>!!a&&!!b&&a.sheet_id===b.sheet_id&&a.version===b.version&&a.snapshot_hash===b.snapshot_hash;
+  const publishedForCurrentDraft=(result:TeacherSheetPublicationReview)=>result.ok&&result.sheet.status==="published"&&!!result.sheet.published_at&&stable(result.sheet.draft)===draftKey;
+  const notifyPublished=(result:TeacherSheetPublicationReview)=>{try{onPublished?.(result);}catch{/* An invalidation hint cannot rewrite the authoritative publication result. */}};
   const currentDraft=!!review&&draftKey!==""&&stable(review.sheet.draft)===draftKey;
   const published=!disabled&&review?.ok&&review.sheet.status==="published"&&!!review.sheet.published_at&&currentDraft;
   const eligible=!disabled&&review?.ok&&currentDraft&&review.sheet.status!=="published";
@@ -61,6 +68,7 @@ export default function TeacherSheetPublication({token,replicaId,draft,api,onAut
       const result=await api.read(token,replicaId);if(!live())return;
       if(uncertain&&expected.current&&!same(result.review,expected.current)){setReview(result);setUncertain(false);expected.current=null;setNotice(c.changed);return;}
       setReview(result);setUncertain(false);expected.current=null;
+      if(publishedForCurrentDraft(result))notifyPublished(result);
     }catch(error){if(!live())return;setNotice(c.unavailable);if((error as {status?:number})?.status===401)onAuthError(error);}
     finally{if(live()){busyRef.current=false;setBusy(false);}}
   }
@@ -74,6 +82,7 @@ export default function TeacherSheetPublication({token,replicaId,draft,api,onAut
       const result=await api.read(token,replicaId);if(!live())return;
       if(!result.ok||result.sheet.status!=="published"||!result.sheet.published_at||!same(result.review,key))throw new Error("publication_readback_changed");
       setReview(result);setUncertain(false);expected.current=null;
+      if(publishedForCurrentDraft(result))notifyPublished(result);
     }catch(error){
       if(!live())return;const status=(error as {status?:number})?.status;
       setUncertain(status!==409&&status!==404&&status!==401);setNotice(status===409||status===404?c.refused:c.uncertain);

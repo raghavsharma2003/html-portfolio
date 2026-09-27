@@ -66,6 +66,7 @@ import {
   teacherSheetPublicationClient,
   type PersonSheetDraftProposal,
   type PersonSheetDraftResult,
+  type TeacherSheetPublicationReview,
 } from "./teacherSheetApi";
 import { DEMO_TEACHER } from "../engine/agents/characters/demoTeacher";
 import type { TeacherSheet } from "../engine/agents/teacherTypes";
@@ -142,12 +143,14 @@ export default function HumanOsStudio({
   replica,
   onAuthError,
   onSaved,
+  onPublished,
   locale = "en",
 }: {
   token: string;
   replica: Replica;
   onAuthError: (cause: unknown) => void;
   onSaved?: (replicaId: string, sheet: TeacherSheet) => void;
+  onPublished?: (replicaId: string, result: TeacherSheetPublicationReview) => void;
   locale?: HumanOsLocale;
 }) {
   const c = HUMANOS_COPY[locale];
@@ -307,6 +310,11 @@ export default function HumanOsStudio({
     }
   }, [c]);
 
+  const handlePublished = useCallback((result: TeacherSheetPublicationReview) => {
+    if (result.sheet.draft) onSaved?.(replica.replica_id, result.sheet.draft);
+    onPublished?.(replica.replica_id, result);
+  }, [onPublished, onSaved, replica.replica_id]);
+
   async function save() {
     if (requestLocked.current || existingKind === "teacher") return;
     requestLocked.current = true;
@@ -348,7 +356,6 @@ export default function HumanOsStudio({
     <section aria-busy={loading || saving} className="humanos-studio" aria-labelledby="humanos-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">{c.eyebrow}</p>
           <h2 id="humanos-title">{c.title}</h2>
           <p>{c.intro}</p>
         </div>
@@ -585,6 +592,7 @@ export default function HumanOsStudio({
         draft={draft}
         api={teacherSheetPublicationClient}
         onAuthError={onAuthError}
+        onPublished={handlePublished}
         disabled={saving || loading || existingKind === "teacher"}
         savedLoadRevision={savedLoadRevision}
         locale={locale}

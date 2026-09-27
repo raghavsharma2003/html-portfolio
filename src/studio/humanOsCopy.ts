@@ -79,7 +79,7 @@ export interface HumanOsCopy {
 const EN: HumanOsCopy = {
   eyebrow: "HumanOS",
   title: "Who you are",
-  intro: "This is what makes your AI sound like you rather than a generic assistant. Save when you are ready, publish separately when it is complete.",
+  intro: "Your perspective, language and boundaries. Review suggestions before saving.",
   teacherKindBlock: "This clone already has a teaching sheet saved from a different setup. Editing here would replace it, so this screen is read only until that is resolved.",
   loadUnavailable: "The saved sheet could not be loaded. Your current edits remain here.",
   saved: "Saved.",
@@ -140,7 +140,7 @@ const EN: HumanOsCopy = {
 const HI: HumanOsCopy = {
   eyebrow: "ह्यूमनओएस",
   title: "आप कौन हैं",
-  intro: "यही आपके AI को आप जैसा बनाता है, एक सामान्य सहायक जैसा नहीं। तैयार होने पर सहेजें, पूरा होने पर अलग से प्रकाशित करें।",
+  intro: "आपका नज़रिया, भाषा और सीमाएँ। सहेजने से पहले सुझाव जाँचें।",
   teacherKindBlock: "इस क्लोन की एक शिक्षण शीट पहले से किसी और सेटअप से सहेजी हुई है। यहां संपादन करने से वह बदल जाएगी, इसलिए यह हल होने तक यह स्क्रीन केवल पढ़ने के लिए है।",
   loadUnavailable: "सहेजी हुई शीट लोड नहीं हो सकी। आपके मौजूदा बदलाव यहां बने हुए हैं।",
   saved: "सहेजा गया।",

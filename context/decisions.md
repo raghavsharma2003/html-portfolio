@@ -25539,3 +25539,11 @@ The owner explicitly chose independent phone testing. Await their feedback and a
 ## pilot-resume-20260927
 
 Resumption request and owner confirmation of no phone test keep the low-token private-pilot scope. Check current live deployment and await concrete real-account feedback; do not revive unfinished voice migration171 or expired retained-owner diagnostics. Reverse if the owner explicitly resumes feature/voice development or a reproducible blocker requires code changes.
+
+
+## full-product-rebuild-20260927
+
+The owner now explicitly rejects all three: unclear next action, inconsistent design, and failing recording/upload/testing. This supersedes the fast-wrap feature freeze. Rebuild the creator journey and integrate knowledge, voice, personality, private tests/corrections and deployment. Preserve Azure-only serving, private release boundaries, data ownership and truthful state. No competitive superiority claim before blind measurements. Reverse the replacement design if actual mobile/desktop tests show worse clarity or task completion.
+
+
+Private sample capture is now distinguished in its durable upload intent. After source finalize enqueues ordinary processing, private capture must not invoke public voice enrollment/promotion. Existing public recording behavior stays separate. Reverse only if a single server-issued intent explicitly binds both meanings without inferring identity, liveness or public permission.

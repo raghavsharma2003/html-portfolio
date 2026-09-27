@@ -234,36 +234,69 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   return <section className="ptr-panel" aria-labelledby="ptr-title">
     <div className="ptr-content">
       <button className="vx-back" type="button" onClick={onBack}>Back to your workspace</button>
-      <header className="ptr-heading"><h1 id="ptr-title">Test your private draft.</h1><p>Review your teaching draft and one extracted source. This produces a private AI text answer.</p></header>
+      <header className="ptr-heading">
+        <h1 id="ptr-title">Test your private draft.</h1>
+        <p>Choose saved material, ask once, then review or correct the answer.</p>
+      </header>
       {error ? <p className="ptr-message" role="alert">{error}</p> : null}
       {requestId ? <section className="ptr-result" aria-label="Saved private test">
         <h2 ref={resultHeading} tabIndex={-1}>{erased || result?.state === "withdrawn" ? "Private test removed." : result?.state === "complete" ? "Your private text answer" : "Check your private request."}</h2>
-        {!erased && result?.state === "complete" ? <><p className="ptr-answer">{result.answer}</p><p className="ptr-source">Source: {readiness?.context_items.find(item => item.item_id === result.source.context_item_id)?.source_name || "Selected private source"}. Teaching draft: {readiness?.drafts.find(item => item.sheet_id === result.source.sheet_id)?.name || "Selected private draft"}.</p></> : erased || result?.state === "withdrawn" ? <p>This request is closed. Any saved question and answer have been removed.</p> : <p>{result?.state === "blocked" ? "This answer is unavailable under the current draft or source permissions." : "An answer is not confirmed yet. Checking the saved result does not send another question."}</p>}
+        {!erased && result?.state === "complete" ? <>
+          <p className="ptr-answer">{result.answer}</p>
+          <p className="ptr-source">Source: {readiness?.context_items.find(item => item.item_id === result.source.context_item_id)?.source_name || "Selected private source"}. Teaching draft: {readiness?.drafts.find(item => item.sheet_id === result.source.sheet_id)?.name || "Selected private draft"}.</p>
+        </> : erased || result?.state === "withdrawn" ? <p>This request is closed. Any saved question and answer have been removed.</p> : <p>{result?.state === "blocked" ? "This answer is unavailable under the current draft or source permissions." : "An answer is not confirmed yet. Checking the saved result does not send another question."}</p>}
         {!erased && (result?.state === "complete" || result?.state === "blocked" && result.can_review_teaching === true) && result.billing_state === "settled" ? <PrivateTeachingRefinement recoveryOnly={result.state !== "complete"} token={token} replicaId={replicaId} requestId={result.request_id} sheetId={result.source.sheet_id} disabled={Boolean(busy)} onOpenChange={setRefinementOpen} onAuthError={onAuthErrorRef.current} onNextQuestion={newQuestion} onDraftChanged={view => {
           readOperation.current++; setReadiness(null); setAttested([]);
           setSelection({sheetId: view.sheet_id, contextItemId: result.source.context_item_id}); setRefresh(value => value + 1);
         }} /> : null}
         {unresolvedUsage(withdrawalBilling || result?.billing_state) ? <p role="status">Removing a test does not cancel incurred usage.</p> : null}
-        {result?.failure_code ? <details><summary>Request details</summary><p>{result.failure_code.replaceAll("_", " ")}</p></details> : null}
-        <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button></> : null}{canStartAnother && !refinementOpen ? <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => newQuestion(result?.state === "complete" ? result.request_id : null)}>{result?.state === "complete" ? "Ask a follow-up" : "Prepare another question"}</button> : null}</div>
-      </section> : <>
+        {result?.failure_code ? <details className="ptr-request-details"><summary>Request details</summary><p>{result.failure_code.replaceAll("_", " ")}</p></details> : null}
+        <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <>
+          <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button>
+          <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button>
+        </> : null}{canStartAnother && !refinementOpen ? <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => newQuestion(result?.state === "complete" ? result.request_id : null)}>{result?.state === "complete" ? "Ask a follow-up" : "Prepare another question"}</button> : null}</div>
+      </section> : <div className="ptr-compose">
         <section className="ptr-material" aria-label="Selected material">
-          <div className="ptr-section-heading"><h2 ref={materialHeading} tabIndex={-1}>Choose what the answer uses.</h2><button type="button" disabled={Boolean(busy)} onClick={() => { setError(""); setRefresh(value => value + 1); }}>Refresh availability</button></div>
-          {loading ? <p role="status">Checking saved draft and source</p> : null}
-          <div className="ptr-fields"><label>Teaching draft<select value={selection.sheetId || selected?.sheet_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, sheetId: event.target.value })}><option value="">Choose a saved draft</option>{readiness?.drafts.map(draft => <option key={draft.sheet_id} value={draft.sheet_id}>{draft.name || "Unnamed draft"}</option>)}</select></label><label>Extracted source<select value={selection.contextItemId || selected?.context_item_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, contextItemId: event.target.value })}><option value="">Choose a saved text source</option>{readiness?.context_items.map(item => <option key={item.item_id} value={item.item_id} disabled={!item.eligible}>{item.source_name}{item.eligible ? "" : " (unavailable)"}</option>)}</select></label></div>
+          <div className="ptr-section-heading">
+            <div><h2 ref={materialHeading} tabIndex={-1}>Choose what the answer uses.</h2><p>One draft and one source.</p></div>
+            <button type="button" disabled={Boolean(busy)} onClick={() => { setError(""); setRefresh(value => value + 1); }}>Refresh availability</button>
+          </div>
+          {loading ? <p className="ptr-loading" role="status">Checking saved draft and source</p> : null}
+          <div className="ptr-fields">
+            <label>Teaching draft<select value={selection.sheetId || selected?.sheet_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, sheetId: event.target.value })}><option value="">Choose a saved draft</option>{readiness?.drafts.map(draft => <option key={draft.sheet_id} value={draft.sheet_id}>{draft.name || "Unnamed draft"}</option>)}</select></label>
+            <label>Extracted source<select value={selection.contextItemId || selected?.context_item_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, contextItemId: event.target.value })}><option value="">Choose a saved text source</option>{readiness?.context_items.map(item => <option key={item.item_id} value={item.item_id} disabled={!item.eligible}>{item.source_name}{item.eligible ? "" : " (unavailable)"}</option>)}</select></label>
+          </div>
           {readiness?.blockers.length ? <ul className="ptr-blockers">{readiness.blockers.map((blocker, index) => <li key={`${blocker.code}:${index}`}><strong>{blocker.responsibility === "platform" ? "Waiting on us: " : "Needs your input: "}</strong>{blocker.field ? `${blocker.field}: ` : ""}{blocker.code.replaceAll("_", " ")}</li>)}</ul> : null}
-          <div className="ptr-actions"><button type="button" disabled={Boolean(busy)} onClick={() => void editDraft()}>{busy === "edit" ? "Reading draft" : readiness?.drafts.length ? "Edit draft details" : "Create a private draft"}</button><button type="button" disabled={Boolean(busy)} onClick={() => onEditContext({ question, sheetId: selection.sheetId || selected?.sheet_id || "", contextItemId: selection.contextItemId || selected?.context_item_id || "" })}>Add or edit source material</button></div>
-          {editor ? <form className="ptr-editor" onSubmit={event => { event.preventDefault(); void saveDraft(event.currentTarget); }}><h3>{editorFromPublished ? "Create a private draft from this sheet" : "Private draft details"}</h3>{editorFromPublished ? <p>Saving creates a private draft for testing. It does not publish your changes.</p> : null}<label>Your name<input value={String(editor.name || "")} maxLength={200} onChange={event => setEditor({ ...editor, name: event.target.value })} /></label><label>Who you are<textarea value={String(editor.identityWho || "")} maxLength={2000} rows={3} onChange={event => setEditor({ ...editor, identityWho: event.target.value })} /></label><label>Subject<select name="subjectDomain" aria-label="Subject" value={String(editor.subjectDomain || "")} onChange={event => setEditor({ ...editor, subjectDomain: event.target.value as PrivateDraftBody["subjectDomain"] })}><option value="">Choose a subject</option><option value="physics">Physics</option><option value="chemistry">Chemistry</option><option value="maths">Maths</option></select></label><p>You can save an incomplete draft. These three fields are required to ask a private question.</p><div className="ptr-actions"><button type="submit" disabled={Boolean(busy)}>{busy === "save" ? "Saving draft" : "Save private draft"}</button><button type="button" disabled={Boolean(busy)} onClick={() => setEditor(null)}>Cancel edit</button></div></form> : null}
-          {selected && !editor ? <div className="ptr-review"><div><h3>{selected.material.draft.name}</h3><p>{selected.material.draft.identityWho}</p><p>Subject: {selected.material.draft.subjectDomain}</p></div><details open><summary>Review source: {selected.material.context.source_name}</summary><p className="ptr-source-body">{selected.material.context.body}</p></details></div> : null}
+          <div className="ptr-actions ptr-material-actions">
+            <button type="button" disabled={Boolean(busy)} onClick={() => void editDraft()}>{busy === "edit" ? "Reading draft" : readiness?.drafts.length ? "Edit draft details" : "Create a private draft"}</button>
+            <button type="button" disabled={Boolean(busy)} onClick={() => onEditContext({ question, sheetId: selection.sheetId || selected?.sheet_id || "", contextItemId: selection.contextItemId || selected?.context_item_id || "" })}>Add or edit source material</button>
+          </div>
+          {editor ? <form className="ptr-editor" onSubmit={event => { event.preventDefault(); void saveDraft(event.currentTarget); }}>
+            <h3>{editorFromPublished ? "Create a private draft from this sheet" : "Private draft details"}</h3>
+            {editorFromPublished ? <p>Saving creates a private draft for testing. It does not publish your changes.</p> : null}
+            <label>Your name<input value={String(editor.name || "")} maxLength={200} onChange={event => setEditor({ ...editor, name: event.target.value })} /></label>
+            <label>Who you are<textarea value={String(editor.identityWho || "")} maxLength={2000} rows={3} onChange={event => setEditor({ ...editor, identityWho: event.target.value })} /></label>
+            <label>Subject<select name="subjectDomain" aria-label="Subject" value={String(editor.subjectDomain || "")} onChange={event => setEditor({ ...editor, subjectDomain: event.target.value as PrivateDraftBody["subjectDomain"] })}><option value="">Choose a subject</option><option value="physics">Physics</option><option value="chemistry">Chemistry</option><option value="maths">Maths</option></select></label>
+            <p>You can save an incomplete draft. These three fields are required to ask a private question.</p>
+            <div className="ptr-actions"><button type="submit" disabled={Boolean(busy)}>{busy === "save" ? "Saving draft" : "Save private draft"}</button><button type="button" disabled={Boolean(busy)} onClick={() => setEditor(null)}>Cancel edit</button></div>
+          </form> : null}
+          {selected && !editor ? <details className="ptr-review">
+            <summary><span>Review source: {selected.material.context.source_name}</span><small>{selected.material.draft.name}</small></summary>
+            <div className="ptr-review-content">
+              <div><h3>Teaching draft</h3><strong>{selected.material.draft.name}</strong><p>{selected.material.draft.identityWho}</p><p>Subject: {selected.material.draft.subjectDomain}</p></div>
+              <div><h3>Source text</h3><p className="ptr-source-body">{selected.material.context.body}</p></div>
+            </div>
+          </details> : null}
         </section>
         <form className="ptr-question" onSubmit={event => { event.preventDefault(); void ask(event.currentTarget); }}>
+          <div className="ptr-question-heading"><h2>Question</h2><span className="ptr-count">{question.length} / 2000</span></div>
           {parentRequestId ? <p role="status">Your saved question and answer will be used only as context for this follow-up.</p> : null}
-          <label htmlFor="ptr-question">Your question<textarea id="ptr-question" rows={4} value={question} maxLength={2000} disabled={Boolean(busy)} onChange={event => { setQuestion(event.target.value); setAttested(value => parentRequestId ? value : []); }} /></label><p className="ptr-count">{question.length} / 2000 characters</p>
-          {!parentRequestId ? <fieldset disabled={!ready || Boolean(busy)}><legend>For this question and selected material</legend>{readiness?.statements.map(statement => <label className="ptr-attestation" key={statement.id}><input type="checkbox" checked={attested.includes(statement.id)} onChange={event => setAttested(value => event.target.checked ? [...value, statement.id] : value.filter(id => id !== statement.id))} /><span>{statement.text}</span></label>)}</fieldset> : null}
+          <label htmlFor="ptr-question">Your question<textarea id="ptr-question" rows={3} value={question} maxLength={2000} disabled={Boolean(busy)} onChange={event => { setQuestion(event.target.value); setAttested(value => parentRequestId ? value : []); }} /></label>
+          {!parentRequestId ? <fieldset disabled={!ready || Boolean(busy)}><legend>Before you ask</legend>{readiness?.statements.map(statement => <label className="ptr-attestation" key={statement.id}><input type="checkbox" checked={attested.includes(statement.id)} onChange={event => setAttested(value => event.target.checked ? [...value, statement.id] : value.filter(id => id !== statement.id))} /><span>{statement.text}</span></label>)}</fieldset> : null}
           <p className="ptr-retention">Permission lasts 30 days. Saved tests stay until you remove them.</p>
           <button className="vx-button vx-button--primary" type="submit" disabled={!canAsk}>{busy === "ask" ? "Asking privately" : "Ask privately"}</button>
         </form>
-      </>}
+      </div>}
     </div>
   </section>;
 }

@@ -24,7 +24,8 @@
 // A no-voice owner therefore keeps the material-publication ceremony even
 // after private text Meet becomes available. This branch mirrors the server
 // authority instead of presenting a Room action the server must refuse.
-import { deploySurface, expertWorkspaceUrl } from "./workspaceNavigation";
+import { useState } from "react";
+import { deploySurface } from "./workspaceNavigation";
 import type { ReplicaRuntimeStatus } from "./types";
 import MaterialSharePanel from "./publication/MaterialSharePanel";
 import DeployStudio from "./DeployStudio";
@@ -39,17 +40,28 @@ export default function ExpertSharePanel({ replicaId, token, stopped, onAuthErro
   onReview: () => void;
   voiceWorkspaceReady: boolean;
 }) {
-  const { t } = useStudioLocale();
+  const { t, locale } = useStudioLocale();
   const copy = t.expertSharePanel;
+  const scope = `${token}:${replicaId}`;
+  const [localView, setLocalView] = useState<{ scope: string; value: "sharing" | "readiness" }>(() => ({ scope, value: "sharing" }));
+  const view = localView.scope === scope ? localView.value : "sharing";
   if (deploySurface(voiceWorkspaceReady) === "room") {
     return <DeployStudio token={token} replicaId={replicaId} stopped={stopped} onAuthError={onAuthError} onReview={onReview} />;
+  }
+  if (view === "readiness") {
+    return <section className="vx-expert-share" aria-label={copy.reviewReadiness}>
+      <button className="vx-back" type="button" onClick={() => setLocalView({ scope, value: "sharing" })}>
+        {locale === "hi" ? "शेयरिंग पर वापस जाएँ" : "Back to sharing"}
+      </button>
+      <DeployStudio token={token} replicaId={replicaId} stopped={stopped} onAuthError={onAuthError} onReview={onReview} />
+    </section>;
   }
   return <section className="vx-expert-share" aria-labelledby="expert-share-title">
     <div className="vx-stage-title"><h1 id="expert-share-title">{copy.title}</h1></div>
     <MaterialSharePanel token={token} replicaId={replicaId} onReview={onReview} />
     <details className="vp-data"><summary>{copy.voiceOtherChannelsSummary}</summary>
       <p>{copy.voiceOtherChannelsNote}</p>
-      <a className="vx-button" href={expertWorkspaceUrl(replicaId, "share", window.location.search)}>{copy.reviewReadiness}</a>
+      <button className="vx-button" type="button" onClick={() => setLocalView({ scope, value: "readiness" })}>{copy.reviewReadiness}</button>
     </details>
   </section>;
 }

@@ -39,7 +39,7 @@ async function capture(state) {
   await page.screenshot({path:resolve(out,`${state}-${width}.png`)});
  }
 }
-async function open(suffix='') {await page.goto(`${base}/evals/clone-experience-qa/harness.html?scenario=recorder${suffix}`);await page.locator('.vx-record-button').waitFor();}
+async function open(suffix='') {await page.goto(`${base}/evals/clone-experience-qa/harness.html?scenario=recorder&view=voice${suffix}`);await page.locator('.vx-record-button').waitFor();}
 try {
  if (!process.argv.includes('--extras')) {
  await open(); await capture('idle');

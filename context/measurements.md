@@ -19137,3 +19137,11 @@ Focused correction checks on2026-09-21: verification-knowledge14 mounted checks;
 ## pilot-health-20260927
 
 2026-09-27: current checkout6d7d9bcd clean; graph3458 nodes/2909 edges before logging. Vercel dpl_H8iEKeWY4HFWeGSshczwLwHS5K9y READY, private protection retained. n7 read-only requests: Studio and studio.html200 with exact CSP, release marker200 matches7b8159561fcaa140201d7fad4f0b23249da7ac75b8029b63ac303278623b3705; replica/context-items/teacher-sheet/replica-text-rehearsal each401. Measured request seconds0.09,0.09,0.09,0.31,7.25,8.03,8.83, one sample each, no latency cause inferred. Receipt scratchpad/expert-tools/RESUME-20260927-HEALTH.json in original checkout. No provider calls/cloud writes. Owner explicitly says phone preview not tested.
+
+
+## rebuild-baseline-20260927
+
+2026-09-27: n=1 direct owner reply selects all three failure categories. Current code at34ecd3c9 has navigation gated on runtime readiness, a large CloneExperience controller, separate knowledge/personality/test surfaces, and unfinished private voice WIP. This is source/owner evidence, not a newly measured authenticated model result.
+
+
+September27 rebuild checkpoint: auth locale52, entryCSS8, mountedauth8, private-text action/focus58, profile-readiness3, publication40, local share-readiness4 and deploy24, privatevoiceUI8, and benchmark-kit28 focused checks passed in their named fixtures. New workbench completed two mounted viewport journeys (390/1440), before the final shared-font/copy adjustment. Root composite TypeScript passed after private upload flag typing. These are synthetic/mounted checks, not deployed or real voice-quality evidence. Full integrated release and new private-upload seam test remain pending.

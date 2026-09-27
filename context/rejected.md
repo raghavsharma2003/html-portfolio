@@ -19298,3 +19298,11 @@ The owner choosing phone testing does not demonstrate successful sign-in, upload
 ## broad-probe-resume-20260927
 
 The reused broad protected probe produced no report during the resumption assessment and was stopped by verified owned process IDs. Its result is incomplete, not passing and not evidence of a product outage. Replaced this assessment with seven bounded read-only checks using the existing authorized automation access. Do not rerun the entire release or redesign the product solely because the broad probe was slow.
+
+
+## patch-only-redesign-20260927
+
+The owner rejects the repaired September21 interface despite its passing fixtures. Oversized capture repairs and isolated entry polish did not establish a clear full workflow. Replace workspace hierarchy and shared layout, keep real handlers and ownership constraints, and validate the integrated signed-in experience. Do not use prerecorded demos, fictional readiness scores, or a private text test as evidence of working voice cloning.
+
+
+The first new-workspace test exposed a reload gap: navigation wrote enrichView=files but the initial parser accepted only humanos/sources, returning to the overview. Added files to the exact allowlist. Parallel Vite instances also made the first broad local fixture attempt opaque/overlong; stopped only that owned process tree and reran against the existing server. The subsequent two-viewport journey completed. Do not claim broad release acceptance from those focused results.

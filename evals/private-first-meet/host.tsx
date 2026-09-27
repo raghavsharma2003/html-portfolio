@@ -57,7 +57,7 @@ declare global { interface Window { privateMeetProbe: { sheet: Record<string, bo
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
   const method = init?.method || "GET";
-  if (url.pathname === "/api/internal-voice") return new Response(JSON.stringify({ enabled: false }), { status: 404, headers: { "content-type": "application/json" } });
+  if (url.pathname === "/api/internal-voice" || url.pathname === "/api/private-voice") return new Response(JSON.stringify({ enabled: false }), { status: 404, headers: { "content-type": "application/json" } });
   if (url.pathname === "/api/context-items") return Response.json({
     items: hasText ? [{ item_id: textItemId, source_id: textSourceId, kind: "file", format: "text", source_name: "My notes.txt", source_url: "", byte_size: 240, extracted_chars: 220, extractor: "text", status: "mined", refusal_reason: "", routed_to: "", mine_skip_reason: "", authorship: "mine", owner_speaker: "", consent_scope: "own_context", proposal: "present", created_at: "2026-09-14T00:00:00.000Z", updated_at: "2026-09-14T00:00:00.000Z" }] : [],
     count: hasText ? 1 : 0, quota: { items: hasText ? 1 : 0, bytes: hasText ? 240 : 0, max_items: 200, max_bytes: 524288000 },

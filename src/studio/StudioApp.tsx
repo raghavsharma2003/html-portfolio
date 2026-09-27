@@ -119,6 +119,46 @@ const MirrorCallStudio = lazy(() => import("./MirrorCallStudio"));
 
 type LoadState = "booting" | "loading" | "ready" | "error";
 
+export type PersonalSheetReadinessScope = {
+  operation: number;
+  accountRevision: number;
+  userId: string;
+  accessToken: string;
+  replicaId: string;
+};
+
+function samePersonalSheetReadinessScope(
+  expected: PersonalSheetReadinessScope,
+  current: PersonalSheetReadinessScope | null,
+) {
+  return Boolean(current
+    && current.operation === expected.operation
+    && current.accountRevision === expected.accountRevision
+    && current.userId === expected.userId
+    && current.accessToken === expected.accessToken
+    && current.replicaId === expected.replicaId);
+}
+
+/** Re-read readiness after a server-confirmed personal-sheet change. The read
+ * result is committed only while the same account, token, replica and newest
+ * operation still own it. The runtime endpoint remains the authority. */
+export async function recheckPersonalSheetRuntime({
+  scope,
+  currentScope,
+  read,
+  commit,
+}: {
+  scope: PersonalSheetReadinessScope;
+  currentScope: () => PersonalSheetReadinessScope | null;
+  read: () => Promise<ReplicaRuntimeStatus | null>;
+  commit: (status: ReplicaRuntimeStatus | null) => void;
+}): Promise<boolean> {
+  const status = await read();
+  if (!samePersonalSheetReadinessScope(scope, currentScope())) return false;
+  commit(status);
+  return true;
+}
+
 const STUDIO_SELF_TEST_UI = studioSelfTestUiEnabled(
   import.meta.env.VITE_REPLICA_SELF_TEST_MODE,
   import.meta.env.VITE_REPLICA_SELF_TEST_ENVIRONMENT,
@@ -1396,12 +1436,17 @@ export default function StudioApp({
   const livenessMounted = useRef(false);
   useEffect(() => { livenessMounted.current = true; return () => { livenessMounted.current = false; }; }, []);
   const consentRevision = useRef(0);
+  const personalSheetReadRevision = useRef(0);
   const consentMutation = useRef<string | null>(null);
   const [consentRead, setConsentRead] = useState<{ scope: string; state: "loading" | "ready" | "error" }>({ scope: "", state: "loading" });
   const [consentRetry, setConsentRetry] = useState(0);
   const setCurrentSession = useCallback((next: StudioSession | null) => {
     if (activeSessionRef.current?.accessToken !== next?.accessToken || activeSessionRef.current?.userId !== next?.userId) {
-      if (activeSessionRef.current?.userId !== next?.userId) { replicaLoadRevision.current += 1; accountRevision.current += 1; }
+      if (activeSessionRef.current?.userId !== next?.userId) {
+        personalSheetReadRevision.current += 1;
+        replicaLoadRevision.current += 1;
+        accountRevision.current += 1;
+      }
       consentRevision.current += 1;
       consentMutation.current = null;
     }
@@ -1502,6 +1547,7 @@ export default function StudioApp({
   // A new workspace is a new queue. Carrying the previous one's platform state
   // across a switch would be the stale-value failure without the excuse.
   useEffect(() => {
+    personalSheetReadRevision.current += 1;
     setPlatformWork(null);
     setActivityView(null);
   }, [selected?.replica_id]);
@@ -1781,7 +1827,7 @@ export default function StudioApp({
     setConsentRead((previous) => previous.scope === scope && previous.state === "ready" ? previous : { scope, state: "loading" });
     setEnrollmentLoading(true);
     setLivenessLoading(true);
-    // Every one of the four new reads below is `allSettled` and every one of
+    // Every independent read below is `allSettled` and every optional one of
     // them leaves its state at `null` on failure. `null` is UNKNOWN in
     // `wizardModel`, and unknown never renders as "none" or "not done yet" on
     // the rail. A rail that reports a status because a fetch failed is the
@@ -2214,10 +2260,58 @@ export default function StudioApp({
     }
   }
 
-  function handlePersonalSheetSaved(replicaId: string, sheet: TeacherSheet) {
-    if (!session || activeSessionRef.current?.userId !== session.userId || selectedIdRef.current !== replicaId) return;
+  const reconcilePersonalSheetChange = useCallback(async (replicaId: string, sheet: TeacherSheet) => {
+    const candidate = activeSessionRef.current;
+    if (!candidate || selectedIdRef.current !== replicaId) return;
+    const operation = ++personalSheetReadRevision.current;
+    const operationAccount = accountRevision.current;
+
+    // The sheet came from a successful server save/publication readback, so it
+    // may update the editor immediately. Readiness is separate authority and
+    // is replaced only by `/api/replica-runtime` below.
     setSheetDraft(sheet);
-  }
+    try {
+      const fresh = await refreshForRequest(candidate);
+      if (personalSheetReadRevision.current !== operation
+        || accountRevision.current !== operationAccount
+        || selectedIdRef.current !== replicaId
+        || activeSessionRef.current?.userId !== fresh.userId
+        || activeSessionRef.current?.accessToken !== fresh.accessToken) return;
+      const scope: PersonalSheetReadinessScope = {
+        operation,
+        accountRevision: operationAccount,
+        userId: fresh.userId,
+        accessToken: fresh.accessToken,
+        replicaId,
+      };
+      await recheckPersonalSheetRuntime({
+        scope,
+        currentScope: () => {
+          const current = activeSessionRef.current;
+          if (!current || !selectedIdRef.current) return null;
+          return {
+            operation: personalSheetReadRevision.current,
+            accountRevision: accountRevision.current,
+            userId: current.userId,
+            accessToken: current.accessToken,
+            replicaId: selectedIdRef.current,
+          };
+        },
+        read: () => readRuntimeStatus(fresh.accessToken, replicaId),
+        commit: setRuntimeStatus,
+      });
+    } catch (cause) {
+      if (personalSheetReadRevision.current !== operation
+        || accountRevision.current !== operationAccount
+        || selectedIdRef.current !== replicaId) return;
+      setRuntimeStatus(null);
+      handleApiError(cause, "Your profile was saved, but its readiness could not be refreshed");
+    }
+  }, [handleApiError, refreshForRequest]);
+
+  const handlePersonalSheetSaved = useCallback((replicaId: string, sheet: TeacherSheet) => {
+    void reconcilePersonalSheetChange(replicaId, sheet);
+  }, [reconcilePersonalSheetChange]);
 
   /**
    * The public first-run path deliberately combines workspace creation and the

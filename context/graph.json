@@ -20871,6 +20871,24 @@
       "kind": "rejection",
       "title": "Do not turn an overlong health recheck into a completion claim",
       "at": "2026-09-27"
+    },
+    {
+      "id": "full-product-rebuild-20260927",
+      "kind": "decision",
+      "title": "Owner reopens full product and design scope",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "rebuild-baseline-20260927",
+      "kind": "measurement",
+      "title": "User rejects navigation design and functional journey",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "patch-only-redesign-20260927",
+      "kind": "rejection",
+      "title": "Do not repeat local styling patches as a whole-product solution",
+      "at": "2026-09-27"
     }
   ],
   "edges": [
