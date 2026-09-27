@@ -18018,6 +18018,30 @@
       "kind": "rejection",
       "title": "Host-time replay drift and silently incomplete owner exports are real defects",
       "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-three-suite-scope",
+      "kind": "decision",
+      "title": "Repair remaining hosted evaluation failures through their actual callers",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-three-suite-hosted",
+      "kind": "measurement",
+      "title": "Hosted release failures have four reviewed evaluation repairs with bounded local evidence",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-three-suite-no-completion",
+      "kind": "rejection",
+      "title": "Three remaining failures and one viewport pass are not release acceptance",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-native-and-historical-signals",
+      "kind": "decision",
+      "title": "Compose real native cancellation with explicit historical-close fixture behavior",
+      "at": "2026-09-27"
     }
   ],
   "edges": [
@@ -30523,6 +30547,26 @@
       "src": "release20260927-explicit-turn-clock",
       "rel": "caused_by",
       "dst": "release20260927-host-clock-and-silent-export"
+    },
+    {
+      "src": "release20260927-three-suite-scope",
+      "rel": "measured_by",
+      "dst": "release20260927-three-suite-hosted"
+    },
+    {
+      "src": "release20260927-three-suite-scope",
+      "rel": "caused_by",
+      "dst": "release20260927-three-suite-no-completion"
+    },
+    {
+      "src": "release20260927-native-and-historical-signals",
+      "rel": "measured_by",
+      "dst": "release20260927-three-suite-hosted"
+    },
+    {
+      "src": "release20260927-native-and-historical-signals",
+      "rel": "caused_by",
+      "dst": "release20260927-three-suite-no-completion"
     }
   ]
 }

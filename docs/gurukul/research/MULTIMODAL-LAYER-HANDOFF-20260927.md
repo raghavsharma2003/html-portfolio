@@ -53,7 +53,44 @@ The creator export now includes existing owner/replica-scoped GPU source authori
 
 Final local outcomes executed by root are CI prerequisites 13/13 groups, worker 47/47, memory config 8/8 plus separate authority 29/meter 27, Room doors 2,268/zero failures, incidents 146/zero, export 70/zero and actual-observer fixture eight groups. New multimodal evidence remains green at 19 checks. These improve on the observed worker stop after 33, doors 2,236/two, incidents 130/one and export 56/one. Clock controls have zero failed assertions for both fresh and settled labels under a 365-day host shift and for an advanced explicit turn. The generated engine is 377,198 UTF-8 bytes and passes freshness checking. Forced TypeScript, six-file workflow lint, copy seven scopes/21 negatives, and prompt-budget 83 byte-identity fixtures/operational caps passed; existing budget warnings remain visible.
 
-A fresh temporary bare Git repository fetched the pinned archive at depth two and passed five selected historical lookup specifications, not the entire original 33-lookup matrix. This establishes availability of those objects without relying on local shared history. No local server or font installation accompanied that check. The CI font preparation is statically verified only; its hosted effect awaits the new run. No new SQL execution, hosted-green result, provider trial, deployment or user-quality result is asserted. PR 8 remains draft pending the complete gate.
+A fresh temporary bare Git repository fetched the pinned archive at depth two and passed five selected historical lookup specifications, not the entire original 33-lookup matrix. This establishes availability of those objects without relying on local shared history. No local server or font installation accompanied that check. At that checkpoint, CI font preparation was statically verified only and awaited the new hosted run. No new SQL execution, hosted-green result, provider trial, deployment or user-quality result was asserted. PR 8 remained draft pending the complete gate.
+
+## Published candidate: three remaining suites, 27 September at 08:08 UTC
+
+Published head `0fdbf7d1e3f29197cf9212409f2534edad67a038` reached APK [run 36304766280](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36304766280), job `108579115964`. Its evaluation registry failed three suites rather than the initial 55. All previously repaired suites and the new multimodal/research suites pass in this hosted log.
+
+| Remaining suite | Observed failure |
+|---|---|
+| `private-rehearsal-combined` | Stale whole-file build-intent equality rejects the approved source-scope guard. |
+| `primary-intent-recovery` | The first pending scope-change case creates a new request; cause remains under investigation. |
+| `private-teaching-refinement-ui` | The 390-pixel run completes; at 1440 pixels, Ask privately blocks in the refreshed-readiness/attestation follow-up case. |
+
+These three bounded investigations preserve source scope and current readiness/attestation checks. No fix is accepted by this checkpoint. Release [run 36304766286](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36304766286) remained in progress at 08:08 UTC on Node 24 job `108579116085` and Node 22 job `108579116187`. PR 8 remains draft, with no full-green, actual SQL, provider or deployment claim.
+
+## Reviewed evaluation repair candidate
+
+The next candidate changes evaluation files only; production `src/`, `api/`, services and workflows are unchanged from `0fdbf7d1`. All four patches received independent review and root review, with these bounded local checks:
+
+| Repair | Executed local evidence | Mounted evidence still required |
+|---|---|---|
+| Private rehearsal | Nine groups; both original exclusion mutants plus nine current-reconciler mutants. Full historical SQL plus exact source fence, bounds 12/1/50, malformed scope rejected before query. | No new SQL execution is claimed. |
+| Primary-intent recovery | Three actual StudioApp caller and 20 actual-handler controls, plus baseline recorder preservation. The handler cases comprise one positive, ten invalidations and nine guard mutants. | Expected 18 mounted groups remain unrun locally. |
+| Private teaching refinement | Four source-only groups and syntax check passed. | Expected 42 mounted groups remain unrun locally, including the revised 1440-pixel path. |
+| Azure-web signal fixture | Six pure no-socket controls and syntax check passed. | Expected 32 mounted HTTP groups remain unrun locally; they are separate from the six controls. |
+
+The recovery fixture now waits for committed scope before releasing the held read and checks the original durable saga without an 80 ms sleep. The refinement fixture holds readiness deliberately, requires exactly three named fresh attestations, and denies partial attestation before the actual POST while retaining its existing bindings. These new mounted controls await hosted execution; source-only results do not prove the browser behavior.
+
+Review caught an overly broad query-row exclusion and a mutant aimed at the wrong first occurrence. Final controls compare complete historical SQL and require unique mutation targets in the extracted current function. Root also passed forced TypeScript, copy seven scopes/21 negatives, six-file workflow lint, generated-engine freshness, multimodal 19 and research 15 under network blocking. The four patches are reviewed and ready for candidate commit/push; their hosted rerun remains required.
+
+## Completed release run and Azure-web fixture diagnosis
+
+The same published `0fdbf7d1` release [run 36304766286](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36304766286) has now completed. Node 22 job `108579116187` and Node 24 job `108579116085` each pass 23/24 gates, failing evaluation only. Node 22 fails rehearsal/recovery; Node 24 fails those plus `azure-web`, which receives HTTP 500 instead of 200 at `run.mjs:113` after three passing groups. No 24/24 result exists for this head.
+
+Refinement passes both release jobs but fails the separate APK run. This is consistent with a timing race, not a deterministic Node-version result; retain all three observations. Root downloaded and checked sanitized Node 24 failure artifact `10926748620`, SHA-256 `4a46b80cde736352e6244e6e2b37e8cad33c77fc6c5d54622c470d19daa2bdfa`; Node 22 artifact is `10927200761`.
+
+Root independently compared authoritative Node [v24.18.1](https://github.com/nodejs/node/blob/v24.18.1/lib/_http_incoming.js) and [v24.21.0](https://github.com/nodejs/node/blob/v24.21.0/lib/_http_incoming.js) source. The newer native `IncomingMessage.signal` leaves a normally completed request live after message close. The fixture synthesized the older abort-on-close behavior only when no native signal existed; under the newer native behavior, its own historical-regression assertion threw and returned sanitized 500. The production adapter supports both behaviors.
+
+The evaluation-only repair always creates an explicitly synthetic historical-close controller and composes it with the actual native signal using `AbortSignal.any`. Getter-only, disconnect, deadline, completed-body assertions and the old-unconditional-composition negative remain. Root ran six no-socket controls plus syntax checking; no local HTTP server/browser ran, and the expected 32 mounted groups remain unverified. The source-review hold is resolved, with no new hosted acceptance, actual SQL, provider or deployment result.
 
 ## Handoff boundary
 

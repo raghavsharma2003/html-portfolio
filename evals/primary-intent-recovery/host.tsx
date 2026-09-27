@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import Current from "../../src/studio/CloneExperience";
 import Legacy from "virtual:legacy-experience";
 import type { ConsentReceipt, Replica, ReplicaReview, ReplicaSource, VoiceBuildIntent } from "../../src/studio/types";
@@ -58,12 +58,23 @@ const emptyActivity: ActivityView = {
 const seed = {uploadIntentId,buildIntentId,sourceId:candidateSourceId,language:"hinglish"};
 if (!params.has("reload")) localStorage.setItem(sagaKey,JSON.stringify(seed));
 sessionStorage.removeItem("vyakti:experience:reveal");
-const probe = window.recoveryProbe = {calls:[] as any[],reads:0,resolve:null as null|(()=>void),change:null as any,unmount:()=>root.unmount()};
+const probe = window.recoveryProbe = {
+ calls:[] as any[],reads:0,resolve:null as null|(()=>void),change:null as any,
+ pendingRead:null as null|Promise<unknown>,
+ committed:null as null|{token:string;sourceIds:string[];consentIds:string[]},
+ unmounted:false,
+ unmount(){root.unmount();probe.unmounted=true;},
+};
 function Harness(){
  const [token,setToken]=useState("offline");
  const [rows,setRows]=useState([oldPrimary,candidate("ready")]);
  const [grants,setGrants]=useState(consents);
  probe.change=(kind:string)=>{if(kind==="scope")setToken("changed");if(kind==="deleted")setRows([oldPrimary]);if(kind==="consent")setGrants([]);};
+ // Scheduling a parent update is not the same as committing the new props.
+ // The pending-read test waits for this witness before releasing its response.
+ useLayoutEffect(()=>{
+  probe.committed={token,sourceIds:rows.map(row=>row.source_id),consentIds:grants.map(grant=>grant.consent_id)};
+ },[token,rows,grants]);
  async function read(){
   probe.reads++;
   if(scenario.startsWith("pending"))await new Promise<void>(resolve=>{probe.resolve=resolve;});
@@ -71,7 +82,9 @@ function Harness(){
   return {replica,sources:scenario==="foreign"?[{...candidate("ready"),replica_id:"foreign"}]:scenario==="deleted"?[oldPrimary]:scenario==="rejected"?[candidate("rejected")]:scenario==="third-party"?[{...candidate("ready"),contains_third_parties:true}]:[oldPrimary,candidate("ready")],consents:scenario==="consent"?[]:consents};
  }
  // Keep the actual parent callback stable while ordinary request results render.
- const [readCallback]=useState(()=>read);
+ const [readCallback]=useState(() => () => {
+  const pending=read();probe.pendingRead=pending;return pending;
+ });
  async function request(input:{candidateSourceId:string;buildIntentId:string}){
   probe.calls.push({...input,persisted:JSON.parse(localStorage.getItem(sagaKey)||"null")});
   if(input.buildIntentId!==buildIntentId && scenario==="ambiguous")throw new Error("connection interrupted");
