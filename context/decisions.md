@@ -25547,3 +25547,7 @@ The owner now explicitly rejects all three: unclear next action, inconsistent de
 
 
 Private sample capture is now distinguished in its durable upload intent. After source finalize enqueues ordinary processing, private capture must not invoke public voice enrollment/promotion. Existing public recording behavior stays separate. Reverse only if a single server-issued intent explicitly binds both meanings without inferring identity, liveness or public permission.
+
+## `private-voice-complete-runtime27`
+
+A signed-in account can admit one fixed Hindi sample from an eligible owned enhance artifact. The private ledger reuses source capture/storage authority, the existing exact-revision controller and GPU meter, protected PCM finalization and immutable storage. It creates no public generation, genome, identity or training permission. Vercel is only a bearer-preserving proxy; Azure CPU admission/status really call the consumer. Reversal condition: an existing authority contract can represent this exact private grant and its revocation without falsifying its public semantics. Migration172 remains unapplied,171 unused; live SQL, CPU deployment, supervisor and separately authorized spend canary remain prerequisites.

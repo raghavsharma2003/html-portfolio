@@ -8,14 +8,17 @@ import {
   confirmReplicaChannelStorageErasure,
   createReplicaErasureReceipt,
   getReplicaErasureStatus,
-  leaseNextReplicaErasure,
+  leaseNextReplicaErasure as actualLeaseNextReplicaErasure,
   prepareReplicaErasures,
   replicaErasureLeaseTokenHash,
   replicaErasureRequestHash,
   renewReplicaErasureLease,
   retryReplicaErasure,
-  runReplicaErasureFinalizer,
+  runReplicaErasureFinalizer as actualRunReplicaErasureFinalizer,
 } from "../../api/_replica-full-erasure.js";
+import {withoutPrivateVoiceSchema} from '../lib/private-voice-schema-fixture.mjs';
+const leaseNextReplicaErasure=(db,...args)=>actualLeaseNextReplicaErasure(withoutPrivateVoiceSchema(db),...args);
+const runReplicaErasureFinalizer=options=>actualRunReplicaErasureFinalizer({...options,db:withoutPrivateVoiceSchema(options.db)});
 import { splitSql } from "../../db/migrations/apply.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");

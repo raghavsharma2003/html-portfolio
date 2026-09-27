@@ -132,7 +132,7 @@ function disclosureAdapter() {
   });
 }
 
-export function createAzureProtectionAdapters({ db, env = process.env, fetchImpl = fetch } = {}) {
+export function createAzureProtectionAdapters({ db, env = process.env, fetchImpl = fetch, persistManifest } = {}) {
   if (typeof db !== "function") fail("audio_protection_db_required");
   const config = azureProtectionConfig(env);
   return Object.freeze({
@@ -191,7 +191,8 @@ export function createAzureProtectionAdapters({ db, env = process.env, fetchImpl
         const manifest = Buffer.from(String(value.manifest_base64 || ""), "base64");
         if (manifest.length < 64 || manifest.length > 1_048_576 || sha256Hex(manifest) !== value.manifest_hash)
           fail("c2pa_manifest_binding_invalid");
-        const stored = await db(
+        const stored = persistManifest ? await persistManifest({generationId,standard:C2PA_STANDARD,
+          manifestHash:value.manifest_hash,manifestBase64:manifest.toString("base64"),signerKeyId:value.signer_key_id}) : await db(
           `insert into vy_replica_c2pa_manifest
              (generation_id,standard,manifest_sha256,manifest_bytes,signer_key_id)
            select g.generation_id,$2,$3,decode($4,'base64'),$5

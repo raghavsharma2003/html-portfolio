@@ -502,6 +502,19 @@ if (unreachable.length) {
   );
 }
 
+// 172's private ledger is reached by replica/source/artifact composite cascades
+// in the catalog walk above. Its authority never claims public verification.
+if((await q("select to_regclass('public.vy_private_voice_run') is not null present"))[0]?.present){
+  check("Private voice rows retain their owner's source and enhanced artifact", `select count(*)::integer n from vy_private_voice_run h
+   where not exists(select 1 from vy_replica_processing_artifact a where a.artifact_id=h.artifact_id and a.source_id=h.source_id
+    and a.replica_id=h.replica_id and a.owner_user_id=h.owner_user_id)`);
+  check("Private voice ready means protected Hindi output without public authority", `select count(*)::integer n from vy_private_voice_run h
+   where (h.receipt->>'scope'='private_voice_test' and h.receipt->>'identity_claim_allowed'='false'
+    and h.receipt->>'release_eligible'='false' and h.receipt->>'training_allowed'='false'
+    and h.config->>'language_id'='hi' and h.config->>'model_arm'='hindi_v3') is distinct from true
+   or (h.state='ready' and (h.output_sha256 is null or h.output_receipt is null or h.protection->>'state' is distinct from 'sealed'))`);
+}
+
 // 166 adds two columns to the already-covered vy_replica_calibration table
 // (erasure reach and PERSON_TABLES manifest coverage are unchanged -- see
 // the migration file), but winner_artifact_id carries NO declared FK

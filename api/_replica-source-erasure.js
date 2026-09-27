@@ -3,6 +3,7 @@ import { REPLICA_POLICY_VERSION, replicaId } from "./_replica.js";
 import { sha256Hex } from "./_replica-processing/contracts.js";
 import { deleteReplicaSourceObjects, replicaStorageBucketDescriptor } from "./_replica-storage.js";
 import { primarySelectionQuery } from "./_replica-primary-selection.js";
+import {revokeDeletingPrivateVoice,privateVoiceSchemaPresent,privateVoiceSourceFence,privateVoiceSourcePaths} from './_private-voice-erasure.js';
 
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_PENDING_UPLOAD_STALE_MS = 24 * 60 * 60 * 1000;
@@ -91,6 +92,7 @@ export async function markAbandonedPendingSourceUploads(db, options = {}) {
 }
 
 export async function leaseNextSourceErasure(db, options = {}) {
+  const privateVoicePresent=await revokeDeletingPrivateVoice(db);
   const token = options.token || randomBytes(32).toString("base64url");
   const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 240_000)));
   const rows = await db(
@@ -100,6 +102,7 @@ export async function leaseNextSourceErasure(db, options = {}) {
           (s.erasure_lease_token_hash='' and s.erasure_next_attempt_at<=now()) or
           (s.erasure_lease_token_hash<>'' and s.erasure_lease_expires_at<=now())
           )
+          ${privateVoicePresent?privateVoiceSourceFence():''}
           -- A direct browser capability can recreate the exact original even
           -- after it was observed absent. It is not revocable at either
           -- provider, so physical erasure waits for the durable not-after.
@@ -169,6 +172,7 @@ export async function leaseNextSourceErasure(db, options = {}) {
                       where a.source_id=s.source_id and g.replica_id=s.replica_id
                         and g.owner_user_id=s.owner_user_id and g.preview_result_object_path<>''
                         and g.preview_result_deleted_at is null
+                     ${privateVoicePresent?privateVoiceSourcePaths:''}
                    ) stored),'[]'::jsonb) artifacts
      ), attempted as (
        insert into vy_replica_source_erasure_attempt
@@ -203,12 +207,14 @@ export async function leaseNextSourceErasure(db, options = {}) {
 }
 
 export async function renewSourceErasureLease(db, lease, options = {}) {
+  const privateVoicePresent=await privateVoiceSchemaPresent(db);
   const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 240_000)));
   const rows = await db(
     `update vy_replica_source s
         set erasure_lease_expires_at=now()+($5::integer*interval '1 millisecond'),updated_at=now()
       where s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
         and s.state='deleting' and s.erasure_lease_token_hash=$4
+           ${privateVoicePresent?privateVoiceSourceFence():''}
            and s.erasure_lease_expires_at>now()
            and not exists (
              select 1 from vy_replica_source_storage_writer sw
@@ -229,6 +235,7 @@ function requireSettlement(rows, code) {
 }
 
 export async function completeSourceErasure(db, lease) {
+  const privateVoicePresent=await privateVoiceSchemaPresent(db);
   const rows = await primarySelectionQuery(db,
     `with selection_snapshot as materialized (
        select primary_selection_id from vy_replica
@@ -249,6 +256,7 @@ export async function completeSourceErasure(db, lease) {
          from vy_replica_source s cross join review_lock
         where review_lock.acquired and s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
           and s.state='deleting' and s.erasure_lease_token_hash=$4
+          ${privateVoicePresent?privateVoiceSourceFence():''}
           and s.erasure_lease_expires_at>now()
           -- Recheck every provider authority under the completion row lock.
           -- The prefix sweep happened outside this transaction, so a receipt

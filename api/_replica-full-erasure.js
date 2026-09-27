@@ -2,6 +2,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { sha256Hex } from "./_replica-processing/contracts.js";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
 import { cleanupReplicaChannelExtractionStorage } from "./_channel/extraction-storage.js";
+import {revokeDeletingPrivateVoice} from './_private-voice-erasure.js';
 
 export const REPLICA_ERASURE_RECEIPT_VERSION = "replica-erasure-receipt/v1";
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
@@ -159,6 +160,7 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // membership, never the exact list.
       "owner_room_showcase",
       "channel_extraction_media",
+      "private_voice_requests_and_outputs",
     ]),
   });
 }
@@ -253,6 +255,9 @@ function validReplicaAgent(row) {
 }
 
 export async function leaseNextReplicaErasure(db, options = {}) {
+  // Source erasure drains private leases/windows and sweeps their reserved
+  // output paths before its source/artifact FK cascade can remove the ledger.
+  await revokeDeletingPrivateVoice(db);
   const token = options.token || randomBytes(32).toString("base64url");
   const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 180_000)));
   const rows = await db(

@@ -20889,6 +20889,24 @@
       "kind": "rejection",
       "title": "Do not repeat local styling patches as a whole-product solution",
       "at": "2026-09-27"
+    },
+    {
+      "id": "private-voice-complete-runtime27",
+      "kind": "decision",
+      "title": "Private Hindi sample uses a distinct private authority and one connected CPU consumer",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "private-voice-runtime-offline27",
+      "kind": "measurement",
+      "title": "Private voice actual HTTP and worker control flow passes46 synthetic checks",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "private-voice-public-manifest-and-absent-erasure27",
+      "kind": "rejection",
+      "title": "Public manifest persistence and unconditional private erasure SQL do not fit private admission",
+      "at": "2026-09-27"
     }
   ],
   "edges": [
@@ -35439,6 +35457,16 @@
       "src": "closeout-scope-20260921",
       "rel": "measured_by",
       "dst": "closeout-checks-20260921"
+    },
+    {
+      "src": "private-voice-complete-runtime27",
+      "rel": "measured_by",
+      "dst": "private-voice-runtime-offline27"
+    },
+    {
+      "src": "private-voice-public-manifest-and-absent-erasure27",
+      "rel": "caused_by",
+      "dst": "private-voice-complete-runtime27"
     }
   ]
 }

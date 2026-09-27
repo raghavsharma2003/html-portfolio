@@ -4,14 +4,18 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  completeSourceErasure,
-  leaseNextSourceErasure,
+  completeSourceErasure as actualCompleteSourceErasure,
+  leaseNextSourceErasure as actualLeaseNextSourceErasure,
   markAbandonedPendingSourceUploads,
   normalizeSourceErasureFailure,
   retrySourceErasure,
-  runSourceErasureSweep,
+  runSourceErasureSweep as actualRunSourceErasureSweep,
   sourceErasureLeaseTokenHash,
 } from "../../api/_replica-source-erasure.js";
+import {withoutPrivateVoiceSchema} from '../lib/private-voice-schema-fixture.mjs';
+const completeSourceErasure=(db,...args)=>actualCompleteSourceErasure(withoutPrivateVoiceSchema(db),...args);
+const leaseNextSourceErasure=(db,...args)=>actualLeaseNextSourceErasure(withoutPrivateVoiceSchema(db),...args);
+const runSourceErasureSweep=options=>actualRunSourceErasureSweep({...options,db:withoutPrivateVoiceSchema(options.db)});
 import { deleteReplicaObjects } from "../../api/_replica-storage.js";
 import { assertUploadWithinSourceFence, reserveOwnedSourceUploadAuthorization } from "../../api/_replica-source.js";
 import { cleanupOrphanMirrorWindows } from "../../scripts/cleanup-orphan-mirror-windows.mjs";

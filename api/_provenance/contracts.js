@@ -68,6 +68,7 @@ function assertHash(value, code) {
 
 export function assertGenerationAuthorization(input, now = new Date()) {
   const request = input?.request;
+  if (request?.purpose === "private_voice_sample") return assertPrivateVoiceAuthorization(input, now);
   if (request?.purpose === "voice_preview") return assertVoicePreviewAuthorization(input, now);
   const replica = input?.replica;
   const consent = input?.inferenceConsent;
@@ -137,6 +138,35 @@ export function assertGenerationAuthorization(input, now = new Date()) {
     policyVersion: request.policyVersion,
     traceId: String(request.traceId),
   };
+}
+
+// This output is private and account-attested. Versions zero expressly carry
+// no genome, identity, qualification, training or public-release authority.
+export function assertPrivateVoiceAuthorization(input, now = new Date()) {
+  const request=input?.request, run=input?.privateRun, artifact=input?.privateArtifact;
+  const current=now instanceof Date?now.getTime():validDate(now);
+  if(!request||!run||!artifact||!Number.isFinite(current)||request.purpose!=="private_voice_sample"||
+    request.channel!=="studio_preview"||request.policyVersion!==PROVENANCE_POLICY||!request.traceId||request.traceId.length<8)
+    fail("private_voice_protection_authority_invalid");
+  for(const value of [request.generationId,request.replicaId,request.ownerUserId,artifact.artifact_id])
+    if(!UUID.test(String(value||"")))fail("private_voice_protection_identifier_invalid");
+  const receipt=run.receipt, config=run.config, snapshot=run.snapshot;
+  if(!receipt||!config||!snapshot||sha256Hex(canonicalJson(receipt))!==run.receipt_hash||
+    sha256Hex(canonicalJson(snapshot))!==run.snapshot_hash||sha256Hex(canonicalJson(config))!==run.config_hash||
+    run.run_id!==request.generationId||run.replica_id!==request.replicaId||run.owner_user_id!==request.ownerUserId||
+    run.state!=="running"||run.revoked_at||validDate(run.expires_at)<=current||validDate(run.lease_expires_at)<=current||
+    !validDate(run.expires_at)||!validDate(run.lease_expires_at)||receipt.scope!=="private_voice_test"||
+    receipt.method!=="account_attestation"||receipt.statement_set!=="private-own-voice/v1"||receipt.attestations?.own_voice_private_use!==true||
+    receipt.run_id!==run.run_id||receipt.owner_user_id!==run.owner_user_id||receipt.replica_id!==run.replica_id||
+    receipt.snapshot_hash!==run.snapshot_hash||receipt.config_hash!==run.config_hash||
+    [receipt,config].some(v=>v.identity_claim_allowed!==false||v.release_eligible!==false||v.training_allowed!==false)||
+    config.language_id!=="hi"||config.model_arm!=="hindi_v3"||artifact.artifact_id!==run.artifact_id||
+    artifact.owner_user_id!==run.owner_user_id||artifact.replica_id!==run.replica_id||artifact.source_id!==run.source_id||
+    artifact.sha256!==run.reference_sha256||snapshot.artifact_sha256!==artifact.sha256||artifact.stage!=="enhance")
+    fail("private_voice_protection_authority_invalid");
+  return {generationId:run.run_id,replicaId:run.replica_id,ownerUserId:run.owner_user_id,voiceProfileId:run.artifact_id,
+    genomeVersion:0,profileVersion:0,calibrationVersion:0,channel:request.channel,purpose:request.purpose,
+    policyVersion:request.policyVersion,traceId:request.traceId};
 }
 
 export function assertVoicePreviewAuthorization(input, now = new Date()) {
