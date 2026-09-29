@@ -5,6 +5,13 @@ pay for it and the owner is not charged personally. Do not ask for GPU-use
 approval again. The earlier generic activation question is superseded by this
 explicit condition.
 
+The owner then checked and reported that approximately the full $5,000 remains,
+with only a small amount used. Record this as an approximate current owner
+report. A subsequent API read still reports both spending limits Off and status
+LimitRemoved. The unanswered item is availability/restoration of credit-only
+spending protection; do not ask for GPU-use permission or repeat the balance
+question without new evidence requiring a refresh.
+
 ## Actual Azure readback, September 29
 
 GPU and staged CPU resource subscription:

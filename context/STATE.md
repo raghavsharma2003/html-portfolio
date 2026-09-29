@@ -5,6 +5,11 @@
 Owner explicitly approves GPU use ONLY from startup grant credits, with no
 out-of-pocket charge. Do not ask for GPU permission again. The older pending
 approval text below is superseded; credit-only billing verification is required.
+Owner subsequently checked and reports approximately the fullUSD5000 credit
+remains, with only a small amount used. Accept this as a current owner-reported
+balance, not an API-measured amount. Follow-upAPIread still shows both spending
+limitsOff and StartupSponsorshipstatusLimitRemoved. This balance reply does not
+waive the no-personal-charge condition or confirm that the limit was restored.
 Live ARM read: exactsubscriptionc60a32f6-c812-4c0e-bc42-b6431ee90b8f isEnabled,
 quotaSponsored_2016-01-01, but subscriptionspendingLimit=Off. Its MCA billing
 profile also reportsSpendingLimit=Off. StartupSponsorship detail records an
