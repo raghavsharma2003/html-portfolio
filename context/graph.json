@@ -18078,6 +18078,30 @@
       "kind": "rejection",
       "title": "Configured software passes do not establish skipped database work, deployment or owner value",
       "at": "2026-09-29"
+    },
+    {
+      "id": "honcho20260929-patterns-first",
+      "kind": "decision",
+      "title": "Adopt Honcho design patterns in existing evidence and review before adding a dependency",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "honcho20260929-conditional-shadow-trial",
+      "kind": "decision",
+      "title": "Keep a direct Honcho comparison conditional on deployment, data, erasure and terms review",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "honcho20260929-source-audit",
+      "kind": "measurement",
+      "title": "Six Honcho source cards and two unexecuted experiments preserve historical result boundaries",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "honcho20260929-no-authority-or-quality-shortcuts",
+      "kind": "rejection",
+      "title": "Scopes, deletion requests, read sets and author benchmarks do not replace authority or measured quality",
+      "at": "2026-09-29"
     }
   ],
   "edges": [
@@ -30633,6 +30657,26 @@
       "src": "release20260929-exact-code-receipt",
       "rel": "supersedes",
       "dst": "release20260927-three-suite-scope"
+    },
+    {
+      "src": "honcho20260929-patterns-first",
+      "rel": "measured_by",
+      "dst": "honcho20260929-source-audit"
+    },
+    {
+      "src": "honcho20260929-patterns-first",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "honcho20260929-conditional-shadow-trial",
+      "rel": "measured_by",
+      "dst": "honcho20260929-source-audit"
+    },
+    {
+      "src": "honcho20260929-conditional-shadow-trial",
+      "rel": "caused_by",
+      "dst": "honcho20260929-no-authority-or-quality-shortcuts"
     }
   ]
 }

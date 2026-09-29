@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "asOf": "2026-09-27",
+  "asOf": "2026-09-29",
   "sources": [
     {
       "id": "longmemeval",
@@ -136,6 +136,96 @@
       "limitations": ["General evaluation guidance, not a demonstrated result for Vyakti or a provider-selection decision; personal media does not belong in generic CI logs."],
       "relevance": ["evaluation", "research-process"],
       "experimentId": "research-workflow"
+    },
+    {
+      "id": "honcho-perspectives",
+      "title": "Honcho v3 directional representations",
+      "url": "https://honcho.dev/docs/v3/documentation/features/advanced/directional-representations",
+      "kind": "official_docs",
+      "publishedAt": null,
+      "retrievedAt": "2026-09-29",
+      "version": "Live v3 docs; source snapshot 9d6fe8ca5dc666b99ef04bc00047fea4ca675017 (server 3.2.1)",
+      "evidence": "documentation",
+      "decision": "adopt",
+      "claim": "Directional observer-to-subject representations suggest making perspective explicit in existing source-bound retrieval and review.",
+      "limitations": ["Adopt the design pattern only; no Honcho dependency or second identity authority is installed.", "Live documentation can change independently of the pinned server; representation direction is not permission."],
+      "relevance": ["memory", "provenance", "owner-review"],
+      "experimentId": "honcho-inspired-review"
+    },
+    {
+      "id": "honcho-evidence",
+      "title": "Honcho v3 retrieval evidence",
+      "url": "https://honcho.dev/docs/v3/documentation/features/advanced/evidence",
+      "kind": "official_docs",
+      "publishedAt": null,
+      "retrievedAt": "2026-09-29",
+      "version": "Live v3 docs reviewed 2026-09-29",
+      "evidence": "documentation",
+      "decision": "adopt",
+      "claim": "Optional evidence collection motivates a bounded internal read-set receipt separate from validated answer citations.",
+      "limitations": ["Collected retrieval/tool evidence is not a complete execution trace or proof that the answer relied on each item.", "No raw private text, unauthorized identifiers or private fingerprints should enter generic logs or user-visible diagnostics."],
+      "relevance": ["memory", "provenance", "owner-review"],
+      "experimentId": "honcho-inspired-review"
+    },
+    {
+      "id": "honcho-context",
+      "title": "Honcho v3 context assembly",
+      "url": "https://honcho.dev/docs/v3/documentation/features/get-context",
+      "kind": "official_docs",
+      "publishedAt": null,
+      "retrievedAt": "2026-09-29",
+      "version": "Live v3 docs reviewed 2026-09-29",
+      "evidence": "documentation",
+      "decision": "adopt",
+      "claim": "Separate bounded context assembly from costly reasoning while preserving provenance and distinguishing omitted, pending and admitted evidence.",
+      "limitations": ["Design adoption is not a demonstrated retrieval improvement or an implemented integration.", "Compare against current approved-memory selection and count ingestion/background cost as well as prompt tokens."],
+      "relevance": ["memory", "retrieval", "cost"],
+      "experimentId": "honcho-inspired-review"
+    },
+    {
+      "id": "honcho-scopes",
+      "title": "Honcho v3 scopes",
+      "url": "https://honcho.dev/docs/v3/documentation/features/advanced/scopes",
+      "kind": "official_docs",
+      "publishedAt": null,
+      "retrievedAt": "2026-09-29",
+      "version": "Live v3 docs; code audit pinned 9d6fe8ca5dc666b99ef04bc00047fea4ca675017",
+      "evidence": "documentation",
+      "decision": "experiment",
+      "claim": "Named scopes and session allowlists provide retrieval controls worth comparing under independently enforced server authority.",
+      "limitations": ["Scopes are not access control and named-scope reads differ from session allowlists.", "Pinned session-context and peer-chat code differ in peer-card handling; this is a static finding, not a reproduced hosted vulnerability."],
+      "relevance": ["memory", "authorization", "audience-isolation"],
+      "experimentId": "honcho-shadow-comparison"
+    },
+    {
+      "id": "honcho-deletion",
+      "title": "Honcho v3 data deletion",
+      "url": "https://honcho.dev/docs/v3/documentation/features/advanced/deleting-data",
+      "kind": "official_docs",
+      "publishedAt": null,
+      "retrievedAt": "2026-09-29",
+      "version": "Live v3 docs reviewed 2026-09-29",
+      "evidence": "documentation",
+      "decision": "experiment",
+      "claim": "Deletion semantics require testing immediate recall exclusion and verified removal of dependent derived projections.",
+      "limitations": ["Derived conclusions can survive session deletion; asynchronous deletion lacks a completion-status endpoint.", "Queue counts are not an erasure receipt, and no deletion or private-data trial was executed here."],
+      "relevance": ["memory", "erasure", "provenance"],
+      "experimentId": "honcho-shadow-comparison"
+    },
+    {
+      "id": "honcho-benchmarks",
+      "title": "Honcho official benchmark artifacts, December 2025",
+      "url": "https://github.com/plastic-labs/honcho-benchmarks/tree/20c497bff02ff8737268be6d91c197767dc7bac0/a1d689b",
+      "kind": "official_repository",
+      "publishedAt": "2025-12-19",
+      "retrievedAt": "2026-09-29",
+      "version": "Benchmark repo 20c497bff02ff8737268be6d91c197767dc7bac0; server a1d689bdbb0e3d7786710625e7130e3db37f6108",
+      "evidence": "author_reported",
+      "decision": "experiment",
+      "claim": "Official dated benchmark artifacts provide comparison methodology and execution metadata for a fixed historical Honcho revision.",
+      "limitations": ["Artifacts were run 2025-12-12 through 2025-12-17 and published in the 2025-12-19 repository snapshot, not against the current 2026-09-29 server 3.2.1.", "Results are author-produced and not reproduced here; benchmark ranking does not establish Vyakti owner value, modality understanding or current SOTA."],
+      "relevance": ["memory", "evaluation", "cost"],
+      "experimentId": "honcho-shadow-comparison"
     }
   ],
   "experiments": [
@@ -208,6 +298,34 @@
       "successCriteria": ["Reject invalid dates, duplicate sources, missing references and artifact path escapes.", "Keep completed failed and inconclusive experiments visible without replaying their commands.", "Produce deterministic explicit-date review output; metadata validity never proves a research claim."],
       "evidenceScope": "offline_contract",
       "result": "2026-09-27: node evals/research-cycle/run.mjs passed 15 offline assertion groups, including real CLI subprocesses, date boundaries, missing and escaping artifacts, reference integrity, failure visibility and inert experiment commands. node scripts/research-cycle.mjs check validated nine source cards and five experiments. No source claim, provider performance or user-value hypothesis was reproduced."
+    },
+    {
+      "id": "honcho-inspired-review",
+      "title": "Source-specific owner review with bounded retrieval receipts",
+      "state": "planned",
+      "outcome": null,
+      "observedAt": null,
+      "hypothesis": "Preserving selected source identity, modality and honest coordinates in existing review, with internal read sets distinct from answer citations, can make claims easier to inspect without broadening authority.",
+      "sourceIds": ["honcho-perspectives", "honcho-evidence", "honcho-context"],
+      "artifactPaths": ["docs/gurukul/research/HONCHO-ADOPTION-20260929.md", "api/_person-model.js", "src/studio/PersonModelStudio.tsx", "api/_experience-compiler/claim-evidence.js"],
+      "runCommand": null,
+      "successCriteria": ["Preserve the selected Context Locker source through existing review and retain authenticated source identity/modality/available coordinates.", "Keep internal retrieval read sets separate from validated answer citations; do not expose private identifiers, raw text or fingerprints through generic diagnostics.", "Retain current consent, owner decisions, supersession, erasure and learning gates; infer neither PDF page mapping nor original-audio alignment.", "No production implementation or owner benefit is claimed until the proposed change is built and tested."],
+      "evidenceScope": "offline_contract",
+      "result": null
+    },
+    {
+      "id": "honcho-shadow-comparison",
+      "title": "Synthetic approved-memory comparison before any Honcho dependency",
+      "state": "planned",
+      "outcome": null,
+      "observedAt": null,
+      "hypothesis": "A fixed synthetic comparison can identify whether perspective-aware retrieval improves an agreed task over current approved-memory and lexical-shadow selection without weakening authority or erasure.",
+      "sourceIds": ["honcho-scopes", "honcho-deletion", "honcho-benchmarks"],
+      "artifactPaths": ["docs/gurukul/research/HONCHO-ADOPTION-20260929.md", "api/_experience-compiler/mirror-recall.js", "evals/mirror-memory-frontier/query-contract.mjs"],
+      "runCommand": null,
+      "successCriteria": ["Preregister 48 invented cases across eight classes, three language conditions and two cases per cell; keep source corpus, answering model, prompts, retrieval/input-context and output budgets fixed.", "Compare the current approved-memory baseline and existing lexical shadow first; a direct Honcho arm requires separate Azure, data-handling, erasure, license and terms review plus authorization.", "Measure exact-source recall separately from answer quality, revoked/resurrected evidence, full ingestion/reasoning costs and latency; unauthorized disclosure or resurrection fails the comparison.", "Keep cold ingestion, pending processing and ready recall distinct; no private upload, cloud service, paid call or benchmark reproduction has occurred."],
+      "evidenceScope": "product_trial",
+      "result": null
     }
   ]
 }

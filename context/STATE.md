@@ -1,5 +1,9 @@
 # STATE — read this first, then the graph
 
+## START HERE: HONCHO RESEARCH CHECKPOINT (2026-09-29)
+
+Research-only continuation from `54a4d795`: [Honcho adoption report](../docs/gurukul/research/HONCHO-ADOPTION-20260929.md) recommends adopting perspective/evidence/context patterns inside the existing compiler before considering a dependency. Six source cards and two planned experiments are added; no Honcho code, plugin, local stack, paid call, private upload or cloud integration was introduced. Direct-service comparison remains conditional on Azure, data, erasure, license and terms review plus authorization, not declared impossible. The exact `4cc5e662` hosted-green receipt below remains unchanged. Existing owner review, dataset and user-quality boundaries still apply.
+
 ## START HERE: EXACT CODE PASSES HOSTED GATES (verified 2026-09-29, 05:09 UTC)
 
 Tested code is `4cc5e66285e176ee80cbd4a21dafd880e01922fc` on `codex/multimodal-layer-20260927`; root verified local and remote identity. Release run `36305821248` succeeded on Node 22 and Node 24, each passing all 24 configured checks. The actual completion log times were 2026-09-27 08:32:39 UTC and 08:33:01 UTC respectively; full logs were verified on September 29 at 05:09 UTC. Both explicitly skipped relational database gates because `NEON_URL` was absent; the weekly Hindi-rehearsal job did not run on this push. These receipts supersede pending statuses and the earlier `0fdbf7d1` 23/24 failure, whose history remains below.
