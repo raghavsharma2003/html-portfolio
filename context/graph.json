@@ -18042,6 +18042,42 @@
       "kind": "decision",
       "title": "Compose real native cancellation with explicit historical-close fixture behavior",
       "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-owner-value-next-test",
+      "kind": "decision",
+      "title": "Propose one owner-source correction experiment through existing review and approval",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-owner-value-source-audit",
+      "kind": "measurement",
+      "title": "Read-only audit identifies three owner-value source gaps without running an experiment",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-no-single-correction-learning-claim",
+      "kind": "rejection",
+      "title": "One correction, image geometry and a private-draft demo do not establish multimodal learning",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260929-exact-code-receipt",
+      "kind": "decision",
+      "title": "Bind completed hosted software verification to exact code and preserve untested product gaps",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "release20260929-hosted-4cc5",
+      "kind": "measurement",
+      "title": "4cc5e662 passes Node 22/24 configured 24-check release gates and produces the APK",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "release20260929-software-not-owner-value",
+      "kind": "rejection",
+      "title": "Configured software passes do not establish skipped database work, deployment or owner value",
+      "at": "2026-09-29"
     }
   ],
   "edges": [
@@ -30567,6 +30603,36 @@
       "src": "release20260927-native-and-historical-signals",
       "rel": "caused_by",
       "dst": "release20260927-three-suite-no-completion"
+    },
+    {
+      "src": "multimodal20260927-owner-value-next-test",
+      "rel": "measured_by",
+      "dst": "multimodal20260927-owner-value-source-audit"
+    },
+    {
+      "src": "multimodal20260927-owner-value-next-test",
+      "rel": "caused_by",
+      "dst": "multimodal20260927-no-single-correction-learning-claim"
+    },
+    {
+      "src": "multimodal20260927-owner-value-next-test",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "release20260929-exact-code-receipt",
+      "rel": "measured_by",
+      "dst": "release20260929-hosted-4cc5"
+    },
+    {
+      "src": "release20260929-exact-code-receipt",
+      "rel": "caused_by",
+      "dst": "release20260929-software-not-owner-value"
+    },
+    {
+      "src": "release20260929-exact-code-receipt",
+      "rel": "supersedes",
+      "dst": "release20260927-three-suite-scope"
     }
   ]
 }

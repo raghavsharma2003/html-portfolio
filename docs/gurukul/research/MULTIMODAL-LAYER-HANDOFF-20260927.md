@@ -1,5 +1,7 @@
 # Multimodal evidence continuation, 27 September 2026
 
+Final software receipt verified on 29 September at 05:09 UTC: exact code `4cc5e66285e176ee80cbd4a21dafd880e01922fc` passes all 24 configured release checks on both Node 22 and Node 24, and its APK build succeeds. The checks actually ran on 27 September; complete logs were inspected on 29 September. This supersedes earlier pending/failed checkpoints below. Relational database gates were explicitly skipped without `NEON_URL`, and the weekly Hindi-rehearsal job was skipped on this push. Owner-value source gaps remain unimplemented; this is not deployment or owner-quality acceptance. The following handoff commit is documentation-only, with no CI result claimed for a later documentation hash.
+
 This source candidate extends the active platform's Human Experience Compiler. It fixes a specific gap between stored evidence and the existing claim extractor: document timestamps became zero and source modality/locator metadata was lost. The intended user value is a suggestion traceable to the owner's actual text or media, with limitations visible to the extractor. Artwork plus the owner's explanation remains the first proposed experience; this wave does not implement image understanding.
 
 The user authorized successor integration after the archived GroupAI push was rejected. Work is isolated on branch `codex/multimodal-layer-20260927` in `C:/Users/raghav.s/Desktop/build/Vyakti-platform-multimodal-20260927`, based on remote `codex/handoff206` at `20263775f06d471f7d69a09d4b4aa711955ee952`. Existing dirty coordinator work is preserved. The [canonical handoff](../../handoff/2026-09-09/START-HERE.md) still records broader product and release gaps.
@@ -71,16 +73,16 @@ These three bounded investigations preserve source scope and current readiness/a
 
 The next candidate changes evaluation files only; production `src/`, `api/`, services and workflows are unchanged from `0fdbf7d1`. All four patches received independent review and root review, with these bounded local checks:
 
-| Repair | Executed local evidence | Mounted evidence still required |
+| Repair | Executed local evidence | Hosted result on exact `4cc5e662` |
 |---|---|---|
-| Private rehearsal | Nine groups; both original exclusion mutants plus nine current-reconciler mutants. Full historical SQL plus exact source fence, bounds 12/1/50, malformed scope rejected before query. | No new SQL execution is claimed. |
-| Primary-intent recovery | Three actual StudioApp caller and 20 actual-handler controls, plus baseline recorder preservation. The handler cases comprise one positive, ten invalidations and nine guard mutants. | Expected 18 mounted groups remain unrun locally. |
-| Private teaching refinement | Four source-only groups and syntax check passed. | Expected 42 mounted groups remain unrun locally, including the revised 1440-pixel path. |
-| Azure-web signal fixture | Six pure no-socket controls and syntax check passed. | Expected 32 mounted HTTP groups remain unrun locally; they are separate from the six controls. |
+| Private rehearsal | Nine groups; both original exclusion mutants plus nine current-reconciler mutants. Full historical SQL plus exact source fence, bounds 12/1/50, malformed scope rejected before query. | Nine groups pass in the APK registry; no actual SQL execution is claimed. |
+| Primary-intent recovery | Three actual StudioApp caller and 20 actual-handler controls, plus baseline recorder preservation. The handler cases comprise one positive, ten invalidations and nine guard mutants. | 18 mounted groups plus three caller/20 guard controls pass. |
+| Private teaching refinement | Four source-only groups and syntax check passed. | 42 groups pass, including 390/1440 delayed-readiness controls. |
+| Azure-web signal fixture | Six pure no-socket controls and syntax check passed. | 32 native-loopback groups pass; the six pure controls remain separate. |
 
-The recovery fixture now waits for committed scope before releasing the held read and checks the original durable saga without an 80 ms sleep. The refinement fixture holds readiness deliberately, requires exactly three named fresh attestations, and denies partial attestation before the actual POST while retaining its existing bindings. These new mounted controls await hosted execution; source-only results do not prove the browser behavior.
+The recovery fixture now waits for committed scope before releasing the held read and checks the original durable saga without an 80 ms sleep. The refinement fixture holds readiness deliberately, requires exactly three named fresh attestations, and denies partial attestation before the actual POST while retaining its existing bindings. These mounted controls subsequently passed on GitHub-hosted runners; they were not run on the local laptop.
 
-Review caught an overly broad query-row exclusion and a mutant aimed at the wrong first occurrence. Final controls compare complete historical SQL and require unique mutation targets in the extracted current function. Root also passed forced TypeScript, copy seven scopes/21 negatives, six-file workflow lint, generated-engine freshness, multimodal 19 and research 15 under network blocking. The four patches are reviewed and ready for candidate commit/push; their hosted rerun remains required.
+Review caught an overly broad query-row exclusion and a mutant aimed at the wrong first occurrence. Final controls compare complete historical SQL and require unique mutation targets in the extracted current function. Root also passed forced TypeScript, copy seven scopes/21 negatives, six-file workflow lint, generated-engine freshness, multimodal 19 and research 15 under network blocking. The four patches were reviewed and subsequently published as `4cc5e662`; their successful hosted rerun is recorded below.
 
 ## Completed release run and Azure-web fixture diagnosis
 
@@ -90,8 +92,41 @@ Refinement passes both release jobs but fails the separate APK run. This is cons
 
 Root independently compared authoritative Node [v24.18.1](https://github.com/nodejs/node/blob/v24.18.1/lib/_http_incoming.js) and [v24.21.0](https://github.com/nodejs/node/blob/v24.21.0/lib/_http_incoming.js) source. The newer native `IncomingMessage.signal` leaves a normally completed request live after message close. The fixture synthesized the older abort-on-close behavior only when no native signal existed; under the newer native behavior, its own historical-regression assertion threw and returned sanitized 500. The production adapter supports both behaviors.
 
-The evaluation-only repair always creates an explicitly synthetic historical-close controller and composes it with the actual native signal using `AbortSignal.any`. Getter-only, disconnect, deadline, completed-body assertions and the old-unconditional-composition negative remain. Root ran six no-socket controls plus syntax checking; no local HTTP server/browser ran, and the expected 32 mounted groups remain unverified. The source-review hold is resolved, with no new hosted acceptance, actual SQL, provider or deployment result.
+The evaluation-only repair always creates an explicitly synthetic historical-close controller and composes it with the actual native signal using `AbortSignal.any`. Getter-only, disconnect, deadline, completed-body assertions and the old-unconditional-composition negative remain. Root ran six no-socket controls plus syntax checking; no local HTTP server/browser ran. The 32 native-loopback groups subsequently passed in hosted APK evaluation. This is software-fixture evidence, not actual SQL, a live provider trial or deployment.
+
+## Publication checkpoint, 27 September at 08:20 UTC
+
+Root pushed `4cc5e66285e176ee80cbd4a21dafd880e01922fc`, verified the remote head with `ls-remote`, and updated draft PR 8. Release [run 36305821248](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36305821248) was running on Node 24 job `108582163582` and Node 22 job `108582163664`; APK [run 36305821217](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36305821217), job `108582163332`, was also running. No result was available at that checkpoint. The prior `0fdbf7d1` is retained as a completed failed receipt.
+
+## Final hosted result, verified 29 September at 05:09 UTC
+
+Root checked complete logs and confirmed local/remote code remained `4cc5e66285e176ee80cbd4a21dafd880e01922fc`. Release [run 36305821248](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36305821248) succeeded on both configured Node versions:
+
+| Job | Actual 27 September execution receipt |
+|---|---|
+| Node 22, `108582163664` | All 24 configured checks pass, logged at `2026-09-27T08:32:39.1618564Z`. |
+| Node 24, `108582163582` | All 24 configured checks pass, logged at `2026-09-27T08:33:01.5488899Z`. |
+
+Layout, performance, evaluation registry, Room doors, accessibility and security passed. Both runners explicitly skipped relational database gates because no `NEON_URL` was set. The separate weekly Hindi-rehearsal job was skipped for the push trigger. Neither is counted as database or scheduled-rehearsal evidence.
+
+APK [run 36305821217](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36305821217), job `108582163332`, succeeded. Full registry step 15 passes the exact repaired groups listed above, plus multimodal 19/research 15. Watch-performance, offline multimodal and Vite/EchoSim passed. Gradle reported BUILD SUCCESSFUL in one minute 51 seconds. Browser/native-loopback verification occurred only on GitHub-hosted runners.
+
+Artifact `meera-apk`: ID `10927591729`; 19,305,290 bytes; digest `9cbe1b3e9f23272242975e15f21280a8c5c28fd78f89ddcf6e6e4beaa0a7c5f2`; expires 26 December 2026. Artifact creation is not deployment. These results verify exact code `4cc5e662`; the following handoff commit will be documentation-only, and this record makes no new CI claim for its later hash. Real SQL, live provider behavior, owner quality and the source-provenance UX gaps remain outside this result.
+
+## Read-only owner-value audit and one proposed experiment
+
+The `active_multimodal_safety_audit` source audit identified three gaps. It made no implementation change and ran no owner experiment:
+
+| Source gap | User consequence |
+|---|---|
+| `ContextLockerPanel.tsx:534` passes an item ID, but `CloneExperience.tsx:1205` opens Evolve without forwarding selection to `PersonModelStudio`. | Teaching from one source does not carry that source selection into review. |
+| `api/_person-model.js`'s `clientClaim`/`CLAIMS_SQL` omit modality and locator in claim previews; `PersonModelStudio` shows generic "From your source" excerpts. | Review lacks the modality/locator detail now preserved in extraction. |
+| The existing Meet-correction dataset gate requires 12 independent sessions, 30 preparation/train preference pairs, 20 development examples and 30 test examples. | One correction is not a completed learning cycle; keep the gate intact. |
+
+The smallest proposed owner experiment uses a text/PDF art-method note plus a single-speaker explanation. Follow the existing path: cited claim review and explicit acceptance, the same Meet question, an owner-supplied corrected source with supersede/accept decisions, the existing profile-build/approval setup, and repetition in a new conversation. Record whether the answer changes for the supported reason and whether the owner finds it useful. This experiment has not run, and the three audit gaps have not been implemented.
+
+Images remain uninterpreted. A quick private-draft `explanationOrder` demonstration would show a narrower edit, not multimodal proof. Before real calls, the owner needs to supply authorized assets, sign in, review explicitly, hold current permissions and authorize a bounded Azure budget. No new key is inherently required. Do not weaken learning thresholds or infer owner quality from the audit.
 
 ## Handoff boundary
 
-The focused projection and grounding checks are complete. A later real product trial must use the established signed-in Feed, review and Meet path and separately authorized assets/providers. It must show that the source-grounded suggestion is useful and that correction/removal changes subsequent behavior. The normal release gates remain required before shipping. Do not open a parallel ingestion service or infer that passing source contracts completes that journey.
+The focused projection/grounding checks and configured hosted software gates are complete for exact code `4cc5e662`. A later real product trial must use the established signed-in Feed, review and Meet path and separately authorized assets/providers. It must show that the source-grounded suggestion is useful and that correction/removal changes subsequent behavior. The documented source-provenance UX gaps and actual SQL/owner-quality evidence remain unresolved. Do not open a parallel ingestion service or infer that passing software gates completes that journey.
