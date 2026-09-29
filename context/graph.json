@@ -20991,6 +20991,24 @@
       "kind": "rejection",
       "title": "Wait for actual fixture requests before changing scenarios",
       "at": "2026-09-29"
+    },
+    {
+      "id": "rebuilt-preview-and-staged-voice-20260929",
+      "kind": "decision",
+      "title": "Release the accepted workspace and stage private voice without implicit spend",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "rebuilt-preview-live-20260929",
+      "kind": "measurement",
+      "title": "Exact preview,42database checks and immutable AzureCPU verified",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "shared-npm-cache-and-staged-voice-20260929",
+      "kind": "rejection",
+      "title": "Isolate failed deploy cache; CPUhealth is not voice-quality proof",
+      "at": "2026-09-29"
     }
   ],
   "edges": [
@@ -35571,6 +35589,11 @@
       "src": "backend-release-proof-20260929",
       "rel": "measured_by",
       "dst": "backend-and-browser-proof-20260929"
+    },
+    {
+      "src": "rebuilt-preview-and-staged-voice-20260929",
+      "rel": "measured_by",
+      "dst": "rebuilt-preview-live-20260929"
     }
   ]
 }

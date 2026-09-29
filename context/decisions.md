@@ -25574,3 +25574,7 @@ Evaluate the actual WorkspaceDrawer busy expression across capture/upload/revoke
 ## backend-release-proof-20260929
 
 Use actual PostgreSQL EXPLAIN and the catalog checker with172inside a rollback before permanent migration. Relcheck recognizes private-run deletion only through the actual imported source-stage statement, its caller/dependency and full erasure's no-sources prerequisite. No cascade weakening or blanket exception. Reverse if that stage is removed or ownership/fencing stops being enforced. The separate two-row legacy cursor repair follows the prior guarded incident pattern: no message deletion, no forgotten-term match, rollback proof first, one commit, independent readback; no replay.
+
+## rebuilt-preview-and-staged-voice-20260929
+
+Deploy accepted5fe2fa25 as protected Preview after both25/25gates,Android and realDBproof. Stage the complete private CPU image on the existing0.5CPU/1Gi min1/max1 app, with verified existing secrets and the existing narrow GPU identity. Preserve GPUmin0/max1 and keep synthesis/supervision disabled until the owner answers the concrete proposedUSD1planning limit plus0.25CPU/0.5GiB watchdog decision. No Azure balance or invoice cap is inferred. Reverse staged-only status after explicit activation approval, actual independent heartbeat and readback; never use the expired retained-owner diagnostic to run a new sample. A fresh own-voice action/listening test remains necessary to evaluate quality.

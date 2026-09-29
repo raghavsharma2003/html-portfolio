@@ -1,5 +1,39 @@
 # STATE — read this first, then the graph
 
+## START HERE: REBUILT PREVIEW LIVE; PRIVATE VOICE STAGED (2026-09-29)
+
+The owner's full expert-AI rebuild goal remains open. Work in the standalone25
+checkout on claude/vyakti-cloning-platform-aq05n4; preserve the original dirty
+checkout. Accepted application commit5fe2fa2590a355834bf61eea4e889103351af1f7
+passes25/25 onNode22 andNode24 (release36527580868), plus Android36527580905.
+Protected Preview is READY:
+https://vyakti-replica-dudt3ubik-raghav-carbonsettles-projects.vercel.app/studio
+Deployment dpl_H6X3z8pcW2rceJusbrH8bJdJk1bz. Source fingerprintd7dd4313d69f2833afc7d78e753cd4d19ce0b7a552ae2f190d06d8bd9d3e8918.
+Live probe60/0findings, deploy verifier6/6, both Studio CSPs and release marker
+match. Exact Azure upload origin added/read back. Real deployed390px sign-in
+has no horizontal overflow,51px email control, no browser errors. No signed-in
+real-account journey is claimed; owner has not supplied a new phone result.
+
+Migration172 IS NOW APPLIED:3DDL,36actualEXPLAINs withoutANALYZE, all3liveDB
+gates pass; relcheck42checks. The two legacy orphan cursors were repaired with
+rollback proof and independent readback; both messages/all4forget requests
+preserved. Do not replay any REBUILD29 repair/migration intent.
+
+Azure CPU vyakti-internal-voice25 now runs immutable imagec3d961f8f5ced34fd847d1b6fd2d9d6ae24caa35d329b52d4dd53f25b4515793
+at revisionprivate29-5fe2fa25; exactimage/readyrevision/health200verified.
+This is STAGED: VYAKTI_PRIVATE_VOICE_MODE=disabled, supervisor=false. No GPU
+budget row, supervisor Job or GPUactivation was created. A future budget name
+in CPU configuration is not a balance. The prepared activation plan uses a
+USD1application planning limit and0.25CPU/0.5GiB scheduledwatchdog, unchanged
+GPUscale. Owner was asked to approve this new spend/supervision scope; answer
+is pending. Do not interpret elapsed time or the prior expired grant as yes.
+No fresh voice generation/listening comparison exists. Personal Microsoft
+browser/interactive CLI sign-in remains prohibited; authorized SP APIs work.
+
+Read docs/handoff/2026-09-29/RELEASE.md for receipts, pending activation and
+concrete product gaps. No new key needs to be pasted. Subagent quota remains
+exhausted; no daily research automation was created. The goal is not complete.
+
 ## START HERE: FINAL RELEASE-TEST REPAIR (2026-09-29)
 
 September29 follow-up: ed6630f5 passes25/25 onNode22 and Android; Node24

@@ -19342,3 +19342,7 @@ The old recorder test required the exact pre-capture-lock JSX busy expression. A
 ## fixture-click-is-not-http-completion-20260929
 
 Node24 exposed two fixture races. A workspace loading heading appeared before the held list reached the synthetic server, so immediate release found0requests. A conversation refresh click returned before its runtime GET, so changing the global fixture mode immediately made the earlier refresh receive the later unavailable scenario. Existing HTTP wait barriers and a response barrier fix these without retrying generation, changing product behavior or raising budgets. Also rejected counting only full-erasure-file deletes for172: the required source stage owns the explicit lease-fenced delete and parent FKs intentionally do not cascade. Its actual imported SQL and caller are now checked and42live integrity checks pass within a rollback.
+
+## shared-npm-cache-and-staged-voice-20260929
+
+The first accepted-source Verceldeploy failed before the CLI created a deployment: npmECOMPROMISED/Lockcompromised. APIreadback showed no deployment since that attempt; the process exited1. Do not replay its consumedintent or delete the shared cache. A separate reviewed one-use recovery used a project-local npmcache and deployed successfully. Separately reject treating the new CPUhealth200 as voice success: its mode is disabled, no independentwatchdog/GPUbudget exists, and no fresh sample was generated. The prepared budget name is configuration only. Activation approval was requested, not received as of this closure.
