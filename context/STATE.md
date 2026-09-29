@@ -1,5 +1,23 @@
 # STATE — read this first, then the graph
 
+## START HERE: FINAL RELEASE-TEST REPAIR (2026-09-29)
+
+Continue in Vyakti-platform-standalone25 on the required Claude branch.
+Candidate9aa6975e failed only recording-upload-repair in its full CI eval suite;
+layout/readability and performance passed. The last test required an obsolete
+exact drawer expression. Its replacement evaluates the actual shipping guard
+for idle, unsaved recording, failed upload, active upload and revoke states.
+All7 focused recording/upload groups now pass, including real Chromium WAV
+decode. New exact-head Node22/24 full25/25 and Android must pass before deploy.
+
+The rebuilt code is NOT deployed. Live remains protected exjrjsy9f at4461b361.
+Migration172, new CPU image, voice budget and independent supervisor remain
+unapplied. One real synthetic Azure text call DID pass on September27, using
+gpt-5.6-terra (191input/49output tokens,3218ms including settlement); it proves
+neither the real-account journey nor voice quality. No fresh voice generation
+or listening comparison exists. No personal Microsoft browser login here.
+Subagent quota was exhausted; do not respawn merely to retry that limit.
+
 ## START HERE: REBUILD INTEGRATED, RELEASE NOT YET ACCEPTED (2026-09-27)
 
 Owner continues the full redesign/quality goal. New workbench, auth, private
@@ -14,7 +32,7 @@ Current changes are NOT deployed. The first broad438f CI failed stale UI
 contracts, three source fixtures, one prose measure and asset performance.
 Focused repairs pass; a new exact-head full25/25 gate is still required.
 Migration172 is NOT applied. No new CPU image/supervisor/budget is provisioned,
-no GPU activated, no fresh model/voice-quality result. All needed secret sources
+no GPU activated, no fresh voice-quality result. All needed secret sources
 were found readable without asking the owner for keys; never print values.
 See docs/architecture/private-voice-deployment-readiness27.md. Backendplan keeps
 existingGPUmin0,CPU0.5/1Gi min1; old1USD cap is not a quality-program budget.

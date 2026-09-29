@@ -25566,3 +25566,7 @@ Personal private drafts use an explicit person projection: identity, life contex
 ## private-ledger-version-fence-20260927
 
 Migration172 remains unapplied. Its parent foreign keys now use deferred NO ACTION, and the updated source-erasure transaction explicitly removes private rows only after its fenced storage sweep. Existing older previews remain reachable and must not cascade away the private cleanup ledger while an output write or GPU window still exists. Reverse only when all older deletion writers are retired and equivalent database enforcement plus cleanup proof remains.
+
+## recording-guard-behavior-20260929
+
+Evaluate the actual WorkspaceDrawer busy expression across capture/upload/revoke states instead of freezing its source spelling. This keeps the failed-upload exit contract while checking the newly required unfinished-recording lock. Reverse if the guard gains dependencies requiring a mounted test to express the same behaviors reliably.

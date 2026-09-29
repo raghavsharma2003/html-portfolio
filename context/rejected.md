@@ -19334,3 +19334,7 @@ The Vercel environment-list endpoint did not return plaintext values even with d
 
 
 A private upload finishing before the recorder exit animation could retain its capture navigation lock and remount the local preview instead of opening the private service. Explicitly release that lock only after successful source finalization; leave it held for unsaved capture. The mounted private-upload test with a drawer open/close exposed this real timing bug.
+
+## stale-drawer-source-assertion-20260929
+
+The old recorder test required the exact pre-capture-lock JSX busy expression. Adding captureNavigationLocked correctly protected unfinished recordings but tripped that source regex. Removing the lock to satisfy the test would restore data loss; deleting the check would stop proving failed-upload exit. The test now extracts and executes the shipping expression for five state cases, retaining all existing upload/retry/decode checks.

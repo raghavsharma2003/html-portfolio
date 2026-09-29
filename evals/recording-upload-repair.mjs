@@ -45,7 +45,20 @@ await check("mobile video with a generic MIME type keeps video kind and canonica
 await check("actual Studio binds reconciliation, visible failure, retry retention and failed-state exit", async () => {
   assert.equal((cloneSource.match(/transferRecording\(\{/gu) || []).length, 2);
   assert(/upload\.phase === "failed"[\s\S]*?upload\.message[\s\S]*?retryRef\.current\.sample/.test(cloneSource));
-  assert(/busy=\{revoking \|\| Boolean\(upload && upload\.phase !== "failed"\)\}/.test(cloneSource));
+  let drawerBusy;
+  function visit(node) {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(cloneParsed) === "WorkspaceDrawer") {
+      drawerBusy = node.attributes.properties.find(prop => ts.isJsxAttribute(prop) && prop.name.text === "busy")?.initializer?.expression?.getText(cloneParsed);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(cloneParsed); assert.ok(drawerBusy, "actual drawer busy expression");
+  for (const [revoking, captureNavigationLocked, upload, expected] of [
+    [false, false, null, false], [false, true, null, true],
+    [false, false, {phase:"failed"}, false], [false, false, {phase:"upload"}, true],
+    [true, false, {phase:"failed"}, true],
+  ]) assert.equal(runInNewContext(drawerBusy, {revoking, captureNavigationLocked, upload}), expected);
+
   assert(/if \(pending\?\.sample\.url\) URL\.revokeObjectURL\(pending\.sample\.url\)/.test(cloneSource), "workspace change explicitly clears the local preview");
 });
 

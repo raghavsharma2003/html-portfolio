@@ -19172,3 +19172,7 @@ One actual Azure text adapter call with synthetic notes only passed at2026-09-27
 
 
 Private runtime48/48 passes after adding cross-version deletion constraints and explicit owned private-row removal; schema mirror passes. Private upload4 mounted groups also prove the workspace drawer cannot discard an unfinished sample. No migration or cloud writer ran. PostgreSQL behavior of the deferred FKs still requires actual SQL verification after accepted release.
+
+## recording-release-repair-20260929
+
+September29: exact9aa6975e release run36306138975 and Android36306139009 concluded failure. Downloaded Node24 artifact10928150280 identifies recording-upload-repair as the sole failed eval; performance findings empty, layout checks2246 prose blocks/156 screens/3187 Hindi strings passed. After the behavior-based assertion change, node evals/recording-upload-repair.mjs passed7 groups, including actual Chromium WAV metadata/decode. No new cloud write, model call or deployed-user result. Full new-head acceptance pending.

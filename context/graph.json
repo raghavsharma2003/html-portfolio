@@ -20955,6 +20955,24 @@
       "kind": "decision",
       "title": "Older erasers cannot cascade away private cleanup state",
       "at": "2026-09-27"
+    },
+    {
+      "id": "recording-guard-behavior-20260929",
+      "kind": "decision",
+      "title": "Verify actual capture navigation guard behavior",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "recording-release-repair-20260929",
+      "kind": "measurement",
+      "title": "Seven recording groups pass after final CI contract correction",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "stale-drawer-source-assertion-20260929",
+      "kind": "rejection",
+      "title": "Obsolete drawer source spelling rejected the correct capture lock",
+      "at": "2026-09-29"
     }
   ],
   "edges": [
@@ -35525,6 +35543,11 @@
       "src": "private-voice-sensitive-env-is-not-readable27",
       "rel": "caused_by",
       "dst": "private-voice-reuse-existing-cpu27"
+    },
+    {
+      "src": "recording-guard-behavior-20260929",
+      "rel": "measured_by",
+      "dst": "recording-release-repair-20260929"
     }
   ]
 }
