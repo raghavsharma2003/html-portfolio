@@ -464,10 +464,18 @@ for (const stack = ["vy_replica"]; stack.length; ) {
     stack.push(child);
   }
 }
-const erasureSrc = await readFile(
-  new URL("../api/_replica-full-erasure.js", import.meta.url),
-  "utf8",
-);
+const erasureSrc = await readFile(new URL("../api/_replica-full-erasure.js", import.meta.url), "utf8");
+// Full erasure requires all sources to be removed first. Migration172 uses
+// non-cascading FKs to protect older erasers, so its explicit, fenced cleanup
+// is in that source stage. Read the actual imported statement and its caller;
+// a helper definition alone is not erasure reach.
+const sourceErasureSrc = await readFile(new URL("../api/_replica-source-erasure.js", import.meta.url), "utf8");
+const privateErasureSrc = await readFile(new URL("../api/_private-voice-erasure.js", import.meta.url), "utf8");
+const sourcePrivateCleanupReach = erasureSrc.includes("not exists (select 1 from vy_replica_source s where s.replica_id=r.replica_id)")
+  && sourceErasureSrc.includes('privateVoicePresent?privateVoiceSourceRemoval:')
+  && sourceErasureSrc.includes('(select count(*) from private_voice_removed)>=0')
+  && privateErasureSrc.includes('delete from vy_private_voice_run pv using target t')
+  && privateErasureSrc.includes('pv.source_id=t.source_id and pv.replica_id=t.replica_id and pv.owner_user_id=t.owner_user_id');
 const unreachable = [...ownerOnly]
   // 156 activation snapshots cascade from their owner replica, candidate and
   // qualification. Erasing snapshots must retain the capability's required
@@ -484,13 +492,14 @@ const unreachable = [...ownerOnly]
   // 141's vy_private_text_rehearsal is an owner lane with replica/source/item
   // cascades and an explicit full-erasure delete. This catalog walk checks it.
   .filter((t) => !reached.has(t))
+  .filter((t) => !(t === 'vy_private_voice_run' && sourcePrivateCleanupReach))
   .filter((t) => !new RegExp(`delete from ${t}\\b`).test(erasureSrc));
 if (unreachable.length) {
   failed++;
   console.log(
     `FAIL  owner-lane erasure reach: ${unreachable.join(", ")} carry ${OWNER_KEYS.join("/")} but are neither ` +
       `reached by ON DELETE CASCADE from vy_replica nor deleted by name in ` +
-      `api/_replica-full-erasure.js. They survive the erasure job, so they are covered by NOTHING ` +
+      `the full/source erasure pipeline. They survive the erasure job, so they are covered by NOTHING ` +
       `— not the person manifest, which excludes the owner lane on purpose, and not the chain that ` +
       `exclusion points at.`,
   );

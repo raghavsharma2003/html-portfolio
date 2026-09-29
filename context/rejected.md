@@ -19338,3 +19338,7 @@ A private upload finishing before the recorder exit animation could retain its c
 ## stale-drawer-source-assertion-20260929
 
 The old recorder test required the exact pre-capture-lock JSX busy expression. Adding captureNavigationLocked correctly protected unfinished recordings but tripped that source regex. Removing the lock to satisfy the test would restore data loss; deleting the check would stop proving failed-upload exit. The test now extracts and executes the shipping expression for five state cases, retaining all existing upload/retry/decode checks.
+
+## fixture-click-is-not-http-completion-20260929
+
+Node24 exposed two fixture races. A workspace loading heading appeared before the held list reached the synthetic server, so immediate release found0requests. A conversation refresh click returned before its runtime GET, so changing the global fixture mode immediately made the earlier refresh receive the later unavailable scenario. Existing HTTP wait barriers and a response barrier fix these without retrying generation, changing product behavior or raising budgets. Also rejected counting only full-erasure-file deletes for172: the required source stage owns the explicit lease-fenced delete and parent FKs intentionally do not cascade. Its actual imported SQL and caller are now checked and42live integrity checks pass within a rollback.

@@ -117,7 +117,13 @@ try {
     await page.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
     const ask = () => page.getByLabel("Ask your AI", { exact: true });
     const send = async text => { await ask().fill(text); await page.getByRole("button", { name: "Send", exact: true }).click(); };
-    const check = () => page.getByRole("button", { name: "Check conversation", exact: true }).click();
+    const check = async () => {
+      // A click acknowledgement does not mean the runtime GET reached the
+      // fixture. Freeze this scenario until the actual read has responded.
+      const response = page.waitForResponse(r => new URL(r.url()).pathname === "/api/replica-runtime" && r.request().method() === "GET");
+      await page.getByRole("button", { name: "Check conversation", exact: true }).click();
+      await response;
+    };
     const remount = async () => { await page.evaluate(() => window.dialogueFixture.setVisible(false)); await page.locator(".expert-conversation").waitFor({ state: "detached" }); await page.evaluate(() => window.dialogueFixture.setVisible(true)); };
     await page.goto(origin);
     if (old) {

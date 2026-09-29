@@ -25570,3 +25570,7 @@ Migration172 remains unapplied. Its parent foreign keys now use deferred NO ACTI
 ## recording-guard-behavior-20260929
 
 Evaluate the actual WorkspaceDrawer busy expression across capture/upload/revoke states instead of freezing its source spelling. This keeps the failed-upload exit contract while checking the newly required unfinished-recording lock. Reverse if the guard gains dependencies requiring a mounted test to express the same behaviors reliably.
+
+## backend-release-proof-20260929
+
+Use actual PostgreSQL EXPLAIN and the catalog checker with172inside a rollback before permanent migration. Relcheck recognizes private-run deletion only through the actual imported source-stage statement, its caller/dependency and full erasure's no-sources prerequisite. No cascade weakening or blanket exception. Reverse if that stage is removed or ownership/fencing stops being enforced. The separate two-row legacy cursor repair follows the prior guarded incident pattern: no message deletion, no forgotten-term match, rollback proof first, one commit, independent readback; no replay.

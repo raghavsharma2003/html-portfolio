@@ -2,6 +2,22 @@
 
 ## START HERE: FINAL RELEASE-TEST REPAIR (2026-09-29)
 
+September29 follow-up: ed6630f5 passes25/25 onNode22 and Android; Node24
+fails only two browser-fixture timing races. Fixed explicit HTTP barriers;
+first-use18 and conversation-history30 mounted checks pass locally. A new
+exact-head gate is required. Existing live DB had two legacy Meera chat rows
+(5032/5033) pointing to absent episode779. Rollback-proven, guarded repair
+preserved both messages and all4forget requests; independent readback shows
+zero orphans. All3liveDBgates now pass (relcheck40). Do NOT replay repair.
+
+All36private-voice SQL statements pass actual PostgreSQL EXPLAIN, never
+ANALYZE, with172created inside a rolled-back transaction. Relcheck now traces
+the real source-erasure stage (required before full replica deletion), and
+passes42checks in that same live transaction. An independent connection
+confirms172table still absent afterwards. No permanent migration, CPUbuild,
+GPUactivation or new voice/model call. New deployment is still pending.
+Receipts: original checkout scratchpad/expert-tools/REBUILD29-*.
+
 Continue in Vyakti-platform-standalone25 on the required Claude branch.
 Candidate9aa6975e failed only recording-upload-repair in its full CI eval suite;
 layout/readability and performance passed. The last test required an obsolete

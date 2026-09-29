@@ -20973,6 +20973,24 @@
       "kind": "rejection",
       "title": "Obsolete drawer source spelling rejected the correct capture lock",
       "at": "2026-09-29"
+    },
+    {
+      "id": "backend-release-proof-20260929",
+      "kind": "decision",
+      "title": "Use live rollback proof and preserve exact incident data",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "backend-and-browser-proof-20260929",
+      "kind": "measurement",
+      "title": "Live database repair,36SQL proofs and48mounted browser checks",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "fixture-click-is-not-http-completion-20260929",
+      "kind": "rejection",
+      "title": "Wait for actual fixture requests before changing scenarios",
+      "at": "2026-09-29"
     }
   ],
   "edges": [
@@ -35548,6 +35566,11 @@
       "src": "recording-guard-behavior-20260929",
       "rel": "measured_by",
       "dst": "recording-release-repair-20260929"
+    },
+    {
+      "src": "backend-release-proof-20260929",
+      "rel": "measured_by",
+      "dst": "backend-and-browser-proof-20260929"
     }
   ]
 }

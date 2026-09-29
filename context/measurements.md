@@ -19176,3 +19176,9 @@ Private runtime48/48 passes after adding cross-version deletion constraints and 
 ## recording-release-repair-20260929
 
 September29: exact9aa6975e release run36306138975 and Android36306139009 concluded failure. Downloaded Node24 artifact10928150280 identifies recording-upload-repair as the sole failed eval; performance findings empty, layout checks2246 prose blocks/156 screens/3187 Hindi strings passed. After the behavior-based assertion change, node evals/recording-upload-repair.mjs passed7 groups, including actual Chromium WAV metadata/decode. No new cloud write, model call or deployed-user result. Full new-head acceptance pending.
+
+## backend-and-browser-proof-20260929
+
+Exacted6630f5 release36525698956: Node22job109268146315passed25/25; Node24job109268146215failed only first-use-private-flow-ui and dialogue-history-ui. Android36525698920passed. Artifact11015181222 proves the first released a held list before arrival; the second changed runtime scenario before its GET reached the server. Corrected suites pass18and30mounted groups,390/1440. Desktop and mobile390sign-in visually inspected; Hindi switch works; no browser console errors on entry.
+
+Real DB baseline found2legacyMeera chat logs/1missingepisode, datedSep18. New bounded repair passed rollback and independent restoration, then one guardedCOMMIT preserved2messages, all4forget records, inserted1empty provisional wake, and independently verified0orphans. Relcheck40, citation discipline and dialogueSQLparser passed afterwards. No contents or forget terms exported. Separate transaction created3DDLstatements for172, passed36actual EXPLAINs and updatedrelcheck42, then rolled back; independent connection confirmed table absent. Receipts REBUILD29-ORPHAN-ROLLBACK/COMMIT, DATABASE-BASELINE, PRIVATE-SQL-ROLLBACK and PRIVATE-SQL-RELCHECK in ignoredexpert-tools. No private voice invocation/CPUdeployment/permanent migration or quality score.
