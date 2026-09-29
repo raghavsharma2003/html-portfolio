@@ -1,5 +1,12 @@
 # September 29 release continuation
 
+**Latest authorization update:** the owner has approved GPU use only against
+startup grant credits, with no personal charge. Read [CREDIT-ONLY.md](CREDIT-ONLY.md)
+before activation; its actual billing readback supersedes the pending-approval
+section below. Both Azure spending-limit fields are Off, the sponsorship limit
+record is LimitRemoved, and current credit-balance access was denied. No GPU
+permission re-request is needed; credit-only protection remains unverified.
+
 Working checkout: `Vyakti-platform-standalone25`. Repository:
 `raghavsharma2003/html-portfolio`, required branch
 `claude/vyakti-cloning-platform-aq05n4`. Do not edit/reset the original dirty

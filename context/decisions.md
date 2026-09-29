@@ -25578,3 +25578,7 @@ Use actual PostgreSQL EXPLAIN and the catalog checker with172inside a rollback b
 ## rebuilt-preview-and-staged-voice-20260929
 
 Deploy accepted5fe2fa25 as protected Preview after both25/25gates,Android and realDBproof. Stage the complete private CPU image on the existing0.5CPU/1Gi min1/max1 app, with verified existing secrets and the existing narrow GPU identity. Preserve GPUmin0/max1 and keep synthesis/supervision disabled until the owner answers the concrete proposedUSD1planning limit plus0.25CPU/0.5GiB watchdog decision. No Azure balance or invoice cap is inferred. Reverse staged-only status after explicit activation approval, actual independent heartbeat and readback; never use the expired retained-owner diagnostic to run a new sample. A fresh own-voice action/listening test remains necessary to evaluate quality.
+
+## credit-only-gpu-authorization-20260929
+
+Owner approves GPU use conditional on startup grant credits paying for it and no personal charge. This supersedes the earlier unansweredGPUapproval. Resource subscription and billingprofile both expose spending limitsOff; do not enable a newGPUrun or recurringwatchdog on that basis. Prepared activation helper fails before mutations when either guard isOff/unknown. Reversal requires verified provider-side credit-only protection, remainingcredit/expiry and workload eligibility, or an explicit owner change to the no-personal-charge constraint. No new GPU permission question is needed; billing access/protection is the unresolved issue.

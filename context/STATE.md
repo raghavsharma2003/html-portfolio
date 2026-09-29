@@ -1,5 +1,26 @@
 # STATE — read this first, then the graph
 
+## START HERE: GPU APPROVED, STARTUP-CREDITS-ONLY CONDITION (2026-09-29)
+
+Owner explicitly approves GPU use ONLY from startup grant credits, with no
+out-of-pocket charge. Do not ask for GPU permission again. The older pending
+approval text below is superseded; credit-only billing verification is required.
+Live ARM read: exactsubscriptionc60a32f6-c812-4c0e-bc42-b6431ee90b8f isEnabled,
+quotaSponsored_2016-01-01, but subscriptionspendingLimit=Off. Its MCA billing
+profile also reportsSpendingLimit=Off. StartupSponsorship detail records an
+initialUSD5000 amount, start2026-07-08,end2027-04-04,statusLimitRemoved. That
+amount is NOT a verified remainingbalance. BillingprofileGET403 and creditlots
+GET401 prevent this identity from reading currentbalance. Azure sponsorship
+terms permit automaticPAYGconversion at cap/expiry; nozero-charge guarantee.
+
+No new budget/watchdog/GPUactivation occurred. The prepared activation helper
+now refuses mutations before either Azure spending-limit field is verifiedOn;
+balance/expiry and applicable credit-only terms still need review. Do not
+treat the app'sUSD1planningcap as Azure payment protection. Use authorized
+APIs; personal Microsoft browser/interactive CLI login here remains prohibited.
+Read docs/handoff/2026-09-29/CREDIT-ONLY.md. The acceptedlivepreview and staged
+CPU/database from the preceding block remain unchanged.
+
 ## START HERE: REBUILT PREVIEW LIVE; PRIVATE VOICE STAGED (2026-09-29)
 
 The owner's full expert-AI rebuild goal remains open. Work in the standalone25

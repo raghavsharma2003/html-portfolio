@@ -19346,3 +19346,7 @@ Node24 exposed two fixture races. A workspace loading heading appeared before th
 ## shared-npm-cache-and-staged-voice-20260929
 
 The first accepted-source Verceldeploy failed before the CLI created a deployment: npmECOMPROMISED/Lockcompromised. APIreadback showed no deployment since that attempt; the process exited1. Do not replay its consumedintent or delete the shared cache. A separate reviewed one-use recovery used a project-local npmcache and deployed successfully. Separately reject treating the new CPUhealth200 as voice success: its mode is disabled, no independentwatchdog/GPUbudget exists, and no fresh sample was generated. The prepared budget name is configuration only. Activation approval was requested, not received as of this closure.
+
+## sponsored-quota-is-not-no-charge-proof-20260929
+
+The Sponsored quota identifier did not prove active credit balance or payment protection. The same subscription reports spendingLimitOff; billingprofile separately reportsOff and its StartupSponsorship record has statusLimitRemoved. The5000USDfield is an initial amount, not remainingcredit. Creditlots access401 and billingprofile403 cannot be treated as zero balance or permission to spend. AUSD1application planning cap, cost alert or periodic watchdog cannot replace a provider billing hardstop. Do not reactivate the GPU merely because the owner approved its use; their approval explicitly retains the no-personal-charge condition. No billing PATCH with guessed read-only fields was attempted.

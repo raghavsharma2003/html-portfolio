@@ -21009,6 +21009,24 @@
       "kind": "rejection",
       "title": "Isolate failed deploy cache; CPUhealth is not voice-quality proof",
       "at": "2026-09-29"
+    },
+    {
+      "id": "credit-only-gpu-authorization-20260929",
+      "kind": "decision",
+      "title": "GPU approved only against startup credits with no personal charge",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "credit-only-billing-readback-20260929",
+      "kind": "measurement",
+      "title": "Both Azure spending guardsOff; credit balance read denied",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "sponsored-quota-is-not-no-charge-proof-20260929",
+      "kind": "rejection",
+      "title": "Sponsorship metadata and app budget do not guarantee no billing",
+      "at": "2026-09-29"
     }
   ],
   "edges": [
@@ -35594,6 +35612,11 @@
       "src": "rebuilt-preview-and-staged-voice-20260929",
       "rel": "measured_by",
       "dst": "rebuilt-preview-live-20260929"
+    },
+    {
+      "src": "credit-only-gpu-authorization-20260929",
+      "rel": "measured_by",
+      "dst": "credit-only-billing-readback-20260929"
     }
   ]
 }
