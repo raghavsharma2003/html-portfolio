@@ -39,7 +39,7 @@
 import { diag } from "../engine/diag";
 import { Capacitor } from "@capacitor/core";
 
-const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform() ? "https://vyakti-replica-lab.vercel.app" : "";
 
 // A factual domain has to be named. Question words alone are not evidence:
 // they are how everyone talks all day.

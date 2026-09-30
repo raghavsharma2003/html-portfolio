@@ -1,0 +1,179 @@
+{
+  "contract": "vyakti-voice-code-switch-corpus/v2",
+  "prompts": [
+    {
+      "id": "saved-owner-failure-shape",
+      "languageId": "hi",
+      "text": "Aaj hum is concept ko simple example ke saath samjhenge, phir answer check karenge.",
+      "risks": ["roman_hindi", "switch_adjacent", "borrowings", "known_failure"]
+    },
+    {
+      "id": "owner-long-rlhf",
+      "languageId": "hi",
+      "text": "India mein RLHF ka future kaafi promising hai, kyunki global AI companies ko diverse languages, cultural context aur high quality human feedback ki rapidly growing need hogi.",
+      "risks": ["roman_hindi", "dense_switch", "initialism", "long_arc"]
+    },
+    {
+      "id": "owner-indian-languages",
+      "languageId": "hi",
+      "text": "Bharat ke paas English ke saath Hindi, Tamil, Telugu, Bengali, Marathi aur dozens regional languages mein expertise hai.",
+      "risks": ["roman_hindi", "proper_name", "borrowings", "list"]
+    },
+    {
+      "id": "mixed-script",
+      "languageId": "hi",
+      "text": "आज we will study chemical reactions, phir equation balance karenge.",
+      "risks": ["mixed_script", "switch_adjacent", "borrowings"]
+    },
+    {
+      "id": "dense-switch",
+      "languageId": "hi",
+      "text": "Honestly, mujhe result surprising laga, but let's check the next step carefully.",
+      "risks": ["roman_hindi", "dense_switch", "unresolved_latin"]
+    },
+    {
+      "id": "technical-initialisms",
+      "languageId": "hi",
+      "text": "AI aur RLHF ke liye GPU, API, TTS aur STT samjho.",
+      "risks": ["initialism", "switch_adjacent", "technical"]
+    },
+    {
+      "id": "english-confusables",
+      "languageId": "hi",
+      "text": "he hai, the formula hai, aur answer correct hai",
+      "risks": ["english_confusable", "switch_adjacent"]
+    },
+    {
+      "id": "contextual-is-hindi",
+      "languageId": "hi",
+      "text": "Hum is app ko kal test karenge.",
+      "risks": ["english_confusable", "roman_hindi", "context_rule"]
+    },
+    {
+      "id": "bare-is-english",
+      "languageId": "hi",
+      "text": "This is correct, aur result sahi hai.",
+      "risks": ["english_confusable", "negative_control"]
+    },
+    {
+      "id": "warm-emphasis",
+      "languageId": "hi",
+      "text": "Arre wah! Yeh answer bilkul sahi hai. Ab dekho, poora question easy ho gaya.",
+      "risks": ["emphasis", "exclamation", "roman_hindi"]
+    },
+    {
+      "id": "question-rise",
+      "languageId": "hi",
+      "text": "Wait, tumne final answer check kiya, ya sirf first step dekha?",
+      "risks": ["question", "switch_adjacent", "borrowings"]
+    },
+    {
+      "id": "numbers",
+      "languageId": "hi",
+      "text": "Chapter 10 mein 2026 ka example aur 3 equations hain.",
+      "risks": ["number", "borrowings", "roman_hindi"]
+    },
+    {
+      "id": "proper-names",
+      "languageId": "hi",
+      "text": "Raghav, OpenAI aur PhysicsWallah ke example ko compare karo.",
+      "risks": ["proper_name", "unresolved_latin", "switch_adjacent"]
+    },
+    {
+      "id": "exam-acronyms",
+      "languageId": "hi",
+      "text": "NCERT, JEE aur NEET ke questions ka pattern alag hai.",
+      "risks": ["initialism", "word_acronym", "technical"]
+    },
+    {
+      "id": "unknown-uppercase",
+      "languageId": "hi",
+      "text": "Aaj QZXV ka result dekho.",
+      "risks": ["unknown_initialism", "negative_control"]
+    },
+    {
+      "id": "word-acronym",
+      "languageId": "hi",
+      "text": "NASA ka video dekho, phir result batao.",
+      "risks": ["word_acronym", "borrowings"]
+    },
+    {
+      "id": "repair",
+      "languageId": "hi",
+      "text": "Nahi, ruko, pehle yeh line dobara carefully read karte hain.",
+      "risks": ["repair", "pause", "unresolved_latin"]
+    },
+    {
+      "id": "long-arc",
+      "languageId": "hi",
+      "text": "Jab final answer change hota hai, tab hum calmly previous step dekhte hain aur exact mistake identify karte hain.",
+      "risks": ["long_arc", "unresolved_latin", "switch_adjacent"]
+    },
+    {
+      "id": "devanagari-english",
+      "languageId": "hi",
+      "text": "इस concept को ध्यान से देखो because यही step सबसे important है।",
+      "risks": ["mixed_script", "switch_adjacent", "unresolved_latin"]
+    },
+    {
+      "id": "consecutive-english",
+      "languageId": "hi",
+      "text": "Aaj hum machine learning model evaluation and safety testing padhenge.",
+      "risks": ["english_phrase", "roman_hindi", "long_switch"]
+    },
+    {
+      "id": "punctuation",
+      "languageId": "hi",
+      "text": "Simple hai, right? Pehle observe karo; phir explain karo; finally verify karo.",
+      "risks": ["question", "semicolon", "phrase_boundary"]
+    },
+    {
+      "id": "short-switch",
+      "languageId": "hi",
+      "text": "Haan, that is correct.",
+      "risks": ["short", "switch_adjacent", "english_confusable"]
+    },
+    {
+      "id": "hindi-lane-all-english",
+      "languageId": "hi",
+      "text": "This custom product voice should sound warm and natural.",
+      "risks": ["wrong_language_selection", "unresolved_latin", "negative_control"]
+    },
+    {
+      "id": "everyday-call",
+      "languageId": "hi",
+      "text": "Kal phone par baat karenge, abhi mujhe ek email bhej do.",
+      "risks": ["everyday", "borrowings", "roman_hindi"]
+    },
+    {
+      "id": "clone-product",
+      "languageId": "hi",
+      "text": "Aap voice record karo, phir clone ko custom text ke saath test karo.",
+      "risks": ["product", "borrowings", "roman_hindi"]
+    },
+    {
+      "id": "english-control",
+      "languageId": "en",
+      "text": "The clone should sound natural, warm, and clear.",
+      "risks": ["english_control", "comma"]
+    },
+    {
+      "id": "english-name-control",
+      "languageId": "en",
+      "text": "Raghav will replay the NASA recording after lunch.",
+      "risks": ["english_control", "proper_name", "word_acronym"]
+    },
+    {
+      "id": "english-question-control",
+      "languageId": "en",
+      "text": "Did the language switch sound smooth this time?",
+      "risks": ["english_control", "question"]
+    },
+    {
+      "id": "english-emphasis-control",
+      "languageId": "en",
+      "text": "Wait, that was surprisingly good! Try it once more.",
+      "risks": ["english_control", "emphasis", "exclamation"]
+    }
+  ]
+}

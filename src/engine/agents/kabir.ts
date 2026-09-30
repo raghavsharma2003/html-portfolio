@@ -11,7 +11,7 @@
 import {
   buildSystemPromptParts,
   buildSpeechStyle,
-  WATCH_MODE_NOTE,
+  buildWatchModeNote,
   SEARCH_DECISION,
   FORGET_DECISION,
 } from "../persona";
@@ -31,7 +31,7 @@ export const kabirAgent: AgentModule = {
   ) => buildSystemPromptParts(user, messageCount, medium, dimsStage, KABIR),
   buildSpeechStyle: (engine: VoiceEngine | "live") => buildSpeechStyle(engine, KABIR),
 
-  WATCH_MODE_NOTE,
+  WATCH_MODE_NOTE: buildWatchModeNote(KABIR),
   SEARCH_DECISION,
   FORGET_DECISION,
   CRISIS_LINES: KABIR.crisisLines,

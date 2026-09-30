@@ -27,12 +27,12 @@
 // plan on yesterday's call, a video they watched together, and eight days of
 // filler that is exactly what a real store is mostly made of.
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
-const M = await import(join(ROOT, "api/memory.js"));
+const M = await import(pathToFileURL(join(ROOT, "api/memory.js")).href);
 const MEMORY_SRC = readFileSync(join(ROOT, "api/memory.js"), "utf8");
 
 const DAY = 86_400_000;

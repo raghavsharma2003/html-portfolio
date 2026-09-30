@@ -1,0 +1,135 @@
+/* The step rail keeps its full-width explanation separate from step labels.
+ * Capture/upload/recovery reserve the rail in flow; other scenes retain their
+ * established positioning. The signed-in shell supplies the silver tokens.
+ */
+@layer components {
+  .ffm-rail {
+    /* This rail has no interactive element of its own (no button, no
+       link) -- it only ever informs. `position: fixed` puts its box over
+       whatever the current scene renders underneath it, and without this
+       a real button placed near the top of that scene (a verification
+       screen's own "Back to your workspace" exit link, found for real by
+       `evals/verification-knowledge/run.mjs`'s first live run against this
+       file) becomes unclickable, Playwright's own pointer-interception
+       error naming this element by class. `pointer-events: none` removes
+       the rail from the hit-testing tree entirely, at zero cost to what it
+       is for: reading it needs no pointer, and a screen reader's own
+       navigation never uses hit-testing either. */
+    pointer-events: none;
+    position: fixed;
+    z-index: 25;
+    top: max(74px, calc(64px + env(safe-area-inset-top)));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100% - 32px));
+    padding: 10px 16px 12px;
+    border: 1px solid var(--vx-line);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--vx-paper) 92%, transparent);
+    backdrop-filter: blur(14px) saturate(160%);
+    box-shadow: 0 10px 30px rgba(16, 24, 20, 0.08);
+  }
+
+  .ffm-steps {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ffm-step {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .ffm-dot {
+    flex: none;
+    width: 9px;
+    height: 9px;
+    margin-top: 4px;
+    border-radius: 50%;
+    background: var(--vx-line);
+  }
+
+  .ffm-step-done .ffm-dot {
+    background: var(--vx-green);
+  }
+
+  .ffm-step.is-current .ffm-dot {
+    background: var(--vx-blue);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--vx-blue) 22%, transparent);
+  }
+
+  .ffm-step-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .ffm-step-copy strong {
+    overflow-wrap: anywhere;
+    color: var(--vx-ink);
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.25;
+  }
+
+  .ffm-step:not(.is-current):not(.ffm-step-done) .ffm-step-copy strong {
+    color: var(--vx-muted);
+  }
+
+  .ffm-step-copy small {
+    color: var(--vx-muted);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 460px) {
+    .ffm-rail {
+      top: max(70px, calc(60px + env(safe-area-inset-top)));
+      padding: 8px 12px 10px;
+    }
+
+    .ffm-step-copy strong {
+      font-size: 11px;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .ffm-rail {
+      background: var(--vx-paper);
+      backdrop-filter: none;
+    }
+  }
+}
+/* A full-width explanation belongs to the current step, not its narrow column. */
+@layer responsive {
+  .vx-shell .ffm-rail {
+    width: min(560px, calc(100% - 32px));
+    padding: 12px 16px;
+    border-color: #d8dce1;
+    border-radius: 12px;
+    background: #f7f8fa;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .vx-shell .ffm-steps { gap: 12px; }
+  .vx-shell .ffm-step { gap: 6px; align-items: center; }
+  .vx-shell .ffm-step-copy strong { font-size: 12px; font-weight: 600; line-height: 1.4; }
+  .vx-shell .ffm-dot { width: 6px; height: 6px; margin: 0; background: #c1c7cf; }
+  .vx-shell .ffm-step-done .ffm-dot { background: #596473; }
+  .vx-shell .ffm-step.is-current .ffm-dot { background: #303842; box-shadow: 0 0 0 3px #dce1e8; }
+  .vx-shell .ffm-hint { margin: 10px 0 0; color: var(--vx-muted); font-size: 12px; line-height: 1.5; }
+  @media (max-width: 460px) {
+    .vx-shell .ffm-rail { padding: 10px 12px; }
+    .vx-shell .ffm-step { flex: 0 1 auto; }
+    .vx-shell .ffm-step-copy strong { font-size: 11px; }
+  }
+}

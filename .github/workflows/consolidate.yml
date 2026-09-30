@@ -1,18 +1,15 @@
 # Nightly finalize — SPEC §4.1, §11 (M3 exit gate: "GH-Actions cron").
 #
-# 03:30 IST = 22:00 UTC the previous calendar day (same arithmetic as
-# culture.yml's own comment: subtract 5:30, wrap the day). Chosen to land
+# 03:30 IST = 22:00 UTC the previous calendar day. Chosen to land
 # after the day's activity has quieted (FINALIZE_QUIET_MS in
 # api/consolidate.js only picks up episodes idle 30+ minutes) and before
 # the next Indian morning.
 #
-# Runs `node api/consolidate.js` DIRECTLY on the runner rather than curling
-# a deployed endpoint (culture.yml's pattern) — a Vercel serverless function
+# Runs `node api/consolidate.js` directly on the runner because a Vercel function
 # has a hard execution ceiling that a per-person LLM-derivation batch can
 # realistically exceed, and §4.3's own arithmetic assumes the batch runs
 # off Vercel's clock. That is why this workflow needs the SAME
-# secrets-reconstructed api/_config.js deploy-web.yml builds (mirrored
-# below) rather than culture.yml's zero-secrets curl.
+# secrets-reconstructed api/_config.js deploy-web.yml builds.
 #
 # GH Actions minutes are a budget (context: api/_gkeys.js's daily-budget
 # discipline, applied here to compute instead of API quota). §4.3 prices
@@ -20,7 +17,7 @@
 # below that, so the ceiling below is generous headroom, not a measured
 # need.
 #
-# Failure posture DIFFERS from culture.yml on purpose: a finalize run that
+# A finalize run that
 # HALTS (entailment refutation >2%, api/consolidate.js's own halt) must go
 # RED, loudly — that halt is this repo's "page the owner" mechanism (SPEC
 # §4.2 layer 3), not a degrade-quietly case like a missed culture refresh.
@@ -78,8 +75,9 @@ jobs:
           AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
         run: node scripts/write-config.mjs
 
-      # write-config.mjs itself refuses (exit 1, loudly) when OPENROUTER_KEY
-      # or NEON_URL is missing — no separate check needed here.
+      # write-config.mjs refuses (exit 1, loudly) when NEON_URL is missing.
+      # This job's own model calls still fail closed if their configured
+      # research provider is absent.
 
       - name: Nightly finalize
         run: |

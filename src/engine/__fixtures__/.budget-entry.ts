@@ -14,15 +14,12 @@ export {
   computeManifestArithmetic,
   assertManifestArithmetic,
   applyDropOrder,
-  CRISIS_LINES,
   AGE_TIER_SAFETY_OVERRIDE,
 } from "../compiler";
 export { lintLine, lintBlock, checkAppendedLastExactlyTwo, checkDecisionPositions } from "../shapelint";
 export {
-  buildSystemPromptParts,
-  buildSpeechStyle,
-  WATCH_MODE_NOTE,
   SEARCH_DECISION,
   FORGET_DECISION,
 } from "../persona";
+export { demoTeacherAgent } from "../agents/teacher";
 export { BUDGET_FIXTURES } from "./budget.fixtures";

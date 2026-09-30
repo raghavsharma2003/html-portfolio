@@ -1,0 +1,171 @@
+@layer components {
+  .vx-voice-field {
+    --voice-field-ink: #12372d;
+    --voice-field-sage: #70ad8e;
+    --voice-field-blue: #7aa9db;
+    position: absolute;
+    inset: 50% auto auto 50%;
+    z-index: 1;
+    width: min(66vh, 76vw, 620px);
+    aspect-ratio: 1;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transform-origin: center;
+  }
+
+  .vx-voice-field__caustic {
+    position: absolute;
+    inset: -18%;
+    border-radius: 50%;
+    opacity: 0.78;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(53, 128, 95, 0.16) 0 13%, rgba(93, 155, 126, 0.08) 26%, transparent 59%),
+      conic-gradient(from 12deg, transparent 0 10%, rgba(82, 148, 115, 0.06) 13%, transparent 18% 35%, rgba(103, 153, 214, 0.055) 39%, transparent 46% 72%, rgba(82, 148, 115, 0.05) 78%, transparent 86%);
+    filter: blur(18px);
+    transform: scale(0.98);
+    transition: opacity 220ms var(--vx-ease), transform 260ms var(--vx-ease);
+  }
+
+  .vx-voice-field__plate {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(18, 55, 45, 0.13);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.96) 0 25%, rgba(223, 237, 227, 0.9) 47%, rgba(251, 252, 249, 0.96) 70%),
+      #f8faf6;
+    box-shadow:
+      0 34px 76px rgba(18, 55, 45, 0.12),
+      0 7px 20px rgba(18, 55, 45, 0.07),
+      inset 0 2px 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 0 rgba(18, 55, 45, 0.08);
+    transition: transform 260ms var(--vx-ease), box-shadow 260ms var(--vx-ease);
+  }
+
+  .vx-voice-field__dial {
+    width: 95%;
+    height: 95%;
+    overflow: visible;
+    filter: drop-shadow(0 10px 18px rgba(18, 55, 45, 0.08));
+  }
+
+  .vx-voice-field__outer,
+  .vx-voice-field__track,
+  .vx-voice-field__lens,
+  .vx-voice-field__core-line {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .vx-voice-field__outer {
+    stroke: rgba(18, 55, 45, 0.16);
+    stroke-width: 0.55;
+  }
+
+  .vx-voice-field__track {
+    stroke: rgba(18, 55, 45, 0.12);
+    stroke-width: 0.36;
+  }
+
+  .vx-voice-field__track.is-inner {
+    stroke: rgba(18, 55, 45, 0.2);
+  }
+
+  .vx-voice-field__rays line {
+    stroke: var(--voice-field-sage);
+    stroke-linecap: round;
+    stroke-width: 0.42;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .vx-voice-field__rays line.is-spectral {
+    stroke: var(--voice-field-blue);
+  }
+
+  .vx-voice-field__ticks line {
+    stroke: rgba(18, 55, 45, 0.24);
+    stroke-linecap: round;
+    stroke-width: 0.32;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .vx-voice-field__lens {
+    fill: rgba(248, 251, 246, 0.5);
+    stroke: rgba(18, 55, 45, 0.18);
+    stroke-width: 0.48;
+  }
+
+  .vx-voice-field__core-line {
+    stroke: rgba(18, 55, 45, 0.1);
+    stroke-width: 0.3;
+  }
+
+  .vx-voice-field__axis {
+    position: absolute;
+    left: 50%;
+    width: 1px;
+    height: 17%;
+    opacity: 0.44;
+    background: linear-gradient(180deg, transparent, rgba(31, 107, 84, 0.72));
+    transform: translateX(-50%);
+  }
+
+  .vx-voice-field__axis.is-top {
+    bottom: 96%;
+  }
+
+  .vx-voice-field__axis.is-bottom {
+    top: 96%;
+    transform: translateX(-50%) rotate(180deg);
+  }
+
+  .vx-voice-field.is-live .vx-voice-field__plate {
+    box-shadow:
+      0 38px 86px rgba(18, 55, 45, 0.16),
+      0 8px 22px rgba(18, 55, 45, 0.09),
+      inset 0 2px 0 rgba(255, 255, 255, 0.96),
+      inset 0 -1px 0 rgba(18, 55, 45, 0.1);
+    transform: scale(1.012);
+  }
+
+  .vx-voice-field.is-live .vx-voice-field__caustic {
+    opacity: 1;
+    transform: scale(1.035);
+  }
+
+  .vx-voice-field.is-calm {
+    opacity: 0.74;
+  }
+
+  @media (max-width: 680px) {
+    .vx-voice-field {
+      width: min(58vh, 106vw, 520px);
+    }
+  }
+
+  @media (max-height: 680px) and (orientation: landscape) {
+    .vx-voice-field {
+      width: min(82vh, 48vw, 410px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vx-voice-field__caustic,
+    .vx-voice-field__plate {
+      transition: opacity 180ms ease;
+      transform: none !important;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .vx-voice-field__plate {
+      background: #f4f7f2;
+    }
+
+    .vx-voice-field__caustic {
+      display: none;
+    }
+  }
+}

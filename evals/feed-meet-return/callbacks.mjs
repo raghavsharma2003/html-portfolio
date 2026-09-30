@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+const root=fileURLToPath(new URL('../../',import.meta.url));
+const source=readFileSync(root+'src/studio/CloneExperience.tsx','utf8');
+const ast=ts.createSourceFile('parent.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+const compile=s=>ts.transpileModule(s,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+const callbacks={};function visit(n){if(ts.isJsxAttribute(n)&&['onTestSource','onEditContext'].includes(n.name.text)&&n.initializer&&ts.isJsxExpression(n.initializer))callbacks[n.name.text]=(ts.isConditionalExpression(n.initializer.expression)?n.initializer.expression.whenFalse:n.initializer.expression).getText(ast);ts.forEachChild(n,visit);}visit(ast);
+const scopeCheck=source.slice(source.indexOf('  if (rehearsalReturn.current &&'),source.indexOf('  const rehearsalQuery'));
+const RID='10000000-0000-4000-8000-000000000001',OTHER='10000000-0000-4000-8000-000000000002',ITEM='30000000-0000-4000-8000-000000000001';
+let groups=0;const check=(name,work)=>{work();console.log(`ok ${++groups} - ${name}`);};
+function context({sheetPersisted=false}={}){const ctx={identity:'owner-a',accessToken:'token-a',selected:{replica_id:RID},wizardInput:{sheetPersisted},rehearsalReturn:{current:null},reissueMounted:{current:true},reissueCurrent:{current:{identity:'owner-a',accessToken:'token-a',selected:{replica_id:RID}}},isPrivateTextId:id=>id===ITEM,calls:[]};ctx.chooseRoom=room=>ctx.calls.push(room);ctx.setEnrichView=view=>ctx.calls.push(view);ctx.setMeetView=view=>ctx.calls.push(`meet:${view}`);runInNewContext(compile('globalThis.edit='+callbacks.onEditContext+';globalThis.test='+callbacks.onTestSource+';'),ctx);return ctx;}
+const draft={question:'Keep an unsent question',sheetId:OTHER,contextItemId:ITEM};
+check('actual parent edit callback keeps only current unsent draft and navigates to files',()=>{const c=context();c.edit(draft);assert.equal(c.rehearsalReturn.current.draft,draft);assert.deepEqual(c.calls,['files','enrich']);assert.deepEqual(Object.keys(c.rehearsalReturn.current.draft).sort(),['contextItemId','question','sheetId']);});
+check('actual owned row callback without a persisted sheet preserves draft and opens rehearsal',()=>{const c=context();c.edit(draft);c.calls=[];c.test({replicaId:RID,itemId:ITEM});assert.equal(c.rehearsalReturn.current.draft.question,draft.question);assert.equal(c.rehearsalReturn.current.draft.sheetId,OTHER);assert.equal(c.rehearsalReturn.current.draft.contextItemId,ITEM);assert.deepEqual(c.calls,['rehearsal']);});
+check('actual owned row callback with a persisted sheet preserves explicit rehearsal',()=>{const c=context({sheetPersisted:true});c.edit(draft);c.calls=[];c.test({replicaId:RID,itemId:ITEM});assert.equal(c.rehearsalReturn.current.draft.question,draft.question);assert.equal(c.rehearsalReturn.current.draft.sheetId,OTHER);assert.equal(c.rehearsalReturn.current.draft.contextItemId,ITEM);assert.deepEqual(c.calls,['rehearsal']);});
+for(const kind of ['identity','token','replica','unmount'])check(`actual late callbacks refuse after ${kind}`,()=>{const c=context();if(kind==='identity')c.reissueCurrent.current.identity='owner-b';if(kind==='token')c.reissueCurrent.current.accessToken='token-b';if(kind==='replica')c.reissueCurrent.current.selected.replica_id=OTHER;if(kind==='unmount')c.reissueMounted.current=false;c.edit(draft);c.test({replicaId:RID,itemId:ITEM});assert.equal(c.rehearsalReturn.current,null);assert.deepEqual(c.calls,[]);});
+for(const kind of ['identity','token','replica','missing'])check(`actual render clears snapshot on ${kind}, including switch back`,()=>{const c=context();c.edit(draft);if(kind==='identity')c.identity='owner-b';if(kind==='token')c.accessToken='token-b';if(kind==='replica')c.selected={replica_id:OTHER};if(kind==='missing')c.selected=null;runInNewContext(compile(scopeCheck),c);assert.equal(c.rehearsalReturn.current,null);c.identity='owner-a';c.accessToken='token-a';c.selected={replica_id:RID};runInNewContext(compile(scopeCheck),c);assert.equal(c.rehearsalReturn.current,null);});
+check('foreign and malformed row handles never navigate',()=>{const c=context();c.test({replicaId:OTHER,itemId:ITEM});c.test({replicaId:RID,itemId:'bad'});assert.deepEqual(c.calls,[]);assert.equal(c.rehearsalReturn.current,null);});
+check('executed old callback has no draft retention (negative control)',()=>{
+ // blob from commit 0a3b2d2608d64a4f9aebdafc690caf445f6b5889, moved to a
+ // committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+ // history-reading-suites).
+ const old=readFileSync(root+'evals/feed-meet-return/fixtures/0a3b2d26/src__studio__CloneExperience.tsx','utf8');const oldAst=ts.createSourceFile('old.tsx',old,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let callback;function visitOld(n){if(ts.isJsxAttribute(n)&&n.name.text==='onEditContext')callback=n.initializer.expression.getText(oldAst);ts.forEachChild(n,visitOld);}visitOld(oldAst);const c=context();runInNewContext(compile('globalThis.old='+callback),c);c.old(draft);assert.equal(c.rehearsalReturn.current,null);assert.deepEqual(c.calls,['files','enrich']);});
+console.log(`PASS ${groups} actual callback/scope groups; no browser, database or network.`);

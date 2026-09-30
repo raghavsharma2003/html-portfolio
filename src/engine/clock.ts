@@ -30,7 +30,7 @@
 import { Capacitor } from "@capacitor/core";
 import { tel } from "./telemetry";
 
-const BASE = Capacitor.isNativePlatform?.() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform?.() ? "https://vyakti-replica-lab.vercel.app" : "";
 
 // ── age tier (§9.4) ───────────────────────────────────────────────────────
 

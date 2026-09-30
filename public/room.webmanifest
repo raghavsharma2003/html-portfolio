@@ -1,0 +1,12 @@
+{
+  "name": "The Room",
+  "short_name": "Room",
+  "description": "A private, continuing conversation with a creator's AI.",
+  "start_url": "/r/",
+  "display": "standalone",
+  "background_color": "#f4f1e9",
+  "theme_color": "#f4f1e9",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

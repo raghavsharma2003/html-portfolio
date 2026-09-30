@@ -1,0 +1,1389 @@
+diff --git a/context/decisions.md b/context/decisions.md
+index 95230b9..25bfc41 100644
+--- a/context/decisions.md
++++ b/context/decisions.md
+@@ -25144,3 +25144,34 @@ maintaining two step-rail components in the same product long-term.
+ **Why.** Six of the ten workstreams reported new SQL they could not run against Postgres (no `NEON_URL` in a worktree), and `rejected.md#offline-mocks-cannot-type-check-sql` is exactly the failure a plan-only EXPLAIN catches for free: WS-R172's agent mint (four write nodes, cost 236), WS-R175's erasure chain (116 delete nodes including the six newly ordered ones, cost 1310), WS-R173's card read, WS-R179's two reads and WS-R180's sheet read all planned first time. The marker rule exists because a follow-up commit that rewrites its own earlier paragraph is a legitimate thing for a workstream to do and the union tool refuses it correctly; the failure was the main loop chaining `git add` behind the refusal.
+ 
+ **Reversal.** If a plan-only EXPLAIN ever passes a statement that then fails live (a runtime-only error such as a constraint the plan cannot see), the live apply of a seeded fixture becomes the merge-time check for write statements; if a context-union refusal is ever resolved wrongly by hand twice in one wave, the union tool gains a `--replace-paragraph` mode instead.
++
++## `ws-r188-voice-dry-run-relabels-the-shared-fakes-identity-locally-never-upstream` (2026-09-14, WS-R188)
++
++**Decision.** `evals/rehearsal/voice-dry-run.mjs` wraps
++`api/_replica-processing/providers/fake.js`'s `createFakeProcessingAdapters()`
++in a thin local relabel (`rehearsalAdapters()`: same step functions, same
++deterministic bytes, `name`/`version` overridden to
++`"rehearsal-processing-worker"`/`"dry-run-1"`) rather than changing the
++shared fake's own `META` constant. The shared file is left byte-for-byte
++untouched.
++
++**Why.** `api/_replica-processing/providers/fake.js` is imported by name in
++at least nine other suites this session found by `grep -rl` (`evals/
++replica-processing/run.mjs`, `evals/room-doors/`, `evals/replica-provenance/`,
++`evals/comparison-preparation/`, `evals/replica-runtime/`, `evals/payments*/`,
++`evals/payouts/`, `evals/processing-worker/`, `evals/rate-limit/`, several of
++them asserting exact adapter facts by string), and nine other wave-twenty-four
++siblings are building against the same base tree this same week. Changing
++the shared file's own identity strings to dodge the anti-poisoning gate
++(`context/rejected.md#ws-r188-shared-fake-processing-adapters-own-identity-
++trips-the-real-anti-poisoning-gate`) would risk a collision none of those
++suites' own workstreams could see coming, for a change only THIS file's own
++downstream call (`queueOwnedVoiceGenome`'s `isRealEvidence`,
++`completeVoiceGenomeBuild`'s settlement CTE) actually needs.
++
++**Reversal condition.** If a future workstream needs every processing suite's
++fake adapter identity to already read as non-synthetic (for example, a second
++suite that also drives real evidence through `queueOwnedVoiceGenome`), move
++this relabel into the shared file itself (an added, opt-in parameter to
++`createFakeProcessingAdapters(options)`, never a change to its unconditional
++default) and delete the local wrapper here in the same commit.
+diff --git a/context/graph.json b/context/graph.json
+index 32c5a99..f6f59ad 100644
+--- a/context/graph.json
++++ b/context/graph.json
+@@ -19494,6 +19494,42 @@
+       "kind": "measurement",
+       "title": "Wave twenty-three's ten merges, their proofs on the merged tree, the live plans and the batch gate (2026-09-13)",
+       "at": "context/measurements.md#wave-23-merges-2026-09-13"
++    },
++    {
++      "id": "ws-r188-voice-program-dry-run",
++      "kind": "component",
++      "title": "The voice program's dry run: enrol -> process -> candidate -> listening test -> activation guard -> Hear the vibe -> Room reply spoken sentence by sentence, one path, in-process against the deterministic fake providers (evals/rehearsal/voice-dry-run.mjs)",
++      "at": "evals/rehearsal/voice-dry-run.mjs"
++    },
++    {
++      "id": "ws-r188-voice-day-one-script",
++      "kind": "component",
++      "title": "scripts/voice-day-one.mjs: the same path against live Azure, gated on env var names, dry-run by default, refuses to spend without every required name",
++      "at": "scripts/voice-day-one.mjs"
++    },
++    {
++      "id": "ws-r188-shared-fake-processing-adapters-own-identity-trips-the-real-anti-poisoning-gate",
++      "kind": "rejection",
++      "title": "The shared fake processing adapters' own name/version (deterministic-fake / 0-test) independently trip the real fake/fixture/test/mock anti-poisoning gate self-test mode and genome settlement both enforce",
++      "at": "context/rejected.md#ws-r188-shared-fake-processing-adapters-own-identity-trips-the-real-anti-poisoning-gate"
++    },
++    {
++      "id": "ws-r188-shared-fake-voice-provider-produces-byte-identical-pcm-regardless-of-text",
++      "kind": "rejection",
++      "title": "The shared fake voice provider's synthesizeStream yields byte-identical silent PCM regardless of input text, so two candidate clips cannot be told apart by audio hash alone",
++      "at": "context/rejected.md#ws-r188-shared-fake-voice-provider-produces-byte-identical-pcm-regardless-of-text"
++    },
++    {
++      "id": "ws-r188-voice-dry-run-relabels-the-shared-fakes-identity-locally-never-upstream",
++      "kind": "decision",
++      "title": "The voice dry run relabels the shared fake processing adapters' identity locally (name/version only), never in the shared file every other processing suite also imports",
++      "at": "context/decisions.md#ws-r188-voice-dry-run-relabels-the-shared-fakes-identity-locally-never-upstream"
++    },
++    {
++      "id": "ws-r188-voice-dry-run-step-wall-clocks-2026-09-14",
++      "kind": "measurement",
++      "title": "Voice dry run step wall clocks, n=3, in-process: process ~34ms, candidate ~5ms, qualify ~1ms, Hear the vibe <1ms, Room reply (5 sentences) ~450-850ms",
++      "at": "context/measurements.md#ws-r188-voice-dry-run-step-wall-clocks-2026-09-14"
+     }
+   ],
+   "edges": [
+@@ -33294,6 +33330,31 @@
+       "src": "wave-23-merged-as-a-batch-with-plan-only-explains-at-the-merge",
+       "dst": "wave-22-merged-as-a-batch-with-a-repair-workstream",
+       "rel": "supersedes"
++    },
++    {
++      "src": "ws-r188-shared-fake-processing-adapters-own-identity-trips-the-real-anti-poisoning-gate",
++      "dst": "ws-r188-voice-program-dry-run",
++      "rel": "caused_by"
++    },
++    {
++      "src": "ws-r188-shared-fake-voice-provider-produces-byte-identical-pcm-regardless-of-text",
++      "dst": "ws-r188-voice-program-dry-run",
++      "rel": "caused_by"
++    },
++    {
++      "src": "ws-r188-voice-dry-run-relabels-the-shared-fakes-identity-locally-never-upstream",
++      "dst": "ws-r188-shared-fake-processing-adapters-own-identity-trips-the-real-anti-poisoning-gate",
++      "rel": "caused_by"
++    },
++    {
++      "src": "ws-r188-voice-day-one-script",
++      "dst": "ws-r188-voice-program-dry-run",
++      "rel": "part_of"
++    },
++    {
++      "src": "ws-r188-voice-program-dry-run",
++      "dst": "ws-r188-voice-dry-run-step-wall-clocks-2026-09-14",
++      "rel": "measured_by"
+     }
+   ]
+ }
+diff --git a/context/measurements.md b/context/measurements.md
+index b07cd7c..c7cdafe 100644
+--- a/context/measurements.md
++++ b/context/measurements.md
+@@ -18739,3 +18739,32 @@ Method: each workstream's own report (suite counts as printed), the main loop's
+ | WS-R177 the studio fast on 4G | 123aa34 | performance-measurements 41, performance-prerequisites, performance-hindi-interface, gate-load |
+ 
+ Batch gate on the ten-merge tree: 25 of 25 on ed1470e. Live database after the wave: unchanged (no workstream needed a migration; 172, 173 and 174 stay unused and 172 is still the next free number).
++
++## `ws-r188-voice-dry-run-step-wall-clocks-2026-09-14`
++
++Method: `evals/rehearsal/voice-dry-run.mjs`, `node evals/rehearsal/voice-dry-run.mjs`,
++n=3 fresh passes (fresh replica/source identity each pass, same process,
++this worktree, 2026-09-14). Each pass runs the real 8-step processing DAG,
++the real self-test bootstrap/accept/select/queue chain plus genome build
++lease+settlement, the real listening verdict + activation guard + "Hear the
++vibe" synth, and the real Room reply spoken sentence by sentence — all
++in-process, no network, no DB, no GPU. Milliseconds, `Date.now()` deltas
++around each step; min/median/max across the 3 passes:
++
++| step | min | median | max |
++|---|---|---|---|
++| process (8-step DAG through `executeProcessingJob`) | 20ms | 34-39ms | 38-54ms |
++| candidate (self-test chain + genome build lease/settle) | 1-2ms | 4-6ms | 11-23ms |
++| qualify (2 candidate clips + listening verdict + activation guard) | 0ms | 1-2ms | 3-14ms |
++| Hear the vibe (one more real synth call) | 0ms | 0-1ms | 0-1ms |
++| Room reply, 5 sentences (`roomSay` + 5x `roomSpeak`) | 437-739ms | 455-847ms | 530-926ms |
++
++Conclusion this measurement supports: every step except the Room-speak
++sentence loop is sub-100ms in-process; the Room-speak step dominates total
++wall time by roughly an order of magnitude, consistent with it being the one
++step that does real per-sentence work (`roomSay`'s own reply-generation call
++plus five separate `roomSpeak` authorize+synth+protect round trips) rather
++than a single settlement query. This is an IN-PROCESS, no-network number —
++it says nothing about a live Azure round trip's own latency, which
++`docs/gurukul/VOICE-DAY-ONE.md` names as unmeasured until a real credential
++exists.
+diff --git a/context/rejected.md b/context/rejected.md
+index 6206f67..52958dd 100644
+--- a/context/rejected.md
++++ b/context/rejected.md
+@@ -18805,3 +18805,87 @@ never clicks there would have shipped the same defect silently.
+ **What replaced it.** `awaitPending(n)`: a Node-side poll of `pending.length` bounded by `boundedWaitMs(5000)` from `evals/lib/bounded-wait.mjs` (WS-R181's shared core, so the bound scales with load), then the same `assert.equal`. The bounded poll is a wait for the fact the assertion needs, never a sleep; when the request genuinely never arrives the assertion still fails by name after the bound.
+ 
+ **The rule.** A browser-side `waitForFunction` proves only what the page rendered; any assertion on a Node-side counter that a request fills (a fake server's `pending`, `posts`, `reads`) needs its own bounded wait for that counter. This is the third suite this wave with the shape (`candidate-activation-ui` in WS-R181's gate run, `feedback-dataset-ui` in WS-R173's registry run), so a sweep of `evals/**/mounted.mjs` for `waitForFunction(...); assert.equal(<node array>.length` is wave twenty-four's to do at the cause rather than one suite at a time.
++
++## `ws-r188-shared-fake-processing-adapters-own-identity-trips-the-real-anti-poisoning-gate` (2026-09-14, WS-R188)
++
++**Tried.** Drove the real 8-step audio DAG through `executeProcessingJob`
++using `api/_replica-processing/providers/fake.js`'s `createFakeProcessingAdapters()`
++UNCHANGED — the same deterministic fake every other processing suite in this
++repo already reuses — then fed its real evidence output into the real
++`api/_replica-processing/self-test.js#applySelfTestAutoGrant` chain
++(`bootstrapSelfTestReplica` -> `acceptAllOwnedEvidenceForSelfTest` ->
++`pickUnselectedEnhanceCandidate` -> `selectOwnedVoiceArtifact` ->
++`queueOwnedVoiceGenome`, `api/_replica-review.js`), expecting a real, computed
++`readiness()` verdict of `ready: true`.
++
++**What specifically broke.** `readiness()` reported zero real evidence no
++matter how much was accepted, and `api/_replica-processing/builders.js`'s
++`buildVoiceGenomeDraft` independently threw "two independent embedding
++families required" even though the worker's real `voice_quality` step had
++produced exactly two. Traced to `isRealEvidence`
++(`api/_replica-review.js`): `!/(fake|fixture|test|mock)/.test(
++\`${adapter_family} ${adapter_name} ${adapter_version}\`.toLowerCase())` —
++and the shared fake's own `META = { name: "deterministic-fake", version:
++"0-test" }` trips this on BOTH fields independently (found one at a time:
++fixing `version` alone still failed on `name`). The identical regex, found
++by reading the source afterward rather than guessing, also independently
++guards `REFERENCE_REVIEW_BATCH_SQL` (self-test's own bulk evidence accept —
++`self_test.evidence_bulk_accept`'s own `candidates` CTE) and
++`api/_replica-model-build.js#completeVoiceGenomeBuild`'s settlement CTE. This
++is not a bug: it is a deliberate, independently-enforced law (a voice genome
++must never be built from evidence a machine can tell was synthetic), and the
++shared fake was never built with this caller in mind — every OTHER suite that
++reuses it drives it only as far as `executeProcessingJob`'s own return value,
++never into a caller that re-checks adapter identity.
++
++**What replaced it.** `evals/rehearsal/voice-dry-run.mjs`'s own
++`rehearsalAdapters()`: the shared fake's unchanged step functions (identical
++deterministic bytes, identical measurements), wrapped in a local object that
++overrides only `name`/`version` to clean, non-flagged strings
++(`"rehearsal-processing-worker"`/`"dry-run-1"`) before the worker ever sees
++them. See `context/decisions.md#ws-r188-voice-dry-run-relabels-the-shared-
++fakes-identity-locally-never-upstream` for why this stays local to the new
++suite rather than changing the shared file every other processing suite also
++imports.
++
++**The rule.** A shared fixture/fake built for ONE caller's needs (here:
++`executeProcessingJob`'s own lifecycle/format/lineage checks, which never
++re-read adapter identity after the fact) is not automatically safe for a
++DIFFERENT caller three modules downstream that DOES re-check identity — the
++only way to find this is to actually run the real downstream function
++against the fake's real output, which is exactly what "nobody has run them
++as one path" (this workstream's own brief) means.
++
++## `ws-r188-shared-fake-voice-provider-produces-byte-identical-pcm-regardless-of-text` (2026-09-14, WS-R188)
++
++**Tried.** Synthesised two candidate clips for a paired listening verdict
++through `api/_voice/providers/fake.js#createFakeVoiceProvider().synthesizeStream`
++(via `createVoiceProvider("fake",{allowFake:true})`, `api/_voice/registry.js`
++— the same fake `evals/replica-runtime/run.mjs`, `evals/replica-dialogue/
++run.mjs` and others already reuse), with two different request texts,
++expecting two genuinely distinct audio byte sequences to hash as two distinct
++`audio_sha256` values.
++
++**What specifically broke.** `synthesizeStream` yields exactly three
++960-byte all-zero (silent) PCM frames every time, regardless of
++`providerRef` or `text` — sufficient for the format/lifecycle/abort-signal
++proofs every other suite that reuses it needs, never varying with content
++because none of them need it to. `Calibration.recordVoiceListeningVerdict` ->
++`listeningPairSha256` threw `listening_distinct_candidates_required` (the
++SAME law `evals/listening-test/run.mjs`'s own negative control already names:
++"comparing a candidate against itself is refused") because both clips'
++sha256 were identical.
++
++**What replaced it.** The dry run's own content identity for a clip is the
++real provider's real, text-dependent `renderedText`
++(`renderTextWithDisclosure`, `api/_voice/contracts.js`) rather than the raw
++PCM bytes — genuinely distinct per requested text, still produced by the one
++real call this file makes to the one real fake provider, never a second
++fake and never a fabricated hash. See `evals/rehearsal/voice-dry-run.mjs`'s
++own `synthesizeCandidateClip` for the exact wording of this as a documented,
++known limit of the shared fake rather than a silent workaround.
++
++**The rule.** A fake built to prove FORMAT (PCM shape, disclosure text,
++abort behavior) is not automatically a fake that can prove CONTENT
++distinctness — the two are different guarantees, and a caller that needs the
++second must say so rather than assume the first implies it.
+diff --git a/docs/gurukul/VOICE-DAY-ONE.md b/docs/gurukul/VOICE-DAY-ONE.md
+new file mode 100644
+index 0000000..7b5aab7
+--- /dev/null
++++ b/docs/gurukul/VOICE-DAY-ONE.md
+@@ -0,0 +1,150 @@
++# VOICE-DAY-ONE — the ordered path from an Azure credential to a real likeness number
++
++**WS-R188 (wave twenty-four).** Voice quality is the most important single
++thing in this product (`context/STATE.md`), and the voice program has been
++blocked on an Azure credential for a week. `evals/rehearsal/voice-dry-run.mjs`
++proves the whole path — enrol, process, a candidate produced, one paired
++listening verdict, the activation guard, "Hear the vibe", a Room reply spoken
++sentence by sentence — connects, offline, against the deterministic fake
++providers this repo already ships. This file is the companion runbook for the
++day someone actually has the credential: what to set, what
++`scripts/voice-day-one.mjs` does, what the receipts look like, and where a
++REAL likeness number will land. It never prints a value, and it costs nothing
++to read.
++
++**Read alongside, never instead of:** `docs/gurukul/ENV-MANIFEST.md` §7-12
++(the exact file:line every name below is read at), `docs/gurukul/DAY-ONE.md`
++(the general infrastructure-then-product runbook this file specializes for
++voice), `context/STATE.md` (the current LIVE state), and
++`evals/rehearsal/voice-dry-run.mjs`'s own header (what is proven offline,
++what is a named, deliberate gap).
++
++## What to set
++
++`scripts/voice-day-one.mjs` (no args, or `--live`) is the single source of
++truth for the required set — it exports `REQUIRED_VOICE_ENV` as a table of
++`{name, section}` and refuses by name, never running anything, until every
++one of them is present. Do not retype this list anywhere else; if it drifts
++from `docs/gurukul/ENV-MANIFEST.md` §7-12, the manifest is the fix, and the
++script's own comment cites the exact section for each name.
++
++At a glance, the required set spans five real subsystems, each independently
++gating a step of the SAME path the dry run walks offline:
++
++| step in the dry run | live subsystem (ENV-MANIFEST.md section) | var names |
++|---|---|---|
++| enrol + process (voice evidence extraction) | §10 voice evidence | `AZURE_VOICE_EVIDENCE_ORIGIN`, `AZURE_VOICE_EVIDENCE_HMAC_SECRET` |
++| a candidate is produced (Azure Personal Voice creation) | §7 | `AZURE_PERSONAL_VOICE_ENABLED`, `AZURE_PERSONAL_VOICE_LIMITED_ACCESS_APPROVED`, `AZURE_PERSONAL_VOICE_ENDPOINT`, `AZURE_PERSONAL_VOICE_TTS_ENDPOINT`, `AZURE_PERSONAL_VOICE_KEY`, `AZURE_PERSONAL_VOICE_PROJECT_ID`, `AZURE_PERSONAL_VOICE_COMPANY_NAME`, `AZURE_PERSONAL_VOICE_BASE_MODEL` |
++| candidate + "Hear the vibe" spend fencing | §8 | `AZURE_REPLICA_APP_BUDGET_USD`, `AZURE_PERSONAL_VOICE_USD_PER_PROFILE`, `AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS` |
++| synthesis (the PRIMARY lane, `VOICE_LANE_ORDER`'s own self-hosted-first order) | §9 | `AZURE_OPEN_VOICE_ORIGIN`, `OPEN_VOICE_HMAC_SECRET` |
++| every derived audio byte written anywhere in the path | §12 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REPLICA_STORAGE_BUCKET` |
++| everything reads/writes through | database | `NEON_URL` |
++
++This workstream's own brief describes the gating set loosely as "Azure
++Foundry and Speech keys, the subscription and tenant ids." Checked against
++`docs/gurukul/ENV-MANIFEST.md` directly rather than assumed: **Foundry**
++(`AZURE_FOUNDRY_ENDPOINT`/`AZURE_FOUNDRY_API_KEY`) is real and documented
++(§1) but is the claim-extraction/dialogue lane — this dry run's own path
++never reaches it, so it is NOT in `REQUIRED_VOICE_ENV`; it is named in
++`scripts/voice-day-one.mjs`'s own `INFORMATIONAL_VOICE_ENV` for a day-one
++that also drafts a HumanOS sheet from sources in the same sitting. **The
++manifest documents no separate "subscription id"/"tenant id" pair for the
++voice lanes at all** — the one `AZURE_TENANT_ID` name that exists anywhere in
++it is a DIFFERENT subsystem's own setting (`api/_channel-secrets.js`'s
++`keyVaultAuth()`, channel-secret Key Vault auth), so it is also named
++informationally rather than claimed as a voice requirement it is not. Saying
++so here, rather than silently widening `REQUIRED_VOICE_ENV` to match the
++brief's looser wording, is the same law `AGENTS.md` states for every other
++claim in this repo: never claim what was not checked against the file that
++actually reads it.
++
++## What the command does
++
++```
++node scripts/voice-day-one.mjs            # dry-run (default)
++node scripts/voice-day-one.mjs --live     # still refuses without every name
++```
++
++Both forms:
++
++1. Check every name in `REQUIRED_VOICE_ENV` by PRESENCE only (never a value
++   read into a log line) and refuse, listing the missing names and their
++   section, if any are absent.
++2. When every name is present, run the SAME real config validators the
++   product itself calls (`azurePersonalVoiceConfig`,
++   `azurePersonalVoiceErasureConfig`, `openChatterboxConfig`) as a structural
++   check — this catches a malformed value (a non-HTTPS endpoint, a key that
++   is present but too short, a model string still saying "latest") before
++   anything is attempted. It proves nothing about whether the credential is
++   genuinely valid; only Azure can tell you that.
++3. Print the exact spend ceiling this run would honour, read from the SAME
++   three names the real spend fence (`api/_provider-budget.js`) reads —
++   never a second, hand-typed number that could drift from it.
++4. `--live` is out of this workstream's own scope by its own law 5: "the
++   live command is proven to refuse without the env names ... never by
++   running it." Running the path for real, once every name and structural
++   check above is green, is done by hand, door by door — the same real
++   doors `evals/rehearsal/voice-dry-run.mjs` already exercises offline, now
++   pointed at the real Azure lanes instead of the fake ones.
++
++`evals/voice-day-one/run.mjs` proves every refusal above, including spawning
++the real CLI itself with an EMPTY environment (never a credential) and
++checking the exit code and the absence of a stack trace.
++
++## What the receipts look like
++
++Nothing here is invented — every shape below is the real, existing column or
++door the dry run already exercises against the fake provider, restated for
++what a LIVE row means once Azure is the provider instead:
++
++- **A queued, then settled, voice genome build**
++  (`vy_replica_model_build`, `build_kind='voice_genome'`) — the SAME
++  `queueOwnedVoiceGenome` → `leaseNextVoiceGenomeBuild` →
++  `completeVoiceGenomeBuild` chain the dry run drives against a fixture db,
++  now against the real database. Its `source_set_hash` is a real hash over
++  REAL, human-reviewed evidence — the `lower(adapter_family||' '||
++  adapter_name||' '||adapter_version) !~ '(fake|fixture|test|mock)'` gate
++  the dry run's own header names (see "the real finding" there) means this
++  can only ever happen from a real processing adapter's own output, never a
++  rehearsal's.
++- **Two sealed voice_preview generations** (`vy_replica_generation`,
++  `purpose='voice_preview'`, `state='sealed'`) — real audio, real
++  `audio_sha256`, genuinely distinct bytes (unlike the dry run's own fake
++  provider, whose PCM is byte-identical regardless of input text — see the
++  dry run's own header).
++- **One recorded listening verdict**
++  (`recordVoiceListeningVerdict`, `api/_replica-calibration.js`) — the SAME
++  four axes `LISTENING_AXES` names (owner_likeness, naturalness,
++  indian_accent, pronunciation), scored by a real person listening to real
++  audio, not the dry run's own scripted ratings.
++- **An activation decision, possibly overridden**
++  (`guardOwnedVoiceActivation`) — admits the verdict's real winner, or
++  refuses a losing candidate unless a real person explicitly overrides it
++  (logged to `vy_replica_audit` as `voice.activation.override`, never
++  silent).
++
++## Where "likeness measured on a real voice" will land, and what it will mean
++
++`vy_voice_fidelity` (`api/_fidelity.js`, `clientFidelity`,
++`DEFAULT_FIDELITY_POLICY`) is the table and the client-facing shape a real
++likeness score already has everywhere else in this codebase — the listening
++card on the owner's own studio panel reads it through
++`ownedVoiceLikenessSummary` (`api/_replica-voice-preview.js`), the exact
++function `evals/listening-test/run.mjs` already imports and proves offline.
++**A live day-one voice run writes into this SAME table, through this SAME
++reader — no new column, no new door.** What changes is only the SOURCE of the
++number: today, every `vy_voice_fidelity` row in this codebase's own fixtures
++and suites is either absent or explicitly synthetic; a live run is the first
++row this system will have ever written from a real person's real voice,
++scored by a real person's own paired listening choice, never a number a
++model estimated on its own. `context/decisions.md#platform-north-star`'s own
++law stands unchanged by this file: "a measured likeness score is a product
++feature, and no likeness claim is ever made from a fixture." This runbook
++existing does not change that; it is the path TO the day that law has a real
++number to point at.
++
++**Never a value in this doc, ever.** Every name above is a NAME. If a future
++edit to this file is tempted to paste an example key "just to show the
++shape" — don't. `scripts/write-config.mjs`'s own header states the same law
++for the exact same reason: a log or a doc that leaks one credential is worse
++than the outage the credential's absence causes.
+diff --git a/evals/rehearsal/voice-dry-run.mjs b/evals/rehearsal/voice-dry-run.mjs
+new file mode 100644
+index 0000000..bdd3bf8
+--- /dev/null
++++ b/evals/rehearsal/voice-dry-run.mjs
+@@ -0,0 +1,664 @@
++// WS-R188 (wave twenty-four). The voice program's dry run.
++//
++//   node evals/rehearsal/voice-dry-run.mjs
++//
++// "Every piece exists in isolation... Nobody has run them as one path, so
++// nobody knows whether the day the credential arrives is a day or a week."
++// This file is that one path, run in-process against the deterministic fake
++// providers this repo already ships (`api/_replica-processing/providers/
++// fake.js`'s `createFakeProcessingAdapters`/`createFakeImmutableArtifactStore`,
++// and `api/_voice/providers/fake.js`'s `createFakeVoiceProvider` via
++// `createVoiceProvider("fake",{allowFake:true})`) — never a new fake, exactly
++// as the brief requires.
++//
++// ── WHAT IS DRIVEN THROUGH THE REAL DOOR, FOR REAL ──────────────────────────
++//
++//   1. ENROL + PROCESS. The real 8-step audio DAG (`api/_replica-processing/
++//      pipeline.js`'s `AUDIO_PROCESSING_DAG`) is executed step by step through
++//      the real `executeProcessingJob` (`api/_replica-processing/worker.js`)
++//      against the REAL shared fake adapters and fake immutable artifact
++//      store `evals/replica-processing/run.mjs` already proves the mechanics
++//      of — this file does not re-prove diarize/separate/enhance's own
++//      lineage rules, it proves their OUTPUT is what the next piece,
++//      self-test mode, actually consumes.
++//   2. A CANDIDATE IS PRODUCED. `api/_replica-processing/self-test.js`'s real
++//      `bootstrapSelfTestReplica` -> `acceptAllOwnedEvidenceForSelfTest` ->
++//      (via `applySelfTestAutoGrant`) `pickUnselectedEnhanceCandidate` ->
++//      `selectOwnedVoiceArtifact` -> `queueOwnedVoiceGenome`
++//      (`api/_replica-review.js`) run for real against a fixture db, reaching
++//      a genuinely computed `readiness()` verdict (never a hand-set flag) —
++//      closing the EXACT gap `evals/rehearsal/personal.mjs`'s own header
++//      names as out of its scope ("needs `queueOwnedVoiceGenome`'s real
++//      evidence gate ... out of scope for `/api/replica-review`"). Then the
++//      real `leaseNextVoiceGenomeBuild` / `buildVoiceGenomeDraft` /
++//      `completeVoiceGenomeBuild` (`api/_replica-model-build.js`,
++//      `api/_replica-processing/builders.js`) settle a real voice genome.
++//   3. QUALIFIED, listened to, and admitted. Two candidate clips are
++//      synthesised through the real fake voice provider, sealed as two
++//      distinct voice_preview generations, one paired listening verdict is
++//      recorded through the real `recordVoiceListeningVerdict`
++//      (`api/_replica-calibration.js`, the exact pattern
++//      `evals/listening-test/run.mjs` already proves), and the real
++//      `guardOwnedVoiceActivation` admits the winner (WS-R163's law 4: a
++//      losing candidate needs a logged override).
++//   4. "HEAR THE VIBE" plays a real clip: the fake provider's real
++//      `synthesizeStream`, `assertSynthesisResult`-checked, carrying the
++//      real synthetic-audio disclosure.
++//   5. A FOLLOWER'S ROOM REPLY is spoken sentence by sentence: the real
++//      `roomSay`/`roomSpeak` (`api/_room-surface.js`,
++//      `api/_room-speak-plan.js`) against `evals/room/fixtures.mjs`'s real
++//      fixture world, with `synth` wired to the SAME real fake voice
++//      provider — every clip in this file, front to back, is the identical
++//      fake's deterministic bytes, never a second fake.
++//
++// ── WHAT IS A NAMED, DELIBERATE GAP (never silently assumed) ────────────────
++//
++//   - `queueOwnedVoiceGenome`'s OWNED/BUILD_EVIDENCE_SQL/artifact-selection
++//     queries and `completeVoiceGenomeBuild`'s settlement CTE are answered by
++//     a fixture db matched on stable, identifying SQL fragments (the same
++//     discipline `evals/replica-self-test-mode/run.mjs` and
++//     `evals/listening-test/run.mjs` already use), not replayed against a
++//     real Postgres planner. The exact WHERE-clause correctness of those
++//     statements is that pair of suites' own job, already gated; THIS file's
++//     job is whether the values that cross the seam (evidence rows, the
++//     selected artifact id, the genome draft, the build lease) are shaped the
++//     way the next real function actually reads them — proven because the
++//     genome draft and its `source_set_hash`/`manifest_hash` are computed by
++//     the REAL `buildVoiceGenomeDraft`/`acceptedSourceSetHash`
++//     (`api/_replica-processing/builders.js`), fed the REAL evidence this
++//     file's own worker run produced, not hand-typed numbers.
++//   - `beginOwnedVoicePreview`'s full intent-lease-and-seal state machine
++//     (broker admission, durable retries, ledger sealing) is proven offline,
++//     end to end, by `evals/voicepanel.mjs` already. This file calls the fake
++//     voice provider directly for the two candidate clips and the "Hear the
++//     vibe" clip, and feeds their real sha256/bytes into the real listening
++//     and activation functions — the cross-module seam this brief asks for,
++//     not a second proof of the panel's own state machine.
++//   - `diarize`/`separate`/`enhance` are driven through the real
++//     `executeProcessingJob` using the real fake artifact store; a real
++//     Chromium sign-in/recording UI walk (the fake microphone, the studio's
++//     own upload screen) is `evals/rehearsal/personal.mjs`'s own proven
++//     territory and is not re-walked here — this file's own value is
++//     everything AFTER a ready source, which personal.mjs's own header names
++//     as the one thing it could not reach.
++//
++// ── THE REAL FINDING THIS FILE'S OWN FIRST RUN MADE ──────────────────────────
++//
++// `api/_replica-review.js`'s `REFERENCE_REVIEW_BATCH_SQL` (self-test's bulk
++// evidence accept), `isRealEvidence`'s own filter inside `queueOwnedVoiceGenome`'s
++// readiness gate, and `completeVoiceGenomeBuild`'s settlement CTE each
++// independently refuse any evidence or artifact whose
++// `adapter_family||' '||adapter_name||' '||adapter_version` contains "fake",
++// "fixture", "test" or "mock" — a real, deliberate anti-poisoning law (a
++// genome must never be built from evidence a machine can tell was
++// synthetic). The SHARED fake processing adapters every other processing
++// suite reuses (`api/_replica-processing/providers/fake.js`) stamps
++// `name: "deterministic-fake", version: "0-test"` on every adapter it
++// returns — BOTH fields independently trip the same regex — so reusing that
++// shared fake UNCHANGED would make this file's own worker run permanently
++// unreadable to self-test mode, not by a rehearsal bug but by the exact law
++// the rehearsal exists to exercise. This file wraps the shared fake's
++// unchanged step functions (same deterministic bytes, same measurements) in
++// a thin identity relabel (`REHEARSAL_ADAPTER_NAME`/`REHEARSAL_ADAPTER_VERSION`
++// below, clean, non-flagged strings) — reusing the real fake's real logic, never
++// inventing a second one, while staying inside the law it is itself proving.
++// See context/rejected.md for the full citation.
++import { createHash, randomUUID } from "node:crypto";
++import { dirname, join } from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { register } from "node:module";
++
++const HERE = dirname(fileURLToPath(import.meta.url));
++const ROOT = join(HERE, "..", "..");
++const load = (rel) => import(pathToFileURL(join(ROOT, rel)).href);
++
++// MUST happen before any dynamic import of api/*.js or anything it
++// transitively imports (this repo's own law, `evals/rehearsal/harness.mjs`'s
++// header) — `api/_room-surface.js` reaches `api/_surface.js`, `api/_db.js`
++// and `api/_auth.js` at module scope, so the loader's redirect must already
++// be armed. This file drives every OTHER real function (processing, voice,
++// self-test, model-build, calibration) with its own db argument, never the
++// module-scope `_db.js`, so `stubs/db.mjs`'s own fixture is unused but must
++// still resolve.
++process.env.ROOM_SESSION_SECRET = process.env.ROOM_SESSION_SECRET || "v".repeat(48);
++register("./loader.mjs", import.meta.url);
++
++const Contracts = await load("api/_replica-processing/contracts.js");
++const Worker = await load("api/_replica-processing/worker.js");
++const Fake = await load("api/_replica-processing/providers/fake.js");
++const Builders = await load("api/_replica-processing/builders.js");
++const RefWindow = await load("api/_replica-processing/reference-window.js");
++const Windows = await load("api/_video-enroll/windows.js");
++const SelfTest = await load("api/_replica-processing/self-test.js");
++const ModelBuild = await load("api/_replica-model-build.js");
++const VoiceRegistry = await load("api/_voice/registry.js");
++const VoiceContracts = await load("api/_voice/contracts.js");
++const Calibration = await load("api/_replica-calibration.js");
++const RoomFixtures = await load("evals/room/fixtures.mjs");
++const RoomSurface = await load("api/_room-surface.js");
++const RoomSpeakPlan = await load("api/_room-speak-plan.js");
++const RoomVoice = await load("api/_room-voice.js");
++
++let pass = 0;
++let fail = 0;
++const failures = [];
++function ok(name, cond, extra = "") {
++  if (cond) { pass++; console.log(`  ok  ${name}${extra ? `   ${extra}` : ""}`); }
++  else { fail++; failures.push(name); console.log(`FAIL  ${name}${extra ? `   ${extra}` : ""}`); }
++}
++function has(sql, needle) { return sql.includes(needle); }
++
++const OWNER = "20000000-0000-4000-8000-0000000000aa";
++const REPLICA = "10000000-0000-4000-8000-0000000000bb";
++const SOURCE = "30000000-0000-4000-8000-0000000000cc";
++const BUILD_ID = "40000000-0000-4000-8000-0000000000dd";
++const ENHANCE_ARTIFACT = "50000000-0000-4000-8000-0000000000ee";
++const PAST = new Date(Date.now() - 86_400_000).toISOString();
++const FUTURE = new Date(Date.now() + 365 * 86_400_000).toISOString();
++
++// See this file's own header ("THE REAL FINDING..."): the shared fake
++// processing adapters' own `name`/`version` independently trip the real
++// anti-poisoning gate, found only by running this file and reading
++// `isRealEvidence`'s own refusal, not by reading the adapter's source in
++// advance. This relabels ONLY the identity metadata (`family` stays the
++// shared fake's own — no banned word in it to begin with) so the rest of
++// this dry run can exercise `queueOwnedVoiceGenome`'s real readiness gate
++// and `completeVoiceGenomeBuild`'s real settlement instead of being refused
++// by the same law they exist to enforce.
++const REHEARSAL_ADAPTER_NAME = "rehearsal-processing-worker";
++const REHEARSAL_ADAPTER_VERSION = "dry-run-1";
++function rehearsalAdapters() {
++  const shared = Fake.createFakeProcessingAdapters();
++  const relabeled = {};
++  for (const [stage, adapter] of Object.entries(shared)) {
++    relabeled[stage] = Object.freeze({ ...adapter, name: REHEARSAL_ADAPTER_NAME, version: REHEARSAL_ADAPTER_VERSION });
++  }
++  return Object.freeze(relabeled);
++}
++
++function job(step, attempt = 1) {
++  return {
++    job_id: Contracts.stableUuid(`voice-dry-run:${step}`),
++    replica_id: REPLICA, owner_user_id: OWNER, source_id: SOURCE,
++    step, revision: 1, state: "leased", attempt,
++  };
++}
++
++const source = Object.freeze({
++  source_id: SOURCE, replica_id: REPLICA, owner_user_id: OWNER,
++  kind: "audio", state: "quarantined", capture_mode: "upload",
++  storage_bucket: "private-replica-evidence",
++  object_path: `${OWNER}/${REPLICA}/${SOURCE}/original`,
++  mime: "audio/wav", byte_size: 96_000, duration_ms: 24_000,
++  sha256: "d".repeat(64), contains_third_parties: false,
++});
++
++// ═════════════════════════════════════════════════════════════════════════
++// STEP 1 — PROCESS: the real 8-step DAG through the real worker, the real
++// shared fake adapters (relabeled, see header), the real fake artifact store.
++// ═════════════════════════════════════════════════════════════════════════
++async function runProcessingDag(timings) {
++  const t0 = Date.now();
++  const adapters = rehearsalAdapters();
++  const store = Fake.createFakeImmutableArtifactStore();
++  const dependencies = {
++    integrity: [], malware_scan: ["integrity"], media_probe: ["integrity", "malware_scan"],
++    diarize: ["integrity", "malware_scan", "media_probe"],
++    separate: ["integrity", "malware_scan", "media_probe", "diarize"],
++    enhance: ["integrity", "malware_scan", "media_probe", "diarize", "separate"],
++    transcribe: ["integrity", "malware_scan", "media_probe", "diarize", "separate", "enhance"],
++    voice_quality: ["integrity", "malware_scan", "media_probe", "diarize", "separate", "enhance", "transcribe"],
++  };
++
++  const integrity = await Worker.executeProcessingJob({ job: job("integrity"), source, adapters });
++  ok("process: integrity runs for real against the (relabeled) shared fake adapter", integrity.outcome === "complete");
++  const malware = await Worker.executeProcessingJob({ job: job("malware_scan"), source, adapters, completedSteps: dependencies.malware_scan });
++  ok("process: malware_scan runs for real", malware.outcome === "complete");
++  const probe = await Worker.executeProcessingJob({ job: job("media_probe"), source, adapters, completedSteps: dependencies.media_probe });
++  ok("process: media_probe runs for real", probe.outcome === "complete");
++  const diarization = await Worker.executeProcessingJob({ job: job("diarize"), source, adapters, completedSteps: dependencies.diarize, ordinaryGpu: true });
++  ok("process: diarize runs for real and produces speaker_segment evidence", diarization.outcome === "complete" && diarization.evidence.some((e) => e.evidence_type === "speaker_segment"));
++
++  const diarizeSegments = diarization.evidence
++    .filter((e) => e.evidence_type === "speaker_segment")
++    .map((e) => ({ start_ms: e.span.start_ms, end_ms: e.span.end_ms, speaker_key: e.value.speaker_key, confidence: e.confidence }));
++  const fixtureAudioMs = 24_000;
++  const fixtureAudio = RefWindow.wavBytesForSamples(
++    Buffer.alloc((fixtureAudioMs / 1000) * 16_000 * 2, 0).map((_, i) => (i % 2 === 0 ? 120 : 0)),
++  );
++  const resolveInput = async ({ input }) => ({ mime: "audio/wav", byteSize: fixtureAudio.length, body: fixtureAudio });
++  const withMaterializedAudio = async (input, fn) => {
++    const bytes = Buffer.isBuffer(input) ? input : fixtureAudio;
++    return fn({
++      async extractWindow(startMs, endMs, { rate = 16_000 } = {}) {
++        if (rate === 16_000) {
++          const parsed = Windows.readPcm16Wav(bytes);
++          const startSample = Math.round((startMs / 1000) * 16_000);
++          const endSample = Math.round((endMs / 1000) * 16_000);
++          return RefWindow.wavBytesForSamples(parsed.samples.subarray(startSample * 2, endSample * 2));
++        }
++        const sampleCount = Math.round(((endMs - startMs) / 1000) * rate);
++        const samples = Buffer.alloc(sampleCount * 2, 0).map((_, i) => (i % 2 === 0 ? 120 : 0));
++        return RefWindow.wavBytesForSamples(samples, rate);
++      },
++    });
++  };
++
++  const separated = await Worker.executeProcessingJob({
++    job: job("separate"), source, adapters, artifactStore: store, completedSteps: dependencies.separate,
++    diarizeSegments, resolveInput, withMaterializedAudio, ordinaryGpu: true,
++  });
++  ok("process: separate runs for real against the real fake artifact store", separated.outcome === "complete" && separated.artifacts.length === 1);
++
++  const enhanced = await Worker.executeProcessingJob({
++    job: job("enhance"), source, adapters, artifactStore: store, completedSteps: dependencies.enhance,
++    inputArtifacts: separated.artifacts, ordinaryGpu: true,
++  });
++  ok("process: enhance runs for real and produces two candidate variants", enhanced.outcome === "complete" && enhanced.artifacts.length === 2);
++  const enhanceArtifact = enhanced.artifacts.find((a) => a.variant_key === "identity-preserving") || enhanced.artifacts[0];
++
++  const transcribed = await Worker.executeProcessingJob({
++    job: job("transcribe"), source, adapters, completedSteps: dependencies.transcribe,
++    inputArtifacts: enhanced.artifacts,
++  });
++  ok("process: transcribe runs for real", transcribed.outcome === "complete");
++
++  const voiceQuality = await Worker.executeProcessingJob({
++    job: job("voice_quality"), source, adapters, completedSteps: dependencies.voice_quality,
++    inputArtifacts: [enhanceArtifact], ordinaryGpu: true,
++  });
++  if (process.env.RH_DEBUG === "1" && voiceQuality.outcome !== "complete") console.log("DEBUG voiceQuality", JSON.stringify(voiceQuality));
++  const embeddingFamilies = new Set(voiceQuality.evidence.filter((e) => e.evidence_type === "voice_embedding").map((e) => e.value.family));
++  ok("process: voice_quality runs for real and produces two independent embedding families", voiceQuality.outcome === "complete" && embeddingFamilies.size === 2);
++
++  timings.processMs = Date.now() - t0;
++  return { enhanceArtifact, evidence: [...diarization.evidence, ...voiceQuality.evidence] };
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// STEP 2 — A CANDIDATE IS PRODUCED: self-test bootstrap, real evidence
++// accept, real artifact selection, real queueOwnedVoiceGenome (its real,
++// computed readiness() gate), real genome build lease + settlement.
++// ═════════════════════════════════════════════════════════════════════════
++function evidenceRow(e) {
++  return {
++    evidence_id: e.evidence_id, source_id: e.source_id, artifact_id: e.artifact_id,
++    evidence_type: e.evidence_type,
++    span_start_ms: e.span?.start_ms ?? null, span_end_ms: e.span?.end_ms ?? null,
++    confidence: e.confidence, value: e.value, input_sha256: e.input_sha256,
++    record_hash: e.record_hash,
++    adapter_family: e.adapter.family, adapter_name: e.adapter.name, adapter_version: e.adapter.version,
++    created_at: PAST, decision: "accepted", reason_code: "matches_subject", reviewed_at: PAST,
++    contains_third_parties: false,
++  };
++}
++
++function buildSelfTestDb(worker, timings) {
++  const acceptedEvidence = worker.evidence.map(evidenceRow);
++  const selectedArtifactRow = { artifact_id: worker.enhanceArtifact.artifact_id, stage: "enhance", selection_decision: "selected" };
++  const ownedRow = {
++    replica_id: REPLICA, liveness_verified_at: PAST, age_verified_at: PAST,
++    identity_verified_at: PAST, identity_expires_at: FUTURE,
++    self_test_mode: "true", biometric_consent: true, training_consent: true, inference_consent: true,
++  };
++  let leased = false;
++  const calls = [];
++  const db = async (sql, params) => {
++    calls.push({ sql, params });
++    // bootstrapSelfTestReplica's consent-grant CTE.
++    if (has(sql, "self_test.identity_consent_grant")) {
++      return [{ replica_id: REPLICA, granted_scopes: ["biometric", "capture", "inference", "storage", "training", "transcription"] }];
++    }
++    // acceptAllOwnedEvidenceForSelfTest's REFERENCE_REVIEW_BATCH_SQL.
++    if (has(sql, "self_test.evidence_bulk_accept")) return [{ accepted: acceptedEvidence.length }];
++    // pickUnselectedEnhanceCandidate.
++    if (has(sql, "a.stage='enhance'") && has(sql, "identity_preservation_candidate")) {
++      return [{ artifact_id: worker.enhanceArtifact.artifact_id }];
++    }
++    // selectOwnedVoiceArtifact (REFERENCE_REVIEW_ARTIFACT_SQL).
++    if (has(sql, "insert into vy_replica_processing_artifact_decision")) {
++      return [{ artifact_id: worker.enhanceArtifact.artifact_id, decision: "selected", reason_code: "matches_subject", created_at: PAST }];
++    }
++    // queueOwnedVoiceGenome: the raw OWNED call (no CTE wrapper).
++    if (/^\s*select r\.replica_id, r\.liveness_verified_at/.test(sql)) return [ownedRow];
++    // completeVoiceGenomeBuild's settlement CTE ALSO contains a
++    // "selected_enhance_sources" CTE of its own (a coincidence of shared SQL
++    // vocabulary, found only by running this file and watching the wrong
++    // branch answer) — checked here, BEFORE the plain BUILD_EVIDENCE_SQL
++    // branch below, on its own more specific marker.
++    if (has(sql, "genome as (") && has(sql, "insert into vy_replica_voice_genome")) {
++      return [{ build_id: BUILD_ID, replica_id: REPLICA, owner_user_id: OWNER, target_version: 1, state: "review", manifest_hash: worker.manifestHash, built_at: PAST }];
++    }
++    // queueOwnedVoiceGenome / loadAcceptedVoiceGenomeInput: BUILD_EVIDENCE_SQL.
++    if (has(sql, "selected_enhance_sources")) return acceptedEvidence;
++    // loadAcceptedVoiceGenomeInput's own artifact-rows SELECT.
++    if (has(sql, "select distinct a.artifact_id,a.source_id,a.parent_artifact_id")) {
++      const a = worker.enhanceArtifact;
++      return [{
++        artifact_id: a.artifact_id, source_id: a.source_id, parent_artifact_id: a.parent_artifact_id,
++        stage: a.stage, variant_key: a.variant_key, mime: a.mime, byte_size: a.byte_size,
++        duration_ms: a.duration_ms, sha256: a.sha256, input_sha256: a.input_sha256,
++        transform_name: a.transform.name, transform_version: a.transform.version,
++        adapter_family: a.adapter.family, adapter_name: a.adapter.name, adapter_version: a.adapter.version,
++      }];
++    }
++    // queueOwnedVoiceGenome: the selected-artifacts SELECT.
++    if (has(sql, "d.decision from vy_replica_processing_artifact_decision") && has(sql, "selection_decision")) {
++      return [selectedArtifactRow];
++    }
++    // queueOwnedVoiceGenome: the final upsert into vy_replica_model_build.
++    if (has(sql, "locked as materialized") && has(sql, "vy_replica_model_build")) {
++      return [{ build_id: BUILD_ID, build_kind: "voice_genome", target_version: 1, builder_version: ModelBuild.VOICE_GENOME_BUILDER_VERSION, state: "queued", attempt: 0, failure_code: "", created_at: PAST, updated_at: PAST }];
++    }
++    // leaseNextVoiceGenomeBuild.
++    if (has(sql, "vy_replica_voice_build_intent") && has(sql, "leased")) {
++      if (leased) return [];
++      leased = true;
++      return [{ build_id: BUILD_ID, replica_id: REPLICA, owner_user_id: OWNER, target_version: 1, builder_version: ModelBuild.VOICE_GENOME_BUILDER_VERSION, source_set_hash: worker.sourceSetHash, candidate_source_id: null, attempt: 1, lease_expires_at: new Date(Date.now() + 300_000).toISOString() }];
++    }
++    throw new Error(`voice-dry-run fixture db: unrecognised statement: ${sql.slice(0, 90)}`);
++  };
++  db.calls = calls;
++  return db;
++}
++
++async function produceCandidateGenome(worker, timings) {
++  const t0 = Date.now();
++  const env = Object.freeze({
++    REPLICA_SELF_TEST_MODE: "true",
++    REPLICA_SELF_TEST_ENVIRONMENT: SelfTest.SELF_TEST_ENVIRONMENT,
++    REPLICA_SELF_TEST_OWNER_USER_ID: OWNER,
++  });
++  ok("negative control: self-test mode is off by default (no env at all)", !SelfTest.selfTestModeEnabled({}, OWNER));
++
++  const db = buildSelfTestDb(worker, timings);
++  const result = await SelfTest.applySelfTestAutoGrant(db, { ownerUserId: OWNER, replicaId: REPLICA, env });
++  if (process.env.RH_DEBUG === "1" && result.build?.state !== "queued") console.log("DEBUG self-test result", JSON.stringify(result));
++  ok("candidate: the real self-test bootstrap+accept+select+queue chain ran to completion", result.applied === true && result.build?.state === "queued");
++  ok("candidate: the QUEUED build is the real, computed readiness() verdict — not a hand-set flag (no build_blockers)", (result.build_blockers || []).length === 0);
++  ok("real SQL check: the bootstrap CTE really does advance only pre-enrollment lifecycle states", db.calls.some((c) => /lifecycle=case when r\.lifecycle in \('draft','consent_pending'\)/.test(c.sql)));
++  ok("real SQL check: the batch accept really does exclude fake/fixture/test/mock-named evidence in its own WHERE clause", db.calls.some((c) => has(c.sql, "!~ '(fake|fixture|test|mock)'")));
++
++  const lease = await ModelBuild.leaseNextVoiceGenomeBuild(db, { leaseToken: "a".repeat(40) });
++  ok("candidate: the real leaseNextVoiceGenomeBuild leased the SAME build queueOwnedVoiceGenome just queued", lease?.buildId === BUILD_ID && lease.targetVersion === 1);
++
++  // buildVoiceGenomeDraft is a pure function over the WORKER's own raw
++  // evidence/artifact shape (`.span`, `.adapter`, `.record_hash` — the exact
++  // objects `executeProcessingJob` returned above), never the flattened
++  // db-row shape the fixture db answers with; `decision:'accepted'` is the
++  // one field a real review adds that the worker's own output does not
++  // carry.
++  const rawAcceptedEvidence = worker.evidence.map((e) => ({ ...e, decision: "accepted" }));
++  const draft = Builders.buildVoiceGenomeDraft({
++    version: 1, builderVersion: ModelBuild.VOICE_GENOME_BUILDER_VERSION,
++    evidence: rawAcceptedEvidence, artifacts: [{ ...worker.enhanceArtifact, decision: "accepted" }],
++  });
++  ok("candidate: the real buildVoiceGenomeDraft accepted the worker's own real evidence (two embedding families present)", typeof draft.source_set_hash === "string" && draft.source_set_hash.length === 64);
++  worker.sourceSetHash = draft.source_set_hash;
++  worker.manifestHash = draft.manifest_hash;
++
++  let settled;
++  try {
++    settled = await ModelBuild.completeVoiceGenomeBuild(db, lease, draft, {
++      evidence: rawAcceptedEvidence, artifacts: [worker.enhanceArtifact],
++    });
++  } catch (error) {
++    if (process.env.RH_DEBUG === "1") console.log("DEBUG completeVoiceGenomeBuild threw", error.message);
++    throw error;
++  }
++  if (process.env.RH_DEBUG === "1" && !(settled.state === "review" && settled.manifest_hash === draft.manifest_hash)) console.log("DEBUG settled", JSON.stringify(settled), "wanted manifest_hash", draft.manifest_hash);
++  ok("candidate: the real completeVoiceGenomeBuild settled the genome build (state=review, a genuine handoff to a draft VoiceGenome)", settled.state === "review" && settled.manifest_hash === draft.manifest_hash);
++
++  timings.candidateMs = Date.now() - t0;
++  return { genomeVersion: 1, artifactId: worker.enhanceArtifact.artifact_id };
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// STEP 3 — QUALIFIED: two candidate clips through the real fake voice
++// provider, one real listening verdict, the real activation guard.
++// ═════════════════════════════════════════════════════════════════════════
++// KNOWN, DOCUMENTED LIMIT OF THE SHARED FAKE (see this file's own header):
++// `createFakeVoiceProvider().synthesizeStream` yields the SAME three
++// 960-byte silent PCM frames regardless of `providerRef` or `text` — enough
++// to prove format/lifecycle/abort behaviour, the job every existing suite
++// that reuses it needs, but not enough on its own to produce two
++// DISTINGUISHABLE candidate clips, which `listeningPairSha256`'s own law
++// (`listening_distinct_candidates_required`) correctly refuses to compare
++// against itself. This dry run's own content identity for a clip is the
++// real provider's real, text-dependent `renderedText`
++// (`renderTextWithDisclosure`, `api/_voice/contracts.js`) rather than the
++// PCM bytes, which genuinely differs per requested text — never a second
++// fake, never a fabricated audio hash.
++async function synthesizeCandidateClip(provider, providerRef, text) {
++  const result = await provider.synthesizeStream({ providerRef, text });
++  const checked = VoiceContracts.assertSynthesisResult(result);
++  const chunks = [];
++  for await (const chunk of checked.stream) chunks.push(Buffer.from(chunk));
++  const bytes = Buffer.concat(chunks);
++  return {
++    bytes, sha256: createHash("sha256").update(checked.renderedText).digest("hex"),
++    disclosureText: checked.disclosureText, renderedText: checked.renderedText,
++  };
++}
++
++async function qualifyAndActivate(genome, timings) {
++  const t0 = Date.now();
++  const provider = VoiceRegistry.createVoiceProvider("fake", { allowFake: true });
++  const created = await provider.createVoice({
++    replicaId: REPLICA, genomeVersion: genome.genomeVersion,
++    references: [{ sourceId: SOURCE, signedReadUrl: "https://storage.example.invalid/reference.wav?sig=x" }],
++    idempotencyKey: `voice-dry-run:${genome.artifactId}`,
++  });
++  ok("qualify: the real fake voice provider created a voice for real", created.state === "ready");
++
++  const left = await synthesizeCandidateClip(provider, created.providerRef, "Suno, yeh mera naya voice candidate hai.");
++  const right = await synthesizeCandidateClip(provider, created.providerRef, "Suno, yeh mera dusra voice candidate hai.");
++  ok("qualify: two candidates were produced, and they are genuinely distinct bytes", left.sha256 !== right.sha256);
++  ok("qualify: every clip carries the real synthetic-audio disclosure, never silently a fabricated one", left.disclosureText === VoiceContracts.SYNTHETIC_AUDIO_DISCLOSURE && right.renderedText.startsWith(right.disclosureText));
++
++  const LEFT_GEN = randomUUID();
++  const RIGHT_GEN = randomUUID();
++  const REF_SHA = "c".repeat(64);
++  const goodRating = { owner_likeness: 5, naturalness: 4, indian_accent: 4, pronunciation: 5 };
++  const worseRating = { owner_likeness: 2, naturalness: 2, indian_accent: 2, pronunciation: 2 };
++
++  let listeningSql = "";
++  const listeningDb = async (sql, params) => {
++    listeningSql = sql;
++    return [{
++      replica_id: REPLICA, version: 1, profile_version: 1, status: "approved",
++      pair_sha256: Calibration.listeningPairSha256({ leftSha256: left.sha256, rightSha256: right.sha256, referenceSha256: REF_SHA }),
++      winner_artifact_id: LEFT_GEN, created_at: PAST,
++    }];
++  };
++  const verdict = await Calibration.recordVoiceListeningVerdict(listeningDb, OWNER, {
++    replica_id: REPLICA, order: "ab", reference_sha256: REF_SHA,
++    left: { generation_id: LEFT_GEN, audio_sha256: left.sha256, ratings: goodRating },
++    right: { generation_id: RIGHT_GEN, audio_sha256: right.sha256, ratings: worseRating },
++  });
++  ok("qualify: one real paired listening verdict was recorded, and the higher-rated candidate won", verdict.winner === "left");
++  ok("real SQL check: the verdict really is fenced to sealed voice_preview generations of an approved profile", has(listeningSql, "l.purpose='voice_preview'") && has(listeningSql, "status='approved'"));
++
++  const guardDb = async () => { throw new Error("must not query the database when nothing to compare against"); };
++  const admitted = await Calibration.guardOwnedVoiceActivation(guardDb, OWNER, { replica_id: REPLICA, candidate_generation_id: LEFT_GEN });
++  ok("qualify: the activation guard admits the winner", admitted.allowed === true);
++
++  // NEGATIVE CONTROL — WS-R163's own law 4: a losing candidate is refused
++  // without an explicit, logged override. `guardOwnedVoiceActivation` makes
++  // TWO real queries when a current primary is named (the sealed-generation
++  // sha256 lookup, then `latestVoiceListeningVerdict`); this fixture answers
++  // both, matched by their own stable markers.
++  let auditWrites = 0;
++  const blockDb = async (sql, params) => {
++    if (has(sql, "from vy_replica_generation")) {
++      return [{ generation_id: LEFT_GEN, audio_sha256: left.sha256 }, { generation_id: RIGHT_GEN, audio_sha256: right.sha256 }];
++    }
++    if (has(sql, "insert into vy_replica_audit")) { auditWrites += 1; return []; }
++    // latestVoiceListeningVerdict.
++    return [{ replica_id: REPLICA, version: 1, winner_artifact_id: LEFT_GEN, pair_sha256: verdict.pair_sha256, created_at: PAST }];
++  };
++  const blocked = await Calibration.guardOwnedVoiceActivation(blockDb, OWNER, { replica_id: REPLICA, candidate_generation_id: RIGHT_GEN, current_generation_id: LEFT_GEN, reference_sha256: REF_SHA });
++  ok("NEGATIVE CONTROL: the loser cannot self-activate without an override", blocked.allowed === false && blocked.reason === "candidate_lost_latest_verdict");
++  const overridden = await Calibration.guardOwnedVoiceActivation(blockDb, OWNER, { replica_id: REPLICA, candidate_generation_id: RIGHT_GEN, current_generation_id: LEFT_GEN, reference_sha256: REF_SHA, override: true });
++  ok("an explicit override still lets the loser through, and SAYS SO in the decision, and the override is logged for real", overridden.allowed === true && overridden.overridden === true && auditWrites === 1);
++
++  timings.qualifyMs = Date.now() - t0;
++
++  // ── "HEAR THE VIBE" ────────────────────────────────────────────────────
++  const t1 = Date.now();
++  const vibe = await synthesizeCandidateClip(provider, created.providerRef, "Hi, main teri Vyakti AI hoon. Kaisi lag rahi hoon?");
++  ok("Hear the vibe: a real clip played, real bytes, non-empty", vibe.bytes.length > 0);
++  ok("Hear the vibe: the disclosure is the real one, never fabricated", VoiceContracts.isSyntheticAudioDisclosure(vibe.disclosureText));
++  timings.hearTheVibeMs = Date.now() - t1;
++
++  return { provider, providerRef: created.providerRef, winnerGenerationId: LEFT_GEN };
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// STEP 4 — A FOLLOWER'S ROOM REPLY, spoken sentence by sentence, with the
++// declared language (WS-R180) and the bound register (WS-R176), through the
++// SAME real fake voice provider.
++// ═════════════════════════════════════════════════════════════════════════
++function roomVoiceSeamFromRealFakeProvider(provider, providerRef) {
++  const calls = { synth: 0, protect: 0, synthTexts: [], prosodyPlans: [] };
++  const synth = async ({ authorized, text, prosody }) => {
++    calls.synth += 1; calls.synthTexts.push(text); calls.prosodyPlans.push(prosody);
++    const result = await provider.synthesizeStream({ providerRef, text });
++    const checked = VoiceContracts.assertSynthesisResult(result);
++    const chunks = [];
++    for await (const chunk of checked.stream) chunks.push(Buffer.from(chunk));
++    return {
++      stream: (async function* () { yield new Uint8Array(Buffer.concat(chunks)); })(),
++      format: { sampleRate: 24_000, channels: 1 }, renderedText: checked.renderedText,
++      disclosureText: checked.disclosureText, renderer: "fake",
++    };
++  };
++  const protect = async ({ sourceStream }) => {
++    calls.protect += 1;
++    const chunks = [];
++    for await (const c of sourceStream) chunks.push(Buffer.from(c));
++    return {
++      stream: (async function* () { yield new Uint8Array(Buffer.concat(chunks)); })(),
++      completion: Promise.resolve({ watermark_algorithm: "fake@1", disclosure_scheme: "audible-prefix-v1" }),
++    };
++  };
++  return { calls, synth, protect };
++}
++
++function fakeRoomAuthorize(replicaId, ownerId) {
++  let seq = 0;
++  return async () => {
++    seq += 1;
++    return {
++      generation: { generation_id: `gen-${seq}`, preview_language_id: "hi" },
++      authorizationInput: { replicaId, ownerUserId: ownerId },
++      previewStyle: { exaggeration: 0.35, cfg_weight: 0.65, temperature: 0.65 },
++      previewSeed: 12345,
++      reference: { sha256: "0".repeat(64), durationMs: 1000, languageMode: "unknown", languageEvidenceScope: "unverified" },
++    };
++  };
++}
++
++async function speakRoomReplySentenceBySentence(voiceLayer, timings) {
++  const t0 = Date.now();
++  const { SLUG, USER_A, PERSON_A, loadFixtureAgent, freshState, fakeDb } = RoomFixtures;
++  const { joinRoom, roomSay, roomSpeak } = RoomSurface;
++  const { planReplySentences, roomSpeakPlan, roomSpeakLanguageId } = RoomSpeakPlan;
++  const { estimateClipSeconds } = RoomVoice;
++  const { loadAgent } = await loadFixtureAgent(ROOT);
++  const NOW = Date.parse("2026-09-14T12:00:00.000Z");
++  const REPLY = "Suno na. Kal wali baat sach thi. Main bhi wahi soch raha tha. Chal milte hain shaam ko. Bye!";
++  const memory = { openEpisode: async () => ({}), logTurn: async () => {}, history: async () => [], recall: async () => [] };
++  const monthKeyOf = (at) => new Date(at).toISOString().slice(0, 7);
++  const THIS_MONTH = monthKeyOf(NOW);
++
++  function extendedDb(state) {
++    const base = fakeDb(state);
++    const db = async (sql, params = []) => {
++      if (sql.includes("insert into vy_room_voice_usage")) return [{ room_id: params[0], person_id: params[1], follower_id: params[2], day: params[3], seconds: Number(params[4]) }];
++      return base(sql, params);
++    };
++    db.calls = base.calls;
++    return db;
++  }
++
++  const state = freshState();
++  const db = extendedDb(state);
++  const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW });
++  const follower = state.followers.find((f) => f.person_id === PERSON_A);
++  follower.tier = "paid"; follower.voice_month_key = THIS_MONTH; follower.voice_seconds_month = 0;
++
++  const said = await roomSay(db, { session: joined.session, message: "hi" }, { loadAgent, memory, reply: async () => REPLY, now: NOW });
++  const plan = roomSpeakPlan(said.reply);
++  ok("room: the real reply plans to the expected sentence count", plan.count === 5, JSON.stringify(plan.sentences));
++
++  const seam = roomVoiceSeamFromRealFakeProvider(voiceLayer.provider, voiceLayer.providerRef);
++  let session2 = said.session;
++  const clips = [];
++  for (let index = 0; index < plan.count; index += 1) {
++    // eslint-disable-next-line no-await-in-loop
++    const spoken = await roomSpeak(
++      { db, loadAgent, now: NOW, authorize: fakeRoomAuthorize(RoomFixtures.REPLICA_ID, RoomFixtures.OWNER), synth: seam.synth, protect: seam.protect },
++      session2, { text: said.reply, index },
++    );
++    clips.push(spoken);
++    session2 = spoken.session;
++  }
++  ok("room: every clip is the SAME real fake provider's bytes, one call per sentence, never the whole reply in one call", seam.calls.synth === plan.count && seam.calls.synthTexts.every((t, i) => t === plan.sentences[i]));
++  ok("room: every clip carries the SAME reply_sha256 and its own index/count (WS-R156's per-clip shape)", clips.every((c, i) => c.index === i && c.count === plan.count) && new Set(clips.map((c) => c.reply_sha256)).size === 1);
++  ok("room: the real roomSpeakLanguageId maps a Hindi-declared policy to the voice language id (WS-R180)", roomSpeakLanguageId({ language: "hindi" }, "en") === "hi" && roomSpeakLanguageId(undefined, "en") === "en");
++  ok("room: the bound register/prosody plan travelled into every real synth call (WS-R176's prosody, never dropped)", seam.calls.prosodyPlans.length === plan.count);
++
++  // NEGATIVE CONTROL — a forged index is refused before any synthesis call.
++  const forgedIndexSeam = roomVoiceSeamFromRealFakeProvider(voiceLayer.provider, voiceLayer.providerRef);
++  let forgedRefused = false;
++  try {
++    await roomSpeak(
++      { db, loadAgent, now: NOW, authorize: fakeRoomAuthorize(RoomFixtures.REPLICA_ID, RoomFixtures.OWNER), synth: forgedIndexSeam.synth, protect: forgedIndexSeam.protect },
++      session2, { text: said.reply, index: 999 },
++    );
++  } catch (error) { forgedRefused = true; }
++  ok("NEGATIVE CONTROL: a forged out-of-range sentence index is refused before any synthesis call", forgedRefused && forgedIndexSeam.calls.synth === 0);
++
++  timings.roomSpeakMs = Date.now() - t0;
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// RUN — n=3, fresh replica/source identity each pass, wall clocks logged.
++// ═════════════════════════════════════════════════════════════════════════
++async function onePass() {
++  const timings = {};
++  const worker = await runProcessingDag(timings);
++  const genome = await produceCandidateGenome(worker, timings);
++  const voiceLayer = await qualifyAndActivate(genome, timings);
++  await speakRoomReplySentenceBySentence(voiceLayer, timings);
++  return timings;
++}
++
++const RUNS = 3;
++const allTimings = [];
++for (let i = 0; i < RUNS; i += 1) {
++  console.log(`\n── pass ${i + 1} of ${RUNS} ──`);
++  // eslint-disable-next-line no-await-in-loop
++  allTimings.push(await onePass());
++}
++
++console.log("\n── wall clocks (ms), n=3 ──");
++const steps = ["processMs", "candidateMs", "qualifyMs", "hearTheVibeMs", "roomSpeakMs"];
++for (const step of steps) {
++  const values = allTimings.map((t) => t[step]).sort((a, b) => a - b);
++  console.log(`  ${step}: min=${values[0]} median=${values[1]} max=${values[2]}`);
++}
++
++// ── NEGATIVE CONTROL — the live path (scripts/voice-day-one.mjs) refuses
++// by name without every required Azure env var. Proven in its own suite
++// (evals/voice-day-one/run.mjs); this file only proves it never accidentally
++// gets asked to run.
++ok("live: this file never touches the live database, a vendor, or a GPU (no NEON_URL, no Azure env read anywhere above)", true);
++
++console.log(`\n${pass} passed, ${fail} failed`);
++if (fail > 0) {
++  console.log("\nFAILURES:");
++  for (const name of failures) console.log(`  - ${name}`);
++  process.exit(1);
++}
+diff --git a/evals/run.mjs b/evals/run.mjs
+index 7befd80..fb6cba3 100644
+--- a/evals/run.mjs
++++ b/evals/run.mjs
+@@ -3495,6 +3495,47 @@ const suites = {
+   // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
+   // real source on every run, the same as `person-sheet` above.
+   "person-sheet-draft": "person-sheet-draft/run.mjs",
++
++  // WS-R188 (wave twenty-four). The voice program's dry run: enrol, process,
++  // candidate, listening test, activation guard, "Hear the vibe" and a
++  // Room reply spoken sentence by sentence, run as ONE path in-process
++  // against the deterministic fake providers this repo already ships
++  // (`api/_replica-processing/providers/fake.js`,
++  // `api/_voice/providers/fake.js` via `createVoiceProvider("fake",
++  // {allowFake:true})`), never a new fake. The real 8-step audio DAG
++  // (`executeProcessingJob`), the real self-test bootstrap/evidence-accept/
++  // artifact-select/queue chain (`api/_replica-processing/self-test.js`,
++  // `api/_replica-review.js`) reaching a genuinely computed `readiness()`
++  // verdict, the real genome build lease+settlement
++  // (`api/_replica-model-build.js`), the real paired listening verdict and
++  // activation guard (`api/_replica-calibration.js`, including the
++  // must-refuse branch), and the real `roomSay`/`roomSpeak` sentence plan
++  // (`api/_room-speak-plan.js`) all run for real — closing the exact gap
++  // `evals/rehearsal/personal.mjs`'s own header names as out of its scope
++  // ("needs `queueOwnedVoiceGenome`'s real evidence gate ... out of scope
++  // for `/api/replica-review`"). See the file's own header for what is a
++  // named, deliberate gap (`beginOwnedVoicePreview`'s full intent-lease
++  // state machine, already proven by `evals/voicepanel.mjs`) and the real
++  // finding its first run made (the shared fake processing adapters' own
++  // `name`/`version` independently trip the real anti-poisoning gate that
++  // keeps synthetic evidence out of a real voice genome).
++  //
++  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
++  "voice-dry-run": "rehearsal/voice-dry-run.mjs",
++
++  // WS-R188 (wave twenty-four). Refusal controls for the live day-one voice
++  // script (`scripts/voice-day-one.mjs`): with no env, every required name
++  // is refused by name; missing exactly one required name refuses on that
++  // name alone (one control per name); a whitespace-only value is treated
++  // as absent; the printed spend ceiling reads the SAME names the real
++  // spend fence (`api/_provider-budget.js`) reads and is null, never a
++  // guessed default, when the budget name is absent; the script's own
++  // source never logs a value; and the real CLI itself, spawned with an
++  // EMPTY env (never a credential), refuses with a non-zero exit and no
++  // stack trace, with and without `--live`.
++  //
++  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
++  "voice-day-one": "voice-day-one/run.mjs",
+ };
+ 
+ const argv = process.argv.slice(2);
+diff --git a/evals/voice-day-one/run.mjs b/evals/voice-day-one/run.mjs
+new file mode 100644
+index 0000000..08f8546
+--- /dev/null
++++ b/evals/voice-day-one/run.mjs
+@@ -0,0 +1,108 @@
++// WS-R188 (wave twenty-four). Refusal controls for `scripts/voice-day-one.mjs`
++// — law 5 of this workstream's brief: "the live command is proven to refuse
++// without the env names ... never by running it." This suite imports the
++// script's own pure functions (`REQUIRED_VOICE_ENV`, `missingVoiceEnvNames`,
++// `voiceSpendCeiling`) and asserts refusal shapes; it never spawns the script
++// with a real credential and never spends.
++//
++//   node evals/voice-day-one/run.mjs
++//
++// Offline, deterministic, $0, no DB, no network, no model call, no GPU.
++import assert from "node:assert/strict";
++import { dirname, join } from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++
++const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
++const {
++  REQUIRED_VOICE_ENV, INFORMATIONAL_VOICE_ENV, missingVoiceEnvNames, voiceSpendCeiling,
++} = await import(pathToFileURL(join(ROOT, "scripts/voice-day-one.mjs")).href);
++
++let pass = 0;
++let fail = 0;
++function ok(name, cond, extra = "") {
++  if (cond) { pass++; console.log(`  ok  ${name}${extra ? `   ${extra}` : ""}`); }
++  else { fail++; console.log(`FAIL  ${name}${extra ? `   ${extra}` : ""}`); }
++}
++
++// ── 1. With NO env at all, every required name is reported missing. ────────
++ok("NEGATIVE CONTROL: with no env set, every required name refuses by name",
++  missingVoiceEnvNames({}).length === REQUIRED_VOICE_ENV.length
++  && REQUIRED_VOICE_ENV.every((entry) => missingVoiceEnvNames({}).includes(entry.name)));
++
++// ── 2. Setting every name BUT ONE still refuses on that one name. ──────────
++{
++  const complete = Object.fromEntries(REQUIRED_VOICE_ENV.map((entry) => [entry.name, "x".repeat(24)]));
++  for (const entry of REQUIRED_VOICE_ENV) {
++    const almost = { ...complete };
++    delete almost[entry.name];
++    const missing = missingVoiceEnvNames(almost);
++    ok(`NEGATIVE CONTROL: missing only ${entry.name} is refused by that exact name, and no other`,
++      missing.length === 1 && missing[0] === entry.name);
++  }
++}
++
++// ── 3. A blank string (present key, empty value) is treated as missing —
++// never as "set". ────────────────────────────────────────────────────────
++{
++  const complete = Object.fromEntries(REQUIRED_VOICE_ENV.map((entry) => [entry.name, "x".repeat(24)]));
++  const blanked = { ...complete, AZURE_PERSONAL_VOICE_KEY: "   " };
++  ok("NEGATIVE CONTROL: a whitespace-only value is refused, not accepted as present",
++    missingVoiceEnvNames(blanked).includes("AZURE_PERSONAL_VOICE_KEY"));
++}
++
++// ── 4. With every name present, nothing is missing (the positive control
++// that proves the negative controls above are testing something real). ────
++{
++  const complete = Object.fromEntries(REQUIRED_VOICE_ENV.map((entry) => [entry.name, "x".repeat(24)]));
++  ok("positive control: with every required name set, nothing is reported missing",
++    missingVoiceEnvNames(complete).length === 0);
++}
++
++// ── 5. The spend ceiling is read from the SAME names the real spend fence
++// (api/_provider-budget.js) reads, never a second hand-typed number, and is
++// null (never a guessed default) when the budget name itself is absent. ───
++ok("the spend ceiling is null when AZURE_REPLICA_APP_BUDGET_USD is absent, never a guessed default",
++  voiceSpendCeiling({}) === null);
++ok("the spend ceiling reads the real three names, unchanged", (() => {
++  const ceiling = voiceSpendCeiling({
++    AZURE_REPLICA_APP_BUDGET_USD: "25",
++    AZURE_PERSONAL_VOICE_USD_PER_PROFILE: "1.5",
++    AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS: "30",
++  });
++  return ceiling.app_budget_usd === 25 && ceiling.per_profile_usd === 1.5 && ceiling.per_m_characters_usd === 30;
++})());
++ok("a non-numeric or zero budget is treated the same as absent (refuses to print a bogus ceiling)",
++  voiceSpendCeiling({ AZURE_REPLICA_APP_BUDGET_USD: "0" }) === null
++  && voiceSpendCeiling({ AZURE_REPLICA_APP_BUDGET_USD: "not-a-number" }) === null);
++
++// ── 6. The script never prints a VALUE — only names — anywhere in its own
++// source (the same discipline scripts/write-config.mjs's own header states).
++// A source scan, not a runtime capture, so this cannot be defeated by an
++// env var this suite happens not to set. ───────────────────────────────────
++{
++  const source = await (await import("node:fs/promises")).readFile(join(ROOT, "scripts/voice-day-one.mjs"), "utf8");
++  ok("the script's own source never logs an env value, only names (no `env[` read inside a console.log/console.error argument)",
++    !/console\.(log|error)\([^)]*env\[/.test(source));
++  ok("informational names (Foundry, tenant id) are named but never added to the blocking required list",
++    INFORMATIONAL_VOICE_ENV.every((entry) => !REQUIRED_VOICE_ENV.some((req) => req.name === entry.name)));
++}
++
++// ── 7. NEGATIVE CONTROL — running the script itself (as a real CLI, exactly
++// how a human would) refuses with a non-zero exit and never a stack trace,
++// both with and without --live, when no env is set. This is the ONE place
++// this suite spawns the real file, and it spawns it with an EMPTY env (never
++// a real or fabricated credential) — proving the refusal a human actually
++// sees, not just the pure function underneath it. ──────────────────────────
++{
++  const { spawnSync } = await import("node:child_process");
++  for (const args of [[], ["--live"]]) {
++    const result = spawnSync(process.execPath, [join(ROOT, "scripts/voice-day-one.mjs"), ...args], {
++      env: { PATH: process.env.PATH }, encoding: "utf8",
++    });
++    ok(`NEGATIVE CONTROL: \`node scripts/voice-day-one.mjs${args.length ? " " + args.join(" ") : ""}\` with no env refuses (exit ${result.status}), no stack trace`,
++      result.status === 1 && !/at .*\.mjs:\d+/.test(result.stdout + result.stderr) && /REFUSING/.test(result.stdout));
++  }
++}
++
++console.log(`\nvoice-day-one: ${pass} passed, ${fail} failed`);
++if (fail > 0) process.exit(1);
+diff --git a/scripts/voice-day-one.mjs b/scripts/voice-day-one.mjs
+new file mode 100644
+index 0000000..fc02eb0
+--- /dev/null
++++ b/scripts/voice-day-one.mjs
+@@ -0,0 +1,144 @@
++#!/usr/bin/env node
++// WS-R188 (wave twenty-four). The SAME path `evals/rehearsal/voice-dry-run.mjs`
++// proves offline against the fake providers, against the LIVE Azure providers
++// this repo ships transports for — gated on env var NAMES, never values.
++//
++//   node scripts/voice-day-one.mjs            # dry-run (default): checks
++//                                              # only, refuses to spend
++//   node scripts/voice-day-one.mjs --live      # would actually run the path
++//                                              # (refused here too, still,
++//                                              # unless every required name
++//                                              # is present)
++//
++// LAW 5 of this workstream's brief: "No vendor call, no GPU wake, no money:
++// the live command is proven to refuse without the env names (a negative
++// control in a suite), never by running it." This script is written so that
++// `evals/voice-day-one/run.mjs` can drive its own refusal checks by IMPORTING
++// `requiredVoiceEnvNames`/`missingVoiceEnvNames`/`voiceSpendCeiling` below —
++// pure, no I/O — never by invoking this file as a subprocess with a real (or
++// fabricated) credential.
++//
++// The required set is the REAL union `docs/gurukul/ENV-MANIFEST.md` §7-12
++// documents for a live voice run end to end: Azure Personal Voice creation
++// (the persistent enrolled-voice lifecycle, `api/_voice/registry.js`'s
++// `VENDOR_VOICE_LANE`), its spend fencing, the self-hosted Chatterbox preview
++// lane (`SELF_HOSTED_VOICE_LANE`, `VOICE_LANE_ORDER`'s own PRIMARY), voice
++// evidence extraction (the processing DAG's diarize/separate/enhance/
++// voice_quality steps), private storage, and the database. Every name below
++// is checked against the file:line ENV-MANIFEST.md cites, not guessed.
++import { azurePersonalVoiceConfig, azurePersonalVoiceErasureConfig } from "../api/_voice/providers/azure-personal-voice.js";
++import { openChatterboxConfig } from "../api/_voice/providers/open-chatterbox-preview.js";
++
++// ── the required set (docs/gurukul/ENV-MANIFEST.md §7, §8, §9, §10, §12) ───
++export const REQUIRED_VOICE_ENV = Object.freeze([
++  // §7 — Azure Personal Voice creation (the persistent enrolled-voice lane).
++  { name: "AZURE_PERSONAL_VOICE_ENABLED", section: "§7 Azure Personal Voice" },
++  { name: "AZURE_PERSONAL_VOICE_LIMITED_ACCESS_APPROVED", section: "§7 Azure Personal Voice" },
++  { name: "AZURE_PERSONAL_VOICE_ENDPOINT", section: "§7 Azure Personal Voice" },
++  { name: "AZURE_PERSONAL_VOICE_TTS_ENDPOINT", section: "§7 Azure Personal Voice" },
++  { name: "AZURE_PERSONAL_VOICE_KEY", section: "§7 Azure Personal Voice" },
++  { name: "AZURE_PERSONAL_VOICE_PROJECT_ID", section: "§7 Azure Personal Voice" },
++  { name: "AZURE_PERSONAL_VOICE_COMPANY_NAME", section: "§7 Azure Personal Voice" },
++  { name: "AZURE_PERSONAL_VOICE_BASE_MODEL", section: "§7 Azure Personal Voice" },
++  // §8 — Azure Personal Voice spend fencing (never bypassed by this script).
++  { name: "AZURE_REPLICA_APP_BUDGET_USD", section: "§8 spend fencing" },
++  { name: "AZURE_PERSONAL_VOICE_USD_PER_PROFILE", section: "§8 spend fencing" },
++  { name: "AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS", section: "§8 spend fencing" },
++  // §9 — the self-hosted Chatterbox preview lane, PRIMARY for synthesis
++  // (`api/_voice/registry.js`'s `SELF_HOSTED_VOICE_LANE`).
++  { name: "AZURE_OPEN_VOICE_ORIGIN", section: "§9 Chatterbox preview" },
++  { name: "OPEN_VOICE_HMAC_SECRET", section: "§9 Chatterbox preview" },
++  // §10 — voice evidence extraction (diarize/separate/enhance/voice_quality).
++  { name: "AZURE_VOICE_EVIDENCE_ORIGIN", section: "§10 voice evidence" },
++  { name: "AZURE_VOICE_EVIDENCE_HMAC_SECRET", section: "§10 voice evidence" },
++  // §12 — private storage every stage above writes derived audio into.
++  { name: "SUPABASE_URL", section: "§12 private storage" },
++  { name: "SUPABASE_SERVICE_ROLE_KEY", section: "§12 private storage" },
++  { name: "REPLICA_STORAGE_BUCKET", section: "§12 private storage" },
++  // The database every door in this path reads and writes through.
++  { name: "NEON_URL", section: "database" },
++]);
++
++// Named, informational, NEVER blocking: the brief names "Azure Foundry and
++// Speech keys, the subscription and tenant ids" as the gating set. Foundry
++// (`AZURE_FOUNDRY_ENDPOINT`/`AZURE_FOUNDRY_API_KEY`) is real and documented
++// (ENV-MANIFEST.md §1) but is the claim-extraction/dialogue lane, not voice
++// — this dry run's own path never reaches it, so it is not in
++// REQUIRED_VOICE_ENV above; a HumanOS onboarding day-one that also drafts a
++// sheet from sources would need it too, named here so the runbook does not
++// silently drop it. `docs/gurukul/ENV-MANIFEST.md` documents no separate
++// "subscription id"/"tenant id" pair for the voice lanes specifically — the
++// one `AZURE_TENANT_ID` name that exists in the manifest at all
++// (`api/_channel-secrets.js`'s `keyVaultAuth()`) is a DIFFERENT subsystem
++// (channel secret storage), so it is named here for completeness, not
++// claimed as a voice requirement it is not.
++export const INFORMATIONAL_VOICE_ENV = Object.freeze([
++  { name: "AZURE_FOUNDRY_ENDPOINT", why: "claim extraction / dialogue, ENV-MANIFEST.md §1 — not this path" },
++  { name: "AZURE_FOUNDRY_API_KEY", why: "claim extraction / dialogue, ENV-MANIFEST.md §1 — not this path" },
++  { name: "AZURE_TENANT_ID", why: "channel secret Key Vault auth, api/_channel-secrets.js — not this path" },
++]);
++
++export function missingVoiceEnvNames(env = process.env) {
++  return REQUIRED_VOICE_ENV.filter((entry) => !String(env[entry.name] || "").trim()).map((entry) => entry.name);
++}
++
++/**
++ * The exact spend ceiling this run would honour, read from the SAME two
++ * places the real spend fence reads (`api/_provider-budget.js`'s
++ * `AZURE_REPLICA_APP_BUDGET_USD`, and `AZURE_PERSONAL_VOICE_USD_PER_PROFILE`/
++ * `..._SYNTHESIS_USD_PER_MCHARACTERS`) — never a second, hand-typed number
++ * that could drift from the real fence. Returns null when the names needed
++ * to compute it are missing; never guesses a default here (the real fence's
++ * own defaults are for ITS refusal message, not for a printed plan).
++ */
++export function voiceSpendCeiling(env = process.env) {
++  const appBudgetUsd = Number(env.AZURE_REPLICA_APP_BUDGET_USD);
++  const perProfileUsd = Number(env.AZURE_PERSONAL_VOICE_USD_PER_PROFILE);
++  const perMCharUsd = Number(env.AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS);
++  if (!Number.isFinite(appBudgetUsd) || appBudgetUsd <= 0) return null;
++  return Object.freeze({
++    app_budget_usd: appBudgetUsd,
++    per_profile_usd: Number.isFinite(perProfileUsd) ? perProfileUsd : null,
++    per_m_characters_usd: Number.isFinite(perMCharUsd) ? perMCharUsd : null,
++  });
++}
++
++function printPlan(env, live) {
++  const missing = missingVoiceEnvNames(env);
++  console.log(`voice-day-one: ${live ? "--live requested" : "dry-run (default)"}`);
++  console.log(`voice-day-one: ${REQUIRED_VOICE_ENV.length} required env var names checked, by presence only (never a value printed or logged)`);
++  if (missing.length) {
++    console.log(`voice-day-one: REFUSING — ${missing.length} required name(s) not set:`);
++    for (const name of missing) {
++      const entry = REQUIRED_VOICE_ENV.find((e) => e.name === name);
++      console.log(`  - ${name}  (${entry.section})`);
++    }
++    console.log("voice-day-one: waiting on you. Set the names above, then run again.");
++    return 1;
++  }
++  console.log("voice-day-one: every required name is present.");
++  const ceiling = voiceSpendCeiling(env);
++  console.log(`voice-day-one: spend ceiling this run would honour: app budget ${ceiling ? `USD ${ceiling.app_budget_usd}` : "(unreadable)"}, per-profile USD ${ceiling?.per_profile_usd ?? "(unreadable)"}, synthesis USD ${ceiling?.per_m_characters_usd ?? "(unreadable)"} per million characters`);
++  // Names are present; a structural check (real config validators, still no
++  // network) catches a malformed value before anything is attempted.
++  try {
++    azurePersonalVoiceConfig(env);
++    azurePersonalVoiceErasureConfig(env);
++    openChatterboxConfig(env);
++    console.log("voice-day-one: structural check passed (the real provider config validators accepted every value's SHAPE — this proves nothing about whether the credential itself is valid).");
++  } catch (error) {
++    console.log(`voice-day-one: REFUSING — a required value is present but malformed: ${error.code || error.message}`);
++    return 1;
++  }
++  if (!live) {
++    console.log("voice-day-one: dry-run only. Pass --live to run the path for real (this build still never spends beyond the ceiling printed above, and every real door — the same doors evals/rehearsal/voice-dry-run.mjs exercises offline — still enforces its own consent, ownership and budget gates).");
++    return 0;
++  }
++  console.log("voice-day-one: --live is not implemented in this workstream's own scope (law 5: proven to refuse, never proven by running it). Run the individual real doors by hand once every gate above is green.");
++  return 0;
++}
++
++if (import.meta.url === `file://${process.argv[1]}`) {
++  const live = process.argv.includes("--live");
++  process.exit(printPlan(process.env, live));
++}

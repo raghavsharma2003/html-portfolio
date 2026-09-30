@@ -7,7 +7,7 @@
 // nightly run's wrong write. $0, no network, no DB.
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -21,8 +21,8 @@ execSync(
   { stdio: "inherit", cwd: ROOT },
 );
 
-const real = await import(BUNDLE);
-const mine = await import(join(ROOT, "api/consolidate.js"));
+const real = await import(pathToFileURL(BUNDLE).href);
+const mine = await import(pathToFileURL(join(ROOT, "api/consolidate.js")).href);
 
 let failed = 0;
 const eq = (name, got, want) => {

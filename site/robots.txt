@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /creators
+Allow: /r/
+Disallow: /studio
+Disallow: /api/
+Disallow: /chat
+
+Sitemap: /sitemap.xml

@@ -1,0 +1,32 @@
+{
+  "status": "candidate-not-applied",
+  "date": "2026-09-06",
+  "artifact": "6458279b8e1e64c5-source-purpose-union.sql",
+  "sha256": "6458279b8e1e64c52aa46a761746b301fd7a51c96ce3ae965fdac4c5dad06d96",
+  "numericMigrationId": null,
+  "applyAuthorized": false,
+  "preflight": [
+    "Confirm the database identity and both lineage ledgers.",
+    "Read the actual purpose column type/default/nullability and named CHECK from pg_constraint.",
+    "Read distinct purpose values; any value outside the seven-element union blocks promotion.",
+    "Compare additional constraints and referencing writers, then assign an unallocated migration ID.",
+    "EXPLAIN callers and run rollback-free idempotence checks on a disposable target first."
+  ],
+  "knownPurposeUnion": [
+    "memory",
+    "identity_document",
+    "identity_challenge",
+    "correction",
+    "interview",
+    "mirror_window",
+    "context_item"
+  ],
+  "reason": "Rooms074/075 re-add a four-purpose CHECK, but connected APIs also create identity_challenge and local mirror_window/context_item sources. Narrowing rejects legitimate writes. This candidate widens the one CHECK; it grants no API authorization.",
+  "developmentApplication": {
+    "database": "vyakti_expert_integration_20260906",
+    "date": "2026-09-06",
+    "state": "applied-only-to-isolated-development",
+    "productionApplied": false,
+    "planStatementCount": 1391
+  }
+}

@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createPerformanceNetworkAccounting } from '../scripts/performance-network-accounting.mjs';
+let checks = 0;
+const check = (name, fn) => { fn(); console.log(`ok ${++checks} - ${name}`); };
+const accounting = createPerformanceNetworkAccounting();
+accounting.responseReceived(); accounting.completed('js', 120, true);
+accounting.responseReceived(); accounting.completed('css', 40);
+const captured = accounting.snapshot(1000);
+check('real Hindi chunk counts once in JS and total with a subset tally', () => assert.deepEqual(captured.bytes, {js:120,css:40,font:0,image:0,other:0,total:160}));
+check('Hindi tally is a subset, not an extra total charge', () => assert.equal(captured.hindiChunkBytes,120));
+await Promise.resolve(); // Simulated post-boundary diagnostic await.
+accounting.responseReceived(); accounting.completed('font',53886); accounting.completed('js',20,true);
+check('late font completion cannot mutate captured byte values', () => assert.equal(captured.bytes.font,0));
+check('late requests and Hindi completions cannot change captured scalars', () => assert.deepEqual([captured.requestCount,captured.hindiChunkBytes],[2,120]));
+check('receipt names the Node observation boundary and clock', () => assert.deepEqual([captured.boundary,captured.nodeReceivedAt],['settled-performance-received-by-node',1000]));
+check('snapshot is immutable including nested counters', () => {assert.ok(Object.isFrozen(captured));assert.ok(Object.isFrozen(captured.bytes));assert.throws(()=>{captured.bytes.font=1},TypeError);});
+check('later separate snapshot retains evidence without rewriting earlier one', () => assert.deepEqual([accounting.snapshot(2000).bytes.font,captured.bytes.total],[53886,160]));
+check('old live-object negative demonstrates why copying is necessary', () => {const live={font:0};const oldReceipt={bytes:live};live.font=53886;assert.notEqual(oldReceipt.bytes.font,captured.bytes.font);});
+check('ordinary target has no Hindi subset and all transfer categories still count', () => {const a=createPerformanceNetworkAccounting();a.completed('js',5);a.completed('image',7);a.completed('other',3);assert.deepEqual([a.snapshot().bytes.total,a.snapshot().hindiChunkBytes],[15,0]);});
+const source=readFileSync(new URL('../scripts/check-performance.mjs',import.meta.url),'utf8');
+check('actual caller captures before the next asynchronous operation',()=>assert.match(source,/const perf = await readSettledPerformance\(page\);[\s\S]*?const networkReceipt = networkAccounting\.snapshot\(\);[\s\S]*?Profiler\.stop/));
+check('actual response and completed-event paths use accounting helper',()=>{assert.match(source,/networkAccounting\.responseReceived\(\)/);assert.match(source,/networkAccounting\.completed\(cat, n, !!hiChunkPath && r\.url\.endsWith\(hiChunkPath\)\)/);assert.doesNotMatch(source,/hindiChunkBytes \+= n;\s*return;/);});
+check('actual returned metrics use frozen receipt',()=>{for(const key of ['bytes','requestCount','hindiChunkBytes'])assert.ok(source.includes(`${key}: networkReceipt.${key}`));});
+console.log(`performance-network-accounting: ${checks} controls passed; no browser`);

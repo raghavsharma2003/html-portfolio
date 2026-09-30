@@ -43,7 +43,7 @@
 // The model is stubbed and every API route is fulfilled locally, so it is
 // deterministic and costs $0.
 
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -123,7 +123,7 @@ const BASE_STATE = {
 // ── the app ────────────────────────────────────────────────────────────────
 let browser;
 try {
-  browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+  browser = await launchSuiteBrowser("assetwire-browser");
 } catch (e) {
   dead(`chromium would not start (${String(e.message).slice(0, 160)})`);
 }

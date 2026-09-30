@@ -1,0 +1,864 @@
+{
+  "schema_version": 1,
+  "corpus_id": "expert-voice-listening-20260907-v1",
+  "authored_date": "2026-09-07",
+  "status": "AUTHORED_NOT_RENDERED_NOT_RATED",
+  "provenance": "Assistant-authored evaluation material. Not owner transcripts, owner statements, training data, or evidence of any speaker's personality. Names and scenarios are illustrative.",
+  "holdout_policy": {
+    "intended_use": "Reserve for final listening after arm/reference selection on separate development prompts.",
+    "qualification": "Authored candidate holdout only. Independence must be audited before each run; reject any item used for tuning, reference transcripts, correction learning or prompt selection.",
+    "source_sample_separation": "Owner reference/enrollment recordings, their transcripts, training/adaptation audio, development prompts and independent owner comparison recordings must have separate IDs and hashes. Never enroll or fine-tune on this corpus.",
+    "no_results": "No audio, model generations, ratings, quality scores or model acceptance are included."
+  },
+  "rating_rubric": {
+    "scale": "For each dimension choose A, B, tie, or cannot judge; optionally mark both unacceptable. Collect a reason and affected words/time spans. Do not combine dimensions into one fidelity score.",
+    "identity": "Does the voice resemble the consenting owner's independent recordings in timbre, accent and habitual delivery? Owner judgment required; non-owner raters need authorized comparison audio. Unfamiliar listeners may choose cannot judge.",
+    "naturalness": "Does the utterance flow as intelligible speech without glitches, strained phrasing, abrupt joins or distracting artifacts?",
+    "pronunciation_prosody": "Are names, numbers and technical terms intelligible and appropriately grouped, paused and emphasized? Accept documented regional variants; flag changed quantities.",
+    "meaning": "Does the audio retain the written meaning, including negation, uncertainty, corrections and units? Record omissions, substitutions and additions separately.",
+    "limits": "Supportiveness and clarity are observable delivery judgments, not proof of internal emotions. This static corpus cannot measure live listening, interruption handling or turn-taking latency."
+  },
+  "constraint_interpretation": "The text field is the synthesis input. Delivery constraints are rater guidance, not text to speak. No exact pitch, pause duration, accent imitation or verbal formula is prescribed; equivalent natural number/formula readings are allowed if meaning is preserved.",
+  "items": [
+    {
+      "id": "EVC26-hi-01",
+      "matched_intent_id": "schedule",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "date_time",
+      "text": "अगली कक्षा 12 सितंबर 2026 को सुबह 9 बजकर 30 मिनट पर होगी। कृपया पाँच मिनट पहले जुड़ जाना।",
+      "delivery_constraints": [
+        "Preserve the date and time; make the schedule easy to follow without rushing.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-02",
+      "matched_intent_id": "decimal",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "number_contrast",
+      "text": "यह मान 0.05 है, 0.5 नहीं। दशमलव के बाद पहला शून्य हटाने से उत्तर दस गुना बदल जाएगा।",
+      "delivery_constraints": [
+        "Keep 0.05 distinct from 0.5; place contrast on the differing quantities.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-03",
+      "matched_intent_id": "names",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "indian_names",
+      "text": "श्रुति, पहले अपना तरीका समझाओ। फिर ऋत्विक और ज्ञानेश बताएँगे कि उन्हें कौन सा चरण अलग लगा।",
+      "delivery_constraints": [
+        "Keep all names distinguishable; do not impose a single accent as correct.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-04",
+      "matched_intent_id": "force",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "technical_units",
+      "text": "दो किलोग्राम द्रव्यमान पर तीन मीटर प्रति सेकंड वर्ग का त्वरण है। इसलिए बल छह न्यूटन होगा।",
+      "delivery_constraints": [
+        "Preserve mass, acceleration, result and units; separate setup from conclusion.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-05",
+      "matched_intent_id": "pause",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "reflective_pause",
+      "text": "थोड़ा रुकते हैं। अभी उत्तर मत बताओ। पहले सोचो, इस सवाल में कौन सी जानकारी हमारे पास नहीं है?",
+      "delivery_constraints": [
+        "Allow a natural short boundary before the reflective question; no fixed millisecond target.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-06",
+      "matched_intent_id": "contrast",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "emphasis",
+      "text": "मुझे जल्दी उत्तर नहीं चाहिए। मुझे यह समझना है कि तुम उस उत्तर तक कैसे पहुँचे।",
+      "delivery_constraints": [
+        "Emphasize explanation over speed without scolding or shouting.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-07",
+      "matched_intent_id": "clarify",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "clarification",
+      "text": "जब तुम कहते हो कि सवाल कठिन है, तो क्या भाषा समझ नहीं आ रही, या गणना में अटक रहे हो?",
+      "delivery_constraints": [
+        "The final question should invite a reply; preserve the two alternatives.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-08",
+      "matched_intent_id": "warmth",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "supportive_correction",
+      "text": "तुमने पहला चरण ठीक किया है। दूसरे चरण में चिह्न बदल गया है। चलो, वहीं से दोबारा देखते हैं।",
+      "delivery_constraints": [
+        "Use calm encouragement; keep acknowledgement separate from the correction.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-09",
+      "matched_intent_id": "uncertain",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "bounded_uncertainty",
+      "text": "मेरे पास अभी पूरा संदर्भ नहीं है। यह तरीका काम कर सकता है, लेकिन निष्कर्ष से पहले मूल प्रश्न देखना चाहूँगा।",
+      "delivery_constraints": [
+        "Sound appropriately tentative; do not turn an estimate into a guarantee.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-10",
+      "matched_intent_id": "budget",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "money_arithmetic",
+      "text": "अगर मासिक शुल्क ₹1,250 है और चार महीने की योजना है, तो कुल ₹5,000 होंगे। क्या इसमें सामग्री का खर्च भी शामिल है?",
+      "delivery_constraints": [
+        "Preserve currency and all quantities; make the final question clear.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-11",
+      "matched_intent_id": "chemistry",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "technical_pronunciation",
+      "text": "एच टू ओ पानी का सूत्र है। एच टू ओ टू हाइड्रोजन पेरॉक्साइड है। एक अतिरिक्त ऑक्सीजन परमाणु पदार्थ को बदल देता है।",
+      "delivery_constraints": [
+        "Read the chemical formula as a formula; do not confuse the two compounds.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-12",
+      "matched_intent_id": "fraction",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "fraction_percentage",
+      "text": "तीन चौथाई, 0.75 और 75 प्रतिशत एक ही मात्रा बताते हैं। सवाल के अनुसार सबसे सुविधाजनक रूप चुनो।",
+      "delivery_constraints": [
+        "Preserve equivalence across fraction, decimal and percentage.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-13",
+      "matched_intent_id": "repair",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "self_correction",
+      "text": "पृष्ठ चौदह खोलो। माफ़ करना, पृष्ठ चालीस कहना था। उसके सबसे ऊपर वाला चित्र देखो।",
+      "delivery_constraints": [
+        "Make the correction audible and preserve the final intended page number.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-14",
+      "matched_intent_id": "planning",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "coaching_choice",
+      "text": "आज तुम्हारे पास बीस मिनट हैं। क्या पहले दो छोटे अभ्यास करें, या एक कठिन सवाल पर पूरा समय दें?",
+      "delivery_constraints": [
+        "Present both options evenly; do not imply one answer is already chosen.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-15",
+      "matched_intent_id": "algorithm",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "technical_codeswitch",
+      "text": "द्विआधारी खोज के लिए सूची क्रमबद्ध होनी चाहिए। बबल सॉर्ट सूची को क्रम में लगाता है; दोनों का काम अलग है।",
+      "delivery_constraints": [
+        "Keep algorithm terms intelligible and the contrast meaningful.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-16",
+      "matched_intent_id": "travel",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "place_names_time",
+      "text": "अनन्या पुणे से बेंगलुरु जा रही है। ट्रेन शाम 6 बजकर 45 मिनट पर चलेगी, इसलिए यह पहुँचने का समय नहीं है।",
+      "delivery_constraints": [
+        "Preserve place names and distinguish departure from arrival.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-17",
+      "matched_intent_id": "boundary",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "respectful_boundary",
+      "text": "मैं तुम्हारे लिए परीक्षा का उत्तर जमा नहीं करूँगा। लेकिन तुम्हारे लिखे समाधान में कहाँ तर्क छूटा है, वह देख सकते हैं।",
+      "delivery_constraints": [
+        "State the limit clearly and offer a practical next step without moralizing.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-18",
+      "matched_intent_id": "listen",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "acknowledge_then_question",
+      "text": "तुमने कहा कि अभ्यास के लिए समय नहीं मिल रहा। पिछले दो दिनों में कौन सा काम सबसे अधिक समय ले गया?",
+      "delivery_constraints": [
+        "Acknowledge the stated difficulty without claiming feelings or diagnosing; leave the question open.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-19",
+      "matched_intent_id": "range",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "range_and_negative",
+      "text": "तापमान माइनस पाँच से दो डिग्री सेल्सियस के बीच रह सकता है। यह अनुमान है, किसी एक समय का निश्चित तापमान नहीं।",
+      "delivery_constraints": [
+        "Preserve the minus sign, range and approximation; do not imply an exact prediction.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-20",
+      "matched_intent_id": "recap",
+      "language": "hi",
+      "script": "Devanagari",
+      "language_label": "Hindi",
+      "delivery_scenario": "sequence_and_closure",
+      "text": "पहले प्रश्न पढ़ो, फिर इकाइयाँ जाँचो, और अंत में उत्तर का अनुमान लगाओ। अब बताओ, तुम किस चरण से शुरू करोगे?",
+      "delivery_constraints": [
+        "Separate three steps naturally and finish with an invitation, not an order.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Primarily Devanagari; numerals and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-01",
+      "matched_intent_id": "schedule",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "date_time",
+      "text": "Agli class 12 September 2026 ko subah 9 bajkar 30 minute par hogi. Please paanch minute pehle join kar lena.",
+      "delivery_constraints": [
+        "Preserve the date and time; make the schedule easy to follow without rushing.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-02",
+      "matched_intent_id": "decimal",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "number_contrast",
+      "text": "Yeh value 0.05 hai, 0.5 nahi. Decimal ke baad pehla zero hataoge, toh answer das guna badal jayega.",
+      "delivery_constraints": [
+        "Keep 0.05 distinct from 0.5; place contrast on the differing quantities.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-03",
+      "matched_intent_id": "names",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "indian_names",
+      "text": "Shruti, pehle apna method samjhao. Phir Ritwik aur Gyanesh batayenge ki unhe kaunsa step alag laga.",
+      "delivery_constraints": [
+        "Keep all names distinguishable; do not impose a single accent as correct.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-04",
+      "matched_intent_id": "force",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "technical_units",
+      "text": "Do kilogram mass par three metres per second squared ka acceleration hai. Isliye force six newtons hoga.",
+      "delivery_constraints": [
+        "Preserve mass, acceleration, result and units; separate setup from conclusion.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-05",
+      "matched_intent_id": "pause",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "reflective_pause",
+      "text": "Thoda rukte hain. Abhi answer mat batao. Pehle socho, is question mein kaunsi information missing hai?",
+      "delivery_constraints": [
+        "Allow a natural short boundary before the reflective question; no fixed millisecond target.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-06",
+      "matched_intent_id": "contrast",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "emphasis",
+      "text": "Mujhe jaldi answer nahi chahiye. Mujhe yeh samajhna hai ki tum us answer tak kaise pahunche.",
+      "delivery_constraints": [
+        "Emphasize explanation over speed without scolding or shouting.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-07",
+      "matched_intent_id": "clarify",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "clarification",
+      "text": "Jab tum kehte ho question tough hai, toh language samajh nahi aa rahi, ya calculation mein atak rahe ho?",
+      "delivery_constraints": [
+        "The final question should invite a reply; preserve the two alternatives.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-08",
+      "matched_intent_id": "warmth",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "supportive_correction",
+      "text": "Tumne first step theek kiya hai. Second step mein sign badal gaya hai. Chalo, wahin se dobara dekhte hain.",
+      "delivery_constraints": [
+        "Use calm encouragement; keep acknowledgement separate from the correction.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-09",
+      "matched_intent_id": "uncertain",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "bounded_uncertainty",
+      "text": "Mere paas abhi poora context nahi hai. Yeh approach kaam kar sakti hai, lekin conclusion se pehle original question dekhna chahunga.",
+      "delivery_constraints": [
+        "Sound appropriately tentative; do not turn an estimate into a guarantee.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-10",
+      "matched_intent_id": "budget",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "money_arithmetic",
+      "text": "Agar monthly fee ₹1,250 hai aur plan four months ka hai, toh total ₹5,000 hoga. Kya ismein material ka cost bhi included hai?",
+      "delivery_constraints": [
+        "Preserve currency and all quantities; make the final question clear.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-11",
+      "matched_intent_id": "chemistry",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "technical_pronunciation",
+      "text": "H2O paani ka formula hai. H2O2 hydrogen peroxide hai. Ek extra oxygen atom substance ko badal deta hai.",
+      "delivery_constraints": [
+        "Read the chemical formula as a formula; do not confuse the two compounds.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-12",
+      "matched_intent_id": "fraction",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "fraction_percentage",
+      "text": "Teen chauthai, 0.75 aur 75 percent same quantity batate hain. Question ke hisaab se sabse convenient form choose karo.",
+      "delivery_constraints": [
+        "Preserve equivalence across fraction, decimal and percentage.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-13",
+      "matched_intent_id": "repair",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "self_correction",
+      "text": "Page fourteen kholo. Sorry, page forty kehna tha. Uske sabse upar wala diagram dekho.",
+      "delivery_constraints": [
+        "Make the correction audible and preserve the final intended page number.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-14",
+      "matched_intent_id": "planning",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "coaching_choice",
+      "text": "Aaj tumhare paas twenty minutes hain. Pehle do short exercises karein, ya ek difficult question ko poora time dein?",
+      "delivery_constraints": [
+        "Present both options evenly; do not imply one answer is already chosen.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-15",
+      "matched_intent_id": "algorithm",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "technical_codeswitch",
+      "text": "Binary search ke liye list sorted honi chahiye. Bubble sort list ko order mein lagata hai; dono ka kaam alag hai.",
+      "delivery_constraints": [
+        "Keep algorithm terms intelligible and the contrast meaningful.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-16",
+      "matched_intent_id": "travel",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "place_names_time",
+      "text": "Ananya Pune se Bengaluru ja rahi hai. Train shaam 6 bajkar 45 minute par niklegi, so yeh arrival time nahi hai.",
+      "delivery_constraints": [
+        "Preserve place names and distinguish departure from arrival.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-17",
+      "matched_intent_id": "boundary",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "respectful_boundary",
+      "text": "Main tumhare liye exam ka answer submit nahi karunga. Lekin tumhare likhe solution mein kahan reasoning missing hai, woh dekh sakte hain.",
+      "delivery_constraints": [
+        "State the limit clearly and offer a practical next step without moralizing.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-18",
+      "matched_intent_id": "listen",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "acknowledge_then_question",
+      "text": "Tumne kaha practice ke liye time nahi mil raha. Pichhle do din mein kaunsa task sabse zyada time le gaya?",
+      "delivery_constraints": [
+        "Acknowledge the stated difficulty without claiming feelings or diagnosing; leave the question open.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-19",
+      "matched_intent_id": "range",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "range_and_negative",
+      "text": "Temperature minus five se two degrees Celsius ke beech reh sakta hai. Yeh estimate hai, kisi ek time ka exact temperature nahi.",
+      "delivery_constraints": [
+        "Preserve the minus sign, range and approximation; do not imply an exact prediction.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-hi-Latn-20",
+      "matched_intent_id": "recap",
+      "language": "hi-Latn",
+      "script": "Latin",
+      "language_label": "Roman Hinglish",
+      "delivery_scenario": "sequence_and_closure",
+      "text": "Pehle question padho, phir units check karo, aur end mein answer ka estimate lagao. Ab batao, tum kis step se start karoge?",
+      "delivery_constraints": [
+        "Separate three steps naturally and finish with an invitation, not an order.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Roman Hindi mixed with English; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-01",
+      "matched_intent_id": "schedule",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "date_time",
+      "text": "The next class is on 12 September 2026 at 9:30 in the morning. Please join five minutes early.",
+      "delivery_constraints": [
+        "Preserve the date and time; make the schedule easy to follow without rushing.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-02",
+      "matched_intent_id": "decimal",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "number_contrast",
+      "text": "This value is 0.05, not 0.5. Removing the first zero after the decimal point changes the answer by a factor of ten.",
+      "delivery_constraints": [
+        "Keep 0.05 distinct from 0.5; place contrast on the differing quantities.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-03",
+      "matched_intent_id": "names",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "indian_names",
+      "text": "Shruti, explain your method first. Then Ritwik and Gyanesh can tell us which step looked different to them.",
+      "delivery_constraints": [
+        "Keep all names distinguishable; do not impose a single accent as correct.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-04",
+      "matched_intent_id": "force",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "technical_units",
+      "text": "A mass of two kilograms has an acceleration of three metres per second squared. The force is therefore six newtons.",
+      "delivery_constraints": [
+        "Preserve mass, acceleration, result and units; separate setup from conclusion.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-05",
+      "matched_intent_id": "pause",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "reflective_pause",
+      "text": "Let's pause for a moment. Don't give the answer yet. First, what information are we missing in this question?",
+      "delivery_constraints": [
+        "Allow a natural short boundary before the reflective question; no fixed millisecond target.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-06",
+      "matched_intent_id": "contrast",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "emphasis",
+      "text": "I don't need a quick answer. I want to understand how you arrived at it.",
+      "delivery_constraints": [
+        "Emphasize explanation over speed without scolding or shouting.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-07",
+      "matched_intent_id": "clarify",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "clarification",
+      "text": "When you say the question is difficult, is the wording unclear, or are you getting stuck in the calculation?",
+      "delivery_constraints": [
+        "The final question should invite a reply; preserve the two alternatives.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-08",
+      "matched_intent_id": "warmth",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "supportive_correction",
+      "text": "You got the first step right. The sign changed in the second step. Let's look again from there.",
+      "delivery_constraints": [
+        "Use calm encouragement; keep acknowledgement separate from the correction.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-09",
+      "matched_intent_id": "uncertain",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "bounded_uncertainty",
+      "text": "I don't have the full context yet. This approach may work, but I'd like to see the original question before drawing a conclusion.",
+      "delivery_constraints": [
+        "Sound appropriately tentative; do not turn an estimate into a guarantee.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-10",
+      "matched_intent_id": "budget",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "money_arithmetic",
+      "text": "If the monthly fee is ₹1,250 and the plan lasts four months, the total is ₹5,000. Does that include the cost of materials?",
+      "delivery_constraints": [
+        "Preserve currency and all quantities; make the final question clear.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-11",
+      "matched_intent_id": "chemistry",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "technical_pronunciation",
+      "text": "H2O is the formula for water. H2O2 is hydrogen peroxide. One additional oxygen atom changes the substance.",
+      "delivery_constraints": [
+        "Read the chemical formula as a formula; do not confuse the two compounds.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-12",
+      "matched_intent_id": "fraction",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "fraction_percentage",
+      "text": "Three quarters, 0.75 and 75 percent describe the same quantity. Choose the form that is most convenient for the question.",
+      "delivery_constraints": [
+        "Preserve equivalence across fraction, decimal and percentage.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-13",
+      "matched_intent_id": "repair",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "self_correction",
+      "text": "Open page fourteen. Sorry, I meant page forty. Look at the diagram at the top.",
+      "delivery_constraints": [
+        "Make the correction audible and preserve the final intended page number.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-14",
+      "matched_intent_id": "planning",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "coaching_choice",
+      "text": "You have twenty minutes today. Shall we do two short exercises first, or spend the whole time on one difficult question?",
+      "delivery_constraints": [
+        "Present both options evenly; do not imply one answer is already chosen.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-15",
+      "matched_intent_id": "algorithm",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "technical_codeswitch",
+      "text": "Binary search requires a sorted list. Bubble sort puts the list in order; the two algorithms do different jobs.",
+      "delivery_constraints": [
+        "Keep algorithm terms intelligible and the contrast meaningful.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-16",
+      "matched_intent_id": "travel",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "place_names_time",
+      "text": "Ananya is travelling from Pune to Bengaluru. The train leaves at 6:45 in the evening, so that is not the arrival time.",
+      "delivery_constraints": [
+        "Preserve place names and distinguish departure from arrival.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-17",
+      "matched_intent_id": "boundary",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "respectful_boundary",
+      "text": "I won't submit an exam answer for you. But we can look at your solution and see where the reasoning is incomplete.",
+      "delivery_constraints": [
+        "State the limit clearly and offer a practical next step without moralizing.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-18",
+      "matched_intent_id": "listen",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "acknowledge_then_question",
+      "text": "You said you haven't had time to practise. Over the last two days, which task took the most time?",
+      "delivery_constraints": [
+        "Acknowledge the stated difficulty without claiming feelings or diagnosing; leave the question open.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-19",
+      "matched_intent_id": "range",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "range_and_negative",
+      "text": "The temperature may range from minus five to two degrees Celsius. That is an estimate, not an exact temperature at a particular time.",
+      "delivery_constraints": [
+        "Preserve the minus sign, range and approximation; do not imply an exact prediction.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    },
+    {
+      "id": "EVC26-en-IN-20",
+      "matched_intent_id": "recap",
+      "language": "en-IN",
+      "script": "Latin",
+      "language_label": "English",
+      "delivery_scenario": "sequence_and_closure",
+      "text": "First read the question, then check the units, and finally estimate the answer. Now tell me, which step will you start with?",
+      "delivery_constraints": [
+        "Separate three steps naturally and finish with an invitation, not an order.",
+        "Do not speak this instruction or add words beyond required separately tracked AI disclosure."
+      ],
+      "script_note": "Indian English context; numerals, formulae and currency symbols deliberately retained."
+    }
+  ]
+}

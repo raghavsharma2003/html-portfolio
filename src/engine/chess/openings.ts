@@ -92,7 +92,19 @@ const BOOK: ReadonlyArray<readonly [string, string]> = [
   ["f4", "bird's opening"],
 ];
 
-const SCHOLARS = "the four-move checkmate try";
+/**
+ * THE ONE ENTRY HERE THAT IS NOT AN OPENING. Every other name in the book
+ * describes the game both players are in; this one describes what ONE of them
+ * is trying to do, and it is therefore the one name a caller must not attach
+ * to the wrong player. `chessTalk.ts`'s `chessIdea` excludes it for exactly
+ * that reason — "her idea: the four-move checkmate try" on the board where she
+ * is the one being mated is the most confidently wrong sentence this book can
+ * produce. Exported so that exclusion is a reference to this constant rather
+ * than a second copy of the string or, worse, a second copy of the shape test.
+ */
+export const SCHOLARS_NAME = "the four-move checkmate try";
+
+const SCHOLARS = SCHOLARS_NAME;
 
 const BY_LINE: ReadonlyMap<string, string> = new Map(BOOK.map(([line, name]) => [line, name]));
 

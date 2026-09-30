@@ -1,0 +1,77 @@
+{
+  "event": "execution_diagnosis",
+  "at": "2026-09-08T08:22:39.958310+00:00",
+  "execution": "vyakti-gpu-control-20260908-qnhua6w",
+  "window_id": "d78bb973-8fc7-49e7-b464-21ab7b46c079",
+  "status": "Failed",
+  "property_keys": [
+    "startTime",
+    "status",
+    "template"
+  ],
+  "template_keys": [
+    "containers",
+    "initContainers"
+  ],
+  "template_defaults": {
+    "initContainers": {
+      "kind": "empty",
+      "value": []
+    }
+  },
+  "containers": [
+    {
+      "keys": [
+        "command",
+        "env",
+        "image",
+        "imageType",
+        "name",
+        "resources"
+      ],
+      "image_type": "ContainerImage",
+      "name_matches": true,
+      "image_matches": true,
+      "command_matches": true,
+      "resources_keys": [
+        "cpu",
+        "ephemeralStorage",
+        "memory"
+      ],
+      "cpu_matches": true,
+      "memory_matches": true,
+      "resource_optional": {
+        "ephemeralStorage": {
+          "kind": "empty",
+          "value": ""
+        }
+      },
+      "env_present": true,
+      "env_shape": {
+        "kind": "nonempty",
+        "type": "list"
+      },
+      "env_entries": [
+        {
+          "keys": [
+            "name",
+            "value"
+          ],
+          "marker_name_matches": true,
+          "marker_value_matches": true,
+          "optional": {}
+        }
+      ],
+      "optional": {
+        "imageType": {
+          "kind": "nonempty",
+          "type": "str"
+        }
+      }
+    }
+  ],
+  "next_link_present": false,
+  "starts": 0,
+  "stops": 0,
+  "sql_calls": 0
+}

@@ -1,0 +1,65 @@
+{
+  "started_at": "2026-09-07T22:39:39.298Z",
+  "database": "vyakti_expert_integration_20260906",
+  "migration": 144,
+  "migration_sha256": "fc472800481dee513307e0b79201abcee2be993c5d8b65885119db903b495c7e",
+  "checks": [
+    "migration144_catalog",
+    "42703_negative"
+  ],
+  "queries": [
+    {
+      "name": "comparison_descriptor",
+      "sha256": "3e3d2b2c0943f43b3e6178e7d1b3edea0654d6f6bf6e4a731045b69a4ae7693f",
+      "passed": true
+    },
+    {
+      "name": "authority_snapshot",
+      "sha256": "c24fc4c17738dc09f5021ce01e19cc7e0117ff3af99755f6029d9164930b7311",
+      "passed": true
+    },
+    {
+      "name": "issue",
+      "sha256": "da50bd175c77f598c94b9760797910298fa66f8b4ede5c9a294ad17d8a84be36",
+      "passed": true
+    },
+    {
+      "name": "receipt",
+      "sha256": "d285c9255424c4853d261d6a2518e85c7c7a73c6653677a71ca57c0c66c1de36",
+      "passed": true
+    },
+    {
+      "name": "authority_load",
+      "sha256": "2b239a7b10d468c6e5335a546ddf6bcea1adc2ca89fe1e4fd0722b47d9c73acf",
+      "passed": true
+    },
+    {
+      "name": "review_artifact",
+      "sha256": "e3f5fc6e73e698493516f3b01263353a08d39e122189d1468495dbc8d99727e3",
+      "passed": true
+    },
+    {
+      "name": "review_evidence",
+      "sha256": "917ba207743ba8356eb9973e18ee0fb83e45a3205ecd9546cbfc14dc8c463c91",
+      "passed": true
+    },
+    {
+      "name": "review_batch",
+      "sha256": "914b493eedda67a6bbf51337a6720c3e801d1d37e5b746572253d45aacd54aaf",
+      "passed": true
+    }
+  ],
+  "provider_calls": 0,
+  "fixture_writes": 0,
+  "before": [],
+  "migration_applied": true,
+  "after": [
+    {
+      "data_type": "bigint",
+      "is_nullable": "NO",
+      "column_default": "0"
+    }
+  ],
+  "state": "passed",
+  "finished_at": "2026-09-07T22:39:48.888Z"
+}

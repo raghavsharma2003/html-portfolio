@@ -1,0 +1,106 @@
+{
+  "schema": "synthetic-azure-dialogue-smoke/v1",
+  "request_id": "fb7a1b1a-92e2-4c41-8141-babf35155b16",
+  "prompt_hash": "06bfc4a2ec28c9d3081d45d337fdc3c2f807bbdedc72775212306dc0201346c2",
+  "request_hash": "3d7e0a45b8e97c6ab2f8d53659f9c71021941132d10ccf066691a4d39730c2db",
+  "database": "vyakti_expert_integration_20260906",
+  "budget_id": "expert-development-20260906",
+  "limit_microusd": 1000000,
+  "source_hashes": {
+    "api/_dialogue/providers/azure-foundry.js": "cc4b00cd3e3102da9bc447420d29ef0ad604359f2d54a164970ef7faa8522365",
+    "api/_dialogue/contracts.js": "d82018d405df8b0d7aeea17301c3b8c5b5dea3459cbd6bda2f4cd94852058ed9",
+    "api/_provider-budget.js": "4ec4bf1107d39bfc4bbc76f0ad38236e195a89cd31eae5249168f1f391b4247d",
+    "api/_provenance/contracts.js": "3d4abdcf2ee08cac77b6256343702f36fb3b14f8c3bcee3abd1416d0fd9e4233"
+  },
+  "adapter": {
+    "family": "dialogue",
+    "name": "azure-foundry-structured-output",
+    "version": "2024-05-01-preview:replica-dialogue/v1",
+    "model": "gpt-4.1-mini"
+  },
+  "rates": {
+    "model": "gpt-4.1-mini",
+    "input_usd_per_million": 0.4,
+    "output_usd_per_million": 1.6
+  },
+  "max_fetches": 1,
+  "synthetic_input": {
+    "core": "Synthetic test fixture, not a real person. Published fact: C92 practice has 23 minutes of independent solving followed by 13 minutes of review. Breaks are outside the 36-minute block. Do not add facts.",
+    "relationship": "",
+    "history": [],
+    "message": "In English, state the solving and review times in order in one sentence. Use grounded mode, natural pace, intensity 0.2, English language hint and no nonverbals."
+  },
+  "created_at": "2026-09-07T11:08:20.492Z",
+  "ok": true,
+  "stage": "completed_manual_source_review_pending",
+  "attempted_fetches": 1,
+  "transport_invocations": 1,
+  "reservation": {
+    "reservation_id": "3411de23-48b3-4041-885c-b118f6fefac2",
+    "request_hash": "3d7e0a45b8e97c6ab2f8d53659f9c71021941132d10ccf066691a4d39730c2db",
+    "reserved_microusd": 1528
+  },
+  "usage": {
+    "input_tokens": 342,
+    "output_tokens": 50
+  },
+  "budget_before": {
+    "budget_id": "expert-development-20260906",
+    "state": "active",
+    "limit_microusd": 1000000,
+    "spent_microusd": 117587,
+    "reserved_microusd": 0
+  },
+  "budget_after": {
+    "budget_id": "expert-development-20260906",
+    "state": "active",
+    "limit_microusd": 1000000,
+    "spent_microusd": 117804,
+    "reserved_microusd": 0
+  },
+  "ledger_receipt": {
+    "reservation_id": "3411de23-48b3-4041-885c-b118f6fefac2",
+    "budget_id": "expert-development-20260906",
+    "request_hash": "3d7e0a45b8e97c6ab2f8d53659f9c71021941132d10ccf066691a4d39730c2db",
+    "operation": "dialogue",
+    "state": "settled",
+    "unit_kind": "tokens",
+    "failure_code": "",
+    "reserved_input_units": 1020,
+    "reserved_output_units": 700,
+    "reserved_microusd": 1528,
+    "actual_input_units": 342,
+    "actual_output_units": 50,
+    "actual_microusd": 217
+  },
+  "settlement_verified": true,
+  "reconciliation_verified": false,
+  "source_hashes_unchanged": true,
+  "source_relation_review": {
+    "status": "manual_review_pending",
+    "expected": [
+      "23 minutes belongs to independent solving first",
+      "13 minutes belongs to review second",
+      "no invented source facts"
+    ]
+  },
+  "scope": "One synthetic adapter/schema/accounting smoke. Not an authenticated owner journey, identity/activation proof, native panel or quality benchmark.",
+  "output_sha256": "d9a6f23f1176d9c79ebc52de533cc08a1a63718938bc2d424fdba90f1dbdd85b",
+  "output_characters": 190,
+  "output_preview": "{\"reply\":\"The solving time is 23 minutes, followed by a review time of 13 minutes.\",\"delivery\":{\"mode\":\"grounded\",\"pace\":\"natural\",\"intensity\":0.2,\"language_hint\":\"English\",\"nonverbals\":[]}}",
+  "output_preview_truncated": false,
+  "validated_output": {
+    "reply": "The solving time is 23 minutes, followed by a review time of 13 minutes.",
+    "delivery": {
+      "mode": "grounded",
+      "pace": "natural",
+      "intensity": 0.2,
+      "language_hint": "English",
+      "nonverbals": []
+    },
+    "response_hash": "0cc24a834f0d97e270d63292901cbddf5a0d4ac64ea08f044f964595abec067f"
+  },
+  "schema_valid": true,
+  "requested_delivery_matches": true,
+  "finished_at": "2026-09-07T11:08:25.660Z"
+}

@@ -1,0 +1,8 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+speechbrain==1.1.0
+silero-vad==6.2.1
+deepfilternet==0.5.6
+soundfile==0.13.1
+huggingface-hub==0.34.4
+

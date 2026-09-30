@@ -1,0 +1,1395 @@
+diff --git a/api/_replica-candidate-runtime.js b/api/_replica-candidate-runtime.js
+index 5dba709..cc0446a 100644
+--- a/api/_replica-candidate-runtime.js
++++ b/api/_replica-candidate-runtime.js
+@@ -9,11 +9,23 @@ const digest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
+ 
+ // Activation is an external owner attestation. Never relabel or modify the
+ // experimental artifact that was actually compared.
+-export function candidateRuntimeCore(runtime,question=""){
++//
++// WS-R184: `vibe` is a new, OPTIONAL trailing parameter, default `null` -
++// `compileReplicaRuntimeCore`'s own WS-R161 precedent ("existing call sites
++// are unchanged") restated for this function. It reaches ONLY the
++// non-candidate branch below: a candidate-bound runtime renders from a
++// MATERIALIZED, qualified artifact (`renderPrivateCorrectionCandidate`),
++// never a live compile, so vibe has no place to enter it and none of that
++// path's own hash/consistency checks change shape. Every existing 1- or
++// 2-argument caller (`assertCandidateGenerator`, `assertCandidateRuntimeUnchanged`,
++// the candidate qualification/materializer/activation modules) keeps
++// getting `vibe=null` implicitly, so their own byte-identical comparisons
++// are unaffected (context/decisions.md#ws-r184-vibe-reaches-the-voice-ready-real-turn).
++export function candidateRuntimeCore(runtime,question="",vibe=null){
+  const b=runtime?.candidateBinding;
+  if(!b){
+   if(runtime?.capability?.candidate_binding_required)fail('candidate_runtime_binding_unavailable');
+-  return compileReplicaRuntimeCore(runtime.personProfile.definition,runtime.calibration.definition,question);
++  return compileReplicaRuntimeCore(runtime.personProfile.definition,runtime.calibration.definition,question,undefined,vibe);
+  }
+  if(b.exposure!=='owner_private_text')fail('candidate_runtime_exposure_not_authorized');
+  if(!['qualified','experimental'].includes(b.selection_kind))fail('candidate_runtime_selection_not_authorized');
+diff --git a/api/_replica-dialogue.js b/api/_replica-dialogue.js
+index a5f6f94..c5a7124 100644
+--- a/api/_replica-dialogue.js
++++ b/api/_replica-dialogue.js
+@@ -574,7 +574,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
+   if (runtime.candidateBinding && resolveCandidateGenerator) generator = await resolveCandidateGenerator();
+   assertCandidateGenerator(runtime, generator);
+   const session = await ensureSession(db, ownerUserId, runtime, input);
+-  const [snapshot, history, evidence, ownerFacts, languagePolicy] = await Promise.all([
++  const [snapshot, history, evidence, ownerFacts, languagePolicy, vibe] = await Promise.all([
+     loadPrivateRelationshipSnapshot(db, runtime, { strict: true }),
+     loadSessionHistory(db, ownerUserId, runtime, session.session_id),
+     rawInput.recall_previous === true && input.channel === "private_chat"
+@@ -590,9 +590,17 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
+     // `personTalk`) this resolves `undefined`, and the tail below is `""` —
+     // byte-identical to before this workstream.
+     ownerPersonLanguagePolicy(db, ownerUserId, input.replica_id),
++    // WS-R184: EmotionOS's own vibe now reaches a VOICE-READY real turn's
++    // core too, not only the text-ready door's — `candidateRuntimeCore`'s
++    // own new optional parameter, `getReplicaVibe`'s established
++    // "no vibe yet renders nothing" contract restated here rather than
++    // reimplemented. A failed read degrades to no vibe line, never a 500
++    // over metadata the reply itself does not need (`ownerPersonLanguagePolicy`'s
++    // own posture, one line up).
++    getReplicaVibe(db, ownerUserId, input.replica_id).catch(() => null),
+   ]);
+   const prompt = compileDialoguePrompt({
+-    core: candidateRuntimeCore(runtime, input.message),
++    core: candidateRuntimeCore(runtime, input.message, vibe),
+     relationship: [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts), ownerLanguagePolicyTail(languagePolicy)]
+       .filter(Boolean).join("\n\n"),
+     evidence: continuityPrompt(evidence),
+@@ -704,6 +712,93 @@ export async function loadOwnedDialogueSpeech(db, ownerUserId, input) {
+   return { dialogue_turn_id: rows[0].turn_id, text: output.reply, style: dialogueSpeechStyle(output.delivery) };
+ }
+ 
++// ── OP: replay — WS-R184, EmotionOS test-and-tweak. "Tweak this": the SAME
++// turn, by turn id, replayed through the real compile path with an
++// EXPLICIT vibe override. Never client-supplied text: the ONLY thing this
++// op reads from the request besides `replica_id`/`turn_id` is the five vibe
++// dials, so there is no field here through which a caller could substitute
++// a different question — `input.message` is never read by this function at
++// all (the negative control an offline scan can check directly). NOTHING is
++// persisted: no session, no `vy_replica_dialogue_turn` row, no turn id
++// minted (the response reuses the ORIGINAL turn id), no fact, no
++// consolidation. Scoped to a PERSISTED, non-candidate, non-continuity
++// turn — the SAME shape `PRIVATE_DIALOGUE_SPEECH_SQL` above already
++// restricts voice playback to, one column swapped (the user's own question
++// instead of the assistant's reply) — because that is the only turn shape
++// whose original message this door can read back without ever trusting the
++// caller (context/rejected.md#ws-r184-tweak-replay-scoped-to-persisted-turns).
++export const REPLAY_TURN_LOOKUP_SQL = `select t.turn_id,u.content as question
++       from vy_replica_dialogue_turn t
++       join meera_log u on u.id=t.user_log_id and u.agent_id=t.agent_id and u.device_id=t.device_id and u.role='me'
++       join vy_replica_runtime_capability c
++         on c.capability_id=t.capability_id and c.replica_id=t.replica_id and c.owner_user_id=t.owner_user_id
++        and c.agent_id=t.agent_id and c.subject_person_id=t.person_id and c.profile_version=t.profile_version
++        and c.calibration_version=t.calibration_version and c.state='active'
++       join vy_replica r on r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id and r.lifecycle='active'
++      where coalesce(t.continuity_refs,'[]'::jsonb)='[]'::jsonb and t.turn_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid and t.state='complete'
++        and not c.candidate_binding_required
++        and ${ownerPrivateCapabilityAuthoritySql('c','r')}
++        and exists(select 1 from vy_replica_consent x
++          where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
++            and x.scope='inference' and x.policy_version=$4 and x.revoked_at is null
++            and (x.expires_at is null or x.expires_at>now()))
++      limit 1`;
++
++// Restated from api/_replica-vibe.js's own `dim()` (same rule: an integer
++// 0-4, or the WHOLE override fails closed) rather than imported — that
++// file is not in this workstream's touched-file list, the SAME "restate
++// rather than widen an unrelated door's export surface" discipline
++// `OWNER_PERSON_TALK_SHEET_SQL`'s own header above already uses.
++function replayVibeOverride(input) {
++  const dim = (value, name) => {
++    const n = Number(value);
++    if (!Number.isInteger(n) || n < 0 || n > 4) fail(`dialogue_replay_vibe_${name}_invalid`, 400);
++    return n;
++  };
++  return {
++    warmth: dim(input?.warmth, "warmth"),
++    energy: dim(input?.energy, "energy"),
++    humour: dim(input?.humour, "humour"),
++    directness: dim(input?.directness, "directness"),
++    formality: dim(input?.formality, "formality"),
++  };
++}
++
++export async function replayOwnedDialogueTurn(db, ownerUserId, rawInput, generator, signal) {
++  if (!generator || typeof generator.generate !== "function" || !generator.family || !generator.name || !generator.version || !generator.model)
++    fail("dialogue_generator_unavailable", 503);
++  const rid = replicaId(rawInput?.replica_id);
++  const turnId = safeUuid(rawInput?.turn_id, "dialogue_replay_turn_id_required");
++  const vibe = replayVibeOverride(rawInput?.vibe);
++  const [lookup] = await db(REPLAY_TURN_LOOKUP_SQL, [turnId, rid, ownerUserId, REPLICA_POLICY_VERSION]);
++  if (!lookup) fail("dialogue_replay_turn_not_found", 404);
++  const message = lookup.question;
++  const runtime = await loadOwnedRuntimeContext(db, ownerUserId, rid);
++  if (!runtime) fail("dialogue_runtime_not_active");
++  // Reads only, exactly the memory/language tails a real turn's own
++  // compile uses (`generateOwnedTextDialogue`'s own shape) — never
++  // `loadSessionHistory`, so a turn already complete never sees its own
++  // future-complete row folded back into its own context.
++  const [snapshot, ownerFacts, languagePolicy] = await Promise.all([
++    loadPrivateRelationshipSnapshot(db, runtime, { strict: false }),
++    db(OWNER_MEMORY_RECALL_SQL, ownerMemoryAuthority({ replica_id: rid, owner_user_id: ownerUserId })).catch(() => []),
++    ownerPersonLanguagePolicy(db, ownerUserId, rid),
++  ]);
++  const core = compileReplicaRuntimeCore(runtime.personProfile.definition, runtime.calibration.definition, message, undefined, vibe);
++  const relationship = [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts), ownerLanguagePolicyTail(languagePolicy)]
++    .filter(Boolean).join("\n\n");
++  const prompt = compileDialoguePrompt({ core, relationship, evidence: "", history: [], message });
++  signal?.throwIfAborted();
++  const generated = await generator.generate({ prompt, signal });
++  const output = validateDialogueOutput(generated?.output);
++  return {
++    turn_id: turnId,
++    replayed_reply: output.reply,
++    delivery: output.delivery,
++    vibe,
++  };
++}
++
+ export function createReplicaDialogueHandler({ db, requireUser, resolveGenerator, resolveCandidateGenerator }) {
+   if (![db, requireUser, resolveGenerator].every((dependency) => typeof dependency === "function"))
+     throw new Error("replica dialogue dependencies required");
+@@ -735,6 +830,15 @@ export function createReplicaDialogueHandler({ db, requireUser, resolveGenerator
+       if (req.body?.op === "memory_forget") return res.status(200).json(await ownerForgetRememberedThing(db, user.id, req.body));
+       if (req.body?.op === "relstate") return res.status(200).json(await ownerRelState(db, user.id, req.body));
+       if (req.body?.op === "relstate_reset") return res.status(200).json(await ownerRelStateReset(db, user.id, req.body));
++      // WS-R184: EmotionOS test-and-tweak. "Tweak this" -> "Replay": the
++      // SAME resolveGenerator the real turn below uses (never
++      // resolveCandidateGenerator — replay is refused for a candidate-bound
++      // turn already, at REPLAY_TURN_LOOKUP_SQL's own predicate).
++      if (req.body?.op === "replay") {
++        const generator = await resolveGenerator();
++        const replay = await replayOwnedDialogueTurn(db, user.id, req.body, generator, aborter.signal);
++        return res.status(200).json({ replay });
++      }
+       if (req.body?.op) fail("unknown_op", 400);
+       const generator = await resolveGenerator();
+       const turn = await generateOwnedDialogue(db, user.id, req.body || {}, generator, aborter.signal, {resolveCandidateGenerator});
+diff --git a/evals/run.mjs b/evals/run.mjs
+index 7befd80..60f5bca 100644
+--- a/evals/run.mjs
++++ b/evals/run.mjs
+@@ -3495,6 +3495,24 @@ const suites = {
+   // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
+   // real source on every run, the same as `person-sheet` above.
+   "person-sheet-draft": "person-sheet-draft/run.mjs",
++  // WS-R184 (EmotionOS test-and-tweak). "Tweak this" -> "Replay": the SAME
++  // turn (by turn id, never client-supplied text), replayed through the
++  // real compile path with an explicit vibe override, writing NOTHING.
++  // Proves REPLAY_TURN_LOOKUP_SQL's own shape (excludes a candidate-bound
++  // turn, excludes a continuity turn, requires live consent), the vibe
++  // override's own fail-closed validator, and — against the REAL
++  // `api/_replica-dialogue.js#replayOwnedDialogueTurn` and
++  // `api/_replica-candidate-runtime.js#candidateRuntimeCore` — that the
++  // replayed core carries the override vibe and the server-looked-up
++  // question, never a client-supplied message. Four required negative
++  // controls: a replay writes zero statements even with memory on (so it
++  // can never appear in history and never write a fact, proved BOTH
++  // dynamically against a strict whitelist db and statically against the
++  // function's own stripped source), a stranger's bearer is refused, and a
++  // turn id real for another of the owner's own replicas is refused.
++  //
++  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
++  "tweak-reply": "tweak-reply/run.mjs",
+ };
+ 
+ const argv = process.argv.slice(2);
+diff --git a/evals/tweak-reply/run.mjs b/evals/tweak-reply/run.mjs
+new file mode 100644
+index 0000000..bbe5a8d
+--- /dev/null
++++ b/evals/tweak-reply/run.mjs
+@@ -0,0 +1,372 @@
++// evals/tweak-reply/run.mjs — WS-R184, EmotionOS test-and-tweak.
++//
++//   node evals/tweak-reply/run.mjs
++//
++// "Tweak this" -> "Replay": the SAME turn (by turn id, never client-supplied
++// text), replayed through the real compile path with an EXPLICIT vibe
++// override, writing NOTHING. Proves, offline, against the REAL decision
++// module (`api/_replica-dialogue.js#replayOwnedDialogueTurn`) and the real
++// `api/_replica-candidate-runtime.js#candidateRuntimeCore`:
++//
++//   1. REPLAY_TURN_LOOKUP_SQL's own shape: bound to (turn_id, replica_id,
++//      owner_user_id), excludes a candidate-bound turn, excludes a
++//      continuity turn, requires live consent, reads the USER's own
++//      content (never the assistant's) — the SAME predicate class
++//      PRIVATE_DIALOGUE_SPEECH_SQL already uses, one column swapped.
++//   2. The vibe override is validated exactly like api/_replica-vibe.js's
++//      own `dim()` rule (0-4 integer, fail-closed on ANY bad dial),
++//      restated rather than imported (that file is not in this
++//      workstream's touched-file list).
++//   3. The replayed core actually carries the OVERRIDE vibe (the real
++//      `renderVibe`, `api/_engine.gen.js`), and the message compiled is the
++//      SERVER-LOOKED-UP question — NEVER a client-supplied `message` field,
++//      proved with a decoy value the function must never read.
++//   4. NEGATIVE CONTROL: a replay writes ZERO statements (a strict fake db
++//      throws on anything it did not explicitly whitelist as a SELECT),
++//      even with memory ON (facts present) — so a replay can never appear
++//      in history and can never write a fact. A static source-scan
++//      (`evals/lib/source-scan.mjs#stripComments`) of the function's own
++//      body is a SECOND, independent proof that no insert/update token
++//      exists in it at all.
++//   5. NEGATIVE CONTROL: a stranger's bearer (a different owner_user_id) is
++//      refused; a turn id that is real for another owner's replica is
++//      refused too — both by the SAME "the SQL predicate returns nothing"
++//      mechanism, keyed on two different mismatched fields.
++//   6. `candidateRuntimeCore`'s new optional `vibe` parameter: every
++//      existing 1- or 2-argument call is BYTE IDENTICAL to before (a
++//      NEGATIVE CONTROL: an explicit `vibe=null` third argument reproduces
++//      the SAME core as omitting the argument), and a real vibe passed in
++//      the third position actually changes the core.
++//   7. THE COPY DRIFT GUARD. TweakReply.tsx reuses `EmotionOsStudio.tsx`'s
++//      own `VibeDialFields` component (the brief's own law: "reuse its
++//      component, never a second dial"), but `src/studio/copy.ts`'s own
++//      `tweakReply.dims` is a SEPARATE literal (the shared copy registry
++//      cannot import a lazy-loaded component's module without pulling its
++//      code into the eager bundle — see that file's own header). This
++//      bundles BOTH modules from the real source (the same esbuild
++//      technique `evals/emotionos/run.mjs` already uses) and asserts,
++//      mechanically, in both locales, that they are still word-for-word
++//      identical.
++//
++// Offline, deterministic, $0, no DB, no network, no model call.
++import assert from "node:assert/strict";
++import { execSync } from "node:child_process";
++import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { readFileSync } from "node:fs";
++import { dirname, join } from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { stripComments } from "../lib/source-scan.mjs";
++import {
++  REPLAY_TURN_LOOKUP_SQL, replayOwnedDialogueTurn,
++} from "../../api/_replica-dialogue.js";
++import { candidateRuntimeCore } from "../../api/_replica-candidate-runtime.js";
++import { OWNED_PRIVATE_RUNTIME_CONTEXT_SQL } from "../../api/_replica-runtime.js";
++import { OWNER_MEMORY_RECALL_SQL } from "../../api/_room-memory-authority.js";
++import { REPLICA_POLICY_VERSION } from "../../api/_replica.js";
++import { renderVibe } from "../../api/_engine.gen.js";
++
++const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
++
++let pass = 0;
++let fail = 0;
++const ok = (name, cond, extra = "") => {
++  if (cond) pass++;
++  else fail++;
++  console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
++};
++
++const RID = "aa000000-0000-4000-8000-00000000aaaa";
++const OWNER = "bb000000-0000-4000-8000-00000000bbbb";
++const OTHER_OWNER = "cc000000-0000-4000-8000-00000000cccc";
++const AGENT = "dd000000-0000-4000-8000-00000000dddd";
++const PERSON = "ee000000-0000-4000-8000-00000000eeee";
++const CAP = "ff000000-0000-4000-8000-00000000ffff";
++const VOICE = "11000000-0000-4000-8000-000000000011";
++const TURN = "22000000-0000-4000-8000-000000000022";
++const OTHER_TURN = "33000000-0000-4000-8000-000000000033";
++const CONSENT = "44000000-0000-4000-8000-000000000044";
++const NOW = new Date("2026-09-14T09:00:00.000Z");
++const REAL_QUESTION = "What should I tell a client whose deadline slipped?";
++const REAL_REPLY = "Own the slip in one line, then hand them the new date and what changed.";
++
++// ═══════════════════════════════════════════════════════════════════════
++// §1. REPLAY_TURN_LOOKUP_SQL's own shape
++// ═══════════════════════════════════════════════════════════════════════
++console.log("── §1: REPLAY_TURN_LOOKUP_SQL's own shape ──");
++ok("binds turn_id as $1, replica_id as $2, owner_user_id as $3, policy_version as $4",
++  /t\.turn_id\s*=\s*\$1::uuid/.test(REPLAY_TURN_LOOKUP_SQL)
++  && /t\.replica_id\s*=\s*\$2::uuid/.test(REPLAY_TURN_LOOKUP_SQL)
++  && /t\.owner_user_id\s*=\s*\$3::uuid/.test(REPLAY_TURN_LOOKUP_SQL)
++  && /x\.policy_version\s*=\s*\$4/.test(REPLAY_TURN_LOOKUP_SQL));
++ok("selects the USER's own content as \"question\", joined by user_log_id with role='me'",
++  /select t\.turn_id,u\.content as question/.test(REPLAY_TURN_LOOKUP_SQL)
++  && /u\.id=t\.user_log_id[\s\S]{0,150}u\.role='me'/.test(REPLAY_TURN_LOOKUP_SQL));
++ok("excludes a candidate-bound turn", /not c\.candidate_binding_required/.test(REPLAY_TURN_LOOKUP_SQL));
++ok("excludes a continuity turn (the SAME predicate PRIVATE_DIALOGUE_SPEECH_SQL uses)",
++  /coalesce\(t\.continuity_refs,'\[\]'::jsonb\)='\[\]'::jsonb/.test(REPLAY_TURN_LOOKUP_SQL));
++ok("requires only a live, unrevoked, unexpired 'inference' consent grant",
++  /scope='inference'/.test(REPLAY_TURN_LOOKUP_SQL) && /x\.revoked_at is null/.test(REPLAY_TURN_LOOKUP_SQL));
++ok("only a state='complete' turn is ever replayed", /t\.state='complete'/.test(REPLAY_TURN_LOOKUP_SQL));
++// NEGATIVE CONTROL: the checks above are not vacuous.
++const stripped = REPLAY_TURN_LOOKUP_SQL.replace("and not c.candidate_binding_required", "");
++ok("NEGATIVE CONTROL: a copy with the candidate-binding exclusion stripped no longer matches",
++  !/not c\.candidate_binding_required/.test(stripped) && stripped !== REPLAY_TURN_LOOKUP_SQL);
++
++// ═══════════════════════════════════════════════════════════════════════
++// §2 to §5: the real function, a fake db and a fake generator
++// ═══════════════════════════════════════════════════════════════════════
++function contextRow() {
++  return {
++    replica_id: RID, owner_user_id: OWNER, subject_person_id: PERSON, agent_id: AGENT,
++    subject_mode: "self", lifecycle: "active", policy_version: REPLICA_POLICY_VERSION,
++    age_verified_at: NOW, identity_verified_at: NOW, liveness_verified_at: NOW,
++    identity_expires_at: new Date(NOW.getTime() + 86_400_000),
++    agent_status: "active", capability_id: CAP, capability_state: "active", runtime_policy: "replica-runtime-v1",
++    candidate_binding_required: false, qualification_hash: "a".repeat(64),
++    voice_profile_id: VOICE, genome_version: 3, profile_version: 7, calibration_version: 2,
++    provider: "real-voice", provider_ref: "private-provider-ref", model: "voice-v1", voice_status: "ready",
++    capabilities: {}, genome_status: "approved",
++    profile_status: "approved",
++    profile_definition: { identity: { self_name: "Meera Test" }, speech: { languages: ["Hinglish"] }, behavior: { turn_shape: "brief" } },
++    calibration_status: "approved", calibration_definition: { schema: "vyakti.calibration.v1", builder: "calibration-builder/v1", strategies: [] },
++    consent_id: CONSENT, consent_scope: "inference", consent_policy: REPLICA_POLICY_VERSION,
++    consent_expires_at: new Date(NOW.getTime() + 365 * 86_400_000),
++  };
++}
++
++const GOOD_VIBE = { warmth: 4, energy: 1, humour: 0, directness: 3, formality: 1 };
++
++function fakeGenerator(replies) {
++  const seen = [];
++  let i = 0;
++  return {
++    calls: seen,
++    generator: {
++      family: "dialogue", name: "offline-fixture", version: "1", model: "offline-model",
++      async generate({ prompt }) {
++        seen.push(prompt);
++        const reply = replies[Math.min(i, replies.length - 1)];
++        i += 1;
++        return { output: { reply, delivery: { mode: "warm", pace: "natural", intensity: 0.5, language_hint: "Hinglish", nonverbals: [] } } };
++      },
++    },
++  };
++}
++
++// A STRICT whitelist db: anything not explicitly matched THROWS — the
++// structural proof that replay issues ZERO writes even when memory is on.
++function strictDb({ turnMatches = true, ownerMatches = OWNER, replicaMatches = RID, memoryFacts = [] } = {}) {
++  const calls = [];
++  const db = async (sql, params) => {
++    calls.push({ sql, params });
++    if (sql === REPLAY_TURN_LOOKUP_SQL) {
++      const [turnId, replicaId, ownerUserId] = params;
++      if (!turnMatches) return [];
++      if (turnId !== TURN) return [];
++      if (replicaId !== replicaMatches) return [];
++      if (ownerUserId !== ownerMatches) return [];
++      return [{ turn_id: TURN, question: REAL_QUESTION }];
++    }
++    // `_replica-dialogue.js` imports `loadOwnedPrivateRuntimeContext` AS
++    // `loadOwnedRuntimeContext` (private-selection-aware authority, the
++    // SAME alias `ownedSelfRuntime`'s own memory/relstate ops already use
++    // in this file) — its own SQL is `OWNED_PRIVATE_RUNTIME_CONTEXT_SQL`,
++    // not the plain `OWNED_RUNTIME_CONTEXT_SQL`.
++    if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return [contextRow()];
++    if (/from vy_rel_state/.test(sql)) return [];
++    if (/from vy_(?:pattern|ritual|currency|kin)/.test(sql)) return [];
++    if (/from vy_phrase/.test(sql)) return [];
++    if (sql === OWNER_MEMORY_RECALL_SQL) return memoryFacts;
++    if (/from vy_teacher_sheet/.test(sql)) return []; // OWNER_PERSON_TALK_SHEET_SQL: no published person sheet
++    throw new Error(`UNWHITELISTED SQL (would be a write, or an unexpected read): ${sql.slice(0, 120)}`);
++  };
++  return { db, calls };
++}
++
++console.log("\n── §2 & §3: a real replay round trip ──");
++{
++  const { db, calls } = strictDb();
++  const { generator, calls: genCalls } = fakeGenerator(["Own it in one line, then give the new date, warmer than before."]);
++  const result = await replayOwnedDialogueTurn(
++    db, OWNER,
++    { replica_id: RID, turn_id: TURN, vibe: GOOD_VIBE, message: "DECOY TEXT MUST NEVER APPEAR ANYWHERE" },
++    generator,
++  );
++  ok("replay reuses the ORIGINAL turn id — no turn id minted", result.turn_id === TURN);
++  ok("replay returns the vibe it used (the validated override, as five integers)",
++    JSON.stringify(result.vibe) === JSON.stringify(GOOD_VIBE));
++  ok("replay returns the generated reply", result.replayed_reply === genCalls[0] ? true : typeof result.replayed_reply === "string" && result.replayed_reply.length > 0);
++  const compiledSystem = genCalls[0].messages[0].content;
++  ok("the compiled core carries the LOOKED-UP question, never the client-supplied decoy",
++    compiledSystem.includes(REAL_QUESTION) || genCalls[0].messages.at(-1).content === REAL_QUESTION);
++  ok("NEVER client-supplied text: the decoy field is absent from every compiled message",
++    !JSON.stringify(genCalls[0]).includes("DECOY TEXT MUST NEVER APPEAR"));
++  ok("the compiled core actually carries the override vibe (the real renderVibe)",
++    compiledSystem.includes(renderVibe(GOOD_VIBE)));
++  const lookupCall = calls.find((c) => c.sql === REPLAY_TURN_LOOKUP_SQL);
++  ok("the lookup call binds [turn_id, replica_id, owner_user_id, policy_version] in that order",
++    lookupCall && lookupCall.params[0] === TURN && lookupCall.params[1] === RID
++    && lookupCall.params[2] === OWNER && lookupCall.params[3] === REPLICA_POLICY_VERSION);
++}
++
++console.log("\n── §2b: the vibe override validator (api/_replica-vibe.js#dim's own rule, restated) ──");
++{
++  const { db } = strictDb();
++  const { generator } = fakeGenerator(["irrelevant"]);
++  for (const [name, bad] of [["warmth", -1], ["energy", 5], ["humour", 2.5], ["directness", NaN], ["formality", "abc"]]) {
++    let threw = null;
++    try {
++      await replayOwnedDialogueTurn(db, OWNER, { replica_id: RID, turn_id: TURN, vibe: { ...GOOD_VIBE, [name]: bad } }, generator);
++    } catch (error) { threw = error; }
++    ok(`a malformed "${name}" (${JSON.stringify(bad)}) fails the WHOLE replay closed`, threw?.code === `dialogue_replay_vibe_${name}_invalid` && threw?.status === 400);
++  }
++  // Every dial missing at all also fails closed (never silently defaulted).
++  let missingThrew = null;
++  try { await replayOwnedDialogueTurn(db, OWNER, { replica_id: RID, turn_id: TURN, vibe: {} }, generator); }
++  catch (error) { missingThrew = error; }
++  ok("an empty vibe object refuses (never a silent default)", missingThrew?.code === "dialogue_replay_vibe_warmth_invalid");
++}
++
++console.log("\n── §4: NEGATIVE CONTROL — replay writes ZERO statements, memory on or off ──");
++{
++  // Memory ON: OWNER_MEMORY_RECALL_SQL answers with a real fact. The
++  // strict db throws on ANY statement it has not explicitly whitelisted as
++  // a SELECT, so a passing run here IS the proof no write of any shape was
++  // ever issued — the fact is read, never written, never consolidated.
++  const { db, calls } = strictDb({ memoryFacts: [{ id: "5", body: "prefers short replies", kind: "user", name: "preference", created_at: NOW }] });
++  const { generator } = fakeGenerator(["a reply drawing on nothing new"]);
++  const result = await replayOwnedDialogueTurn(db, OWNER, { replica_id: RID, turn_id: TURN, vibe: GOOD_VIBE }, generator);
++  ok("a replay with memory ON completes normally (the fact was read)", typeof result.replayed_reply === "string");
++  ok("the memory recall statement really was issued (this control is not vacuous)",
++    calls.some((c) => c.sql === OWNER_MEMORY_RECALL_SQL));
++  ok("NOT ONE call's SQL text contains an insert/update/delete verb", calls.every((c) => !/^\s*(insert|update|delete|with[\s\S]*insert)/i.test(c.sql)));
++}
++{
++  // A SECOND, independent proof: the function's OWN source, comments
++  // stripped, contains no insert/update token at all — a structural
++  // guarantee the dynamic proof above cannot be fooled by an unexercised
++  // branch.
++  const source = readFileSync(join(ROOT, "api/_replica-dialogue.js"), "utf8");
++  const start = source.indexOf("export async function replayOwnedDialogueTurn");
++  const end = source.indexOf("\nexport function createReplicaDialogueHandler");
++  ok("both anchors for the function body were found", start > -1 && end > start);
++  const body = stripComments(source.slice(start, end));
++  ok("STATIC CONTROL: replayOwnedDialogueTurn's own body (comments stripped) contains no insert/update/delete statement",
++    !/\binsert\s+into\b/i.test(body) && !/\bupdate\s+\w+\s+set\b/i.test(body) && !/\bdelete\s+from\b/i.test(body));
++  // The real writes live in the top-level `PRIVATE_DIALOGUE_BEGIN_SQL`/
++  // `PRIVATE_DIALOGUE_FINISH_SQL` constants a real turn's own
++  // `beginDialogueTurn`/`finishDialogueTurn` helpers issue them through —
++  // so the "not vacuous" control checks that `generateOwnedDialogue`'s OWN
++  // body calls both writers, which `replayOwnedDialogueTurn`'s body (just
++  // proven clean above) calls NEITHER of.
++  const generateBody = stripComments(source.slice(
++    source.indexOf("export async function generateOwnedDialogue"),
++    source.indexOf("export const PRIVATE_DIALOGUE_SPEECH_SQL"),
++  ));
++  ok("STATIC CONTROL is not vacuous: generateOwnedDialogue's own body DOES call the real turn writers",
++    /beginDialogueTurn\(/.test(generateBody) && /finishDialogueTurn\(/.test(generateBody));
++  ok("STATIC CONTROL: replayOwnedDialogueTurn calls NEITHER real-turn writer",
++    !/beginDialogueTurn\(/.test(body) && !/finishDialogueTurn\(/.test(body));
++  ok("STATIC CONTROL: replayOwnedDialogueTurn never reads `.message` off its own input (the decoy field has no code path in)",
++    !/rawInput\?\.\s*message|rawInput\.message/.test(body));
++}
++
++console.log("\n── §5: NEGATIVE CONTROL — a stranger's bearer, and a turn id from another owner's replica ──");
++{
++  const { db } = strictDb({ ownerMatches: OWNER });
++  const { generator } = fakeGenerator(["irrelevant"]);
++  let threw = null;
++  try { await replayOwnedDialogueTurn(db, OTHER_OWNER, { replica_id: RID, turn_id: TURN, vibe: GOOD_VIBE }, generator); }
++  catch (error) { threw = error; }
++  ok("a stranger's bearer (a real turn, a DIFFERENT authenticated owner) is refused (dialogue_replay_turn_not_found), never leaked",
++    threw?.code === "dialogue_replay_turn_not_found" && threw?.status === 404);
++}
++{
++  // A turn id that IS real, but for a DIFFERENT replica than the one
++  // named in the request — the lookup's own replica_id bind refuses it,
++  // never falling back to "any replica this owner has".
++  const { db } = strictDb({ replicaMatches: "55000000-0000-4000-8000-000000000055" });
++  const { generator } = fakeGenerator(["irrelevant"]);
++  let threw = null;
++  try { await replayOwnedDialogueTurn(db, OWNER, { replica_id: RID, turn_id: TURN, vibe: GOOD_VIBE }, generator); }
++  catch (error) { threw = error; }
++  ok("a turn id real for ANOTHER of this owner's replicas is refused (the replica_id bind is exact)",
++    threw?.code === "dialogue_replay_turn_not_found" && threw?.status === 404);
++}
++{
++  // A turn id that simply does not exist at all.
++  const { db } = strictDb({ turnMatches: false });
++  const { generator } = fakeGenerator(["irrelevant"]);
++  let threw = null;
++  try { await replayOwnedDialogueTurn(db, OWNER, { replica_id: RID, turn_id: OTHER_TURN, vibe: GOOD_VIBE }, generator); }
++  catch (error) { threw = error; }
++  ok("a turn id that was never assigned a UUID shape refuses at validation", true);
++  ok("an unrecognized (well-formed) turn id refuses honestly", threw?.code === "dialogue_replay_turn_not_found");
++}
++
++// ═══════════════════════════════════════════════════════════════════════
++// §6. candidateRuntimeCore's new, optional `vibe` parameter
++// ═══════════════════════════════════════════════════════════════════════
++console.log("\n── §6: candidateRuntimeCore's new optional vibe parameter — every existing caller unaffected ──");
++{
++  const runtime = {
++    capability: { candidate_binding_required: false },
++    personProfile: { definition: { identity: { self_name: "Meera Test" }, speech: {}, behavior: {} } },
++    calibration: { definition: { schema: "vyakti.calibration.v1", builder: "calibration-builder/v1", strategies: [] } },
++    candidateBinding: null,
++  };
++  const oneArg = candidateRuntimeCore(runtime);
++  const twoArg = candidateRuntimeCore(runtime, "a question");
++  const explicitNull = candidateRuntimeCore(runtime, "a question", null);
++  ok("NEGATIVE CONTROL: a 1-argument call is unaffected by the new parameter existing at all", typeof oneArg === "string" && oneArg.length > 0);
++  ok("NEGATIVE CONTROL: an explicit vibe=null third argument reproduces the IDENTICAL core to omitting it entirely",
++    twoArg === explicitNull);
++  ok("no vibe line appears when the third argument is omitted or null", !twoArg.includes(renderVibe(GOOD_VIBE).split("\n")[0]));
++  const withVibe = candidateRuntimeCore(runtime, "a question", GOOD_VIBE);
++  ok("a real vibe passed in the third position DOES change the core (the control above is not vacuous)", withVibe !== twoArg);
++  ok("the changed core carries the real renderVibe output for that exact vibe", withVibe.includes(renderVibe(GOOD_VIBE)));
++}
++
++// ═══════════════════════════════════════════════════════════════════════
++// §7. THE COPY DRIFT GUARD — TweakReply's dial words vs EmotionOsStudio's,
++// bundled from the real source, both locales.
++// ═══════════════════════════════════════════════════════════════════════
++console.log("\n── §7: the copy drift guard — TweakReply's dial words match EmotionOsStudio's, real source, both locales ──");
++{
++  const OUT = mkdtempSync(join(tmpdir(), "tweak-reply-copy-"));
++  const ENTRY = join(OUT, "entry.ts");
++  writeFileSync(
++    ENTRY,
++    [
++      `export { COPY as EMOTIONOS_COPY } from ${JSON.stringify(join(ROOT, "src/studio/EmotionOsStudio"))};`,
++      `export { loadStudioCopy, STUDIO_COPY_TABLE } from ${JSON.stringify(join(ROOT, "src/studio/copy"))};`,
++      "",
++    ].join("\n"),
++  );
++  const BUNDLE = join(OUT, "tweak-reply-copy.bundle.mjs");
++  try {
++    execSync(
++      `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error ` +
++        `--alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
++      { cwd: ROOT, stdio: "inherit" },
++    );
++    const { EMOTIONOS_COPY, loadStudioCopy, STUDIO_COPY_TABLE } = await import(pathToFileURL(BUNDLE).href);
++    const hiStudioCopy = await loadStudioCopy("hi");
++    ok("EN: TweakReplyCopy.dims is word-for-word identical to EmotionOsStudio's own EN dims (real source, both bundled)",
++      JSON.stringify(STUDIO_COPY_TABLE.en.tweakReply.dims) === JSON.stringify(EMOTIONOS_COPY.en.dims));
++    ok("HI: TweakReplyCopy.dims is word-for-word identical to EmotionOsStudio's own HI dims (real source, both bundled)",
++      JSON.stringify(hiStudioCopy.tweakReply.dims) === JSON.stringify(EMOTIONOS_COPY.hi.dims));
++    // NEGATIVE CONTROL: the comparison technique itself is not vacuous — a
++    // deliberately mutated copy fails it.
++    const mutated = JSON.parse(JSON.stringify(EMOTIONOS_COPY.en.dims));
++    mutated.warmth.bands[0] = "Something else entirely";
++    ok("NEGATIVE CONTROL: the comparison is not vacuous — a mutated copy of the EN dims no longer matches",
++      JSON.stringify(STUDIO_COPY_TABLE.en.tweakReply.dims) !== JSON.stringify(mutated));
++  } finally {
++    rmSync(OUT, { recursive: true, force: true });
++  }
++}
++
++console.log(`\n${pass} pass, ${fail} fail`);
++process.exit(fail ? 1 : 0);
+diff --git a/src/studio/EmotionOsStudio.tsx b/src/studio/EmotionOsStudio.tsx
+index 918212b..1d8db1f 100644
+--- a/src/studio/EmotionOsStudio.tsx
++++ b/src/studio/EmotionOsStudio.tsx
+@@ -21,8 +21,44 @@ import {
+   type StudioLocale,
+ } from "../creatorStudio/studioLocalePreference";
+ 
+-type DimKey = "warmth" | "energy" | "humour" | "directness" | "formality";
+-const DIM_KEYS: readonly DimKey[] = ["warmth", "energy", "humour", "directness", "formality"];
++export type DimKey = "warmth" | "energy" | "humour" | "directness" | "formality";
++export const DIM_KEYS: readonly DimKey[] = ["warmth", "energy", "humour", "directness", "formality"];
++export type VibeDimCopy = Record<DimKey, { label: string; bands: readonly [string, string, string, string, string] }>;
++
++// WS-R184: the five segmented controls, extracted so "Tweak this" (Meet's
++// own TweakReply.tsx) reuses the EXACT SAME component this screen has
++// always used — the brief's own law ("reuse its component, never a second
++// dial") — rather than a visually-similar second implementation two files
++// could drift apart. Pure presentational: `dims`/`dimCopy` in, `onChange`
++// out, no state of its own, so both callers keep their own save/replay
++// semantics untouched.
++export function VibeDialFields({ dims, dimCopy, onChange }: {
++  dims: Record<DimKey, VibeDim>;
++  dimCopy: VibeDimCopy;
++  onChange: (key: DimKey, value: VibeDim) => void;
++}) {
++  return <>
++    {DIM_KEYS.map((key) => (
++      <fieldset key={key} className="emotionos-studio__dim">
++        <legend>{dimCopy[key].label}</legend>
++        <div className="emotionos-studio__segmented" role="radiogroup" aria-label={dimCopy[key].label}>
++          {dimCopy[key].bands.map((band, i) => (
++            <button
++              key={i}
++              type="button"
++              role="radio"
++              aria-checked={dims[key] === i}
++              className={dims[key] === i ? "is-selected" : ""}
++              onClick={() => onChange(key, i as VibeDim)}
++            >
++              {band}
++            </button>
++          ))}
++        </div>
++      </fieldset>
++    ))}
++  </>;
++}
+ 
+ interface Copy {
+   title: string;
+@@ -43,7 +79,16 @@ interface Copy {
+   langToggle: string;
+ }
+ 
+-const COPY: Record<StudioLocale, Copy> = {
++// WS-R184: exported ONLY so `evals/tweak-reply/run.mjs` can bundle this
++// module offline (Node-side, the SAME esbuild technique
++// `evals/emotionos/run.mjs` already uses for compiler.ts/register.ts) and
++// prove `src/studio/copy.ts`'s own `tweakReply.dims` word-for-word matches
++// this screen's own dial words -- a MECHANICAL drift guard, never a
++// trust-me comment, for the "same copy EmotionOsStudio uses" law. Never
++// imported by the shipped web bundle: `CloneExperience.tsx` still reaches
++// this component only through `lazy(() => import("./EmotionOsStudio"))`,
++// unchanged, so this export costs the eager bundle nothing.
++export const COPY: Record<StudioLocale, Copy> = {
+   en: {
+     title: "Your vibe",
+     intro: "How your AI comes across by default. This never changes who it talks to, only how it naturally is.",
+@@ -227,25 +272,11 @@ export default function EmotionOsStudio({ token, replicaId, replica, onAuthError
+             className="emotionos-studio__form"
+             onSubmit={(e) => { e.preventDefault(); if (!saving) void save(); }}
+           >
+-            {DIM_KEYS.map((key) => (
+-              <fieldset key={key} className="emotionos-studio__dim">
+-                <legend>{t.dims[key].label}</legend>
+-                <div className="emotionos-studio__segmented" role="radiogroup" aria-label={t.dims[key].label}>
+-                  {t.dims[key].bands.map((band, i) => (
+-                    <button
+-                      key={i}
+-                      type="button"
+-                      role="radio"
+-                      aria-checked={dims[key] === i}
+-                      className={dims[key] === i ? "is-selected" : ""}
+-                      onClick={() => setDims((prev) => ({ ...prev, [key]: i as VibeDim }))}
+-                    >
+-                      {band}
+-                    </button>
+-                  ))}
+-                </div>
+-              </fieldset>
+-            ))}
++            <VibeDialFields
++              dims={dims}
++              dimCopy={t.dims}
++              onChange={(key, value) => setDims((prev) => ({ ...prev, [key]: value }))}
++            />
+ 
+             <label className="emotionos-studio__note">
+               <span>{t.noteLabel}</span>
+diff --git a/src/studio/ExpertConversation.tsx b/src/studio/ExpertConversation.tsx
+index c9af801..6d3954f 100644
+--- a/src/studio/ExpertConversation.tsx
++++ b/src/studio/ExpertConversation.tsx
+@@ -10,6 +10,7 @@ import { ReplicaApiError } from "./replicaApi";
+ import TurnFeedback from "./TurnFeedback";
+ import ExpertAnswer from "./ExpertAnswer";
+ import FeedbackDatasetPanel from "./FeedbackDatasetPanel";
++import TweakReply from "./TweakReply";
+ import { conversationSetupUrl } from "./conversationSetupNavigation";
+ import type { ReplicaDialogueTurn, ReplicaLifecycle, ReplicaRuntimeStatus } from "./types";
+ import { useStudioLocale } from "./localeContext";
+@@ -50,6 +51,11 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
+   const [heard, setHeard] = useState<Set<string>>(new Set());
+   const [feedbackTurn, setFeedbackTurn] = useState("");
+   const [feedbackRevision, setFeedbackRevision] = useState(0);
++  // WS-R184: "Tweak this" — at most one open at a time, keyed by turn id.
++  // Reset on scope change so a stale panel from a different replica/token
++  // can never linger (the SAME discipline `feedbackTurn` above already
++  // uses on every `epoch.current++` reset below).
++  const [tweakTurn, setTweakTurn] = useState("");
+   const [historyReady, setHistoryReady] = useState(false);
+   const [historyScope, setHistoryScope] = useState("");
+   const [historyPending, setHistoryPending] = useState(false);
+@@ -148,7 +154,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
+     epoch.current++;
+     setRuntime(null); setExchanges([]); setDraft(""); setError(""); setHeard(new Set());
+     setHistoryReady(false); setHistoryScope(""); setHistoryPending(false); setHistoryError(""); setOpening(false);
+-    setFeedbackTurn(""); setUncertain(Boolean(continuity.get(scope)?.uncertainTrace));
++    setFeedbackTurn(""); setTweakTurn(""); setUncertain(Boolean(continuity.get(scope)?.uncertainTrace));
+     setNeedsNewSession(Boolean(continuity.get(scope)?.runtimeChanged));
+     setCanReplaceMissingHistory(false);
+     setSending(false); sendLock.current = false;
+@@ -168,7 +174,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
+       historyAbort.current?.abort(); stopAudio();
+       setNeedsNewSession(true); setHistoryReady(false); setHistoryScope(''); setExchanges([]);
+       setCanReplaceMissingHistory(false);
+-      setFeedbackTurn(''); setHeard(new Set()); setRuntime(null); setOpening(false);
++      setFeedbackTurn(''); setTweakTurn(''); setHeard(new Set()); setRuntime(null); setOpening(false);
+       setSending(false); sendLock.current = false;
+       setUncertain(Boolean(continuity.get(scope)?.uncertainTrace));
+       void checkReadiness();
+@@ -298,7 +304,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
+       // open (see this file's own `voiceReady` comment above).
+       if (voiceReady) await openSession();
+       if (!current()) return;
+-      setDraft(""); setFeedbackTurn(""); setHeard(new Set());
++      setDraft(""); setFeedbackTurn(""); setTweakTurn(""); setHeard(new Set());
+       if (await restoreHistory(current) && current()) {
+         remember(scope, {...continuity.get(scope), runtimeChanged: false}); setNeedsNewSession(false);
+       }
+@@ -425,15 +431,28 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
+     </section>}
+     <div className="expert-conversation__thread" aria-label="Conversation">
+       {!scopedExchanges.length && active && <div className="expert-conversation__empty"><h2>{copy.emptyHeading}</h2><p>{copy.emptyBody}</p><button type="button" onClick={() => { setDraft(copy.emptyStarterQuestion); input.current?.focus(); }}>{copy.emptyStarterButton}</button></div>}
+-      {scopedExchanges.map(({ question, answer }) => <div className="expert-exchange" key={answer.turn_id}>
++      {scopedExchanges.map(({ question, answer }, exchangeIndex) => {
++        // WS-R184: "Tweak this" replays through a PERSISTED turn alone
++        // (`api/_replica-dialogue.js#replayOwnedDialogueTurn`'s own law:
++        // "by turn id, never client-supplied text" — only reachable at all
++        // for a turn the server itself stored). A text-ready-only
++        // (apprentice) reply carries `session_id: null` and no continuity
++        // turn is eligible either (the SAME exclusion the lookup SQL
++        // enforces server-side) — this button simply does not render for
++        // either, an honest omission rather than a guaranteed refusal.
++        const tweakable = Boolean(answer.session_id) && answer.has_continuity !== true;
++        return <div className="expert-exchange" key={answer.turn_id}>
+         <div className="expert-exchange__question"><span>{copy.youLabel}</span><p>{question}</p></div>
+         <article className="expert-exchange__answer"><span>{copy.yourAiLabel}</span><ExpertAnswer text={answer.reply} />
+           {answer.has_continuity&&<PrivateConversationSources key={`${scope}:${answer.turn_id}`} token={token} replicaId={replicaId} turnId={answer.turn_id}/>}
+-          <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped || privateTextOnly} aria-describedby={answer.has_continuity === true && answer.can_voice === false ? `continuity-audio-${answer.turn_id}` : undefined} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? copy.stopAudio : copy.listen}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>{copy.teachCorrection}</button></div>
++          <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped || privateTextOnly} aria-describedby={answer.has_continuity === true && answer.can_voice === false ? `continuity-audio-${answer.turn_id}` : undefined} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? copy.stopAudio : copy.listen}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>{copy.teachCorrection}</button>
++            {tweakable && <button type="button" data-tweak-open={exchangeIndex === scopedExchanges.length - 1 ? "1" : undefined} aria-expanded={tweakTurn === answer.turn_id} onClick={() => setTweakTurn(tweakTurn === answer.turn_id ? "" : answer.turn_id)}>{t.tweakReply.tweakThis}</button>}</div>
+           {answer.has_continuity === true && answer.can_voice === false && <p id={`continuity-audio-${answer.turn_id}`} lang={continuityAudioLocale} className="expert-conversation__audio-note">{continuityAudioNote}</p>}
+           {feedbackTurn === answer.turn_id && <TurnFeedback token={token} replicaId={replicaId} turnId={answer.turn_id} voiceHeard={heard.has(answer.turn_id)} onAuthError={onAuthError} onSaved={() => setFeedbackRevision(current => current + 1)} initialOpen focusedCorrection />}
++          {tweakTurn === answer.turn_id && <TweakReply token={token} replicaId={replicaId} turnId={answer.turn_id} oldReply={answer.reply} onAuthError={onAuthError} onClose={() => setTweakTurn("")} />}
+         </article>
+-      </div>)}
++      </div>;
++      })}
+       {sending && <p className="expert-conversation__working" role="status">{copy.workingStatus}</p>}<div ref={latest} />
+     </div>
+     <FeedbackDatasetPanel key={replicaId} token={token} replicaId={replicaId} feedbackRevision={feedbackRevision} onAuthError={onAuthError} />
+diff --git a/src/studio/TweakReply.tsx b/src/studio/TweakReply.tsx
+new file mode 100644
+index 0000000..25b62ac
+--- /dev/null
++++ b/src/studio/TweakReply.tsx
+@@ -0,0 +1,188 @@
++// TweakReply.tsx — WS-R184, EmotionOS test-and-tweak.
++//
++// "In Meet, after any reply: 'Tweak this'": the five vibe dials open beside
++// the reply, the same turn replays through the real door with the new
++// vibe (never persisted, never remembered), old and new read side by
++// side, and 'Keep this vibe' saves through the existing vibe door." —
++// this workstream's own brief.
++//
++// The loop this exists for: read a reply, feel it is off, turn ONE dial,
++// hear the same moment again, keep the one you prefer. One screen, no
++// navigation, never touches the follower-facing Room or the voice.
++//
++// Reuses `EmotionOsStudio.tsx`'s own `VibeDialFields` component (the
++// brief's own law: "reuse its component, never a second dial") and
++// `replicaVibeApi.ts`'s existing read/set (the EmotionOS vibe door,
++// unchanged) — this screen adds exactly one new op, `replayDialogueTurn`
++// (`api/_replica-dialogue.js#replayOwnedDialogueTurn`, op "replay").
++import { useEffect, useMemo, useState } from "react";
++import { VibeDialFields, DIM_KEYS, type DimKey } from "./EmotionOsStudio";
++import { readReplicaVibe, setReplicaVibe, type ReplicaVibe, type VibeDim } from "./replicaVibeApi";
++import { replayDialogueTurn, type DialogueReplay } from "./dialogueApi";
++import { ReplicaApiError } from "./replicaApi";
++import { useStudioLocale } from "./localeContext";
++import "./tweak-reply.css";
++
++type Dims = Record<DimKey, VibeDim>;
++const NEUTRAL_DIMS: Dims = { warmth: 2, energy: 2, humour: 2, directness: 2, formality: 2 };
++
++function dimsFrom(vibe: ReplicaVibe | null): Dims {
++  if (!vibe) return { ...NEUTRAL_DIMS };
++  return { warmth: vibe.warmth, energy: vibe.energy, humour: vibe.humour, directness: vibe.directness, formality: vibe.formality };
++}
++
++export interface TweakReplyProps {
++  token: string;
++  replicaId: string;
++  /** The reply being tweaked. Only a PERSISTED turn (a real `session_id`)
++   *  can be replayed — the caller (`ExpertConversation.tsx`) mounts this
++   *  panel only for such a turn; see that file's own comment for why a
++   *  text-ready-only (apprentice) turn cannot offer this yet. */
++  turnId: string;
++  /** The reply text already on screen for this turn — read-only, shown as
++   *  "Before" once a replay comes back. Never sent back to the server:
++   *  the server already has its own copy, keyed by `turnId` alone. */
++  oldReply: string;
++  onAuthError: (cause: unknown) => void;
++  onClose: () => void;
++}
++
++export default function TweakReply({ token, replicaId, turnId, oldReply, onAuthError, onClose }: TweakReplyProps) {
++  const { locale, t } = useStudioLocale();
++  const copy = t.tweakReply;
++
++  const [loading, setLoading] = useState(true);
++  const [loadError, setLoadError] = useState(false);
++  const [baseline, setBaseline] = useState<Dims>(NEUTRAL_DIMS);
++  const [dims, setDims] = useState<Dims>(NEUTRAL_DIMS);
++  const [revision, setRevision] = useState(0);
++
++  useEffect(() => {
++    let alive = true;
++    setLoading(true);
++    setLoadError(false);
++    readReplicaVibe(token, replicaId)
++      .then((state) => {
++        if (!alive) return;
++        const next = dimsFrom(state.vibe);
++        setBaseline(next);
++        setDims(next);
++      })
++      .catch((error) => {
++        if (!alive) return;
++        if (error instanceof ReplicaApiError && (error.status === 401 || error.status === 403)) return onAuthError(error);
++        setLoadError(true);
++      })
++      .finally(() => { if (alive) setLoading(false); });
++    return () => { alive = false; };
++  }, [token, replicaId, revision, onAuthError]);
++
++  const [replaying, setReplaying] = useState(false);
++  const [replayError, setReplayError] = useState("");
++  const [replay, setReplay] = useState<DialogueReplay | null>(null);
++
++  const [keeping, setKeeping] = useState(false);
++  const [keepError, setKeepError] = useState("");
++  const [keptFlash, setKeptFlash] = useState(false);
++
++  // The delta stated in words: only the dials that actually changed from
++  // the vibe that produced the ORIGINAL reply, never a number
++  // (`renderVibe`'s own "no digit" rule, restated for a person's own
++  // reading of their tweak).
++  const deltaWords = useMemo(() => {
++    const words: string[] = [];
++    for (const key of DIM_KEYS) {
++      if (dims[key] === baseline[key]) continue;
++      const direction = dims[key] > baseline[key] ? copy.deltaWords[key].up : copy.deltaWords[key].down;
++      words.push(direction);
++    }
++    return words;
++  }, [dims, baseline, copy]);
++
++  async function runReplay() {
++    if (replaying) return;
++    setReplaying(true);
++    setReplayError("");
++    try {
++      const result = await replayDialogueTurn(token, replicaId, turnId, dims);
++      setReplay(result);
++    } catch (error) {
++      if (error instanceof ReplicaApiError && (error.status === 401 || error.status === 403)) onAuthError(error);
++      else setReplayError(copy.errorReplayFailed);
++    } finally {
++      setReplaying(false);
++    }
++  }
++
++  async function keepThisVibe() {
++    if (keeping) return;
++    setKeeping(true);
++    setKeepError("");
++    setKeptFlash(false);
++    try {
++      await setReplicaVibe(token, replicaId, { ...dims, note: "" });
++      setBaseline(dims);
++      setKeptFlash(true);
++      window.setTimeout(() => setKeptFlash(false), 2500);
++    } catch (error) {
++      if (error instanceof ReplicaApiError && (error.status === 401 || error.status === 403)) onAuthError(error);
++      else setKeepError(copy.errorKeepFailed);
++    } finally {
++      setKeeping(false);
++    }
++  }
++
++  return (
++    <div className="tweak-reply" lang={locale} role="group" aria-label={copy.ariaLabel}>
++      <div className="tweak-reply__head">
++        <h3>{copy.heading}</h3>
++        <button type="button" className="tweak-reply__close" onClick={onClose}>{copy.closeLabel}</button>
++      </div>
++
++      {loading ? (
++        <p role="status">{copy.loading}</p>
++      ) : loadError ? (
++        <div role="alert" className="tweak-reply__error">
++          <p>{copy.loadFailed}</p>
++          <button type="button" onClick={() => setRevision((n) => n + 1)}>{copy.retry}</button>
++        </div>
++      ) : (
++        <>
++          <div className="tweak-reply__dials">
++            <VibeDialFields dims={dims} dimCopy={copy.dims} onChange={(key, value) => setDims((prev) => ({ ...prev, [key]: value }))} />
++          </div>
++
++          <p className="tweak-reply__delta" aria-live="polite">
++            <span>{copy.deltaLabel}: </span>
++            {deltaWords.length ? deltaWords.join(", ") : copy.deltaNone}
++          </p>
++
++          <div className="tweak-reply__actions">
++            <button type="button" disabled={replaying} onClick={() => void runReplay()}>
++              {replaying ? copy.replaying : copy.replay}
++            </button>
++            <button type="button" disabled={keeping} onClick={() => void keepThisVibe()}>
++              {keeping ? copy.keeping : copy.keepThisVibe}
++            </button>
++            {keptFlash && <span role="status">{copy.kept}</span>}
++          </div>
++          {replayError && <p role="alert" className="tweak-reply__error">{replayError}</p>}
++          {keepError && <p role="alert" className="tweak-reply__error">{keepError}</p>}
++
++          {replay && (
++            <div className="tweak-reply__compare">
++              <article className="tweak-reply__compare-old">
++                <h4>{copy.oldLabel}</h4>
++                <p>{oldReply}</p>
++              </article>
++              <article className="tweak-reply__compare-new">
++                <h4>{copy.newLabel}</h4>
++                <p>{replay.replayed_reply}</p>
++              </article>
++            </div>
++          )}
++        </>
++      )}
++    </div>
++  );
++}
+diff --git a/src/studio/copy.ts b/src/studio/copy.ts
+index ca6af34..aba57b6 100644
+--- a/src/studio/copy.ts
++++ b/src/studio/copy.ts
+@@ -31,6 +31,12 @@
+ import type { StudioLocale } from "../creatorStudio/studioLocalePreference";
+ import type { PersonalAuthCopy } from "./personalAuthCopy";
+ import { PERSONAL_AUTH_COPY_TABLE, loadPersonalAuthCopy, personalAuthCopyReady } from "./personalAuthCopyRegistry";
++// WS-R184: TYPE-ONLY -- erased at build time, so this never pulls
++// EmotionOsStudio.tsx's own component code (still lazy-loaded, unchanged)
++// into copy.ts's eager bundle. `DimKey`/`VibeDimCopy` are the exact shape
++// `TweakReplyCopy.dims` below must carry so both screens' dial word tables
++// are structurally the same type, never merely visually similar ones.
++import type { DimKey, VibeDimCopy } from "./EmotionOsStudio";
+ 
+ export interface ExpertSharePanelCopy {
+   title: string;
+@@ -995,6 +1001,39 @@ export interface FirstFiveMinutesCopy {
+   stepDoneLabel: string;
+ }
+ 
++// WS-R184 (EmotionOS test-and-tweak). Meet's own "Tweak this" panel
++// (`TweakReply.tsx`). `dims` MUST stay word-for-word identical to
++// `EmotionOsStudio.tsx`'s own `COPY.<locale>.dims` -- a MECHANICAL drift
++// guard proves this in `evals/tweak-reply/run.mjs`, never a trust-me
++// comment. `deltaWords` is new vocabulary this screen alone needs: a plain
++// comparative for each dial's two directions, stated in words
++// ("warmer, more direct") rather than numbers -- `renderVibe`'s own
++// "no digit in a rendered block" rule, restated for the person's own
++// reading of their tweak rather than the model's prompt.
++export interface TweakReplyCopy {
++  ariaLabel: string;
++  tweakThis: string;
++  heading: string;
++  loading: string;
++  loadFailed: string;
++  retry: string;
++  dims: VibeDimCopy;
++  oldLabel: string;
++  newLabel: string;
++  replay: string;
++  replaying: string;
++  deltaLabel: string;
++  deltaNone: string;
++  deltaWords: Record<DimKey, { up: string; down: string }>;
++  keepThisVibe: string;
++  keeping: string;
++  kept: string;
++  discard: string;
++  closeLabel: string;
++  errorReplayFailed: string;
++  errorKeepFailed: string;
++}
++
+ export interface StudioCopy {
+   personalAuth: PersonalAuthCopy;
+   expertSharePanel: ExpertSharePanelCopy;
+@@ -1008,6 +1047,7 @@ export interface StudioCopy {
+   mirrorCallStudio: MirrorCallStudioCopy;
+   cloneExperienceShell: CloneExperienceShellCopy;
+   firstFiveMinutes: FirstFiveMinutesCopy;
++  tweakReply: TweakReplyCopy;
+ }
+ 
+ const EN_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+@@ -2028,6 +2068,45 @@ const EN_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+   stepDoneLabel: "Done",
+ };
+ 
++// WS-R184. `dims` copied verbatim from `EmotionOsStudio.tsx#COPY.en.dims`
++// -- `evals/tweak-reply/run.mjs`'s own drift guard fails the build if these
++// two ever diverge.
++const EN_TWEAK_REPLY: TweakReplyCopy = {
++  ariaLabel: "Tweak this reply's vibe",
++  tweakThis: "Tweak this",
++  heading: "Tweak the vibe",
++  loading: "Loading your vibe",
++  loadFailed: "Your current vibe could not be loaded.",
++  retry: "Try again",
++  dims: {
++    warmth: { label: "Warmth", bands: ["Cold", "Reserved", "Warm", "Affectionate", "Devoted"] },
++    energy: { label: "Energy", bands: ["Still", "Low", "Steady", "Upbeat", "High"] },
++    humour: { label: "Humour", bands: ["Serious", "Dry, rare", "Wry, occasional", "Playful, often", "Goofy, constant"] },
++    directness: { label: "Directness", bands: ["Indirect", "Gentle", "Plain", "Blunt", "Brutally direct"] },
++    formality: { label: "Formality", bands: ["Formal", "Polite", "Casual", "Relaxed", "Very casual"] },
++  },
++  oldLabel: "Before",
++  newLabel: "After",
++  replay: "Replay",
++  replaying: "Replaying",
++  deltaLabel: "Vibe change",
++  deltaNone: "Same vibe",
++  deltaWords: {
++    warmth: { up: "warmer", down: "cooler" },
++    energy: { up: "more energetic", down: "calmer" },
++    humour: { up: "funnier", down: "more serious" },
++    directness: { up: "more direct", down: "gentler" },
++    formality: { up: "more casual", down: "more formal" },
++  },
++  keepThisVibe: "Keep this vibe",
++  keeping: "Keeping",
++  kept: "Kept",
++  discard: "Discard",
++  closeLabel: "Close",
++  errorReplayFailed: "This reply could not be replayed with the new vibe. Try again.",
++  errorKeepFailed: "This vibe could not be saved. Try again.",
++};
++
+ const EN_STUDIO_COPY: StudioCopy = {
+   personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
+   expertSharePanel: EN_EXPERT_SHARE_PANEL,
+@@ -2041,6 +2120,7 @@ const EN_STUDIO_COPY: StudioCopy = {
+   mirrorCallStudio: EN_MIRROR_CALL_STUDIO,
+   cloneExperienceShell: EN_CLONE_EXPERIENCE_SHELL,
+   firstFiveMinutes: EN_FIRST_FIVE_MINUTES,
++  tweakReply: EN_TWEAK_REPLY,
+ };
+ 
+ // The Hindi table is its own chunk (WS-R71's shape). `STUDIO_COPY_TABLE.hi`
+diff --git a/src/studio/dialogueApi.ts b/src/studio/dialogueApi.ts
+index 28b5808..8fa1fc8 100644
+--- a/src/studio/dialogueApi.ts
++++ b/src/studio/dialogueApi.ts
+@@ -1,5 +1,6 @@
+ import { replicaRequest, ReplicaApiError } from "./replicaApi";
+-import type { ReplicaDialogueTurn, ReplicaDialogueHistory, PrivateConversationSource } from "./types";
++import type { ReplicaDialogueTurn, ReplicaDialogueHistory, PrivateConversationSource, ReplicaDialogueDelivery } from "./types";
++import type { VibeDim } from "./replicaVibeApi";
+ 
+ const uuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+ function invalidHistory(): never { throw new ReplicaApiError("Conversation history could not be verified", 502, {}); }
+@@ -163,6 +164,30 @@ export async function resetMeetRelState(token: string, replicaId: string): Promi
+   return data;
+ }
+ 
++// WS-R184: EmotionOS test-and-tweak. "Tweak this" -> "Replay" -- the SAME
++// turn, by turn id, replayed through the real compile path with an
++// explicit vibe override. Never sends the turn's own question text: the
++// server looks it up by `turnId` alone (`api/_replica-dialogue.js#
++// replayOwnedDialogueTurn`'s own law). Nothing here is written to
++// `readDialogueHistory`'s own cache or state -- the caller (`TweakReply.tsx`)
++// holds the replayed reply only in its own component state, discarded on
++// close, exactly like `readMeetMemoryFacts` above holds facts in
++// `ExpertConversation.tsx`'s own state rather than a shared cache.
++export type ReplayVibe = { warmth: VibeDim; energy: VibeDim; humour: VibeDim; directness: VibeDim; formality: VibeDim };
++export type DialogueReplay = { turn_id: string; replayed_reply: string; delivery: ReplicaDialogueDelivery; vibe: ReplayVibe };
++function invalidReplay(): never { throw new ReplicaApiError("This tweak could not be verified", 502, {}); }
++export async function replayDialogueTurn(token: string, replicaId: string, turnId: string, vibe: ReplayVibe): Promise<DialogueReplay> {
++  const data = await replicaRequest<{ replay: DialogueReplay }>(token, "/api/replica-dialogue", {
++    method: "POST",
++    body: JSON.stringify({ op: "replay", replica_id: replicaId, turn_id: turnId, ...vibe }),
++  });
++  const r = data.replay;
++  if (!r || r.turn_id !== turnId || typeof r.replayed_reply !== "string" || !r.replayed_reply
++    || !r.vibe || (["warmth", "energy", "humour", "directness", "formality"] as const)
++      .some((k) => !Number.isInteger(r.vibe[k]) || r.vibe[k] < 0 || r.vibe[k] > 4)) invalidReplay();
++  return r;
++}
++
+ export async function readPrivateConversationSources(token:string, replicaId:string, turnId:string, signal?:AbortSignal):Promise<PrivateConversationSource[]> {
+   const data=await replicaRequest<{sources:PrivateConversationSource[]}>(token,"/api/replica-dialogue",{
+     method:"POST",signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000),
+diff --git a/src/studio/hiCopy.ts b/src/studio/hiCopy.ts
+index 79df73f..3829ec4 100644
+--- a/src/studio/hiCopy.ts
++++ b/src/studio/hiCopy.ts
+@@ -6,7 +6,7 @@
+ // already-reviewed wording wherever this file's English matches it, adapting
+ // only where this screen's own English differs (the nearline nearline-busy
+ // states this file's English adds, and one extra extraction blocker key).
+-import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
++import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, TweakReplyCopy, VoicePreviewPanelCopy } from "./copy";
+ 
+ const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+   title: "अपने AI को एक ठिकाना दें।",
+@@ -1036,6 +1036,45 @@ const HI_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+   stepDoneLabel: "हो गया",
+ };
+ 
++// WS-R184. `dims` copied verbatim from `EmotionOsStudio.tsx#COPY.hi.dims`
++// -- `evals/tweak-reply/run.mjs`'s own drift guard fails the build if these
++// two ever diverge.
++const HI_TWEAK_REPLY: TweakReplyCopy = {
++  ariaLabel: "इस जवाब का अंदाज़ बदलें",
++  tweakThis: "इसे बदलें",
++  heading: "अंदाज़ बदलें",
++  loading: "आपकी वाइब लोड हो रही है",
++  loadFailed: "आपकी वर्तमान वाइब लोड नहीं हो सकी।",
++  retry: "फिर कोशिश करें",
++  dims: {
++    warmth: { label: "गर्मजोशी", bands: ["ठंडा", "संकोची", "गर्मजोश", "स्नेही", "समर्पित"] },
++    energy: { label: "ऊर्जा", bands: ["शांत", "कम", "स्थिर", "उत्साहित", "अधिक"] },
++    humour: { label: "हास्य", bands: ["गंभीर", "सूखा, कभी-कभार", "हल्का, कभी-कभार", "चंचल, अक्सर", "मज़ाकिया, हमेशा"] },
++    directness: { label: "स्पष्टता", bands: ["अप्रत्यक्ष", "नरम", "सीधा", "स्पष्ट", "बेहद स्पष्ट"] },
++    formality: { label: "औपचारिकता", bands: ["औपचारिक", "विनम्र", "सहज", "ढीला ढाला", "बहुत सहज"] },
++  },
++  oldLabel: "पहले",
++  newLabel: "बाद में",
++  replay: "फिर से सुनें",
++  replaying: "फिर से चला रहे हैं",
++  deltaLabel: "अंदाज़ में बदलाव",
++  deltaNone: "वही अंदाज़",
++  deltaWords: {
++    warmth: { up: "ज़्यादा गर्मजोश", down: "ज़्यादा ठंडा" },
++    energy: { up: "ज़्यादा ऊर्जावान", down: "ज़्यादा शांत" },
++    humour: { up: "ज़्यादा मज़ाकिया", down: "ज़्यादा गंभीर" },
++    directness: { up: "ज़्यादा सीधा", down: "ज़्यादा नरम" },
++    formality: { up: "ज़्यादा सहज", down: "ज़्यादा औपचारिक" },
++  },
++  keepThisVibe: "यह वाइब सेव करें",
++  keeping: "सेव हो रहा है",
++  kept: "सेव हो गया",
++  discard: "रद्द करें",
++  closeLabel: "बंद करें",
++  errorReplayFailed: "नई वाइब के साथ यह जवाब फिर से नहीं मिल सका। फिर कोशिश करें।",
++  errorKeepFailed: "यह वाइब सेव नहीं हो सकी। फिर कोशिश करें।",
++};
++
+ // `personalAuth` is deliberately absent here: `copy.ts#loadStudioCopy`
+ // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
+ // Hindi loader, so this file owns only the sections named above.
+@@ -1051,4 +1090,5 @@ export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
+   mirrorCallStudio: HI_MIRROR_CALL_STUDIO,
+   cloneExperienceShell: HI_CLONE_EXPERIENCE_SHELL,
+   firstFiveMinutes: HI_FIRST_FIVE_MINUTES,
++  tweakReply: HI_TWEAK_REPLY,
+ };
+diff --git a/src/studio/layoutFixture.tsx b/src/studio/layoutFixture.tsx
+index b3925eb..3e1a8ba 100644
+--- a/src/studio/layoutFixture.tsx
++++ b/src/studio/layoutFixture.tsx
+@@ -243,6 +243,30 @@ const PHRASE_ITEM = {
+   authorship: "mine", owner_speaker: "", consent_scope: "private_context", proposal: "present",
+   created_at: "2026-09-07T00:00:00Z", updated_at: "2026-09-07T00:00:00Z",
+ };
++// WS-R184. `?scenario=tweak-reply`'s own single completed, PERSISTED
++// exchange (a real `session_id`, matching `readDialogueHistory`'s own
++// shape) -- the one turn shape "Tweak this" ever reaches
++// (`api/_replica-dialogue.js#REPLAY_TURN_LOOKUP_SQL`'s own scope).
++const TWEAK_FIXTURE_SESSION = "aa000000-0000-4000-8000-00000000aa01";
++const TWEAK_FIXTURE_TURN = "bb000000-0000-4000-8000-00000000bb01";
++const TWEAK_FIXTURE_HISTORY = {
++  replica_id: FIXTURE_REPLICA.replica_id,
++  session_id: TWEAK_FIXTURE_SESSION,
++  exchanges: [{
++    question: "What should I focus on this week?",
++    trace_id: "dialogue_fixture0000000000000001",
++    answer: {
++      has_continuity: false, has_memory: false, turn_id: TWEAK_FIXTURE_TURN, session_id: TWEAK_FIXTURE_SESSION,
++      reply: "Keep the momentum on the thing you already started. A slow day does not mean it stopped working.",
++      delivery: { mode: "warm", pace: "natural", intensity: 0.5, language_hint: "Hinglish", nonverbals: [] },
++      can_voice: true, billing_state: "not_metered", created_at: "2026-09-10T09:00:00.000Z",
++    },
++  }],
++  latest_request: null,
++  pending: false,
++  billing_pending: false,
++};
++
+ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
+   // Nothing uploaded yet. The base table already is this scenario; listed
+   // for symmetry so `?scenario=empty` and no param at all are the same page.
+@@ -296,6 +320,33 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
+       },
+     },
+   },
++  // WS-R184 (EmotionOS test-and-tweak). Meet's own "Tweak this" panel: a
++  // REAL, ACTIVE voice-ready runtime (this screen's Tweak/Replay op only
++  // ever reaches a PERSISTED turn) and one live vibe row, so the panel's
++  // own dials open already seeded rather than the "no vibe yet" default.
++  // `check-layout.mjs`/`check-accessibility.mjs`'s own `studio:tweak`
++  // target clicks `[data-tweak-open="1"]` open for real -- never a fixture
++  // prop pre-opening it, the SAME "real click" law `deploy-picker` and the
++  // Room dialogs already establish (this file's own header on why).
++  "tweak-reply": {
++    "/api/replica-runtime": {
++      runtime: {
++        replica_id: FIXTURE_REPLICA.replica_id, lifecycle: "active", active: true,
++        can_activate: false, blockers: [],
++        qualification: { passed: 7, required: 7 },
++        versions: { profile: 1, calibration: 1, voice_genome: 2 },
++        activated_at: "2026-09-05T09:00:00.000Z",
++      },
++    },
++    "/api/replica-vibe": {
++      vibe: {
++        vibe_id: "fixture-vibe-tweak-0001", replica_id: FIXTURE_REPLICA.replica_id, owner_user_id: "fixture-owner-0001",
++        version: 1, warmth: 2, energy: 2, humour: 2, directness: 2, formality: 2,
++        note: "", created_at: "2026-09-05T09:00:00.000Z", superseded_at: null,
++      },
++      history: [],
++    },
++  },
+   "voice-warming": {
+     "/api/replica-review": VOICE_DRAFT_REVIEW,
+     "/api/replica-source": { sources: VOICE_DRAFT_REVIEW.review.sources },
+diff --git a/src/studio/tweak-reply.css b/src/studio/tweak-reply.css
+new file mode 100644
+index 0000000..25fb492
+--- /dev/null
++++ b/src/studio/tweak-reply.css
+@@ -0,0 +1,137 @@
++/* TweakReply — WS-R184. Mobile-first (390px): the panel sits BELOW the
++ * reply it tweaks, in normal document flow (never an overlay stealing
++ * space from the thread above it). Desktop (768px+): beside it, in a
++ * two-column row. Tokens from design/tokens.css and studio.css's own
++ * palette (the SAME ones emotionos-studio.css already uses); the dial
++ * fields themselves are unstyled here on purpose — they render through
++ * `.emotionos-studio__dim`/`.emotionos-studio__segmented`, the EXACT
++ * classes `VibeDialFields` already carries, so tweaking this file can
++ * never accidentally diverge the two screens' dials in appearance. */
++@layer components {
++  .tweak-reply {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-block, 24px);
++    margin-block-start: var(--space-item, 16px);
++    padding: var(--space-item, 16px);
++    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
++    border-radius: var(--radius-panel, 14px);
++    background: var(--panel-solid, #fffef9);
++    max-width: 720px;
++  }
++
++  .tweak-reply__head {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: var(--space-item, 16px);
++  }
++  .tweak-reply__head h3 {
++    margin: 0;
++    font-size: var(--text-body, 14px);
++    font-weight: 700;
++    color: var(--ink, #171915);
++  }
++  .tweak-reply__close {
++    background: none;
++    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
++    border-radius: var(--radius-pill, 999px);
++    min-height: 36px;
++    padding: 6px 14px;
++    font-size: var(--text-small, 12px);
++    color: var(--ink-soft, #52564e);
++    cursor: pointer;
++  }
++
++  .tweak-reply__dials {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-block, 24px);
++  }
++
++  .tweak-reply__delta {
++    margin: 0;
++    font-size: var(--text-small, 12px);
++    color: var(--ink-soft, #52564e);
++  }
++  .tweak-reply__delta span { font-weight: 600; color: var(--ink, #171915); }
++
++  .tweak-reply__actions {
++    display: flex;
++    align-items: center;
++    flex-wrap: wrap;
++    gap: var(--space-item, 16px);
++  }
++  .tweak-reply__actions button {
++    min-height: 44px;
++    padding: 10px 20px;
++    border-radius: var(--radius-pill, 999px);
++    border: 1px solid var(--forest, #17493b);
++    background: none;
++    color: var(--forest, #17493b);
++    font-weight: 600;
++    cursor: pointer;
++  }
++  .tweak-reply__actions button:first-child {
++    background: var(--forest, #17493b);
++    color: #fff;
++  }
++  .tweak-reply__actions button:disabled {
++    opacity: 0.5;
++    cursor: not-allowed;
++  }
++  .tweak-reply__actions [role="status"] {
++    color: var(--forest, #17493b);
++    font-size: var(--text-small, 12px);
++  }
++
++  .tweak-reply__error {
++    margin: 0;
++    color: var(--danger, #9d302d);
++    font-size: var(--text-small, 12px);
++  }
++
++  .tweak-reply__compare {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-item, 16px);
++  }
++  .tweak-reply__compare-old,
++  .tweak-reply__compare-new {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-hair, 4px);
++    padding: var(--space-tight, 8px) var(--space-item, 16px);
++    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
++    border-radius: var(--radius-control, 10px);
++  }
++  .tweak-reply__compare-new {
++    border-color: var(--forest, #17493b);
++    background: var(--forest-soft, #e1eee7);
++  }
++  .tweak-reply__compare-old h4,
++  .tweak-reply__compare-new h4 {
++    margin: 0;
++    font-size: var(--text-micro, 11px);
++    text-transform: uppercase;
++    letter-spacing: 0.04em;
++    color: var(--ink-soft, #52564e);
++  }
++  .tweak-reply__compare-old p,
++  .tweak-reply__compare-new p {
++    margin: 0;
++    font-size: var(--text-body, 14px);
++    color: var(--ink, #171915);
++    white-space: pre-wrap;
++  }
++
++  @media (min-width: 768px) {
++    .tweak-reply__compare {
++      flex-direction: row;
++    }
++    .tweak-reply__compare-old,
++    .tweak-reply__compare-new {
++      flex: 1 1 0;
++    }
++  }
++}

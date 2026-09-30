@@ -41,7 +41,7 @@
 // browser battery at evals/sound-browser.mjs is what proves the cues reach a
 // real one.
 import { execSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -315,10 +315,14 @@ ok("feel goes through play", /export function feel[\s\S]{0,120}?play\(cue\);/.te
 // the voice lane. The second half is the import law restated from the other
 // side: the call owns audio, and the way this layer stays out of the echo
 // coefficient is by having no edge to the code that carries it.
-const files = execSync("find src -name '*.ts' -o -name '*.tsx'", { cwd: ROOT, encoding: "utf8" })
-  .trim()
-  .split("\n")
-  .filter(Boolean);
+const sourceFiles = (dir, prefix = "src") =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const relative = `${prefix}/${entry.name}`;
+    const absolute = join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(absolute, relative);
+    return /\.tsx?$/.test(entry.name) ? [relative] : [];
+  });
+const files = sourceFiles(join(ROOT, "src"));
 const synthImporters = files.filter((f) => /from ["'][^"']*sound\/synth["']/.test(src(f)));
 ok("only src/sound imports the synth", synthImporters.every((f) => f.startsWith("src/sound/")), synthImporters.join(","));
 const soundFiles = files.filter((f) => f.startsWith("src/sound/"));
@@ -327,11 +331,31 @@ for (const f of soundFiles) {
 }
 
 // An AudioContext built anywhere else is a second sound layer with no gate on
-// it. The voice lane's three are named, because they predate this and are the
-// thing the gate exists to stay away from.
-const VOICE_CTX = new Set(["src/voice/speech.ts", "src/voice/liveCall.ts", "src/sound/index.ts"]);
+// it. The voice lane's contexts are named, along with Studio's capture-only
+// graph. Studio connects through an exactly-zero gain node only so the browser
+// delivers microphone frames; it is not a second audible output path.
+const studioCapture = code(src("src/studio/wavCapture.ts"));
+ok("Studio microphone capture keeps its processing graph silent", /silent\.gain\.value\s*=\s*0/.test(studioCapture));
+// WS-Y's Mirror Call capture is the same capture-only shape: its context may
+// exist ONLY under the same proof wavCapture carries — an exactly-zero gain
+// between the processor and the destination. Listing it without asserting the
+// silence would turn the enumeration into a bypass list.
+const callCapture = code(src("src/studio/callCapture.ts"));
+ok("Mirror Call capture keeps its processing graph silent", /silent\.gain\.value\s*=\s*0/.test(callCapture));
+for (const file of ["src/creatorStudio/wavCapture.ts", "src/creatorStudio/callCapture.ts"]) {
+  ok(`${file} capture graph stays silent`, /silent\.gain\.value\s*=\s*0/.test(code(src(file))));
+}
+const AUDIO_CONTEXT_OWNERS = new Set([
+  "src/voice/speech.ts",
+  "src/voice/liveCall.ts",
+  "src/sound/index.ts",
+  "src/studio/wavCapture.ts",
+  "src/studio/callCapture.ts",
+  "src/creatorStudio/wavCapture.ts",
+  "src/creatorStudio/callCapture.ts",
+]);
 for (const f of files) {
-  if (VOICE_CTX.has(f)) continue;
+  if (AUDIO_CONTEXT_OWNERS.has(f)) continue;
   ok(`${f} constructs no AudioContext`, !/new\s+(window\.)?(AudioContext|AC)\b/.test(code(src(f))));
 }
 
@@ -455,9 +479,32 @@ ok("and a probe that says no does not", S.blockedBy("send") === null);
 
 // THE THROTTLE. Two transients inside a few milliseconds sum, and a summed
 // transient is louder than either cue's declared peak.
-unlocked();
-S.play("place");
-ok("a second cue on the same millisecond is throttled", S.blockedBy("place") === "throttled");
+// Freeze the clock for this boundary check. Two adjacent JavaScript calls can
+// be descheduled for longer than the gap; wall-clock adjacency is not proof
+// that they happened in the same millisecond.
+const realDateNow = Date.now;
+let throttleNow = 10_000;
+try {
+  Date.now = () => throttleNow;
+  unlocked();
+  voices.length = 0;
+  S.play("place");
+  const firstCueVoices = voices.length;
+  ok("the first cue schedules voices before throttle checks", firstCueVoices > 0);
+  ok("a second cue on the same millisecond is throttled", S.blockedBy("place") === "throttled");
+  S.play("place");
+  ok("same-millisecond play schedules no additional voices", voices.length === firstCueVoices);
+  throttleNow += 69;
+  ok("a cue at 69ms remains throttled", S.blockedBy("place") === "throttled");
+  S.play("place");
+  ok("play inside the gap schedules no additional voices", voices.length === firstCueVoices);
+  throttleNow += 1;
+  ok("a cue at the exact 70ms boundary is allowed", S.blockedBy("place") === null);
+  S.play("place");
+  ok("play at the boundary schedules the next cue", voices.length > firstCueVoices);
+} finally {
+  Date.now = realDateNow;
+}
 
 // AN UNKNOWN CUE. Nothing in TypeScript stops a value arriving from a stored
 // blob or a future build; the gate answers rather than throwing.

@@ -1,0 +1,434 @@
+{
+  "schema": "retained-actual-development-id-column-types/v1",
+  "database": "vyakti_expert_integration_20260906",
+  "observed_at": "2026-09-07T22:47:51.652Z",
+  "receipt_sha256": "8f051be9ce475102034fd2238ef4c4b1db2372a0accbf18d606c856ffeb1f1c3",
+  "rows": [
+    {
+      "table_name": "vy_person",
+      "column_name": "person_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_audit",
+      "column_name": "object_id",
+      "data_type": "text",
+      "udt_name": "text"
+    },
+    {
+      "table_name": "vy_replica_audit",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_audit",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_audit",
+      "column_name": "trace_id",
+      "data_type": "text",
+      "udt_name": "text"
+    },
+    {
+      "table_name": "vy_replica_biometric_verification_grant",
+      "column_name": "challenge_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_biometric_verification_grant",
+      "column_name": "grant_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_biometric_verification_grant",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_biometric_verification_grant",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_consent",
+      "column_name": "consent_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_consent",
+      "column_name": "evidence_source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_consent",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_consent",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_identity_case",
+      "column_name": "identity_case_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_identity_case",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_identity_case",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_identity_case",
+      "column_name": "source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_liveness_challenge",
+      "column_name": "challenge_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_liveness_challenge",
+      "column_name": "identity_case_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_liveness_challenge",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_liveness_challenge",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_liveness_challenge",
+      "column_name": "source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_liveness_verification_attempt",
+      "column_name": "challenge_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_liveness_verification_attempt",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_liveness_verification_attempt",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_model_build",
+      "column_name": "build_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_model_build",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_model_build",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact_decision",
+      "column_name": "artifact_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact_decision",
+      "column_name": "decision_id",
+      "data_type": "bigint",
+      "udt_name": "int8"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact_decision",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact_decision",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact_decision",
+      "column_name": "reviewer_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact",
+      "column_name": "artifact_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact",
+      "column_name": "created_by_job_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact",
+      "column_name": "parent_artifact_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_artifact",
+      "column_name": "source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_attempt",
+      "column_name": "job_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence_decision",
+      "column_name": "decision_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence_decision",
+      "column_name": "evidence_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence_decision",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence_decision",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence_decision",
+      "column_name": "reviewer_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence",
+      "column_name": "artifact_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence",
+      "column_name": "created_by_job_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence",
+      "column_name": "evidence_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_evidence",
+      "column_name": "source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_job",
+      "column_name": "job_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_job",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_job",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_processing_job",
+      "column_name": "source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_source",
+      "column_name": "consent_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_source",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_source",
+      "column_name": "parent_source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_source",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_source",
+      "column_name": "source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_source",
+      "column_name": "upload_intent_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_voice_genome",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_voice_reference",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_voice_reference",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica_voice_reference",
+      "column_name": "source_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica",
+      "column_name": "agent_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica",
+      "column_name": "creation_intent_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica",
+      "column_name": "owner_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica",
+      "column_name": "primary_selection_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica",
+      "column_name": "replica_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    },
+    {
+      "table_name": "vy_replica",
+      "column_name": "subject_person_id",
+      "data_type": "uuid",
+      "udt_name": "uuid"
+    }
+  ]
+}

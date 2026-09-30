@@ -1,0 +1,11 @@
+{
+  "provenance": {
+    "artifact": "scratchpad/expert-tools/grounding28-ab-result-20260908.json",
+    "sha256": "eb1dcecec04cac4a7f7e7969140bd9c383b10d80d614b06612ac734ae5027076",
+    "case_id": "GROUND-EN-HYPOTHETICAL-63",
+    "arm": "candidate",
+    "scope": "Consumed synthetic compiler-level Azure reply. Offline transport regression only."
+  },
+  "raw": "Let's first use the given information and the formula \\( s = ut + \\frac{1}{2} a t^2 \\). Since the cart started from rest, the initial speed \\( u = 0 \\). The displacement \\( s = 63 \\) metres and the time \\( t = 9 \\) seconds. Plugging these in, we get:\n\n\\[ 63 = 0 \\times 9 + \\frac{1}{2} a \\times 9^2 \\]\n\\[ 63 = \\frac{1}{2} a \\times 81 \\]\n\\[ 63 = 40.5 a \\]\n\\[ a = \\frac{63}{40.5} = 1.5556 \\text{ m/s}^2 \\]\n\nSo, under this hypothetical model, the acceleration \\( a \\) is approximately \\( 1.56 \\text{ m/s}^2 \\).\n\nHowever, this is not the measured acceleration because the original problem states that the initial speed and acceleration were not measured. We assumed the cart started from rest and had constant acceleration just for this calculation. The actual acceleration could be different if these assumptions don't hold true.",
+  "old_delivered": "Let's first use the given information and the formula \\( s = ut + \\frac{1}{2} a t^2 \\).\nSince the cart started from rest, the initial speed \\( u = 0 \\).\nThe displacement \\( s = 63 \\) metres and the time \\( t = 9 \\) seconds.\nPlugging these in, we get:\n\\\n\\\n\\\n\\\nSo, under this hypothetical model, the acceleration \\( a \\) is approximately \\( 1.56 \\text{ m/s}^2 \\).\nHowever, this is not the measured acceleration because the original problem states that the initial speed and acceleration were not measured.\nWe assumed the cart started from rest and had constant acceleration just for this calculation.\nThe actual acceleration could be different if these assumptions don't hold true."
+}

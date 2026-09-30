@@ -1,0 +1,19 @@
+FROM python:3.11.11-slim@sha256:a8e0a3090316aed0b11037aac613aef32fb1747dcc1dcb5c0f6c727a0113a07f
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN groupadd --system --gid 10004 voice-broker \
+    && useradd --system --uid 10004 --gid voice-broker --create-home voice-broker
+WORKDIR /srv/open-voice-broker
+COPY broker-requirements.txt ./broker-requirements.txt
+RUN python -m pip install --requirement broker-requirements.txt
+COPY broker.py ./broker.py
+RUN chown -R voice-broker:voice-broker /srv/open-voice-broker
+
+USER 10004:10004
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"
+CMD ["uvicorn", "broker:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log"]

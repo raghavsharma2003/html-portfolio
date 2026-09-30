@@ -1,0 +1,30 @@
+@layer components {
+  .studio-header .account-menu > .text-button {
+    width: auto;
+    min-height: 44px;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .studio-header .signout-button { white-space: nowrap; }
+  .runtime-gate { scroll-margin-top: 92px; }
+  .runtime-version-details {
+    margin-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-soft);
+  }
+  .runtime-version-details > summary {
+    min-height: 44px;
+    padding-block: 12px;
+    cursor: pointer;
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+  }
+  .runtime-version-details > p { margin-top: 16px; font-size: var(--text-small); line-height: 1.6; }
+}
+@layer responsive {
+  @media (max-width: 700px) {
+    .runtime-gate { scroll-margin-top: calc(68px + env(safe-area-inset-top)); }
+  }
+}

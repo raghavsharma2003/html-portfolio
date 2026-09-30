@@ -1,0 +1,9 @@
+version: v1.1.0
+steps:
+  - build: >-
+      -t $Registry/vyakti/voxcpm2-eval:$ID
+      -f Dockerfile
+      .
+    timeout: 3600
+  - push:
+      - $Registry/vyakti/voxcpm2-eval:$ID

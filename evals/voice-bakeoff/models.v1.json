@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "vyakti-voice-bakeoff-models/v1",
+  "asOf": "2026-08-28",
+  "azureRetailCentralIndia": {
+    "source": "https://prices.azure.com/api/retail/prices",
+    "gpuT4PerSecondUsd": 0.000102,
+    "vcpuActivePerSecondUsd": 0.000024,
+    "memoryActivePerGiBSecondUsd": 0.000003,
+    "allocation": {
+      "vcpu": 8,
+      "memoryGiB": 56
+    },
+    "fullyAllocatedPerHourUsd": 1.6632,
+    "notes": "Retail list meters before contract discounts and monthly CPU or memory free grants. GPU, active vCPU, and active memory are additive."
+  },
+  "arms": [
+    {
+      "id": "chatterbox-general-v3",
+      "class": "in_house",
+      "languages": ["hi-IN", "en-IN"],
+      "scripts": ["devanagari", "latin", "mixed"],
+      "cloneMode": "zero_shot_and_lora",
+      "license": "MIT",
+      "integration": "existing_general_runtime",
+      "estimatedActiveMinutes": 12,
+      "shipEligible": true
+    },
+    {
+      "id": "chatterbox-hindi-v3",
+      "class": "in_house",
+      "languages": ["hi-IN"],
+      "scripts": ["devanagari", "latin", "mixed"],
+      "cloneMode": "zero_shot",
+      "license": "MIT",
+      "integration": "existing_isolated_hindi_runtime",
+      "estimatedActiveMinutes": 8,
+      "shipEligible": true
+    },
+    {
+      "id": "indicf5",
+      "class": "in_house_candidate",
+      "languages": ["hi-IN"],
+      "scripts": ["devanagari", "mixed", "latin"],
+      "cloneMode": "reference_audio_plus_transcript",
+      "license": "MIT",
+      "integration": "new_isolated_runtime",
+      "estimatedActiveMinutes": 12,
+      "shipEligible": true,
+      "notes": "Romanized and mixed prompts are stress tests. The official examples use native script."
+    },
+    {
+      "id": "qwen3-tts-1.7b-base",
+      "class": "in_house_candidate",
+      "languages": ["en-IN"],
+      "scripts": ["latin"],
+      "cloneMode": "three_second_zero_shot",
+      "license": "Apache-2.0",
+      "integration": "new_isolated_runtime",
+      "estimatedActiveMinutes": 12,
+      "shipEligible": true,
+      "notes": "Official model supports ten languages and does not list Hindi. It is an English cloning candidate, not a Hindi arm."
+    },
+    {
+      "id": "native-tts-openvoice-v2",
+      "class": "decoupled_in_house_candidate",
+      "languages": ["hi-IN"],
+      "scripts": ["devanagari", "latin", "mixed"],
+      "cloneMode": "native_linguistic_tts_then_tone_color_conversion",
+      "license": "MIT converter; base TTS license remains independently binding",
+      "integration": "new_isolated_converter_after_indicf5_or_sarvam",
+      "estimatedActiveMinutes": 12,
+      "shipEligible": true,
+      "notes": "Research arm that separates Hindi phonology and prosody from owner timbre. OpenVoice V2 converts tone color and does not claim to copy accent or intonation. Final product disclosure and PerTh watermark must be applied after conversion. Sarvam base output makes the whole route vendor-dependent; IndicF5 base output is fully permissive."
+    },
+    {
+      "id": "elevenlabs-v3-ivc",
+      "class": "vendor",
+      "languages": ["hi-IN", "en-IN"],
+      "scripts": ["devanagari", "latin", "mixed"],
+      "cloneMode": "instant_voice_clone",
+      "license": "vendor_api",
+      "integration": "api",
+      "fixedBudgetUsd": 22,
+      "shipEligible": true,
+      "notes": "Use Creator plan list price as the conservative benchmark cost. PVC requires a verified voice and at least thirty minutes of clean audio."
+    },
+    {
+      "id": "minimax-speech-2.8-hd",
+      "class": "vendor",
+      "languages": ["hi-IN", "en-IN"],
+      "scripts": ["devanagari", "latin", "mixed"],
+      "cloneMode": "rapid_voice_clone",
+      "license": "vendor_api",
+      "integration": "api",
+      "fixedBudgetUsd": 1.5,
+      "usdPerMillionCharacters": 100,
+      "shipEligible": true
+    },
+    {
+      "id": "fish-s2.1-pro",
+      "class": "vendor",
+      "languages": ["hi-IN", "en-IN"],
+      "scripts": ["devanagari", "latin", "mixed"],
+      "cloneMode": "zero_shot_or_persistent_reference",
+      "license": "vendor_api",
+      "integration": "api",
+      "usdPerMillionUtf8BytesFallback": 15,
+      "shipEligible": true,
+      "notes": "S2.1 Pro free is time-limited through 2026-08-31. The planner prices it at the paid S2 Pro rate as a conservative fallback. Self-hosted S2 needs at least 24 GB VRAM and its research license is not commercially shippable without a separate agreement."
+    },
+    {
+      "id": "sarvam-bulbul-v3",
+      "class": "vendor_india_ceiling",
+      "languages": ["hi-IN", "en-IN"],
+      "scripts": ["devanagari", "latin", "mixed"],
+      "cloneMode": "dashboard_clone_or_stock_voice",
+      "license": "vendor_api",
+      "integration": "tts_api_clone_creation_dashboard_only",
+      "inrPerTenThousandCharacters": 30,
+      "shipEligible": true,
+      "notes": "Official TTS docs support code-mixed text. Public docs show a ten-second dashboard cloning flow but no clone-creation API, so stock voice is the automated Hindi naturalness ceiling until an owned clone exists."
+    }
+  ]
+}

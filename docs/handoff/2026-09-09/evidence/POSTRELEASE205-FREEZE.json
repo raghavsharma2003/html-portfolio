@@ -1,0 +1,94 @@
+{
+  "base": "f928c80c5e7e696d0d5310f3b9756751a69d2912",
+  "worktree": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-postrelease205",
+  "inputs": [
+    {
+      "head": "c5c2e39e9a9d15f40934229267bc355f18797ed2",
+      "paths": [
+        "evals/room-expert-answer-math.mjs",
+        "evals/room-expert-answer.mjs",
+        "src/engine/brain.ts"
+      ],
+      "patch_sha256": "66c698e654feaa1ad28e4f6e97aacabc94b218a8911a98d415b8275575358d07"
+    },
+    {
+      "head": "0ef3bf048612a76e050f399625f3b471494890cd",
+      "paths": [
+        "api/_learner-communication-contract.js",
+        "evals/fixtures/communication-depth212.json",
+        "evals/room-memory-authority/run.mjs"
+      ],
+      "patch_sha256": "e2a0a97c97c50a4ff16e055590364abfde2c55c03f614732edec749a3e03f8e7"
+    },
+    {
+      "head": "1d0319ed032d96c23e1ea7ad0c2c452a0bc33e7f",
+      "paths": [
+        "api/_replica-claims.js",
+        "evals/replica-claim-extraction/run.mjs"
+      ]
+    }
+  ],
+  "generated": "api/_engine.gen.js rebuild required",
+  "head": "c0eeca5de69db471e99833fa3386af15b78094e6",
+  "status": "clean_source_targeted_checks_pass_actualSQL_model_pending",
+  "suites": 415,
+  "files": [
+    {
+      "path": "evals/room-expert-answer-math.mjs",
+      "sha256": "a70adbac5a136c561f59fb497f074d30e0fb21d38791c69777169043b92335e8"
+    },
+    {
+      "path": "evals/room-expert-answer.mjs",
+      "sha256": "db3dd7b0ef69906c2d1f6629f45f3146296e0f5a052dc98d25368dbd0e59ec54"
+    },
+    {
+      "path": "src/engine/brain.ts",
+      "sha256": "22d6a3f105986f98a19c263d99448fc0d1f52b4ca42f7254720c0dea6c7a708c"
+    },
+    {
+      "path": "api/_learner-communication-contract.js",
+      "sha256": "02aa18bd8da5e8bcd8de94cda6a1c90cac086c18a0063e235fd66a642f031afe"
+    },
+    {
+      "path": "evals/fixtures/communication-depth212.json",
+      "sha256": "dffd27a1d7e72db111038d53c346165c3b75f2b8ae0de479b66de221da6a5283"
+    },
+    {
+      "path": "evals/room-memory-authority/run.mjs",
+      "sha256": "8b7a56202848d81c9c5b9071d76e972e6a2a66334aecab2e180123beb9628278"
+    },
+    {
+      "path": "api/_replica-claims.js",
+      "sha256": "19bf8ad31539332b40b7fcaf9e8db7b417383a61e8f9fbd0bdeb7a22d8d97d23"
+    },
+    {
+      "path": "evals/replica-claim-extraction/run.mjs",
+      "sha256": "a904e6ac85ef449084999951fcefda12126ddc210f81b115167154678aa93836"
+    },
+    {
+      "path": "api/_engine.gen.js",
+      "sha256": "a4f729c1a712832d8d82bcad1bc85df1b1981db63096e089845aee02a32f92fc"
+    },
+    {
+      "path": "context/decisions.md",
+      "sha256": "aca0b0acc5baaed6941b07d8c2f704af84d4281a4153226aded96ad956593c30"
+    },
+    {
+      "path": "context/measurements.md",
+      "sha256": "fc5f00d00de3ae60c916caaeb13a85ac1af82ba8f6cf7f7706207ea1edc05a82"
+    },
+    {
+      "path": "context/rejected.md",
+      "sha256": "0a1c1542d03ab2b2b4f9bc108a5a59e10837f17e2787d3105781cf3768186225"
+    },
+    {
+      "path": "context/graph.json",
+      "sha256": "d04704f7136ab89611f2ca654a6e488cc1c28c42beb9b4e856acc8643792d9f9"
+    }
+  ],
+  "graph": {
+    "nodes": 2958,
+    "edges": 2487
+  },
+  "inert_config_present": true
+}
