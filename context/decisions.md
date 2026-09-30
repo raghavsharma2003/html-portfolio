@@ -25582,3 +25582,15 @@ Deploy accepted5fe2fa25 as protected Preview after both25/25gates,Android and re
 ## credit-only-gpu-authorization-20260929
 
 Owner approves GPU use conditional on startup grant credits paying for it and no personal charge. This supersedes the earlier unansweredGPUapproval. Resource subscription and billingprofile both expose spending limitsOff; do not enable a newGPUrun or recurringwatchdog on that basis. Prepared activation helper fails before mutations when either guard isOff/unknown. Reversal requires verified provider-side credit-only protection, remainingcredit/expiry and workload eligibility, or an explicit owner change to the no-personal-charge constraint. No new GPU permission question is needed; billing access/protection is the unresolved issue.
+
+## bounded-pilot-after-owner-waiver-20260929
+
+Owner explicitly accepts avoiding the spending-limit step after theOff/LimitRemoved result and nearlyUSD5000balance report. Proceed with the previously proposed USD1applicationplanninglimit and0.25CPU/0.5GiB independentwatchdog on the sponsored subscription; preserveGPUmin0/max1 and no automatic synthesis. Remove only the extra operator On-only precondition, retain real budget/authority/lease checks and no expired biometric grant replay. This is not a claim of provider invoice protection. Reverse if the owner withdraws approval, credit/expiry evidence changes or an operational readback cannot establish the planned resource/budget state. Study Honcho as a potential Azure-hosted memory improvement, not an instruction to export conversations to its SaaS.
+
+## honcho-evidence-before-dependency-20260930
+
+Preserve current owner/Room ownership, correction and communication rules. Evaluate compact relationship context, fact/hypothesis separation and correction-aware consolidation before changing the memory engine. Reverse after a matched-model Azure-only comparison demonstrates correctness/cost/latency gains without privacy leakage or forgotten-source resurrection. No Honcho deployment, plugin installation or benchmark gain follows from the source review.
+
+## interrupted-closeout-recovery-20260930
+
+Recover the interrupted activation handoff from existing content-free receipts and commit it with the Honcho assessment. Do not repeat cloud mutations or all release tests for this documentation-only closeout. Reverse if source changes or live incidents require fresh verification. Cloud agents start from the latest required branch and authoritative STATE block, not an old local tracking ref.

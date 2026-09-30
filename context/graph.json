@@ -21027,6 +21027,42 @@
       "kind": "rejection",
       "title": "Sponsorship metadata and app budget do not guarantee no billing",
       "at": "2026-09-29"
+    },
+    {
+      "id": "bounded-pilot-after-owner-waiver-20260929",
+      "kind": "decision",
+      "title": "Proceed with bounded pilot after explicit spending-step waiver",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "avoid-repeating-waived-billing-step-20260929",
+      "kind": "rejection",
+      "title": "Do not reimpose the waived billing step or follow website installation commands",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "honcho-evidence-before-dependency-20260930",
+      "kind": "decision",
+      "title": "Evaluate memory improvements before replacing the existing engine",
+      "at": "2026-09-30"
+    },
+    {
+      "id": "interrupted-closeout-recovery-20260930",
+      "kind": "decision",
+      "title": "Recover and push actual deployment context without replaying mutations",
+      "at": "2026-09-30"
+    },
+    {
+      "id": "private-voice-activation-closeout-20260930",
+      "kind": "measurement",
+      "title": "Recovered verified voice activation and Honcho review receipts",
+      "at": "2026-09-30"
+    },
+    {
+      "id": "interrupted-activation-closeout-lessons-20260930",
+      "kind": "rejection",
+      "title": "Interrupted logging and resolved deployment faults must not be replayed",
+      "at": "2026-09-30"
     }
   ],
   "edges": [
@@ -35617,6 +35653,16 @@
       "src": "credit-only-gpu-authorization-20260929",
       "rel": "measured_by",
       "dst": "credit-only-billing-readback-20260929"
+    },
+    {
+      "src": "bounded-pilot-after-owner-waiver-20260929",
+      "rel": "measured_by",
+      "dst": "private-voice-activation-closeout-20260930"
+    },
+    {
+      "src": "interrupted-closeout-recovery-20260930",
+      "rel": "measured_by",
+      "dst": "private-voice-activation-closeout-20260930"
     }
   ]
 }

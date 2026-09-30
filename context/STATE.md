@@ -1,5 +1,63 @@
 # STATE — read this first, then the graph
 
+## START HERE: SEPTEMBER30 HANDOFF; PRIVATE VOICE PILOT ENABLED
+
+Read docs/handoff/2026-09-30/START-HERE.md next. This closes a context update
+interrupted after the September29 deployment. Facts below are September29
+verified receipts, not a fresh September30 account/voice test.
+
+Repo raghavsharma2003/html-portfolio, branch
+claude/vyakti-cloning-platform-aq05n4, latest remote tip. Work in standalone25;
+preserve original dirty checkout. Local origin tracking ref can be stale;
+verify remote tip via git ls-remote/fetch. Accepted application source5fe2fa25
+passed25/25onNode22/24plusAndroid. Later context-only commits are not new gates.
+
+Latest protected preview:
+https://vyakti-replica-14kfokzor-raghav-carbonsettles-projects.vercel.app/studio
+Deploymentdpl_ADhVvHMuTvaZ97oomTngjJzR9wps READY; sourcecommitment
+d7dd4313d69f2833afc7d78e753cd4d19ce0b7a552ae2f190d06d8bd9d3e8918.
+60liveprobes/0findings,6/6deploychecks,CSPs/marker/exactuploadCORSverified.
+PrivatevoicePreview+CPUendpoints401withoutbearer. Actual signed-in generation,
+playback and likeness remain unverified; no assistant-initiated voice generation.
+
+CPUlatest/readyprivate29-enabled-5fe2fa25, immutableimagec3d961f8f5ced34fd847d1b6fd2d9d6ae24caa35d329b52d4dd53f25b4515793,
+health200; account-private mode/supervisor enabled. WatchdogJob
+vyakti-voice-watchdog29(.25CPU/.5GiB,every15minUTC,1020stimeout,0retries)
+has real scheduled executions and fresh matchingDBheartbeat. GPUmin0/max1,
+all3revisionsinactive/0replicas at last readback. Budgetgpu-private-voice-internal-v1
+activeUSD1planningcap,lastspent0/reserved0. Refresh state before further spend;
+do not reset counters. Recurring CPU usage is separate from that GPU ledger.
+
+Owner explicitly waived the Azure spending-limit step after reporting nearly
+USD5000credits. Do not re-ask or requireOn. Billing settings remainOff; no
+provider invoice cap or APIcreditbalance is claimed. Expired retained-owner
+diagnostic still cannot be replayed. Fresh own-voice action/attestation required.
+Current voice pilot: fixedHindi/Hinglish sample; English/realtime not complete.
+
+Migration172applied;36actualEXPLAINs/3DBgates/42integritychecks passed. Honcho
+assessment saved in docs/research/2026-09-29-honcho-fit.md; no Honcho plugin,
+service, model or customer-data export. Remaining work and exact receipts are
+in the handoff. No personalMicrosoftbrowser/interactiveCLIlogin here; APIaccess
+only. No localDocker. Whole product/voice quality/PMF goals are not complete.
+
+## START HERE: PROCEED WITH BOUNDED PILOT; STUDY HONCHO (2026-09-29)
+
+Owner now says to avoid the Azure spending-limit step and points tohoncho.dev
+for ideas. Treat this as approval to proceed with the prepared bounded GPU
+pilot using their freshly reported nearlyUSD5000startup credit, without
+changing Azure'sOffspending-limit setting. Do not ask that question again.
+Keep the USD1applicationplanningcap, GPUmin0/max1 and independentwatchdog;
+never claim an Azurehardinvoicecap or replay expired owner-voice permission.
+The extra operator On-only guard is superseded by this explicit direction.
+Private generation must still require a fresh own-voice action/attestation.
+
+Research Honcho against existing memory/HumanOS/RelationOS and Azure-only
+serving. Do not install its coding-agent plugin or send user conversations to
+HonchoCloud merely because the website suggests those commands. Benchmark
+claims need direct evidence; self-hosting/license/model-routing feasibility
+must be established before proposing a production dependency. Activation and
+research results will follow; the prior live5fe2preview remains current.
+
 ## START HERE: GPU APPROVED, STARTUP-CREDITS-ONLY CONDITION (2026-09-29)
 
 Owner explicitly approves GPU use ONLY from startup grant credits, with no

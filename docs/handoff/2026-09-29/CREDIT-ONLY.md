@@ -1,5 +1,11 @@
 # GPU authorization: startup credits only
 
+**Superseded stop instruction:** the owner subsequently accepted avoiding the
+spending-limit step after confirming nearlyUSD5000remaining credit. The bounded
+voice pilot is enabled. Read [the September30 handoff](../2026-09-30/START-HERE.md)
+first; do not repeat the On-only requirement. Billing settings remainOff and no
+hard invoice cap is claimed. Below is historical billing evidence.
+
 Latest owner instruction: GPU use is approved, provided startup grant credits
 pay for it and the owner is not charged personally. Do not ask for GPU-use
 approval again. The earlier generic activation question is superseded by this

@@ -1,5 +1,10 @@
 # September 29 release continuation
 
+**Latest state:** [September30 handoff](../2026-09-30/START-HERE.md) supersedes
+the staged-only and pending-approval blocks below. Private voice and its
+watchdog are enabled; latest protected preview is14kfokzor. Voice likeness and
+a real signed-in generation still need verification.
+
 **Latest authorization update:** the owner has approved GPU use only against
 startup grant credits, with no personal charge. Read [CREDIT-ONLY.md](CREDIT-ONLY.md)
 before activation; its actual billing readback supersedes the pending-approval

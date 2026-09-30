@@ -19189,7 +19189,15 @@ September29: accepted5fe2fa25, release36527580868(Node24job109273896691,Node22jo
 
 Verceldeploymentdpl_H6X3z8pcW2rceJusbrH8bJdJk1bz READY atdudt3ubik. Actualmarker sha256:d7dd4313d69f2833afc7d78e753cd4d19ce0b7a552ae2f190d06d8bd9d3e8918,1120files/29207006bytesmatches. Liveprobe n60/0findings; deploy verifier6/6; twoStudioCSPheadersmatch; exactoriginAzureCORSwrite/readback verified preservingunownedproperties. Actual390pxbrowser: documentwidth390,emailcontrol51px,0consoleerrors. Screenshot scratchpad/workbench27/live-signin-390-sep29.png. No real account session/owner voice likeness/competitor result. Receipts REBUILD29-DEPLOYMENT/PREVIEW-PROBES/DEPLOYED-POLICY/DATABASE-APPLY/ACR-VERIFY/CPU-OBSERVE in ignoredexpert-tools.
 
+## private-voice-activation-closeout-20260930
+
+September30 receipt recovery, events measuredSeptember29: applicationbudgetactiveUSD1/spent0/reserved0; CPUlatest/readyprivate29-enabled-5fe2fa25/health200; independentwatchdogmanualexecutionSucceeded and scheduledexecutionsRunning withfresh matchingheartbeat. GPU3inactive revisions/0replicas/min0max1. Deploymentdpl_ADhVvHMuTvaZ97oomTngjJzR9wps accepted5fe2/d7ddsource;60liveprobeszero findings,deploy6/6,CSP2/exactCORS,privatePreview+CPU401boundaries. Realaccountverified=false,modelcalls=0 in finalacceptance. Receipt REBUILD29-VOICE-ACCEPTANCE.json retains the initial failed extra-probe receipt hash and corrected boundary proof. No new September30 cloud mutation or voice-quality test.
+
+Honcho review recovered:7publicsource/configfiles at9d6fe8ca5dc666b99ef04bc00047fea4ca675017,version3.2.1/Python>=3.13. No code execution/inference/data export. Source inspection identifies ownerrecallnewest30 and compiler20row budget as evaluation candidates, not measured model failures. See datedreport for primarysources and limitations.
+
 ## credit-only-billing-readback-20260929
+
+Later n1owner message: accepts avoiding spending-limit step and supplieshoncho.dev. Methodconversationdirection, not a changed Azurebilling state. No new spend or model inference follows from the direction alone; actual operations need separate receipts below.
 
 Follow-up: n1owner reply says approximatelyfullUSD5000remains, onlysomeused. Fresh subscriptionGET200 and billingPropertyGET200 bothstillreportOff; StartupSponsorshipdetail remainsLimitRemoved,end2027-04-04. Receipt CREDIT-ONLY-OWNER-BALANCE-RECHECK-1790668397649181600.json. No resources/billing/budget/GPUstate were changed. Balance is approximateownerreported, not availablethroughAPI.
 
