@@ -373,7 +373,7 @@ export async function roomEntitled(room, t = ident, agentId = MEERA_AGENT_ID) {
  * live, and a new column is a new migration, which is another workstream's
  * ticket, not a thing to smuggle in here.
  */
-export async function roster(groupId, t = ident, agentId = MEERA_AGENT_ID) {
+export async function roster(groupId, t = ident, agentId = MEERA_AGENT_ID, { strict = false } = {}) {
   // The handle now comes from vy_surface_identity when that table exists, and
   // from vy_tg_person when it does not — the same transition fallback
   // personForSurfaceUser runs, for the same reason. `distinct on` is required
@@ -391,7 +391,7 @@ export async function roster(groupId, t = ident, agentId = MEERA_AGENT_ID) {
       order by m.joined_at asc, m.person_id asc
       limit 6`,
     [groupId, agentId],
-  ).catch(() => null);
+  ).catch((error) => { if (strict) throw error; return null; });
   const rows =
     wide ??
     (await q(
@@ -428,18 +428,63 @@ const BIND = { recipients: "$1", isGroup: "$2", roomId: "$3", negTags: "$4", age
  * block recall has always lived in; the room does not get a second, parallel
  * recall path.
  */
-export async function roomRecall(groupId, recipients, { limit = 8, agentId = MEERA_AGENT_ID } = {}, t = ident) {
+export async function roomRecall(groupId, recipients, { limit = 8, agentId = MEERA_AGENT_ID, strict = false } = {}, t = ident) {
   if (!recipients.length) return [];
   const pred = applyResolver(disclosurePredicate("fact", BIND), t);
   return await q(
-    `select f.id, f.body, f.name, f.created_at
+    `select f.id, f.body, f.name, f.created_at, f.citations, f.group_id
        from ${t("vy_fact")} f
       where f.t_invalid is null and f.retracted_at is null ${pred}
       order by f.need_p desc, f.created_at desc
       limit ${Number(limit) | 0}`,
     [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
-  ).catch(() => []);
+  ).catch((error) => { if (strict) throw error; return []; });
+}
+
+/** Raw turns are evidence too. The same episode disclosure predicate used by
+ * recall applies BEFORE ordering/limiting; a group id alone is never an ACL.
+ * Legacy turns without an episode cannot establish their original audience.
+ * Assistant turns are retained for audit/export but NOT reused as evidence:
+ * their episode audience does not prove the dependencies of a paraphrase. */
+export async function roomHistoryEvidence(groupId, recipients, { limit = 20, agentId = MEERA_AGENT_ID } = {}, t = ident) {
+  if (!Array.isArray(recipients) || !recipients.length) return [];
+  const pred = applyResolver(disclosurePredicate("episode", BIND), t);
+  return await q(
+    `select l.id, l.role, l.content, l.episode_id, l.speaker_person_id
+       from ${t("meera_log")} l
+       join ${t("vy_episode")} f on f.id = l.episode_id
+        and f.agent_id = l.agent_id and f.group_id = l.group_id
+      where l.group_id = $3::bigint and l.agent_id = $5::uuid
+        and l.role = 'me' and l.speaker_person_id is not null
+        and f.superseded_by is null ${pred}
+      order by l.id desc limit $6::integer`,
+    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId, Math.max(1, Math.min(40, Number(limit) | 0))],
+  );
+}
+
+/** Current group authority read. Callers compare this receipt to a complete
+ * transport audience witness, never to a linked subset alone. No catch: an
+ * unavailable authority is not a valid empty group. */
+export async function groupTurnAuthority(groupId, agentId = MEERA_AGENT_ID, t = ident) {
+  const rows = await q(
+    `select g.id, g.agent_id, g.surface, g.surface_chat_id, g.read_consent_at, g.quiet_level, g.member_cap,
+            coalesce((select jsonb_agg(jsonb_build_object('person_id',m.person_id,
+              'surface',m.surface,'surface_user_id',m.surface_user_id,
+              'linked_at',m.linked_at,'left_at',m.left_at,'quiet_level',m.quiet_level) order by m.person_id)
+              from ${t("vy_group_member")} m
+             where m.group_id=g.id and m.agent_id=g.agent_id and m.left_at is null), '[]'::jsonb) as linked_members,
+            coalesce((select array_agg(m.person_id order by m.person_id)
+              from ${t("vy_group_member")} m
+             where m.group_id = g.id and m.agent_id = g.agent_id
+               and m.left_at is null and m.linked_at is not null), '{}'::uuid[]) as recipients,
+            (exists(select 1 from ${t("vy_group_entitlement")} e
+                     where e.group_id = g.id and e.period_end > now())
+             or (g.created_at <= now() and g.created_at > now() - interval '${TRIAL_DAYS} days')) as entitled
+       from ${t("vy_group")} g where g.id = $1::bigint and g.agent_id = $2::uuid`,
+    [groupId, agentId],
+  );
+  return rows[0] || null;
 }
 
 /**
@@ -507,54 +552,57 @@ export const bindDmDevice = (tgUserId, personId, t = ident) =>
  * Returns rows in src/engine/room.ts's BridgeRow shape. It selects; the
  * renderer renders; neither decides.
  */
-export async function roomBridge(groupId, recipients, t = ident, agentId = MEERA_AGENT_ID) {
+export async function roomBridge(groupId, recipients, t = ident, agentId = MEERA_AGENT_ID, { strict = false } = {}) {
   if (!recipients.length) return [];
   const out = [];
   const factPred =
     applyResolver(disclosurePredicate("fact", BIND), t) +
     applyResolver(bridgeEligibilityClause("fact", BIND), t);
   const facts = await q(
-    `select f.id, f.body, f.kind, f.created_at
+    `select f.id, f.body, f.kind, f.created_at, f.citations
        from ${t("vy_fact")} f
       where f.t_invalid is null and f.retracted_at is null and f.group_id = $3 ${factPred}
       order by f.need_p desc, f.created_at desc limit 6`,
     [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
-  ).catch(() => []);
+  ).catch((error) => { if (strict) throw error; return []; });
   for (const f of facts) {
     out.push({
       kind: f.kind === "world" ? "open" : "shared",
       gist: f.body,
       age: ageShort(f.created_at),
+      evidence: { kind: "fact", id: f.id, citations: f.citations },
     });
   }
   const phrasePred =
     applyResolver(disclosurePredicate("phrase", BIND), t) +
     applyResolver(bridgeEligibilityClause("phrase", BIND), t);
   const phrases = await q(
-    `select f.id, f.phrase, f.coined_at
+    `select f.id, f.phrase, f.coined_at, f.origin_episode
        from ${t("vy_phrase")} f
       where f.group_id = $3 ${phrasePred}
       order by f.uses desc, f.coined_at desc limit 4`,
     [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
-  ).catch(() => []);
-  for (const p of phrases) out.push({ kind: "word", gist: p.phrase, age: ageShort(p.coined_at) });
+  ).catch((error) => { if (strict) throw error; return []; });
+  for (const p of phrases) out.push({ kind: "word", gist: p.phrase, age: ageShort(p.coined_at),
+    evidence: { kind: "phrase", id: p.id, episodeId: p.origin_episode } });
   return out;
 }
 
 /** The room's phrase ledger, for the react tier's relevance signal ONLY. Same
  *  predicate — a room word she may not know about is not a word she may react
  *  to. */
-export async function roomWords(groupId, recipients, t = ident, agentId = MEERA_AGENT_ID) {
+export async function roomWords(groupId, recipients, t = ident, agentId = MEERA_AGENT_ID,
+  { strict = false, withEvidence = false } = {}) {
   if (!recipients.length) return [];
   const pred = applyResolver(disclosurePredicate("phrase", BIND), t);
   const rows = await q(
-    `select f.phrase from ${t("vy_phrase")} f where f.group_id = $3 ${pred} limit 40`,
+    `select f.id, f.phrase, f.origin_episode from ${t("vy_phrase")} f where f.group_id = $3 ${pred} order by f.id limit 40`,
     [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
-  ).catch(() => []);
-  return rows.map((r) => r.phrase);
+  ).catch((error) => { if (strict) throw error; return []; });
+  return withEvidence ? rows : rows.map((r) => r.phrase);
 }
 
 /** The predicate text names production relations (vy_episode,
@@ -582,36 +630,35 @@ function ageShort(at) {
 // ── writes ────────────────────────────────────────────────────────────────
 
 /**
- * The group analogue of api/episodes.js's openOrExtendEpisode, and it is a
- * separate function rather than a parameter on that one for a structural
- * reason: that function is keyed `where person_id = $1`, and a room episode
- * carries person_id NULL (008a) precisely so a member's whole-wipe cannot
- * hard-delete it out from under their co-participants. The boundary RULE is
- * the shared one (GAP_MS, imported), the KEY is not.
+ * A new immutable-audience episode per human turn. Retaining the exported
+ * name avoids inventing another caller path, but this MUST NOT extend an old
+ * episode: adding today's members would authorize yesterday's conversation.
+ * Episode and initial participants are created in ONE SQL statement against
+ * the same current-membership snapshot. No inferred audience is accepted.
  */
 export async function openOrExtendGroupEpisode(
   groupId,
-  { gapMs = 45 * 60_000, roomDevice = null, agentId = MEERA_AGENT_ID } = {},
+  { roomDevice = null, agentId = MEERA_AGENT_ID, recipients = [] } = {},
   t = ident,
 ) {
-  const open = await q(
-    `select id, ended_at, started_at from ${t("vy_episode")}
-      where group_id = $1 and agent_id = $2::uuid and provisional = true and superseded_by is null
-      order by started_at desc limit 1`,
-    [groupId, agentId],
-  ).catch(() => []);
-  const now = Date.now();
-  if (open[0]) {
-    const last = new Date(open[0].ended_at ?? open[0].started_at).getTime();
-    if (Number.isFinite(last) && now - last <= gapMs) return { id: open[0].id, extended: true };
-  }
+  const audience = normalizeGroupRecipients(recipients);
+  if (!audience || audience.length < QUORUM) return null;
   const ins = await q(
-    `insert into ${t("vy_episode")}
+    `with made as (insert into ${t("vy_episode")}
        (agent_id, person_id, group_id, device_id, channel, participation, disclosure_scope,
         started_at, ended_at, boundary_reason, summary, provisional)
-     select $4::uuid, null, g.id, $2, 'chat', 'group', 'participants', now(), now(), $3, '', true
-       from ${t("vy_group")} g where g.id = $1 and g.agent_id = $4::uuid
-     returning id`,
+     select $3::uuid, null, g.id, $2::uuid, 'chat', 'group', 'participants', now(), now(), 'audience_turn', '', true
+       from ${t("vy_group")} g where g.id = $1::bigint and g.agent_id = $3::uuid
+        and g.read_consent_at is not null and cardinality($4::uuid[]) between ${QUORUM} and g.member_cap
+        and $4::uuid[] = (select array_agg(m.person_id order by m.person_id)
+          from ${t("vy_group_member")} m where m.group_id = g.id and m.agent_id = g.agent_id
+           and m.left_at is null and m.linked_at is not null)
+     returning id), participants as (
+       insert into ${t("vy_episode_participant")} (episode_id, person_id, role)
+       select e.id, p.person_id, 'participant' from made e cross join unnest($4::uuid[]) p(person_id)
+       returning episode_id
+     ) select e.id from made e
+       where (select count(*) from participants p where p.episode_id=e.id) = cardinality($4::uuid[])`,
     // device_id on a room episode is PROVENANCE only (the legacy forget
     // scopes read it) and it is the room's synthetic device, which is in
     // nobody's vy_person_device mapping — so it can never make a room episode
@@ -622,9 +669,20 @@ export async function openOrExtendGroupEpisode(
     // violation on the first real room turn — invisible until a token exists,
     // which is exactly when it would have fired. Found by the WS-BINDING
     // fixture (its check 0 mirrors production's catalog, defaults included).
-    [groupId, roomDevice, open[0] ? "channel" : "gap", agentId],
-  ).catch(() => []);
+    [groupId, roomDevice, agentId, audience],
+  );
   return ins[0] ? { id: ins[0].id, extended: false } : null;
+}
+
+export function normalizeGroupRecipients(recipients) {
+  if (!Array.isArray(recipients) || !recipients.length || recipients.length > 6) return null;
+  const out = [];
+  for (let i = 0; i < recipients.length; i++) {
+    if (!Object.hasOwn(recipients, i) || typeof recipients[i] !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipients[i])) return null;
+    out.push(recipients[i].toLowerCase());
+  }
+  return new Set(out).size === out.length ? out.sort() : null;
 }
 
 /** THE ACL ITSELF. A participant row is what makes the structural branch true
@@ -635,6 +693,8 @@ export async function addEpisodeParticipant(episodeId, personId, role = "partici
     `insert into ${t("vy_episode")}_participant (episode_id, person_id, role)
      select e.id, $2, $3 from ${t("vy_episode")} e
       where e.id = $1 and e.agent_id = $4::uuid
+       and not exists(select 1 from ${t("meera_log")} l where l.episode_id=e.id)
+       and not exists(select 1 from ${t("vy_episode_participant")} p where p.episode_id=e.id)
      on conflict do nothing`,
     [episodeId, personId, role, agentId],
   );
@@ -649,14 +709,25 @@ export async function addEpisodeParticipant(episodeId, personId, role = "partici
  * writing an orphan (§6.4: no person row, no persistence).
  */
 export async function logRoomTurn(
-  { groupId, roomDevice, speakerPersonId, role, content, kind = "text", agentId = MEERA_AGENT_ID },
+  { groupId, roomDevice, speakerPersonId, role, content, kind = "text", agentId = MEERA_AGENT_ID,
+    episodeId = null, recipients = [] },
   t = ident,
 ) {
-  if (role === "me" && !speakerPersonId) return null;
+  const audience = normalizeGroupRecipients(recipients);
+  if (!episodeId || !audience || (role !== "me" && role !== "her") ||
+      (role === "me" && (!speakerPersonId || !audience.includes(String(speakerPersonId).toLowerCase())))) return null;
   const r = await q(
-    `insert into ${t("meera_log")} (agent_id, device_id, role, channel, kind, content, at, speaker_person_id, group_id)
-     select $7::uuid,$1,$2,'chat',$3,$4, now(), $5,g.id
-       from ${t("vy_group")} g where g.id = $6 and g.agent_id = $7::uuid
+    `insert into ${t("meera_log")} (agent_id, device_id, role, channel, kind, content, at, speaker_person_id, group_id, episode_id)
+     select $7::uuid,$1::uuid,$2,'chat',$3,$4, now(), $5::uuid,g.id,e.id
+       from ${t("vy_group")} g join ${t("vy_episode")} e on e.group_id=g.id and e.agent_id=g.agent_id
+      where g.id = $6::bigint and g.agent_id = $7::uuid and e.id=$8::bigint
+        and g.read_consent_at is not null and e.superseded_by is null
+        and e.disclosure_scope='participants' and cardinality(e.disclosure_deny)=0
+        and $9::uuid[] = (select array_agg(p.person_id order by p.person_id)
+           from ${t("vy_episode_participant")} p where p.episode_id=e.id)
+        and $9::uuid[] = (select array_agg(m.person_id order by m.person_id)
+           from ${t("vy_group_member")} m where m.group_id=g.id and m.agent_id=g.agent_id
+            and m.left_at is null and m.linked_at is not null)
      returning id`,
     [
       roomDevice,
@@ -666,8 +737,10 @@ export async function logRoomTurn(
       speakerPersonId || null,
       groupId,
       agentId,
+      episodeId,
+      audience,
     ],
-  ).catch(() => []);
+  );
   return r[0]?.id ?? null;
 }
 

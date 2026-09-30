@@ -18102,6 +18102,30 @@
       "kind": "rejection",
       "title": "Scopes, deletion requests, read sets and author benchmarks do not replace authority or measured quality",
       "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20260929-distinct-surface-authority",
+      "kind": "decision",
+      "title": "Verify shared-group authority separately from creator-private Rooms",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20260929-layer-acceptance-ledger",
+      "kind": "decision",
+      "title": "Require source, SQL, hosted, transport and human evidence for whole-layer readiness",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20260929-audit-and-initial-evidence",
+      "kind": "measurement",
+      "title": "Twelve group source findings and explicitly author-reported initial checks",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20260929-no-private-group-equivalence",
+      "kind": "rejection",
+      "title": "Private Room tests and linked-member subsets cannot establish shared-group readiness",
+      "at": "2026-09-29"
     }
   ],
   "edges": [
@@ -30677,6 +30701,26 @@
       "src": "honcho20260929-conditional-shadow-trial",
       "rel": "caused_by",
       "dst": "honcho20260929-no-authority-or-quality-shortcuts"
+    },
+    {
+      "src": "groupai20260929-distinct-surface-authority",
+      "rel": "measured_by",
+      "dst": "groupai20260929-audit-and-initial-evidence"
+    },
+    {
+      "src": "groupai20260929-distinct-surface-authority",
+      "rel": "caused_by",
+      "dst": "groupai20260929-no-private-group-equivalence"
+    },
+    {
+      "src": "groupai20260929-layer-acceptance-ledger",
+      "rel": "measured_by",
+      "dst": "groupai20260929-audit-and-initial-evidence"
+    },
+    {
+      "src": "groupai20260929-layer-acceptance-ledger",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
     }
   ]
 }

@@ -1,7 +1,9 @@
 import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { contextTextEvidenceAuthoritySql } from "./_context-claim-authority.js";
-import { utf16CitationQuoteSql } from "./_claim-extraction/citation-coordinates.js";
+import { sliceUtf16Citation, utf16CitationQuoteSql } from "./_claim-extraction/citation-coordinates.js";
+import { normalizeClaimEvidence } from "./_experience-compiler/claim-evidence.js";
+import { CLAIM_EXTRACTION_JSON_SCHEMA } from "./_claim-extraction/contracts.js";
 import {
   materializeAcceptedClaimToRelationalOs,
   retractClaimRelationalMaterialization,
@@ -330,14 +332,72 @@ export function personModelSourceHash(claims, now = Date.now()) {
   return sha256Hex(canonicalJson({ schema: PERSON_MODEL_SCHEMA, accepted }));
 }
 
+const REVIEW_CITATION_SCHEMA = "vyakti.source-aware-claim-review.v1";
+// Every valid citation must survive review: otherwise a selected source cited
+// fourth/fifth vanishes from the source-specific view. Share extraction's cap.
+const MAX_REVIEW_CITATIONS = CLAIM_EXTRACTION_JSON_SCHEMA.properties.claims.items.properties.citations.maxItems;
+const REVIEW_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const REVIEW_TYPED_FIELDS = ["review_schema", "evidence_type", "source_kind", "source_format", "source_locator",
+  "evidence_text", "start_char", "end_char", "context_item_id"];
+
+// This is a presentation projection, not an authorization mechanism. CLAIMS_SQL
+// first rechecks current authority. Full text and private commitments are used
+// only to verify the projection and never leave this whitelist.
+function clientCitation(citation, sourceIds) {
+  if (!citation || typeof citation !== "object" || Array.isArray(citation)
+      || typeof citation.excerpt !== "string" || !citation.excerpt.trim()
+      || citation.excerpt.length > 500
+      || sliceUtf16Citation(citation.excerpt, 0, citation.excerpt.length) === null) return null;
+  const base = { excerpt: citation.excerpt, entailment: number(citation.entailment) };
+  // Retain genuinely legacy excerpt-only fixtures/callers. Partial new metadata
+  // must not become an apparently verified legacy citation on validation failure.
+  if (REVIEW_TYPED_FIELDS.every(key => !Object.hasOwn(citation, key))) return base;
+  if (citation.review_schema !== REVIEW_CITATION_SCHEMA
+      || !REVIEW_TYPED_FIELDS.every(key => Object.hasOwn(citation, key))) return null;
+  try {
+    const evidence = normalizeClaimEvidence({
+      evidence_id: citation.evidence_id, source_id: citation.source_id,
+      input_sha256: citation.input_sha256, record_hash: citation.record_hash,
+      text: citation.evidence_text, evidence_type: citation.evidence_type,
+      source_kind: citation.source_kind, source_format: citation.source_format,
+      source_locator: citation.source_locator,
+      span_start_ms: citation.span_start_ms, span_end_ms: citation.span_end_ms,
+    });
+    if (!sourceIds.some(id => typeof id === "string" && id.toLowerCase() === evidence.source_id)
+        || sliceUtf16Citation(evidence.text, citation.start_char, citation.end_char) !== citation.excerpt
+        || sha256Hex(citation.excerpt) !== citation.quote_hash) return null;
+    const itemId = citation.context_item_id;
+    if (itemId !== null && (typeof itemId !== "string" || !REVIEW_UUID.test(itemId))) return null;
+    const descriptor = evidence.evidence;
+    const locator = descriptor.source_locator;
+    let sourceLocator;
+    if (descriptor.evidence_type === "text_span") {
+      if (itemId === null) return null;
+      const start = locator.start_char + citation.start_char;
+      const end = locator.start_char + citation.end_char;
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || end > locator.end_char) return null;
+      sourceLocator = { unit: "utf16_code_units", relative_to: "canonical_source_text", shape: "contiguous",
+        start_char: start, end_char: end, page_mapping: "unavailable" };
+    } else if (descriptor.evidence_type === "transcript_span") {
+      // These are the entire transcription-input window, not word alignment or
+      // an asserted position in the original uploaded audio/video.
+      sourceLocator = { unit: "transcript_window_ms", relative_to: "transcription_input",
+        start_ms: locator.start_ms, end_ms: locator.end_ms };
+    } else return null;
+    return { ...base, source_id: evidence.source_id, evidence_id: evidence.evidence_id,
+      context_item_id: itemId === null ? null : itemId.toLowerCase(),
+      modality: descriptor.modality, evidence_type: descriptor.evidence_type, format: descriptor.format,
+      interpretation: descriptor.interpretation,
+      citation: { unit: "utf16_code_units", relative_to: "evidence_text",
+        start_char: citation.start_char, end_char: citation.end_char },
+      source_locator: sourceLocator, limitations: [...descriptor.limitations] };
+  } catch { return null; }
+}
+
 export function clientClaim(row) {
+  const sourceIds = Array.isArray(row.source_ids) ? row.source_ids : [];
   const citationPreviews = (Array.isArray(row.citation_previews) ? row.citation_previews : [])
-    .map((citation) => ({
-      excerpt: clean(citation?.excerpt, 500),
-      entailment: number(citation?.entailment),
-    }))
-    .filter((citation) => citation.excerpt)
-    .slice(0, 3);
+    .map(citation => clientCitation(citation, sourceIds)).filter(Boolean).slice(0, MAX_REVIEW_CITATIONS);
   return {
     claim_id: String(row.claim_id),
     domain: row.domain,
@@ -362,7 +422,8 @@ export function clientClaim(row) {
 // a select that returned only the count would have produced an empty register
 // block on every real replica while every offline fixture passed — a dead
 // pipeline with a plausible return, which is the defect class this repo has
-// already paid for more than once. `clientClaim` still emits only the count.
+// already paid for more than once. `clientClaim` emits the count and only the
+// source identifiers of individually verified, currently authorized previews.
 export const CLAIMS_SQL = `select c.claim_id,c.domain,c.key,c.body,c.origin,c.confidence,c.status,c.sensitive,
   c.source_ids,cardinality(c.source_ids) as source_count,c.t_valid_from,c.t_valid_to,c.created_at,c.updated_at,
   d.decision,d.reason_code,d.created_at as reviewed_at,citation.citation_previews
@@ -375,25 +436,49 @@ left join lateral (
 ) d on true
 left join lateral (
   select coalesce(jsonb_agg(jsonb_build_object(
-    'excerpt',preview.excerpt,'entailment',preview.entailment
+    'excerpt',preview.excerpt,'entailment',preview.entailment,
+    'review_schema','${REVIEW_CITATION_SCHEMA}',
+    'source_id',preview.source_id,'evidence_id',preview.evidence_id,'context_item_id',preview.context_item_id,
+    'evidence_type',preview.evidence_type,'source_kind',preview.source_kind,'source_format',preview.source_format,
+    'source_locator',preview.source_locator,'evidence_text',preview.evidence_text,
+    'span_start_ms',preview.span_start_ms,'span_end_ms',preview.span_end_ms,
+    'start_char',preview.start_char,'end_char',preview.end_char,'quote_hash',preview.quote_hash,
+    'input_sha256',preview.input_sha256,'record_hash',preview.record_hash
   ) order by preview.created_at,preview.start_char),'[]'::jsonb) citation_previews
   from (
     select resolved.citation_quote excerpt,
-           cc.entailment,cc.created_at,cc.start_char
+           cc.entailment,cc.created_at,cc.start_char,cc.end_char,cc.quote_hash,
+           e.evidence_id,e.source_id,e.evidence_type,e.input_sha256,e.record_hash,
+           e.value->>'text' evidence_text,e.span_start_ms,e.span_end_ms,
+           s.kind source_kind,e.value->'locator' source_locator,e.value#>>'{provenance,format}' source_format,
+           (select i.item_id from vy_context_item i
+             where i.source_id=s.source_id and i.replica_id=s.replica_id and i.owner_user_id=s.owner_user_id
+               and i.item_id::text=e.value#>>'{provenance,context_item_id}') context_item_id
       from vy_replica_claim_citation cc
       join vy_replica_processing_evidence e
         on e.evidence_id=cc.evidence_id and e.source_id=cc.source_id
        and e.replica_id=cc.replica_id and e.owner_user_id=cc.owner_user_id
+      join vy_replica_source s
+        on s.source_id=cc.source_id and s.replica_id=cc.replica_id and s.owner_user_id=cc.owner_user_id
       cross join lateral (
         select ${utf16CitationQuoteSql("e.value->>'text'", "cc.start_char", "cc.end_char")} citation_quote
       ) resolved
      where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id and cc.owner_user_id=c.owner_user_id
-       and (e.evidence_type='transcript_span' or ${contextTextEvidenceAuthoritySql("e")})
+       and cc.source_id=any(c.source_ids)
+       and (${citedEvidenceAuthoritySql("e", "s")})
+       and r.lifecycle not in ('revoked','purging')
+       and exists (
+         select 1 from vy_replica_consent review_consent
+          where review_consent.replica_id=r.replica_id and review_consent.owner_user_id=r.owner_user_id
+            and review_consent.scope='training' and review_consent.policy_version=r.policy_version
+            and review_consent.revoked_at is null
+            and (review_consent.expires_at is null or review_consent.expires_at>now())
+       )
        and jsonb_typeof(e.value->'text')='string'
        and cc.end_char-cc.start_char between 1 and 500
        and resolved.citation_quote is not null
        and encode(digest(convert_to(resolved.citation_quote,'UTF8'),'sha256'),'hex')=cc.quote_hash
-     order by cc.created_at,cc.start_char limit 3
+     order by cc.created_at,cc.start_char limit ${MAX_REVIEW_CITATIONS}
   ) preview
 ) citation on true
 where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid
@@ -425,7 +510,7 @@ export async function ownedPersonModelStatus(db, ownerUserId, id) {
   }
   return {
     replica_id: rid,
-    claims: rawClaims.map(clientClaim),
+    claims: rawClaims.map(row => clientClaim(trainingConsent ? row : { ...row, citation_previews: [] })),
     readiness,
     profiles: profiles.map((row) => ({ version: number(row.version), status: row.status, created_at: row.created_at })),
   };

@@ -61,16 +61,16 @@ import {
   roomHasSpaceFor,
   personForSurfaceUser,
   linkSurfacePerson,
-  recipientSet,
-  roomEntitled,
   dmRecall,
   bindSurfaceDmDevice,
   roster,
   roomRecall,
   roomBridge,
   roomWords,
+  roomHistoryEvidence,
+  groupTurnAuthority,
+  normalizeGroupRecipients,
   openOrExtendGroupEpisode,
-  addEpisodeParticipant,
   logRoomTurn,
   recordTurnAction,
   surfaceRoomDeviceId,
@@ -573,8 +573,10 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
   // hands them down, and a lane that does not passes none and is unchanged.
   const neverRules = Array.isArray(opts.neverRules) ? opts.neverRules : [];
   await ctx.assertPublicAuthority?.();
+  await opts.assertAuthority?.();
   const raw = await ctx.reply(compiled, turns);
   await ctx.assertPublicAuthority?.();
+  await opts.assertAuthority?.();
   // The availability check comes BEFORE the context is built, and that order
   // is load-bearing rather than tidy: a bundle without the gate is also a
   // bundle without the vocabulary builders `honestyContextFor` calls, so
@@ -599,13 +601,14 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
  * refers to. Both are surface-agnostic statements about meaning, which is why
  * they are decided here rather than in three adapters.
  */
-export async function deliver(ctx, chatKey, msg) {
-  if (msg.kind === "reaction") { await ctx.assertPublicAuthority?.(); return await ctx.send(chatKey, msg); }
+export async function deliver(ctx, chatKey, msg, { assertAuthority } = {}) {
+  if (msg.kind === "reaction") { await ctx.assertPublicAuthority?.(); await assertAuthority?.(); return await ctx.send(chatKey, msg); }
   const parts = ctx.adapter.render(String(msg.text ?? ""));
   if (!parts.length) return { ok: false, error: "empty render" };
   let last = null;
   for (let i = 0; i < parts.length; i++) {
     await ctx.assertPublicAuthority?.();
+    await assertAuthority?.();
     last = await ctx.send(chatKey, {
       ...msg,
       kind: "text",
@@ -865,6 +868,7 @@ export async function upsertRoomMember(
      select $1::uuid, g.id, $3::uuid, $4, $5, $6, now()
        from ${t("vy_group")} g where g.id = $2 and g.agent_id = $1::uuid
      on conflict (group_id, person_id) do update set
+       linked_at = case when ${m}.left_at is not null then null else ${m}.linked_at end,
        left_at = null,
        surface = coalesce(excluded.surface, ${m}.surface),
        surface_user_id = coalesce(excluded.surface_user_id, ${m}.surface_user_id),
@@ -969,6 +973,8 @@ export async function onMemberChange(ev, ctx) {
   }
   if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t, ctx.agentId)))
     return { ok: true, room: room.id, joined: false, full: true };
+  if (!(await verifiedGroupMembership(ctx, room, bits.subjectUserId)))
+    return { ok: false, room: room.id, joined: false, reason: "group_membership_unverified" };
   await upsertRoomMember(
     room.id,
     { personId: bound.person_id, surface: ev.surface, surfaceUserId: bits.subjectUserId, agentId: ctx.agentId },
@@ -991,6 +997,7 @@ export async function onJoin(ev, ctx) {
     // the §7 cap applies on every path a member can arrive by, not just the
     // deep link — see roomHasSpaceFor
     if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t, ctx.agentId))) continue;
+    if (!(await verifiedGroupMembership(ctx, room, u.surfaceUserId))) continue;
     await upsertRoomMember(
       room.id,
       { personId: bound.person_id, surface: ev.surface, surfaceUserId: u.surfaceUserId, agentId: ctx.agentId },
@@ -1096,12 +1103,20 @@ async function onLinkTap(ev, intent, ctx) {
   if (!linked) return { ok: false, error: "link refused" };
   let room = null;
   let full = false;
-  const roomRef = intent.roomRef ? Number(intent.roomRef) : null;
+  // A database bigint is an opaque address, not an IEEE-754 number. Rounding
+  // a deep link could otherwise turn one requested room into another.
+  const rawRoomRef = String(intent.roomRef || "");
+  const roomRef = /^[1-9]\d{0,18}$/.test(rawRoomRef) ? rawRoomRef : null;
   if (roomRef) {
     // §7's ≤6 cap, enforced where a member is ADDED rather than where the
     // address strip is rendered — see roomHasSpaceFor. A refused member still
     // gets their own 1:1 channel; only the room membership is denied.
-    if (await roomHasSpaceFor(roomRef, linked.personId, ctx.t, ctx.agentId)) {
+    const [candidate] = await q(
+      `select ${ROOM_COLS} from ${ctx.t("vy_group")} where id=$1::bigint and agent_id=$2::uuid`,
+      [roomRef, ctx.agentId],
+    ).catch(() => []);
+    if (candidate && await verifiedGroupMembership(ctx, candidate, ev.surfaceUserId) &&
+        await roomHasSpaceFor(roomRef, linked.personId, ctx.t, ctx.agentId)) {
       await upsertRoomMember(
         roomRef,
         { personId: linked.personId, surface: ev.surface, surfaceUserId: ev.surfaceUserId, agentId: ctx.agentId },
@@ -1110,7 +1125,7 @@ async function onLinkTap(ev, intent, ctx) {
       await linkMember(roomRef, linked.personId, ctx.t, ctx.agentId);
       room = roomRef;
     } else {
-      full = true;
+      full = Boolean(candidate) && !(await roomHasSpaceFor(roomRef, linked.personId, ctx.t, ctx.agentId));
     }
   }
   // The intro is a SHAPE, not a scripted line: `recited-prompt` is a measured
@@ -1154,7 +1169,18 @@ async function onLinkTap(ev, intent, ctx) {
     }
   }
   await bindSurfaceDmDevice(ev.surface, ev.surfaceUserId, linked.personId, ctx.t);
-  return { ok: true, linked: true, person: linked.personId, room, intro, roomFull: full };
+  return { ok: true, linked: true, person: linked.personId, room, intro, roomFull: full,
+    ...(roomRef && !room ? { roomUnavailable: "group_membership_unverified" } : {}) };
+}
+
+async function verifiedGroupMembership(ctx, room, surfaceUserId) {
+  if (typeof ctx.verifyGroupMembership !== "function") return false;
+  try {
+    const proof = await ctx.verifyGroupMembership({ room, roomId: room.id, agentId: ctx.agentId,
+      surfaceUserId: String(surfaceUserId || "") });
+    return proof?.verified === true && proof.surfaceUserId === String(surfaceUserId || "") &&
+      typeof proof.revision === "string" && proof.revision.length > 0;
+  } catch { return false; }
 }
 
 /** A DM turn carries BOTH keys: the device (today's legacy forget scopes) and
@@ -1211,6 +1237,56 @@ export async function dmHistory(device, t = ident, limit = 30, agentId = MEERA_A
 // THE ROOM LANE
 // ─────────────────────────────────────────────────────────────────────────
 
+const groupAuthorityError = () => Object.assign(new Error("group_authority_unavailable"),
+  { code: "group_authority_unavailable", status: 503 });
+
+/** Bind a complete, freshly verified external audience to current server
+ * membership. An optional linked-member subset is NOT an audience witness.
+ * A guard is local to one turn; no context shared with another turn mutates. */
+export async function createGroupTurnGuard(ev, ctx, room) {
+  if (typeof ctx.groupAudienceWitness !== "function") throw groupAuthorityError();
+  let expected = null;
+  let sourceReader = null;
+  let sourceReceipt = null;
+  let recipients = null;
+  const checkScope = async () => {
+    const current = await groupTurnAuthority(room.id, ctx.agentId, ctx.t);
+    const audience = normalizeGroupRecipients(current?.recipients);
+    if (!current || !current.read_consent_at || current.entitled !== true || !audience ||
+        audience.length < QUORUM || audience.length > Number(current.member_cap) ||
+        String(current.id) !== String(room.id) || current.agent_id !== ctx.agentId ||
+        current.surface !== ev.surface || String(current.surface_chat_id) !== String(ev.chatKey) ||
+        !Array.isArray(current.linked_members)) throw groupAuthorityError();
+    const witness = await ctx.groupAudienceWitness(ev, { roomId: room.id, agentId: ctx.agentId,
+      room: { ...room, ...current }, linkedMembers: current.linked_members });
+    const verified = normalizeGroupRecipients(witness?.recipients);
+    if (witness?.complete !== true || !verified || JSON.stringify(verified) !== JSON.stringify(audience) ||
+        typeof witness.revision !== "string" || !/^[a-f0-9]{64}$/i.test(witness.revision)) throw groupAuthorityError();
+    const receipt = JSON.stringify({ authority: current, recipients: audience, revision: witness.revision });
+    if (expected !== null && receipt !== expected) throw groupAuthorityError();
+    expected = receipt;
+    recipients = audience;
+  };
+  await checkScope();
+  return {
+    recipients,
+    authority: JSON.parse(expected).authority,
+    bindSources(reader, source) { sourceReader = reader; sourceReceipt = JSON.stringify(source); },
+    async assertAuthority() {
+      await checkScope();
+      if (sourceReader) {
+        if (JSON.stringify(await sourceReader()) !== sourceReceipt) throw groupAuthorityError();
+        // Scope may have changed while source authority was being read.
+        await checkScope();
+        // The external audience witness can itself be slow. A source revoked
+        // during that await must not survive merely because membership stayed
+        // unchanged. These checkpoints are not an atomic egress barrier.
+        if (JSON.stringify(await sourceReader()) !== sourceReceipt) throw groupAuthorityError();
+      }
+    },
+  };
+}
+
 /**
  * A message in a room. The order below IS the design: STORE only what may be
  * stored, DECIDE in code whether to speak, RETRIEVE through the predicate,
@@ -1233,44 +1309,37 @@ export async function onGroupMessage(ev, ctx) {
 
   const bound = await resolveIdentity(ctx, ev);
   const speaker = bound?.person_id || null;
-  if (speaker)
-    await upsertRoomMember(
-      room.id,
-      { personId: speaker, surface: ev.surface, surfaceUserId: ev.surfaceUserId, agentId: ctx.agentId },
-      ctx.t,
-    );
-  const memberRow = speaker
-    ? (
-        await q(
-          `select quiet_level, linked_at from ${ctx.t("vy_group")}_member
-            where group_id = $1 and person_id = $2 and agent_id = $3::uuid`,
-          [room.id, speaker, ctx.agentId],
-        ).catch(() => [])
-      )[0]
-    : null;
-
+  const turnText = String(ev.text || ev.caption || "").slice(0, 4000);
+  // Receiving a message is not a fresh join/consent act. In particular an old
+  // delayed message must never clear a departed member's left_at marker.
   // commands first — they are app-voiced control, never model output
   const cmd = commandOf(ev.text);
   if (cmd) return await onCommand(cmd, { ev, room, speaker, ctx });
 
-  const recipients = await recipientSet(room.id, ctx.t, ctx.agentId);
-  const ent = await roomEntitled(room, ctx.t, ctx.agentId);
+  let guard;
+  try { guard = await createGroupTurnGuard(ev, ctx, room); }
+  catch { return { ok: false, room: room.id, action: "lurk", reason: "group_audience_unverified" }; }
+  const recipients = guard.recipients;
+  const memberRow = guard.authority.linked_members.find((member) => member.person_id === speaker &&
+    member.surface === ev.surface && member.surface_user_id === String(ev.surfaceUserId || "") &&
+    member.left_at === null);
   const gates = {
-    readConsent: room.read_consent_at != null,
+    readConsent: guard.authority.read_consent_at != null,
     quorum: recipients.length >= QUORUM,
-    speakerLinked: Boolean(speaker) && memberRow?.linked_at != null,
-    entitled: ent.entitled,
+    speakerLinked: Boolean(speaker) && recipients.includes(speaker) && memberRow?.linked_at != null,
+    entitled: true,
   };
 
-  const words = gates.readConsent && gates.quorum
-    ? await roomWords(room.id, recipients, ctx.t, ctx.agentId)
+  const wordEvidence = gates.readConsent && gates.quorum
+    ? await roomWords(room.id, recipients, ctx.t, ctx.agentId, { strict: true, withEvidence: true })
     : [];
+  const words = wordEvidence.map((row) => row.phrase);
   const decision = ctx.engine.decideParticipation({
-    text: ev.text || ev.caption || "",
+    text: turnText,
     botUsername: ctx.botHandle,
     replyToHer: Boolean(ev.replyToSelf),
     sinceHerLastMs: await sinceHerLast(room, ctx.t, ctx.agentId),
-    roomQuiet: room.quiet_level || "normal",
+    roomQuiet: guard.authority.quiet_level || "normal",
     memberQuiet: memberRow?.quiet_level || "normal",
     roomWords: words,
     gates,
@@ -1286,31 +1355,25 @@ export async function onGroupMessage(ev, ctx) {
   if (gates.readConsent && gates.quorum && gates.speakerLinked && gates.entitled) {
     const ep = await openOrExtendGroupEpisode(
       room.id,
-      { roomDevice, agentId: ctx.agentId },
+      { roomDevice, agentId: ctx.agentId, recipients },
       ctx.t,
     );
     episodeId = ep?.id ?? null;
-    if (episodeId) {
-      // The participant set is the ACL. Every currently-linked, active member
-      // is a participant of what is said in front of them — that is the
-      // primitive, and it is why the room->room and room->DM directions need
-      // no consent and no model judgement.
-      for (const pid of recipients)
-        await addEpisodeParticipant(episodeId, pid, "participant", ctx.t, ctx.agentId);
-      if (!recipients.includes(speaker))
-        await addEpisodeParticipant(episodeId, speaker, "participant", ctx.t, ctx.agentId);
-    }
+    if (!episodeId) throw groupAuthorityError();
     logId = await logRoomTurn(
       {
         groupId: room.id,
         roomDevice,
         speakerPersonId: speaker,
         role: "me",
-        content: ev.text || ev.caption || "",
+        content: turnText,
         agentId: ctx.agentId,
+        episodeId,
+        recipients,
       },
       ctx.t,
     );
+    if (!logId) throw groupAuthorityError();
   }
 
   await recordTurnAction(
@@ -1329,22 +1392,38 @@ export async function onGroupMessage(ev, ctx) {
   if (decision.action === "lurk")
     return { ok: true, room: room.id, action: "lurk", reason: decision.reason, logId, episodeId };
   if (decision.action === "react") {
+    const readReactionSources = async () => await Promise.all([
+      roomWords(room.id, recipients, ctx.t, ctx.agentId, { strict: true, withEvidence: true }),
+      roomHistory(room.id, ctx.t, 20, ctx.agentId, { recipients, withEvidence: true }),
+    ]);
+    const reactionSources = [wordEvidence,
+      await roomHistory(room.id, ctx.t, 20, ctx.agentId, { recipients, withEvidence: true })];
+    if (!reactionSources[1].some((row) => String(row.id) === String(logId) && row.role === "me" &&
+        row.speaker_person_id === speaker && row.content === turnText)) throw groupAuthorityError();
+    guard.bindSources(readReactionSources, reactionSources);
     await deliver(ctx, ev.chatKey, {
       kind: "reaction",
       emoji: NOTICED_EMOJI,
       replyTo: ev.messageId,
       text: "",
       buttons: [],
-    });
+    }, { assertAuthority: guard.assertAuthority });
     return { ok: true, room: room.id, action: "react", reason: decision.reason, logId, episodeId };
   }
 
   // ── RETRIEVE. Everything below this line came through the predicate.
-  const [facts, bridge, members] = await Promise.all([
-    roomRecall(room.id, recipients, { agentId: ctx.agentId }, ctx.t),
-    roomBridge(room.id, recipients, ctx.t, ctx.agentId),
-    roster(room.id, ctx.t, ctx.agentId),
+  if (!episodeId || !logId) throw groupAuthorityError();
+  const readSources = async () => await Promise.all([
+    roomRecall(room.id, recipients, { agentId: ctx.agentId, strict: true }, ctx.t),
+    roomBridge(room.id, recipients, ctx.t, ctx.agentId, { strict: true }),
+    roster(room.id, ctx.t, ctx.agentId, { strict: true }),
+    roomHistory(room.id, ctx.t, 20, ctx.agentId, { recipients, withEvidence: true }),
   ]);
+  const sources = await readSources();
+  guard.bindSources(readSources, sources);
+  const [facts, bridge, members, historyEvidence] = sources;
+  if (!historyEvidence.some((row) => String(row.id) === String(logId) && row.role === "me" &&
+      row.speaker_person_id === speaker && row.content === turnText)) throw groupAuthorityError();
 
   // ── RENDER through the REAL compiler, with the mp slots live.
   const compiled = ctx.engine.compile({
@@ -1362,13 +1441,14 @@ export async function onGroupMessage(ev, ctx) {
     herLife: "",
     cultureNoteText: "",
     relBundle: null,
-    latestUserText: ev.text || "",
+    latestUserText: turnText,
     gapSinceLastMs: 0,
     ageGates: null,
     roomBundle: { members, bridge },
   });
 
-  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);
+  const history = historyEvidence.filter((row) => String(row.id) !== String(logId))
+    .map((row) => ({ role: row.role === "her" ? "assistant" : "user", content: row.content }));
   // In a room the shared record is what came through the predicate for THIS
   // room's recipient set, plus the bridge rows — every one of them already
   // disclosure-checked above. She may retell what she was handed here and
@@ -1376,10 +1456,11 @@ export async function onGroupMessage(ev, ctx) {
   const gatedOut = await gatedReply(
     ctx,
     compiled,
-    [...history, { role: "user", content: `${ev.handle}: ${ev.text || ""}` }],
+    [...history, { role: "user", content: `${ev.handle}: ${turnText}` }],
     {
-      record: [...facts.map((f) => f.body), ...bridge.map((b) => JSON.stringify(b))],
+      record: [...facts.map((f) => f.body), ...bridge.map(({ evidence: _evidence, ...b }) => JSON.stringify(b))],
       label: `${ev.surface}/room`,
+      assertAuthority: guard.assertAuthority,
     },
   );
   const text = gatedOut.text;
@@ -1389,9 +1470,10 @@ export async function onGroupMessage(ev, ctx) {
       text,
       replyTo: ev.messageId,
       buttons: [],
-    });
+    }, { assertAuthority: guard.assertAuthority });
     await logRoomTurn(
-      { groupId: room.id, roomDevice, speakerPersonId: null, role: "her", content: text, agentId: ctx.agentId },
+      { groupId: room.id, roomDevice, speakerPersonId: null, role: "her", content: text, agentId: ctx.agentId,
+        episodeId, recipients },
       ctx.t,
     );
   }
@@ -1424,14 +1506,13 @@ export async function sinceHerLast(room, t = ident, agentId = MEERA_AGENT_ID) {
 /** The room's live turn window, pinned to the room by `group_id = $1`. A DM
  *  turn (group_id null) can never enter a room's history — the other half of
  *  the channel guard above, in the other direction. */
-export async function roomHistory(groupId, t = ident, limit = 20, agentId = MEERA_AGENT_ID) {
-  const rows = await q(
-    `select role, content from ${t("meera_log")}
-      where group_id = $1 and agent_id = $2::uuid order by id desc limit ${limit | 0}`,
-    [groupId, agentId],
-  ).catch(() => []);
+export async function roomHistory(groupId, t = ident, limit = 20, agentId = MEERA_AGENT_ID,
+  { recipients = [], withEvidence = false } = {}) {
+  const audience = normalizeGroupRecipients(recipients);
+  if (!audience) return [];
+  const rows = (await roomHistoryEvidence(groupId, audience, { limit, agentId }, t)).reverse();
+  if (withEvidence) return rows;
   return rows
-    .reverse()
     .map((r) => ({ role: r.role === "her" ? "assistant" : "user", content: r.content }));
 }
 
@@ -1545,6 +1626,8 @@ export function makeCtx(adapter, deps = {}) {
     agent: deps.agent ?? null,
     agentId: deps.agentId || MEERA_AGENT_ID,
     assertPublicAuthority: deps.assertPublicAuthority,
+    groupAudienceWitness: deps.groupAudienceWitness,
+    verifyGroupMembership: deps.verifyGroupMembership,
     linkIntent: deps.linkIntent || null,
     linkFor: deps.linkFor || null,
   };
