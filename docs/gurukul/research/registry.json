@@ -507,16 +507,16 @@
     {
       "id": "known-consent-source-admission",
       "title": "Ordinary group sources must follow every known consent boundary",
-      "state": "implemented",
-      "outcome": null,
-      "observedAt": null,
+      "state": "completed",
+      "outcome": "pass",
+      "observedAt": "2026-10-01",
       "hypothesis": "Authenticated ordinary-message source time can exclude delayed sources predating current group-reading or recipient-link consent before raw-content persistence, without inventing historical audience or replay policy.",
       "sourceIds": ["telegram-source-event-contract"],
       "artifactPaths": ["docs/gurukul/research/GROUP-SOURCE-EVENT-BOUNDARY-20261001.md", "api/_group-source-event.js", "api/tg.js", "api/_surface.js", "api/_room.js", "evals/group-source-event/run.mjs", "evals/group-turn-authority/run.mjs", "evals/group-sql-authority/run.mjs"],
       "runCommand": "node evals/group-source-event/run.mjs",
       "successCriteria": ["Copy primitive original ordinary-message kind/sent seconds at authenticated ingress before awaits; never substitute edit or receipt time, and ignore unsupported group envelopes before source processing.", "Require canonical positive whole-second UTC source time strictly after current reading consent and every admitted recipient linked time before raw writes; repeat inside episode/log INSERT SELECT snapshots.", "Preserve exact microsecond authority comparison for real PostgreSQL Z and signed HH/HHMM/HH:MM offsets; execute the actual SQL authority result through the helper without fixture normalization.", "Pass pure ingress, actual caller/unchanged delivery, source-only controls, new actual synthetic PostgreSQL and combined hosted gates separately before assigning an outcome.", "Keep source at as storage time, do not backfill old history or adopt TTL/replay/retirement policy, and make no historical-membership, serialized-erasure, concurrency or atomic-delivery claim."],
       "evidenceScope": "offline_contract",
-      "result": null
+      "result": "2026-10-01: exact pushed code 808ad32f23aaac609e5793ce4e692c6c6a2a42bb passes both 24/24 release jobs in 36894264452, separate actual synthetic SQL 50 in 36894264361/job 110477184072 and APK 36894264406/job 110477183981. SQL case 31 passes real unmodified PostgreSQL authority timestamp formats through the actual helper. Final logs include ingress 26, actual group caller 170, delivery 44, agentroom 48, kernel 39, selector 46, UI 20 source/22 mounted, publication 40+8 and refresh 12 mounted/24 outcomes plus 10 observer/24 source controls. Release relational gates explicitly skip without NEON_URL and Hindi is skipped; separate SQL is synthetic query/helper proof, not live Neon. The accepted contract excludes delayed ordinary sources predating known recorded current reading/link consent and preserves unsupported-envelope refusal, immutable source time and statement-snapshot admission. It does not establish historical audience, unseen membership changes, serialized/concurrent erasure, replay prevention, TTL/retirement policy, live transport/provider quality, atomic delivery, deployment or human usefulness. Source at remains storage time without backfill; recall stays inconclusive/unpromoted and durable effects planned. All earlier failed CI receipts are preserved."
     }
   ]
 }

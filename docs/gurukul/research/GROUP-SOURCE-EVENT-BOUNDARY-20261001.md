@@ -2,6 +2,8 @@
 
 Date: 1 October 2026. This extends [the delivery audit](GROUP-DELIVERY-DURABILITY-20261001.md) without adopting its proposed replay-retention policy. It is a new working software candidate after verified `fe652992`; its new SQL and combined hosted acceptance are still pending at this receipt.
 
+**Subsequent software acceptance, 1 October:** exact `808ad32f23aaac609e5793ce4e692c6c6a2a42bb` passes [release 36894264452](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36894264452), all 24 configured checks on Node 22 and 24; both explicitly skip relational gates without `NEON_URL`. Separate [synthetic PostgreSQL 36894264361](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36894264361) executes all 50 groups, including unmodified authority timestamps through the real helper. [APK 36894264406](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36894264406) succeeds, including ingress 26, actual group caller 170 and delivery 44. Application source is unchanged from `af17fbca`; intervening fixes repair evaluation synchronization. The initial receipt below is retained as history; the [readiness ledger](GROUPAI-READINESS-20260929.md) preserves failures, repairs and exact completion evidence. This accepts the bounded software contract, not historical membership, concurrent erasure, replay suppression, live providers, deployment or whole-product readiness.
+
 ## Problem and narrow guarantee
 
 Current membership alone is not enough to admit a delayed message. If a message predates another recipient's known consent, storing it under the current recipient set can give that old observation a newer audience. The check must cover every recipient, not just the sender.

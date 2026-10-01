@@ -18450,6 +18450,24 @@
       "kind": "rejection",
       "title": "Do not allow arbitrary auth scopes filter captured errors or infer masked tokens to force fixture success",
       "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-exact-808-software-acceptance",
+      "kind": "decision",
+      "title": "Accept exact808 known-consent software contracts without promoting recall quality or whole Group AI readiness",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-final-combined-808ad32f",
+      "kind": "measurement",
+      "title": "Exact808 completes both24-check releases actualSQL50 and APK with verified caller and mounted controls",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-green-contract-not-group-product",
+      "kind": "rejection",
+      "title": "Final green software contracts do not prove durable replay historical audience live quality or product completion",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -31323,6 +31341,21 @@
     },
     {
       "src": "grouprelease20261001-review-auth-chronology-triage",
+      "rel": "part_of",
+      "dst": "groupconsent20261001-source-time-fence"
+    },
+    {
+      "src": "groupconsent20261001-exact-808-software-acceptance",
+      "rel": "measured_by",
+      "dst": "groupconsent20261001-final-combined-808ad32f"
+    },
+    {
+      "src": "groupconsent20261001-exact-808-software-acceptance",
+      "rel": "caused_by",
+      "dst": "groupconsent20261001-green-contract-not-group-product"
+    },
+    {
+      "src": "groupconsent20261001-exact-808-software-acceptance",
       "rel": "part_of",
       "dst": "groupconsent20261001-source-time-fence"
     }

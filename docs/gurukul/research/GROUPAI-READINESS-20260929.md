@@ -1,5 +1,21 @@
 # GroupAI readiness ledger, 29 September 2026
 
+## Exact software slice accepted; whole Group AI still incomplete, 1 October
+
+Source of truth is `808ad32f23aaac609e5793ce4e692c6c6a2a42bb`. Release `36894264452`: Node 22 `110477186740` passes 24/24 at `2026-10-01T17:03:19.6215103Z`, Node 24 `110477186992` passes 24/24 at `2026-10-01T16:59:00.6764599Z`. Both explicitly skip relational checks without `NEON_URL` (17:03:19.6214439Z and 16:59:00.6763731Z); Hindi remains skipped. Separate actual synthetic SQL `36894264361`/`110477184072` passes 50 at `2026-10-01T16:45:35.0482042Z`, including unmodified PostgreSQL authority-to-helper case 31.
+
+APK `36894264406`/`110477183981` succeeds, Gradle `2026-10-01T17:01:32.4805979Z`. Artifact `11179058502`: 19,310,090 bytes, SHA-256 `0dffda291643c7c1a80081a8558fe247a16cbd233bfb10e0907c9015f46a6043`. Logs verify UI 20 source/22 mounted, publication 40+8, caller 170, kernel 39, selector 46, delivery 44, ingress 26, agentroom 48, refresh 12 mounted/24 outcomes plus ten observer/24 source controls. The prior SHA-verified Node 24 UI JSON/eight request witnesses/44 px sizing and restored 27 px negative/focus-hit evidence is retained without claiming a new visual pass.
+
+Only known-consent source admission becomes completed/pass at automated software-contract scope. Recall remains completed/inconclusive and lexical is not default-promoted; durable effects remain planned. Native web/platform identity and shared UI, explicit grants, group media, dependent forgetting, durable replay and a consented human task remain open. Both owner choices are unanswered and no policy is adopted. No live/provider/concurrency/serialized-erasure/historical-membership/atomic-delivery/deployment or full-product acceptance follows. Root's final context-only commit records these facts; tested code remains `808ad32f`. All failed predecessor receipts below remain preserved.
+
+## Review fixture successor pushed; final combined receipts pending, 1 October
+
+Root confirms clean pushed `808ad32f23aaac609e5793ce4e692c6c6a2a42bb`, with product/database/package/workflow bytes unchanged from `af17fbca`. Actual SQL `36894264361`/`110477184072` passes 50 at `2026-10-01T16:45:35.0482042Z`; real PostgreSQL helper case 31 passes at `2026-10-01T16:45:28.1439265Z`. This is scoped synthetic proof on the new candidate, not live SQL or final combined acceptance.
+
+Release `36894264452` Node 24 `110477186992` passes 24/24 at `2026-10-01T16:59:00.6764599Z`, relational skip explicit at `16:59:00.6763731Z`. Node 22 `110477186740` remains pending and Hindi `110477188324` is skipped. APK `36894264406` passes its eval registry and reaches watch-performance but is not complete; slow browser setup has no established cause. Hold all experiment promotion and preserve 796c's failed APK alongside its release passes.
+
+Root verifies Node 24 UI artifact `11179592711` (726,031 bytes; SHA-256 `6e02335b3424b21dc231448b18dd9ceee6a9b6e8173c2b5e1f5bd8c71b101b90`) and inspects result JSON at `2026-10-01T16:58:10.951Z`/Node 24.21.0: 20 source/22 mounted, zero errors/unknowns, eight correctly admitted opening/owner/token/replica activity witnesses with status 200 and all completion flags true. Four heights are 44 at 390/1440, the 27 px negative is detected/restored, keyboard/five-point hits pass and mutations are zero. This is machine-result verification, not a new visual pass. Known-consent stays implemented/null until combined completion; neither owner choice is answered and no live/product/policy change occurs.
+
 ## Review fixture authorization error after mounted passes, 1 October
 
 Exact `796c3ca4` APK `36892121383`/job `110470049489` fails `source-aware-review-ui` at `2026-10-01T16:34:26.1491414Z`. All 22 mounted checks pass before final `run.mjs:309:49` finds a fixture-server error: `activity authorization matches current fixture scope`. Actual/expected bearer values are masked, so no value or shared-race cause is inferred. Production/UI source is unchanged but the error is not waived.
@@ -244,14 +260,14 @@ Owner source review is a separate useful slice: selected Context Locker source f
 
 | Evidence level | Current state | What it establishes |
 |---|---|---|
-| Source review | Exact `3e036e7d` portable integration independently approved after immutable destination/default-send repairs. | Inspectable mechanisms and reviewed caller binding, not atomic external delivery. |
-| Offline real-caller controls | Root-confirmed kernel 39 and integrated caller 86; related caller suites and hosted reruns pass. | Bounded control flow with doubles, not live provider/transport guarantees. |
-| Actual PostgreSQL | Exact `796c3ca4`: run `36892121400` passes 50 groups including actual raw-authority helper case 31. | Actual scoped synthetic SQL/helper proof only; no live catalog, Neon transport, concurrent/serialized-erasure result. |
-| Hosted browser and full release | Exact `796c3ca4`: both releases pass 24/24 and refresh detail is verified, but APK fails review-fixture activity authorization after 22 mounted checks. | Separate APK failure blocks combined acceptance; four-file fixture now has root/source approval but awaits hosted proof, no whole-layer/device/human result. |
+| Source review | Exact accepted `808ad32f` includes independently reviewed checkpoint, recall, truthful delivery and known-consent source boundaries. | Declared source/caller contracts only, not historical membership, durable replay or atomic external delivery. |
+| Offline real-caller controls | Final root/hosted proof includes kernel 39, caller 170, selector 46, delivery 44, ingress 26 and agentroom 48. | Bounded actual-module behavior with doubles, not live provider/transport or relevance/user-value guarantees. |
+| Actual PostgreSQL | Exact `808ad32f`: run `36894264361` passes 50 groups including actual raw-authority helper case 31. | Actual scoped synthetic SQL/helper proof only; no live catalog, Neon transport, concurrent/serialized-erasure result. |
+| Hosted browser and full release | Exact `808ad32f`: both Node releases 24/24, APK succeeds, UI20/22 and publication/refresh details verified with retained machine witnesses. | Complete declared software slice accepted; skips explicit, no new visual/device/human or whole-product result, failed predecessors retained. |
 | Real transport/provider | Not run. | Requires current permissions, consent, bot/platform configuration and a bounded provider budget. |
 | Consented human group task | Not run. | Participants can use, inspect, correct, withdraw and delete within the agreed group task. Required for whole-layer readiness. |
 
-The SQL workflow uses a synthetic GitHub service database without a Neon key. Exact `796c3ca4` has its own SQL50, but APK fails a review-fixture auth assertion and complete release proof remains pending. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Whole-layer goal status is not changed by this ledger.
+The SQL workflow uses a synthetic GitHub service database without a Neon key. Exact `808ad32f` completes SQL50 plus both configured releases and APK; all predecessor failures remain preserved. No local database/container/server, live provider call, cloud resource or deployment is part of this accepted software slice. Whole-layer goal status is not changed by this ledger.
 
 ## Initial evidence, attributed precisely
 
