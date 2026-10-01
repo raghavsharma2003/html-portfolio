@@ -454,8 +454,8 @@ console.log("\n── 7. STATIC — no path emits model text around the gate ─
     [
       "a second, ungated ctx.reply call site",
       SURFACE_SRC.replace(
-        "  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);",
-        "  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);\n  const sneaky = await ctx.reply(compiled, history);",
+        "export async function onGroupMessage(ev, ctx) {",
+        "export async function onGroupMessage(ev, ctx) {\n  const sneaky = await ctx.reply({}, []);",
       ),
       (src) => [...src.matchAll(/ctx\.reply\(/g)].length !== 1,
     ],

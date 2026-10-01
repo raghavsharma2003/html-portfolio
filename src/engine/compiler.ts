@@ -762,7 +762,7 @@ export function compile(input: CompileInput): CompiledPrompt {
         lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
         lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
         warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture,
-      });
+      }, input.nowMs === undefined ? undefined : new Date(input.nowMs));
       if (t2.text) tail += `\n\n${t2.text}`;
     }
     _track("T2");

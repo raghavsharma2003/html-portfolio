@@ -1,0 +1,52 @@
+# Keyless PostgreSQL semantics, ONLY on GitHub-hosted infrastructure. This does
+# not run the realSQL/Neon harness and cannot reach owner data or model serving.
+name: Group and source SQL authority
+
+on:
+  push:
+    branches: [main, "claude/**", "codex/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: group-authority-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        # Docker Official Image, explicit supported major/patch/distribution.
+        # Reviewed 2026-09-29 against docker-library/official-images/library/postgres.
+        image: postgres:16.15-bookworm
+        env:
+          POSTGRES_DB: vyakti_group_synthetic
+          POSTGRES_USER: group_ci
+          POSTGRES_PASSWORD: synthetic-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U group_ci -d vyakti_group_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Require PostgreSQL client
+        run: command -v psql && psql --version
+      - name: Validate the inert source-only harness
+        run: node evals/group-sql-authority/run.mjs --source-only
+      - name: Execute actual production SQL on synthetic PostgreSQL
+        env:
+          GROUP_SQL_SYNTHETIC: hosted-ephemeral-only
+        run: node evals/group-sql-authority/run.mjs --hosted-postgres

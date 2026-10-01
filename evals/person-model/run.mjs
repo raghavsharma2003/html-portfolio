@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -95,9 +96,24 @@ const cited = clientClaim({
   ...claims[0],
   citation_previews: [{ excerpt: "I am Asha.", entailment: 0.97, evidence_id: RID, source_id: RID }],
 });
-ok("owner review exposes only bounded citation text and confidence, never evidence identifiers",
+ok("legacy citation previews expose bounded text without inventing verified evidence identifiers",
   cited.citation_previews[0].excerpt === "I am Asha."
   && !/(evidence_id|source_id)/.test(JSON.stringify(cited.citation_previews)));
+const typedCited = clientClaim({ ...claims[0], citation_previews: [{
+  review_schema: "vyakti.source-aware-claim-review.v1", excerpt: "I am Asha.", entailment: 0.97,
+  evidence_id: RID, source_id: claims[0].source_ids[0], context_item_id: null,
+  evidence_type: "transcript_span", source_kind: "audio", source_format: null, source_locator: null,
+  evidence_text: "I am Asha. More private words beyond this quote.", start_char: 0, end_char: 10,
+  span_start_ms: 0, span_end_ms: 1_000, input_sha256: "a".repeat(64), record_hash: "b".repeat(64),
+  quote_hash: createHash("sha256").update("I am Asha.").digest("hex"),
+  object_path: "private-storage-path", provider_ref: "private-provider", vector: [1, 2, 3],
+}] });
+ok("verified owner review adds source coordinates without private fingerprints, storage or full transcript",
+  typedCited.citation_previews[0]?.source_id === claims[0].source_ids[0]
+  && typedCited.citation_previews[0]?.evidence_id === RID
+  && typedCited.citation_previews[0]?.modality === "audio"
+  && typedCited.citation_previews[0]?.citation.end_char === 10
+  && !/(input_sha256|record_hash|quote_hash|canonical_text_sha256|object_path|provider_ref|vector|private-storage|private-provider|More private words)/.test(JSON.stringify(typedCited)));
 
 function rowForSql(item) {
   return { ...item, source_count: item.source_ids.length, reviewed_at: "2026-08-24T01:00:00.000Z" };
@@ -114,11 +130,15 @@ const status = await ownedPersonModelStatus(async (sql, params) => {
 ok("owner sees reviewed claims without source identifiers", status.readiness.ready && !/source_ids/.test(JSON.stringify(status)));
 ok("all Person Model reads bind replica and authenticated owner", statusCalls.every((call) => call.params[0] === RID && call.params[1] === OWNER));
 const claimReadSql = statusCalls.find((call) => /from vy_replica_claim c/i.test(call.sql)).sql;
-ok("citation previews recheck exact quote hashes and reveal no evidence or source ids",
+ok("citation preview SQL rechecks exact quotes and current source authority before projecting typed identity",
   /cc\.end_char-cc\.start_char between 1 and 500/.test(claimReadSql)
   && /encode\(digest\(convert_to/.test(claimReadSql)
   && /\),'sha256'\),'hex'\)=cc\.quote_hash/.test(claimReadSql)
-  && !/jsonb_build_object\([\s\S]{0,160}(evidence_id|source_id)/.test(claimReadSql));
+  && claimReadSql.includes("'source_id',preview.source_id,'evidence_id',preview.evidence_id")
+  && claimReadSql.includes("cc.source_id=any(c.source_ids)")
+  && claimReadSql.includes("s.source_id=cc.source_id and s.replica_id=cc.replica_id and s.owner_user_id=cc.owner_user_id")
+  && claimReadSql.includes("review_consent.revoked_at is null")
+  && !/(object_path|provider_ref|storage_bucket|vector)/.test(claimReadSql));
 const absent = await ownedPersonModelStatus(async (sql) => /select r\.replica_id,exists/i.test(sql) ? [] : [], OWNER, RID);
 ok("cross-owner Person Model resolves to not found", absent === null);
 const noTraining = await ownedPersonModelStatus(async (sql) => {

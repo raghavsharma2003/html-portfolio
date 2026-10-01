@@ -1,4 +1,4 @@
-import {StrictMode,useState} from 'react';
+import {StrictMode,useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import Creator from '../../src/creatorStudio/TeacherSheetStudio';
 import Studio from '../../src/studio/TeacherSheetStudio';
@@ -15,7 +15,11 @@ const full={...DEMO_TEACHER,name:'Anjali',slug:'publication-fixture'};
 let auth=0;const onAuth=()=>{auth++;};
 function App(){
  const [replica,setReplica]=useState(initial),[draft,setDraft]=useState<any>(full),[visible,setVisible]=useState(true),[callback,setCallback]=useState(()=>onAuth);
- (window as any).publicationProbe={full,hide:()=>setVisible(false),scope:()=>setReplica('22222222-2222-4222-8222-222222222222'),edit:()=>setDraft({...full,identityWho:'Local changed identity'}),callback:()=>setCallback(()=>()=>{auth++;}),auth:()=>auth,read:()=>readTeacherSheetPublicationReview('synthetic-owner',initial)};
+ // Test-only committed-props witness. An evaluate() that calls a setter is not
+ // evidence that React rendered the new scope or ran the unmount cleanup.
+ const committed=useRef({generation:0,replica,visible,identityWho:draft.identityWho,callbackChanged:false});
+ useEffect(()=>{committed.current={generation:committed.current.generation+1,replica,visible,identityWho:draft.identityWho,callbackChanged:callback!==onAuth};},[replica,draft,visible,callback]);
+ (window as any).publicationProbe={full,hide:()=>setVisible(false),scope:()=>setReplica('22222222-2222-4222-8222-222222222222'),edit:()=>setDraft({...full,identityWho:'Local changed identity'}),callback:()=>setCallback(()=>()=>{auth++;}),committed:()=>committed.current,auth:()=>auth,read:()=>readTeacherSheetPublicationReview('synthetic-owner',initial)};
  const Editor=params.has('old')?OldCreator:params.has('oldLoad')?(params.has('studio')?OldLoadStudio:OldLoadCreator):params.has('studio')?Studio:Creator;
  return <StudioLocaleProvider locale={params.has('hi')?'hi':'en'}><main className="studio-shell" style={{maxWidth:1160,margin:'24px auto',padding:16}}><h1>Teaching sheet</h1>{visible&&(params.has('leaf')?<Publication token="synthetic-owner" replicaId={replica} draft={draft} api={api} onAuthError={callback}/>:<Editor token="synthetic-owner" replicaId={replica} sheetDraft={draft} sheetProvenance="draft" onAuthError={callback}/>)}</main></StudioLocaleProvider>;
 }

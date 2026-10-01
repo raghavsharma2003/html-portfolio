@@ -332,7 +332,7 @@ const {
   openRoom, joinRoom, roomSay, roomSetLocale, followerHistory, createFollowerThread,
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
   roomDisclosureCard, roomSettings, roomSettingsReviewed, roomSetQuietHours,
-  roomRememberedThings, roomCorrectRememberedThing, roomForgetRememberedThing,
+  roomRememberedThings, roomCorrectRememberedThing, roomForgetRememberedThing, roomReclassifyRememberedThing,
   flagReply, unflagReply, followerFlags,
   // WS-R100 (migration 126). The follower's own receipt.
   roomReceipt, roomReceipts,
@@ -614,6 +614,109 @@ async function assertForgeryRefused(doorName, opName, mintValid) {
 
   const dismissErr = await threw(() => roomDismissOffer(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
   okClass("a-forged-session", "room.js", "offer_dismiss: a stale session is refused (WS-R38 finding 1)", dismissErr?.code === "room_session_expired");
+}
+
+// The explicit classification retry uses the same private-memory authority as
+// correction. These are real decision-function calls; SQL remains a double.
+// An eligible snapshot reaches a deliberately denied lease, proving that the
+// refusal controls below are not just an unconfigured model lane passing shut.
+{
+  const { state, db, session } = await setupFollower();
+  const { ROOM_MEMORY_RECLASSIFY_READ_SQL } = await import(pathToFileURL(join(API, "_room-memory-authority.js")).href);
+  const { ROOM_MEMORY_CLAIM_SQL } = await import(pathToFileURL(join(API, "_room-memory-consolidation.js")).href);
+  const follower = state.followers.find((row) => row.person_id === PERSON_A);
+  const authority = [follower.follower_id, String(follower.memory_epoch), follower.agent_id, follower.person_id];
+  const snapshot = {
+    follower_id: authority[0], memory_epoch: authority[1], agent_id: authority[2], person_id: authority[3],
+    fact_id: "51", fact_body: "Please use short answers.", fact_name: "preference",
+    episode_id: "61", source_id: "41", source_content: "Please use short answers.",
+    fact_communication: { version: 1, state: "unclassified", scope: { language: false, script: false, brevity: true },
+      language: null, script: null, brevity: null },
+  };
+  let selectedSnapshot = snapshot;
+  const reads = [];
+  let leaseAttempts = 0;
+  let providerCalls = 0;
+  const query = async (sql, params) => {
+    if (sql === ROOM_MEMORY_RECLASSIFY_READ_SQL) {
+      reads.push(params);
+      return selectedSnapshot ? [structuredClone(selectedSnapshot)] : [];
+    }
+    if (sql === ROOM_MEMORY_CLAIM_SQL) {
+      leaseAttempts++;
+      return []; // No lease, reservation, provider dispatch, or write is permitted.
+    }
+    return db(sql, params);
+  };
+  const deps = {
+    loadAgent, now: NOW,
+    env: { ...ENV, VYAKTI_MODEL_SERVING: "azure_only", CONSOLIDATE_ROOM_DEV: "1",
+      AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com", AZURE_FOUNDRY_API_KEY: "synthetic-offline-key",
+      AZURE_FOUNDRY_ROOM_MEMORY_MODEL: "fixture-model", AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL: "fixture-model-v1",
+      AZURE_REPLICA_BUDGET_ID: "door-classification-fixture", AZURE_REPLICA_APP_BUDGET_USD: "1",
+      AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.4", AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1.6" },
+    roomMemoryLlm: async () => { providerCalls++; throw new Error("unexpected_classification_provider_call"); },
+    roomMemoryFetch: async () => { providerCalls++; throw new Error("unexpected_classification_network_call"); },
+  };
+  const retry = (token = session, factId = "51") => roomReclassifyRememberedThing(query, { session: token, factId }, deps);
+  const [version, body, signature] = session.split(".");
+  const forged = `${version}.${body}.${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+  const forgedErr = await threw(() => retry(forged));
+  okClass("a-forged-session", "room.js", "memory_classify: forged signature stops before fact lookup", forgedErr?.code === "room_session_invalid" && reads.length === 0);
+  const expired = mintRoomSession({ ...reencodeWithSameSig(session).payload, iat: NOW - 13 * 60 * 60 * 1000 }, ENV);
+  const expiredErr = await threw(() => retry(expired));
+  okClass("a-forged-session", "room.js", "memory_classify: expired session stops before fact lookup", expiredErr?.code === "room_session_expired" && reads.length === 0);
+  const crossRoom = mintRoomSession({ ...reencodeWithSameSig(session).payload, i: FX.ROOM_B }, ENV);
+  const crossErr = await threw(() => retry(crossRoom));
+  okClass("b-cross-room", "room.js", "memory_classify: mismatched Room claim stops before fact lookup", crossErr?.code === "room_unavailable" && reads.length === 0);
+  const ageAttestedAt = follower.age_attested_at;
+  follower.age_attested_at = null;
+  const ageErr = await threw(() => retry());
+  okClass("a-forged-session", "room.js", "memory_classify: missing age attestation stops before fact lookup", ageErr?.code === "room_join_required" && reads.length === 0);
+  follower.age_attested_at = ageAttestedAt;
+  const consentAt = follower.memory_consent_at;
+  follower.memory_consent_at = null;
+  const consentErr = await threw(() => retry());
+  okClass("c-body-ids", "room.js", "memory_classify: withdrawn memory consent stops before fact lookup", consentErr?.code === "room_memory_not_enabled" && reads.length === 0);
+  follower.memory_consent_at = consentAt;
+
+  const admitted = await retry();
+  okClass("c-body-ids", "room.js", "memory_classify: eligible control reaches the lease with the exact session authority and fact id",
+    reads.length === 1 && JSON.stringify(reads[0]) === JSON.stringify([...authority, "51"]) && leaseAttempts === 1
+    && admitted.communication_classification === "unconfirmed");
+  for (const [field, value] of [["follower_id", "10000000-0000-4000-8000-000000000099"], ["person_id", PERSON_B],
+    ["agent_id", "b2000000-0000-4000-8000-000000000002"], ["memory_epoch", String(Number(authority[1]) + 1)]]) {
+    selectedSnapshot = { ...snapshot, [field]: value };
+    const before = leaseAttempts;
+    const result = await retry();
+    okClass("c-body-ids", "room.js", `memory_classify: a snapshot with foreign ${field} cannot acquire a lease`,
+      result.communication_classification === "unconfirmed" && leaseAttempts === before);
+  }
+  selectedSnapshot = null;
+  const absent = await retry(session, "99");
+  okClass("c-body-ids", "room.js", "memory_classify: an unavailable body-supplied fact id returns no classification and acquires no lease",
+    JSON.stringify(reads.at(-1)) === JSON.stringify([...authority, "99"]) && absent.communication_classification === "unconfirmed" && leaseAttempts === 1);
+  for (const factId of ["0", "-1", "51 OR 1=1", "9223372036854775808"]) {
+    const before = reads.length;
+    const result = await retry(session, factId);
+    okClass("c-body-ids", "room.js", `memory_classify: malformed fact id ${JSON.stringify(factId)} stops before SQL`,
+      result.communication_classification === "unconfirmed" && reads.length === before);
+  }
+  okClass("c-body-ids", "room.js", "memory_classify: every denied path and the lease-denied control make zero provider calls", providerCalls === 0);
+  // The HTTP bearer check is outside the injected decision function. Keep its
+  // narrower source-level evidence explicit; no mocked database proves auth.
+  const route = scanned(readFileSync(join(API, "room.js"), "utf8"));
+  const start = route.indexOf('if (op === "memory_facts"');
+  const end = route.indexOf('if (op === "set_quiet_hours")', start);
+  const block = route.slice(start, end);
+  const auth = block.indexOf("await requiredUser(req)");
+  const person = block.indexOf("await personForAccount(q, authUserId)");
+  const match = block.indexOf("String(personId) !== String(payload.p)");
+  const rejection = block.indexOf('return res.status(403).json({ error: "room_session_mismatch" })');
+  const classify = block.indexOf("await roomReclassifyRememberedThing(");
+  okClass("wiring", "room.js", "memory_classify: HTTP source requires matching bearer/person before the scoped retry",
+    start >= 0 && end > start && block.slice(0, auth).includes('op === "memory_classify"')
+    && auth >= 0 && person > auth && match > person && rejection > match && classify > rejection);
 }
 
 // checkins.js (follower ops): opt_in, stop, list_mine.
@@ -2832,6 +2935,7 @@ const OP_COVERAGE = {
     memory_facts: { classes: ["a", "b"] },
     memory_correct: { classes: ["a", "b", "c"] },
     memory_forget: { classes: ["a", "b", "c"] },
+    memory_classify: { classes: ["a", "b", "c"] },
     // WS-R131 (migration 134). "Set once, in your account" - the SAME
     // classes and shape as settings_reviewed immediately above: goes
     // through selfScope, no body-supplied person/follower id at all
@@ -4512,6 +4616,7 @@ const OP_INVOKE = {
       session: body.session, factId: body.fact_id, replacement: body.replacement,
     }, fuzzDeps),
     memory_forget: (db, body) => roomForgetRememberedThing(db, { session: body.session, factId: body.fact_id }, fuzzDeps),
+    memory_classify: (db, body) => roomReclassifyRememberedThing(db, { session: body.session, factId: body.fact_id }, fuzzDeps),
     set_quiet_hours: (db, body) => roomSetQuietHours(db, {
       session: body.session, timezone: body.timezone, quietFrom: body.quiet_from, quietTo: body.quiet_to,
     }, fuzzDeps),

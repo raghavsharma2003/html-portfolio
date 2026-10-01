@@ -162,6 +162,33 @@ console.log("\n── 1. one rupture, four assemblies, one set of bytes ──")
   ok("sections.T2 is non-zero", Object.values(sizes).every((n) => n > 0));
 }
 
+// Replay's explicit turn clock must win over the machine running the replay.
+// Changing the process clock must not silently age a fresh fixture into history.
+{
+  const fresh = relBundle({ lastRuptureMoveAt: iso(NOW - 2 * DAY), warmEpisodesSinceRupture: 0 });
+  const expected = t2OnEveryLane(fresh);
+  const settled = relBundle({ lastRuptureMoveAt: iso(NOW - 40 * DAY), warmEpisodesSinceRupture: 0 });
+  const expectedSettled = t2OnEveryLane(settled);
+  const OriginalDate = globalThis.Date;
+  try {
+    globalThis.Date = class extends OriginalDate {
+      constructor(...args) { super(...(args.length ? args : [NOW + 365 * DAY])); }
+      static now() { return NOW + 365 * DAY; }
+    };
+    ok("an advanced host clock cannot change explicit-turn snapshots on any lane",
+      JSON.stringify(t2OnEveryLane(fresh)) === JSON.stringify(expected));
+    ok("settled repair age also remains tied to the supplied turn clock",
+      JSON.stringify(t2OnEveryLane(settled)) === JSON.stringify(expectedSettled));
+    const advanced = t2Of(compile({ ...LANES.chat(fresh), nowMs: NOW + 365 * DAY }));
+    ok("advancing the supplied turn clock still lapses the stance",
+      advanced.includes("not currently held") && advanced !== expected.chat);
+    ok("relative honorific labels also use the supplied turn clock",
+      expected.chat.includes("honorific: tum (3w)"));
+  } finally {
+    globalThis.Date = OriginalDate;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 2. WHEN IT LAPSES, IT LAPSES EVERYWHERE AT ONCE
 // ─────────────────────────────────────────────────────────────────────────

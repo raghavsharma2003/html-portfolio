@@ -6,6 +6,8 @@ import { request, IncomingMessage } from 'node:http';
 import { createHash } from 'node:crypto';
 import { createWebServer, publicAsset } from '../../services/azure-web/server.mjs';
 import { compileRoutes, routeRequest } from '../../services/azure-web/routing.mjs';
+import { createHistoricalMessageSignalFixture } from './signal-fixture.mjs';
+import { verifySignalFixtureControls } from './signal-controls.mjs';
 const root = resolve(import.meta.dirname,'../..'), config = JSON.parse(readFileSync(join(root,'vercel.json'),'utf8'));
 const home = mkdtempSync(join(tmpdir(),'vyakti-azure-web33-'));
 const digest = b=>createHash('sha256').update(b).digest('hex');
@@ -33,22 +35,7 @@ const released = new Promise(resolve=>releaseStream=resolve);
 // Exercise the Node 24.18 getter contract even on older supported Node builds.
 // On newer builds retain the real native signal as an input, never discard it.
 const originalSignal = Object.getOwnPropertyDescriptor(IncomingMessage.prototype, 'signal');
-const platformSignals = new WeakMap();
-const platformState = req => {
- let state = platformSignals.get(req);
- if (!state) {
-  const controller = new AbortController(), native = originalSignal?.get?.call(req);
-  // Node v24.18.1 _http_incoming.js:179-195 aborts on ordinary message
-  // destruction/close too, including successful consumption of the body.
-  if (!native) {
-   if (req.destroyed) controller.abort();
-   else req.once('close',()=>controller.abort());
-  }
-  state = { controller, signal: native ? AbortSignal.any([native, controller.signal]) : controller.signal };
-  platformSignals.set(req, state);
- }
- return state;
-};
+const platformState = createHistoricalMessageSignalFixture(req => originalSignal?.get?.call(req));
 Object.defineProperty(IncomingMessage.prototype, 'signal', { configurable: true, get() { return platformState(this).signal; } });
 let deadlineReason;
 let uploadAbortObserved;
@@ -64,14 +51,14 @@ const loader = async name=>({
     combined.addEventListener('abort',()=>uploadAbortObserved({aborted:combined.aborted,complete:req.complete}),{once:true});
     res.write('upload handler ready');return;
    }
-   const reason=new Error('synthetic_native_abort');platformState(req).controller.abort(reason);
+   const reason=new Error('synthetic_native_abort');platformState(req).legacyCloseController.abort(reason);
    assert.equal(combined.aborted,true);assert.equal(combined.reason,reason);
    return res.json({nativeAbort:true});
   }
   if(name==='echo.js'&&req.query.signalTest==='complete') {
    await new Promise(resolve=>setImmediate(resolve));
    assert.equal(req.complete,true);assert.equal(req.readableEnded,true);
-   assert.equal(platformState(req).signal.aborted,true,'normal body consumption closes the native message');
+   assert.equal(platformState(req).signal.aborted,true,'historical message-close input aborts after body consumption');
    assert.equal(req.signal.aborted,false,'response work remains live after complete body');
    const oldCombined=AbortSignal.any([platformState(req).signal,new AbortController().signal]);
    assert.equal(oldCombined.aborted,true,'incumbent unconditional composition cancels normal requests');
@@ -93,6 +80,7 @@ const call = (path,opts={})=>new Promise((resolve,reject)=>{
  req.on('error',reject);if(opts.body)req.write(opts.body);req.end();
 });
 try {
+ await test('signal fixture retains current native input and deterministic historical close behavior',()=>assert.equal(verifySignalFixtureControls(),6));
  await test('old signal assignment fails against getter-only IncomingMessage contract',()=>{
   const req=new IncomingMessage(null);assert.throws(()=>{req.signal=new AbortController().signal;},TypeError);
  });

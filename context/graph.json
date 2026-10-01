@@ -17946,6 +17946,528 @@
       "kind": "rejection",
       "title": "Do not request legacy keys for the Azure expert profile",
       "at": "2026-09-09"
+    },
+    {
+      "id": "multimodal20260927-existing-compiler",
+      "kind": "decision",
+      "title": "Preserve modality and locators through the existing claim compiler",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-bounded-research-cycle",
+      "kind": "decision",
+      "title": "Keep a bounded research queue with visible failed outcomes",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-focused-evidence",
+      "kind": "measurement",
+      "title": "Multimodal continuation source and focused verification evidence",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-parallel-runtime-replay",
+      "kind": "rejection",
+      "title": "No parallel runtime, blind context import or schema-triggered replay",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-publication-ci",
+      "kind": "measurement",
+      "title": "Published draft has focused hosted passes and unresolved full CI failures",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-no-green-ci-inference",
+      "kind": "rejection",
+      "title": "Focused passes and two baseline reproductions do not establish release acceptance",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-bounded-prerequisites-and-fixtures",
+      "kind": "decision",
+      "title": "Repair observed release prerequisites and stale controls with retained authority",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-owner-gpu-export",
+      "kind": "decision",
+      "title": "Export owned GPU source authority and refuse an incomplete query result",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-explicit-turn-clock",
+      "kind": "decision",
+      "title": "Use one explicit turn clock for relationship stance and age labels",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-blocker-repair-evidence",
+      "kind": "measurement",
+      "title": "Bounded release repair focused evidence and retained failed hosted receipts",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-stale-fixtures-not-product-regressions",
+      "kind": "rejection",
+      "title": "Do not mistake obsolete exact calls and superseded SQL pins for current regressions",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-host-clock-and-silent-export",
+      "kind": "rejection",
+      "title": "Host-time replay drift and silently incomplete owner exports are real defects",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-three-suite-scope",
+      "kind": "decision",
+      "title": "Repair remaining hosted evaluation failures through their actual callers",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-three-suite-hosted",
+      "kind": "measurement",
+      "title": "Hosted release failures have four reviewed evaluation repairs with bounded local evidence",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-three-suite-no-completion",
+      "kind": "rejection",
+      "title": "Three remaining failures and one viewport pass are not release acceptance",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260927-native-and-historical-signals",
+      "kind": "decision",
+      "title": "Compose real native cancellation with explicit historical-close fixture behavior",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-owner-value-next-test",
+      "kind": "decision",
+      "title": "Propose one owner-source correction experiment through existing review and approval",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-owner-value-source-audit",
+      "kind": "measurement",
+      "title": "Read-only audit identifies three owner-value source gaps without running an experiment",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "multimodal20260927-no-single-correction-learning-claim",
+      "kind": "rejection",
+      "title": "One correction, image geometry and a private-draft demo do not establish multimodal learning",
+      "at": "2026-09-27"
+    },
+    {
+      "id": "release20260929-exact-code-receipt",
+      "kind": "decision",
+      "title": "Bind completed hosted software verification to exact code and preserve untested product gaps",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "release20260929-hosted-4cc5",
+      "kind": "measurement",
+      "title": "4cc5e662 passes Node 22/24 configured 24-check release gates and produces the APK",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "release20260929-software-not-owner-value",
+      "kind": "rejection",
+      "title": "Configured software passes do not establish skipped database work, deployment or owner value",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "honcho20260929-patterns-first",
+      "kind": "decision",
+      "title": "Adopt Honcho design patterns in existing evidence and review before adding a dependency",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "honcho20260929-conditional-shadow-trial",
+      "kind": "decision",
+      "title": "Keep a direct Honcho comparison conditional on deployment, data, erasure and terms review",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "honcho20260929-source-audit",
+      "kind": "measurement",
+      "title": "Six Honcho source cards and two unexecuted experiments preserve historical result boundaries",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "honcho20260929-no-authority-or-quality-shortcuts",
+      "kind": "rejection",
+      "title": "Scopes, deletion requests, read sets and author benchmarks do not replace authority or measured quality",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20260929-distinct-surface-authority",
+      "kind": "decision",
+      "title": "Verify shared-group authority separately from creator-private Rooms",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20260929-layer-acceptance-ledger",
+      "kind": "decision",
+      "title": "Require source, SQL, hosted, transport and human evidence for whole-layer readiness",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20260929-audit-and-initial-evidence",
+      "kind": "measurement",
+      "title": "Twelve group source findings and explicitly author-reported initial checks",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20260929-no-private-group-equivalence",
+      "kind": "rejection",
+      "title": "Private Room tests and linked-member subsets cannot establish shared-group readiness",
+      "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20261001-portable-boundary-after-proof",
+      "kind": "decision",
+      "title": "Repair observed gates while researching an actually shared group-intelligence boundary",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-hosted-baseline-failures",
+      "kind": "measurement",
+      "title": "Three checkpoint workflows fail SQL typing, caller evaluations and supply-chain security",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-no-portability-or-green-shortcuts",
+      "kind": "rejection",
+      "title": "Do not substitute architectural packaging or historical green receipts for current proof",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-early-repair-checkpoint",
+      "kind": "decision",
+      "title": "Publish bounded verification repairs separately from the developing portable kernel",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-early-repair-evidence",
+      "kind": "measurement",
+      "title": "Five focused suites and static gates pass for the early verification repair candidate",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-no-unverified-kernel-union",
+      "kind": "rejection",
+      "title": "Do not union unfinished portability work or upgrade offline checks into hosted acceptance",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-checkpointed-portability-contract",
+      "kind": "decision",
+      "title": "Inject authority into an immutable checkpoint boundary without promising atomic external delivery",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-hosted-sql-and-ui-receipts",
+      "kind": "measurement",
+      "title": "Early repair passes 30 hosted PostgreSQL groups while APK retains two fixture failures",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-portable-research-candidate",
+      "kind": "measurement",
+      "title": "Eight primary-source cards and three bounded experiments accompany the unaccepted portable candidate",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-mutable-destination-and-benchmark-transfer",
+      "kind": "rejection",
+      "title": "Immutable receipts do not protect mutable delivery bindings or establish benchmark transfer",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-exact-portable-software-receipt",
+      "kind": "decision",
+      "title": "Accept exact portable checkpoint software evidence while leaving whole-layer capabilities open",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-hosted-3e036e7d",
+      "kind": "measurement",
+      "title": "Exact 3e036e7d passes both 24-check releases, synthetic actual SQL and APK",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-green-software-not-whole-layer",
+      "kind": "rejection",
+      "title": "Configured software gates do not complete durable memory, live transport or human group acceptance",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-review-touch-target-followup",
+      "kind": "decision",
+      "title": "Measure and enlarge compact review hit targets in a separate verified UI pass",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-final-claim-view-receipt",
+      "kind": "measurement",
+      "title": "Two SHA-verified final claim views close viewport evidence while exposing touch-target follow-up",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-preregistered-implementation",
+      "kind": "decision",
+      "title": "Implement actual source-preserving group recall with preregistered overlap scoring and complete byte budgets",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-starting-baseline",
+      "kind": "measurement",
+      "title": "Pushed clean d884a954 is the baseline; new recall source and independent 48-case comparison remain unverified",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-no-posthoc-or-partial-budget-proof",
+      "kind": "rejection",
+      "title": "Do not tune on held-out cases or substitute partial payload limits and old green receipts for recall proof",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-recency-default-after-comparison",
+      "kind": "decision",
+      "title": "Keep attributed recency default after adversarial lexical misses and require actual provider segment bounds",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-working-comparison-and-budget-gap",
+      "kind": "measurement",
+      "title": "Frozen 48-case comparison reports lexical misses and review exposes a provider truncation gap",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-no-lexical-promotion-or-segment-truncation",
+      "kind": "rejection",
+      "title": "Do not promote lexical recall from pooled selection gains or rely on total bytes to prevent segment cuts",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-provider-projection-correction",
+      "kind": "decision",
+      "title": "Count only provider-consumed core tail and turns while retaining segment caps and documented preregistration corrections",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-source-freeze-receipts",
+      "kind": "measurement",
+      "title": "Final root and reviewer recall caller checks pass locally while new hosted SQL and release remain pending",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-truthful-outcome-boundary",
+      "kind": "decision",
+      "title": "Require explicit adapter acknowledgements without converting ambiguous delivery into retry permission",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-starting-probes",
+      "kind": "measurement",
+      "title": "Three author-reported actual-module delivery failures motivate a schema-free successor after recall commit",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-no-ambiguous-retry-or-success",
+      "kind": "rejection",
+      "title": "Do not report ambiguous or partially failed sends as success or infer safe retry and rollback",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-hosted-sql-34da5259",
+      "kind": "measurement",
+      "title": "Pushed recall 34da5259 passes 42 actual PostgreSQL groups while release and APK remain running",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-render-error-review",
+      "kind": "measurement",
+      "title": "Delivery baseline probes reproduce false success and raw errors; render sanitization review remains pending",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-local-freeze-and-recall-apk",
+      "kind": "measurement",
+      "title": "Local delivery 44 authority 131 and independent review pass while separate recall APK succeeds",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-final-software-inconclusive-quality",
+      "kind": "measurement",
+      "title": "Exact recall software passes both releases while its frozen relevance outcome stays inconclusive",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupreview20261001-touch-target-phase-baseline",
+      "kind": "measurement",
+      "title": "Prior screenshot estimate motivates four-action touch-target work before actual DOM measurement",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupreview20261001-touch-target-source-freeze",
+      "kind": "measurement",
+      "title": "Scoped four-action CSS and build-only controls pass while mounted target measurements await hosted CI",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-explicit-success-fixture-repair",
+      "kind": "decision",
+      "title": "Repair intended-success send doubles without weakening strict delivery or distinct authority failures",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-public-inflight-fixture-receipt",
+      "kind": "measurement",
+      "title": "Delivery APK fails one strict-acknowledgement fixture while evaluation-only repair passes ten local controls",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-no-undefined-success-or-native-acl-shortcut",
+      "kind": "rejection",
+      "title": "Do not accept undefined receipts or treat web-account and creator-owner identity as native group membership",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-source-time-fence",
+      "kind": "decision",
+      "title": "Fence authenticated ordinary source time against known consent and every recipient link before raw writes",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-phase-baseline-and-delivery-release",
+      "kind": "measurement",
+      "title": "Delivery release fails one fixture on both Node versions while new consent-time source work remains unverified",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-no-receipt-time-or-policy-laundering",
+      "kind": "rejection",
+      "title": "Do not turn receipt or edit time into original consent authority or adopt unanswered replay policy",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-hosted-fe652992",
+      "kind": "measurement",
+      "title": "Exact fe652992 passes both 24-check releases separate SQL42 and APK after strict-send fixture repair",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupreview20261001-measured-touch-targets-fe652992",
+      "kind": "measurement",
+      "title": "Eight synthetic web action targets measure 44px with detected 27px regression and verified focus and spacing",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-local-candidate-and-pg-offset",
+      "kind": "measurement",
+      "title": "Known-consent local caller and ingress checks pass while real PostgreSQL offset wire proof and SQL50 remain pending",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-hosted-sql-af17fbca",
+      "kind": "measurement",
+      "title": "Pushed af17fbca passes actual SQL50 and unmodified PostgreSQL authority-to-helper wire case while release runs",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-publication-held-request-barrier",
+      "kind": "decision",
+      "title": "Repair publication scope fixtures with actual held-request and committed-DOM barriers",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-af17-publication-fixture-failure",
+      "kind": "measurement",
+      "title": "Exact af17 APK and SQL pass but Node24 release fails one mounted pending-POST fixture",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-no-click-completion-as-request-proof",
+      "kind": "rejection",
+      "title": "Do not treat completed clicks or unchanged production source as proof of held requests and passing scope guards",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-publication-barrier-source-freeze",
+      "kind": "measurement",
+      "title": "Four evaluation files pass eight barrier and nine source controls while fresh mounted proof remains pending",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-refresh-causal-triage",
+      "kind": "decision",
+      "title": "Diagnose the distinct first-use refresh lifecycle before changing fixture timing or auth",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-1123-refresh-failure",
+      "kind": "measurement",
+      "title": "Pushed 1123 APK verifies publication repair while Node24 release fails a missing account refresh request",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-no-shared-cause-or-auth-shortcut",
+      "kind": "rejection",
+      "title": "Do not assume a shared fixture cause or force authentication and repeated focus to hide missing refresh",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-refresh-observer-source-freeze",
+      "kind": "measurement",
+      "title": "Three-file readiness observer fixture has local source and bundle proof while mounted outcomes remain pending",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-796c-pushed-sql-and-replay-audit",
+      "kind": "measurement",
+      "title": "Pushed 796c SQL50 passes while release runs and independent audit reproduces known duplicate-event effects",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-review-auth-chronology-triage",
+      "kind": "decision",
+      "title": "Hold review-fixture edits until actual request and scope chronology explains the captured auth mismatch",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-796c-review-auth-failure",
+      "kind": "measurement",
+      "title": "Exact 796c APK fails a review-fixture auth assertion after 22 mounted passes while refresh summary passes",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-no-auth-allowlist-or-error-filter",
+      "kind": "rejection",
+      "title": "Do not allow arbitrary auth scopes filter captured errors or infer masked tokens to force fixture success",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-exact-808-software-acceptance",
+      "kind": "decision",
+      "title": "Accept exact808 known-consent software contracts without promoting recall quality or whole Group AI readiness",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-final-combined-808ad32f",
+      "kind": "measurement",
+      "title": "Exact808 completes both24-check releases actualSQL50 and APK with verified caller and mounted controls",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-green-contract-not-group-product",
+      "kind": "rejection",
+      "title": "Final green software contracts do not prove durable replay historical audience live quality or product completion",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -30386,6 +30908,456 @@
       "src": "product175-correction-editor-polish",
       "rel": "caused_by",
       "dst": "product175-correction-editor-scope"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "measured_by",
+      "dst": "multimodal20260927-focused-evidence"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "caused_by",
+      "dst": "multimodal20260927-parallel-runtime-replay"
+    },
+    {
+      "src": "multimodal20260927-bounded-research-cycle",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "multimodal20260927-bounded-research-cycle",
+      "rel": "measured_by",
+      "dst": "multimodal20260927-focused-evidence"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "measured_by",
+      "dst": "multimodal20260927-publication-ci"
+    },
+    {
+      "src": "multimodal20260927-existing-compiler",
+      "rel": "caused_by",
+      "dst": "multimodal20260927-no-green-ci-inference"
+    },
+    {
+      "src": "release20260927-bounded-prerequisites-and-fixtures",
+      "rel": "measured_by",
+      "dst": "release20260927-blocker-repair-evidence"
+    },
+    {
+      "src": "release20260927-bounded-prerequisites-and-fixtures",
+      "rel": "caused_by",
+      "dst": "release20260927-stale-fixtures-not-product-regressions"
+    },
+    {
+      "src": "release20260927-owner-gpu-export",
+      "rel": "measured_by",
+      "dst": "release20260927-blocker-repair-evidence"
+    },
+    {
+      "src": "release20260927-owner-gpu-export",
+      "rel": "caused_by",
+      "dst": "release20260927-host-clock-and-silent-export"
+    },
+    {
+      "src": "release20260927-explicit-turn-clock",
+      "rel": "measured_by",
+      "dst": "release20260927-blocker-repair-evidence"
+    },
+    {
+      "src": "release20260927-explicit-turn-clock",
+      "rel": "caused_by",
+      "dst": "release20260927-host-clock-and-silent-export"
+    },
+    {
+      "src": "release20260927-three-suite-scope",
+      "rel": "measured_by",
+      "dst": "release20260927-three-suite-hosted"
+    },
+    {
+      "src": "release20260927-three-suite-scope",
+      "rel": "caused_by",
+      "dst": "release20260927-three-suite-no-completion"
+    },
+    {
+      "src": "release20260927-native-and-historical-signals",
+      "rel": "measured_by",
+      "dst": "release20260927-three-suite-hosted"
+    },
+    {
+      "src": "release20260927-native-and-historical-signals",
+      "rel": "caused_by",
+      "dst": "release20260927-three-suite-no-completion"
+    },
+    {
+      "src": "multimodal20260927-owner-value-next-test",
+      "rel": "measured_by",
+      "dst": "multimodal20260927-owner-value-source-audit"
+    },
+    {
+      "src": "multimodal20260927-owner-value-next-test",
+      "rel": "caused_by",
+      "dst": "multimodal20260927-no-single-correction-learning-claim"
+    },
+    {
+      "src": "multimodal20260927-owner-value-next-test",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "release20260929-exact-code-receipt",
+      "rel": "measured_by",
+      "dst": "release20260929-hosted-4cc5"
+    },
+    {
+      "src": "release20260929-exact-code-receipt",
+      "rel": "caused_by",
+      "dst": "release20260929-software-not-owner-value"
+    },
+    {
+      "src": "release20260929-exact-code-receipt",
+      "rel": "supersedes",
+      "dst": "release20260927-three-suite-scope"
+    },
+    {
+      "src": "honcho20260929-patterns-first",
+      "rel": "measured_by",
+      "dst": "honcho20260929-source-audit"
+    },
+    {
+      "src": "honcho20260929-patterns-first",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "honcho20260929-conditional-shadow-trial",
+      "rel": "measured_by",
+      "dst": "honcho20260929-source-audit"
+    },
+    {
+      "src": "honcho20260929-conditional-shadow-trial",
+      "rel": "caused_by",
+      "dst": "honcho20260929-no-authority-or-quality-shortcuts"
+    },
+    {
+      "src": "groupai20260929-distinct-surface-authority",
+      "rel": "measured_by",
+      "dst": "groupai20260929-audit-and-initial-evidence"
+    },
+    {
+      "src": "groupai20260929-distinct-surface-authority",
+      "rel": "caused_by",
+      "dst": "groupai20260929-no-private-group-equivalence"
+    },
+    {
+      "src": "groupai20260929-layer-acceptance-ledger",
+      "rel": "measured_by",
+      "dst": "groupai20260929-audit-and-initial-evidence"
+    },
+    {
+      "src": "groupai20260929-layer-acceptance-ledger",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "groupai20261001-portable-boundary-after-proof",
+      "rel": "measured_by",
+      "dst": "groupai20261001-hosted-baseline-failures"
+    },
+    {
+      "src": "groupai20261001-portable-boundary-after-proof",
+      "rel": "caused_by",
+      "dst": "groupai20261001-no-portability-or-green-shortcuts"
+    },
+    {
+      "src": "groupai20261001-portable-boundary-after-proof",
+      "rel": "part_of",
+      "dst": "groupai20260929-layer-acceptance-ledger"
+    },
+    {
+      "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "measured_by",
+      "dst": "groupai20261001-early-repair-evidence"
+    },
+    {
+      "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "caused_by",
+      "dst": "groupai20261001-no-unverified-kernel-union"
+    },
+    {
+      "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "part_of",
+      "dst": "groupai20261001-portable-boundary-after-proof"
+    },
+    {
+      "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "measured_by",
+      "dst": "groupai20261001-hosted-sql-and-ui-receipts"
+    },
+    {
+      "src": "groupai20261001-checkpointed-portability-contract",
+      "rel": "measured_by",
+      "dst": "groupai20261001-portable-research-candidate"
+    },
+    {
+      "src": "groupai20261001-checkpointed-portability-contract",
+      "rel": "caused_by",
+      "dst": "groupai20261001-mutable-destination-and-benchmark-transfer"
+    },
+    {
+      "src": "groupai20261001-checkpointed-portability-contract",
+      "rel": "part_of",
+      "dst": "groupai20261001-portable-boundary-after-proof"
+    },
+    {
+      "src": "groupai20261001-exact-portable-software-receipt",
+      "rel": "measured_by",
+      "dst": "groupai20261001-hosted-3e036e7d"
+    },
+    {
+      "src": "groupai20261001-exact-portable-software-receipt",
+      "rel": "caused_by",
+      "dst": "groupai20261001-green-software-not-whole-layer"
+    },
+    {
+      "src": "groupai20261001-exact-portable-software-receipt",
+      "rel": "part_of",
+      "dst": "groupai20261001-checkpointed-portability-contract"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "measured_by",
+      "dst": "groupai20261001-final-claim-view-receipt"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "caused_by",
+      "dst": "groupai20261001-green-software-not-whole-layer"
+    },
+    {
+      "src": "groupai20261001-exact-portable-software-receipt",
+      "rel": "measured_by",
+      "dst": "groupai20261001-final-claim-view-receipt"
+    },
+    {
+      "src": "grouprecall20261001-preregistered-implementation",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-starting-baseline"
+    },
+    {
+      "src": "grouprecall20261001-preregistered-implementation",
+      "rel": "caused_by",
+      "dst": "grouprecall20261001-no-posthoc-or-partial-budget-proof"
+    },
+    {
+      "src": "grouprecall20261001-preregistered-implementation",
+      "rel": "part_of",
+      "dst": "groupai20261001-portable-boundary-after-proof"
+    },
+    {
+      "src": "grouprecall20261001-recency-default-after-comparison",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-working-comparison-and-budget-gap"
+    },
+    {
+      "src": "grouprecall20261001-recency-default-after-comparison",
+      "rel": "caused_by",
+      "dst": "grouprecall20261001-no-lexical-promotion-or-segment-truncation"
+    },
+    {
+      "src": "grouprecall20261001-recency-default-after-comparison",
+      "rel": "part_of",
+      "dst": "grouprecall20261001-preregistered-implementation"
+    },
+    {
+      "src": "grouprecall20261001-provider-projection-correction",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-source-freeze-receipts"
+    },
+    {
+      "src": "grouprecall20261001-provider-projection-correction",
+      "rel": "caused_by",
+      "dst": "grouprecall20261001-no-lexical-promotion-or-segment-truncation"
+    },
+    {
+      "src": "grouprecall20261001-provider-projection-correction",
+      "rel": "part_of",
+      "dst": "grouprecall20261001-preregistered-implementation"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-starting-probes"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "caused_by",
+      "dst": "groupdelivery20261001-no-ambiguous-retry-or-success"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "part_of",
+      "dst": "groupai20260929-layer-acceptance-ledger"
+    },
+    {
+      "src": "grouprecall20261001-provider-projection-correction",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-hosted-sql-34da5259"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-render-error-review"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-local-freeze-and-recall-apk"
+    },
+    {
+      "src": "grouprecall20261001-recency-default-after-comparison",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-final-software-inconclusive-quality"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "measured_by",
+      "dst": "groupreview20261001-touch-target-phase-baseline"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "measured_by",
+      "dst": "groupreview20261001-touch-target-source-freeze"
+    },
+    {
+      "src": "groupdelivery20261001-explicit-success-fixture-repair",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-public-inflight-fixture-receipt"
+    },
+    {
+      "src": "groupdelivery20261001-explicit-success-fixture-repair",
+      "rel": "caused_by",
+      "dst": "groupdelivery20261001-no-undefined-success-or-native-acl-shortcut"
+    },
+    {
+      "src": "groupdelivery20261001-explicit-success-fixture-repair",
+      "rel": "part_of",
+      "dst": "groupdelivery20261001-truthful-outcome-boundary"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "measured_by",
+      "dst": "groupconsent20261001-phase-baseline-and-delivery-release"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "caused_by",
+      "dst": "groupconsent20261001-no-receipt-time-or-policy-laundering"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "part_of",
+      "dst": "groupai20260929-layer-acceptance-ledger"
+    },
+    {
+      "src": "groupdelivery20261001-explicit-success-fixture-repair",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-hosted-fe652992"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "measured_by",
+      "dst": "groupreview20261001-measured-touch-targets-fe652992"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "measured_by",
+      "dst": "groupconsent20261001-local-candidate-and-pg-offset"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "measured_by",
+      "dst": "groupconsent20261001-hosted-sql-af17fbca"
+    },
+    {
+      "src": "grouprelease20261001-publication-held-request-barrier",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-af17-publication-fixture-failure"
+    },
+    {
+      "src": "grouprelease20261001-publication-held-request-barrier",
+      "rel": "caused_by",
+      "dst": "grouprelease20261001-no-click-completion-as-request-proof"
+    },
+    {
+      "src": "grouprelease20261001-publication-held-request-barrier",
+      "rel": "part_of",
+      "dst": "groupconsent20261001-source-time-fence"
+    },
+    {
+      "src": "grouprelease20261001-publication-held-request-barrier",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-publication-barrier-source-freeze"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-1123-refresh-failure"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "caused_by",
+      "dst": "grouprelease20261001-no-shared-cause-or-auth-shortcut"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "part_of",
+      "dst": "groupconsent20261001-source-time-fence"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-refresh-observer-source-freeze"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-796c-pushed-sql-and-replay-audit"
+    },
+    {
+      "src": "grouprelease20261001-review-auth-chronology-triage",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-796c-review-auth-failure"
+    },
+    {
+      "src": "grouprelease20261001-review-auth-chronology-triage",
+      "rel": "caused_by",
+      "dst": "grouprelease20261001-no-auth-allowlist-or-error-filter"
+    },
+    {
+      "src": "grouprelease20261001-review-auth-chronology-triage",
+      "rel": "part_of",
+      "dst": "groupconsent20261001-source-time-fence"
+    },
+    {
+      "src": "groupconsent20261001-exact-808-software-acceptance",
+      "rel": "measured_by",
+      "dst": "groupconsent20261001-final-combined-808ad32f"
+    },
+    {
+      "src": "groupconsent20261001-exact-808-software-acceptance",
+      "rel": "caused_by",
+      "dst": "groupconsent20261001-green-contract-not-group-product"
+    },
+    {
+      "src": "groupconsent20261001-exact-808-software-acceptance",
+      "rel": "part_of",
+      "dst": "groupconsent20261001-source-time-fence"
     }
   ]
 }

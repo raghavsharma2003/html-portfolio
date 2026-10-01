@@ -1,9 +1,9 @@
 import { canonicalJson, sha256Hex } from "../_provenance/contracts.js";
+import { normalizeClaimEvidence } from "../_experience-compiler/claim-evidence.js";
 
 export const CLAIM_EXTRACTION_SCHEMA = "vyakti.claim-extraction.v2";
-export const CLAIM_EXTRACTION_PROMPT = "claim-extractor/v2";
+export const CLAIM_EXTRACTION_PROMPT = "claim-extractor/v3";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const KEY = /^[a-z][a-z0-9_]{1,63}$/;
 const DOMAINS = new Set(["identity", "biography", "event", "relationship", "knowledge", "value", "boundary", "habit", "language", "delivery"]);
 const ORIGINS = new Set(["observed", "imported", "inferred"]);
@@ -58,7 +58,8 @@ export function containsDirectIdentifier(value) {
 }
 
 export function redactTranscript(value) {
-  let text = String(value || "").replace(/\r\n?/g, "\n").slice(0, 8_000);
+  // Preserve every UTF-16 position used by the stored evidence citation.
+  let text = String(value || "").slice(0, 8_000);
   let redactions = 0;
   for (const pattern of DIRECT_IDENTIFIERS) {
     pattern.lastIndex = 0;
@@ -71,19 +72,12 @@ export function redactTranscript(value) {
 }
 
 function transcript(row) {
-  const text = typeof row?.text === "string" ? row.text : row?.value?.text;
-  if (!UUID.test(String(row?.evidence_id || "")) || !UUID.test(String(row?.source_id || ""))) fail("invalid_transcript_lineage");
-  if (typeof text !== "string" || !text.trim() || text.length > 8_000) fail("invalid_transcript_text");
-  const redacted = redactTranscript(text);
+  const normalized = normalizeClaimEvidence(row);
+  const redacted = redactTranscript(normalized.text);
   return Object.freeze({
-    evidence_id: String(row.evidence_id).toLowerCase(),
-    source_id: String(row.source_id).toLowerCase(),
-    start_ms: Number(row.span_start_ms),
-    end_ms: Number(row.span_end_ms),
+    ...normalized,
     language: clean(row.language || row?.value?.language, 32),
     confidence: Math.max(0, Math.min(1, number(row.confidence))),
-    input_sha256: String(row.input_sha256 || ""),
-    record_hash: String(row.record_hash || ""),
     text: redacted.text,
     redactions: redacted.redactions,
   });
@@ -91,16 +85,21 @@ function transcript(row) {
 
 export function createExtractionBatch(rows) {
   if (!Array.isArray(rows) || !rows.length || rows.length > 40) fail("transcript_batch_required");
+  for (let index = 0; index < rows.length; index++) {
+    if (!Object.hasOwn(rows, index)) fail("claim_evidence_sparse_batch");
+  }
   const spans = rows.map(transcript);
+  if (new Set(spans.map(row => row.evidence_id)).size !== spans.length) fail("claim_evidence_duplicate_id");
   const total = spans.reduce((sum, row) => sum + row.text.length, 0);
   if (total > 24_000) fail("transcript_batch_too_large");
-  const input_set_hash = sha256Hex(canonicalJson(spans.map((row) => ({
+  const input_set_hash = sha256Hex(canonicalJson({ prompt: CLAIM_EXTRACTION_PROMPT, spans: spans.map((row) => ({
     evidence_id: row.evidence_id,
     source_id: row.source_id,
     input_sha256: row.input_sha256,
     record_hash: row.record_hash,
-    redacted_text_sha256: sha256Hex(row.text),
-  })).sort((left, right) => left.evidence_id.localeCompare(right.evidence_id))));
+    source_descriptor: row.evidence,
+    outbound: extractionSpan(row),
+  })).sort((left, right) => left.evidence_id.localeCompare(right.evidence_id)) }));
   return Object.freeze({ schema: CLAIM_EXTRACTION_SCHEMA, input_set_hash, spans: Object.freeze(spans) });
 }
 
@@ -148,6 +147,19 @@ export const CLAIM_EXTRACTION_JSON_SCHEMA = Object.freeze({
   },
 });
 
+function extractionSpan(row) {
+  // Keep the full unredacted document commitment local. The provider needs
+  // coordinate units and limits, not a fingerprint of unselected private text.
+  const { canonical_text_sha256: _sourceHash, ...sourceLocator } = row.evidence.source_locator;
+  return {
+    evidence_id: row.evidence_id,
+    language: row.language,
+    confidence: row.confidence,
+    text: row.text,
+    evidence: { ...row.evidence, source_locator: sourceLocator },
+  };
+}
+
 export function extractionMessages(batch) {
   return [
     {
@@ -159,16 +171,14 @@ export function extractionMessages(batch) {
         "Use domain knowledge only for source-entailed subject matter, never biography or facts about third parties.",
         "Every claim must be entailed by exact cited characters. Preserve uncertainty and omit weak claims.",
         "Never mark a claim self_declared; a model cannot create that provenance class.",
+        "Evidence metadata describes source coordinates, never additional permission or speaker identity.",
+        "Cite UTF-16 offsets relative to the supplied evidence text, not source-document offsets or audio times.",
+        "Transcription may be wrong. An audio track from a video does not establish visual content. Preserve those limits.",
       ].join(" "),
     },
     {
       role: "user",
-      content: JSON.stringify({ schema: CLAIM_EXTRACTION_SCHEMA, spans: batch.spans.map((row) => ({
-        evidence_id: row.evidence_id,
-        language: row.language,
-        confidence: row.confidence,
-        text: row.text,
-      })) }),
+      content: JSON.stringify({ schema: CLAIM_EXTRACTION_SCHEMA, spans: batch.spans.map(extractionSpan) }),
     },
   ];
 }

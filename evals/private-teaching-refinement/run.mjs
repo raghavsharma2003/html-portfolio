@@ -13,7 +13,7 @@ const RID='10000000-0000-4000-8000-000000000001',SHEET='20000000-0000-4000-8000-
 const H='a'.repeat(64),NEW='b'.repeat(64),NEXT='c'.repeat(64);
 const statements=['authorize_private_text_question','understand_ai_text_only','understand_private_retention_and_withdrawal'].map(id=>({id,text:({authorize_private_text_question:'I authorize this private question with the selected material.',understand_ai_text_only:'I understand this is AI text only.',understand_private_retention_and_withdrawal:'I understand retention and withdrawal for this question.'})[id]}));
 const initial='diagram -> relation -> worked example';
-let value=initial,currentHash=H,epoch='1',scenario='normal',resultMode='complete',pending=[],requests=[],browser,server;
+let value=initial,currentHash=H,epoch='1',scenario='normal',resultMode='complete',pending=[],requests=[],readinessHeld=false,pendingReadiness=[],browser,server;
 const checks=[],errors=[];
 const review=(rid=RID,request=REQUEST)=>({replica_id:rid,request_id:request,sheet_id:SHEET,sheet_hash:currentHash,sheet_version:'private-v1',private_text_epoch:epoch,field:'explanationOrder',value,updated_at:'2026-09-07T00:00:00Z',can_save:currentHash===H,...(currentHash!==H?{blocker:'private_refinement_review_changed'}:{})});
 const result=(rid=RID,request=REQUEST)=>({replica_id:rid,request_id:request,...(resultMode==='complete'?{state:'complete',answer:'The period is 2 seconds: 24 seconds divided by 12 oscillations.'}:resultMode==='stale-complete'?{state:'blocked',failure_code:'rehearsal_inputs_changed',can_review_teaching:true}:resultMode==='unmarked-stale'?{state:'blocked',failure_code:'rehearsal_inputs_changed'}:resultMode==='source-blocked'?{state:'blocked',failure_code:'rehearsal_source_unavailable'}:{state:resultMode}),consent:{consent_id:CONSENT,receipt_hash:H,statement_set:'private-text-rehearsal/v1',expires_at:'2026-10-07T00:00:00Z'},source:{sheet_id:SHEET,sheet_hash:H,context_item_id:ITEM,source_id:SOURCE,source_hash:H,evidence_hash:H},billing_state:'settled',can_voice:false,created_at:'2026-09-07T00:00:00Z'});
@@ -50,7 +50,11 @@ try{
    requests.push({path:url.pathname,op,method:req.method,body,replica:rid,request,auth:req.headers.authorization});
    assert.ok(['Bearer synthetic-a','Bearer synthetic-b'].includes(req.headers.authorization));
    if(url.pathname==='/api/replica-text-rehearsal'){
-    if(op==='readiness')return send(200,{readiness:readiness(rid)});
+    if(op==='readiness'){
+     const snapshot=readiness(rid);
+     if(readinessHeld){pendingReadiness.push(()=>send(200,{readiness:snapshot}));return;}
+     return send(200,{readiness:snapshot});
+    }
     if(op==='result')return send(200,{rehearsal:result(rid,request)});
     if(op==='ask'){assert.equal(body.expected_snapshot_hash,NEXT);assert.notEqual(body.request_id,REQUEST);assert.equal(new URL(req.headers.referer).searchParams.get('rehearsal_request'),body.request_id);assert.deepEqual(body.attestations,Object.fromEntries(statements.map(s=>[s.id,true])));return send(200,{rehearsal:result(rid,request)});}
     throw Error('unexpected rehearsal mutation '+op);
@@ -80,7 +84,7 @@ try{
  const count=op=>requests.filter(r=>r.op===op&&r.method==='POST').length;
  for(const width of [390,1440]){
   const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>r.request().url().startsWith(origin)?r.continue():r.abort());
-  const open=async(extra='')=>{scenario='normal';resultMode='complete';value=initial;currentHash=H;epoch='1';pending=[];requests=[];await page.goto(origin+'/evals/private-teaching-refinement/host.html?replica='+RID+'&rehearsal_request='+REQUEST+extra);await page.getByRole('heading',{name:'Your private text answer'}).waitFor();};
+  const open=async(extra='')=>{scenario='normal';resultMode='complete';value=initial;currentHash=H;epoch='1';pending=[];requests=[];readinessHeld=false;pendingReadiness=[];await page.goto(origin+'/evals/private-teaching-refinement/host.html?replica='+RID+'&rehearsal_request='+REQUEST+extra);await page.getByRole('heading',{name:'Your private text answer'}).waitFor();};
   const edit=async()=>{await page.getByRole('button',{name:'Adjust how I explain',exact:true}).click();await page.locator('#ptr-explanation-order').waitFor();};
   const fill=async()=>{await page.locator('#ptr-explanation-order').fill('known quantities -> diagram -> relation -> unit check');};
   const save=()=>page.getByRole('button',{name:'Save guidance',exact:true}).click();
@@ -114,7 +118,38 @@ try{
   await open('&old=1');assert.equal(await page.getByRole('button',{name:'Adjust how I explain'}).count(),0);assert.equal(count('private_refinement'),0);check(width+': exact old completed result has no refinement caller');
   await open();assert.equal(requests.some(r=>r.op==='private_refinement'),false);assert.equal(count('ask'),0);await edit();assert.equal(await page.locator('#ptr-explanation-order').inputValue(),initial);assert.equal(count('private_refinement'),0);assert.equal(await page.getByRole('button',{name:'Save guidance',exact:true}).isDisabled(),true);assert.equal(await page.evaluate(()=>document.activeElement?.id),'ptr-refinement-title');writeFileSync(join(art,`${width}-focus.json`),JSON.stringify(await page.evaluate(()=>({tag:document.activeElement?.tagName,id:document.activeElement?.id,text:document.activeElement?.textContent?.slice(0,100)}))));await page.screenshot({path:join(art,`${width}-edit.png`)});check(width+': explicit action reads current result-bound field without mutation');
   await fill();await save();await page.getByText('Saved to private draft.',{exact:true}).waitFor();assert.equal(count('private_refinement'),1);assert.equal(count('ask'),0);assert.equal(await page.getByRole('button',{name:'Save guidance',exact:true}).count(),0);assert.equal(await page.evaluate(()=>document.activeElement?.textContent),'Prepare another question');await page.screenshot({path:join(art,`${width}-saved.png`)});
-  await page.getByRole('button',{name:'Prepare another question',exact:true}).click();await page.locator('#ptr-question').waitFor();assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);assert.equal(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled(),true);assert.equal(count('ask'),0);assert.equal(new URL(page.url()).searchParams.has('rehearsal_request'),false);await page.locator('#ptr-question').fill('Explain the period again using the saved order.');for(const box of await page.locator('.ptr-attestation input').all())await box.check();await page.getByRole('button',{name:'Ask privately',exact:true}).click();await page.getByRole('heading',{name:'Your private text answer'}).waitFor();assert.equal(count('ask'),1);assert.ok(requests.filter(r=>r.op==='readiness').length>=2);check(width+': explicit save -> refreshed readiness -> fresh attestations -> actual new question POST');
+  // The question field mounts before refreshed readiness. Hold that response
+  // to reproduce the old locator.all() empty snapshot, independent of viewport
+  // or CI scheduling. Never infer fresh attestations from a visible textarea.
+  readinessHeld=true;
+  await page.getByRole('button',{name:'Prepare another question',exact:true}).click();
+  await page.locator('#ptr-question').waitFor();await until(()=>pendingReadiness.length>0);
+  assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);
+  const askButton=page.getByRole('button',{name:'Ask privately',exact:true});
+  assert.equal(await askButton.isDisabled(),true);assert.equal(count('ask'),0);
+  assert.equal(new URL(page.url()).searchParams.has('rehearsal_request'),false);
+  await page.locator('#ptr-question').fill('Explain the period again using the saved order.');
+  const prematureBoxes=await page.locator('.ptr-attestation input').all();
+  for(const box of prematureBoxes)await box.check();
+  assert.equal(prematureBoxes.length,0,'old immediate enumeration misses the pending attestation set');
+  assert.equal(await page.locator('.ptr-question fieldset').evaluate(element=>element.disabled),true);
+  assert.equal(await askButton.isDisabled(),true);assert.equal(count('ask'),0);
+  check(width+': held refreshed readiness reproduces empty snapshot and cannot authorize a question');
+  readinessHeld=false;pendingReadiness.splice(0).forEach(release=>release());
+  // Wait for every named checkbox to become visible; check() below also waits
+  // for enablement. Missing statements cannot silently make this loop a no-op.
+  for(const statement of statements)await page.getByRole('checkbox',{name:statement.text,exact:true}).waitFor();
+  assert.equal(await page.locator('.ptr-attestation input').count(),statements.length);
+  assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);
+  assert.equal(await askButton.isDisabled(),true);assert.equal(count('ask'),0);
+  for(let index=0;index<statements.length;index++){
+   await page.getByRole('checkbox',{name:statements[index].text,exact:true}).check();
+   assert.equal(await page.locator('.ptr-attestation input:checked').count(),index+1);
+   assert.equal(await askButton.isDisabled(),index<statements.length-1);
+   assert.equal(count('ask'),0);
+  }
+  assert.equal(await page.locator('.ptr-attestation input').count(),statements.length);
+  await askButton.click();await page.getByRole('heading',{name:'Your private text answer'}).waitFor();assert.equal(count('ask'),1);assert.ok(requests.filter(r=>r.op==='readiness').length>=2);check(width+': explicit save -> refreshed readiness -> fresh attestations -> actual new question POST');
   await open();await edit();await page.locator('#ptr-explanation-order').fill('');assert.equal(await page.getByRole('button',{name:'Save guidance',exact:true}).isDisabled(),true);await page.getByRole('button',{name:'Remove saved guidance',exact:true}).click();await page.getByText('Guidance removed from your private draft.',{exact:true}).waitFor();assert.equal(value,null);assert.deepEqual(requests.find(r=>r.op==='private_refinement'&&r.method==='POST').body.clear,true);check(width+': blank is not deletion; explicit removal sends clear without value');
   await open();await edit();await fill();scenario='uncertain-applied';await save();await page.getByRole('alert').waitFor();assert.equal(await page.getByText('Saved to private draft.',{exact:true}).count(),0);assert.equal(count('private_refinement'),1);assert.equal(await page.getByRole('button',{name:'Save guidance',exact:true}).count(),0);scenario='normal';await page.getByRole('button',{name:'Check saved guidance'}).click();await page.getByText('Your private draft contains this guidance.',{exact:true}).waitFor();assert.equal(count('private_refinement'),1);assert.equal(count('ask'),0);check(width+': uncertain applied save uses explicit GET readback, never receipt claim or retry');
   await open();await edit();await fill();scenario='uncertain-unchanged';await save();await page.getByRole('alert').waitFor();scenario='normal';await page.getByRole('button',{name:'Check saved guidance'}).click();await page.getByText('The saved guidance is unchanged. Review your edit before saving again.').waitFor();assert.equal(await page.locator('#ptr-explanation-order').inputValue(),'known quantities -> diagram -> relation -> unit check');assert.equal(count('private_refinement'),1);await save();await page.getByText('Saved to private draft.',{exact:true}).waitFor();assert.equal(count('private_refinement'),2);check(width+': unchanged readback preserves typed edit and requires a separate explicit retry');

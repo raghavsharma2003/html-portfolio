@@ -1,0 +1,21 @@
+{
+  "name": "@vyakti/turn-checkpoints",
+  "version": "0.1.0",
+  "description": "Dependency-free, in-memory authority and source checkpoints for one operation",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "types": "./checkpoints.d.ts",
+  "exports": {
+    ".": {
+      "types": "./checkpoints.d.ts",
+      "import": "./checkpoints.js",
+      "default": "./checkpoints.js"
+    }
+  },
+  "files": [
+    "checkpoints.js",
+    "checkpoints.d.ts",
+    "README.md"
+  ]
+}

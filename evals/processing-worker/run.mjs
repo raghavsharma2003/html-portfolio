@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
+import ts from "typescript";
 import { createNativeMediaAdapters } from "../../api/_replica-processing/providers/native-media.js";
 import {
   createChunkedDiarizationAdapter,
@@ -15,6 +17,8 @@ import { readClamAvVerdict } from "../../api/_replica-processing/native-tools.js
 import { createFakeImmutableArtifactStore, createFakeProcessingAdapters } from "../../api/_replica-processing/providers/fake.js";
 import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
 import { assertAdapter, sha256Hex, stableUuid } from "../../api/_replica-processing/contracts.js";
+import { AUDIO_PROCESSING_DAG } from "../../api/_replica-processing/pipeline.js";
+import { processingSourceScopeFromEnv } from "../../api/_replica-processing/source-scope.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -339,10 +343,131 @@ ok("ClamAV and the worker lease are bounded for one GiB and long audio",
   /MaxFileSize 1024M/.test(clamdConfig) && /MaxScanSize 1024M/.test(clamdConfig)
   && /leaseMs: 600_000/.test(runOnce) && /heartbeatMs: 60_000/.test(runOnce)
   && /replicaTimeout: 3600/.test(workerInfra));
-ok("one scheduled run can finish an eight-step source and immediately build its VoiceGenome",
-  /PROCESSING_JOBS_PER_RUN', value: '12'/.test(workerInfra)
-  && /preferredSourceId/.test(runOnce)
-  && /runVoiceGenomeBuildSweep\(\{ db, maxJobs: 4 \}\)/.test(runOnce));
+// The previous exact-call regex rejected the sourceScope isolation argument.
+// Execute the actual main body with bounded synthetic job outcomes instead:
+// this proves scheduling and scope forwarding, not real media/model quality.
+async function scheduledRunFixture(workerSource, { idle = false, jobsPerRun } = {}) {
+  const ast = ts.createSourceFile("run-once.js", workerSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const declarations = ["boundedInteger", "main"].map((name) => {
+    const declaration = ast.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
+    assert.ok(declaration, `worker function ${name} must exist`);
+    return declaration.getText(ast);
+  });
+  const required = ast.statements.find((node) => ts.isVariableStatement(node)
+    && node.declarationList.declarations.some((declaration) => declaration.name.getText(ast) === "REQUIRED_STEPS"));
+  assert.ok(required, "worker required-capability declaration must exist");
+  const steps = Object.keys(AUDIO_PROCESSING_DAG);
+  const capabilities = Object.fromEntries(steps.map((step) => [step, { available: true }]));
+  const scope = { ownerUserId: OWNER, replicaId: REPLICA, sourceId: SOURCE };
+  const events = [];
+  let completed = 0;
+  let timersCleared = 0;
+  let allocationsClosed = 0;
+  let scannerStopped = 0;
+  const fixtureDb = async () => { throw new Error("scheduled fixture must not access a database"); };
+  const assertScope = (options) => assert.deepEqual(options.sourceScope, scope, "exact source scope must be forwarded");
+  const buildSummary = { leased: 0, built: 0, retried: 0, failed: 0 };
+  const context = {
+    AbortController, Date: { now: () => 0 },
+    process: { env: {
+      REPLICA_PROCESSING_SOURCE_SCOPE_JSON: JSON.stringify(scope),
+      ...(jobsPerRun == null ? {} : { PROCESSING_JOBS_PER_RUN: String(jobsPerRun) }),
+    } },
+    setTimeout: () => "fixture-timer",
+    clearTimeout: (timer) => { assert.equal(timer, "fixture-timer"); timersCleared++; },
+    processingSourceScopeFromEnv,
+    createNeonDb: () => fixtureDb,
+    createProcessingAdmissionObserver: () => () => {},
+    createProcessingGpuAdmission: () => ({ closeAll: async () => { allocationsClosed++; } }),
+    CLAMD_CONFIG_PATH: "fixture-only",
+    composeProcessingAdapters: () => ({ capabilities, adapters: {}, storage: { artifactStore: {} } }),
+    capabilitySummary: (value) => value,
+    pendingWork: async (_db, _capabilities, options) => {
+      assertScope(options);
+      return { total: idle ? 0 : 1, needsScanner: !idle };
+    },
+    refreshSignatures: async () => { events.push("scanner-ready"); },
+    startClamd: async () => ({ readyMs: 0, child: {
+      exitCode: null,
+      kill: (signal) => { assert.equal(signal, "SIGTERM"); scannerStopped++; },
+    } }),
+    requeueRecoveredProcessingJobs: async (_db, _capabilities, options) => {
+      assertScope(options);
+      return { requeued: 0 };
+    },
+    runNextProcessingJob: async (options) => {
+      assertScope(options);
+      assert.equal(options.db, fixtureDb);
+      assert.equal(options.preferredSourceId, completed ? SOURCE : null, "source affinity must persist across steps");
+      if (completed === steps.length) return { outcome: "idle" };
+      const step = steps[completed++];
+      events.push(step);
+      return { outcome: "complete", step, source_id: SOURCE };
+    },
+    reconcileSelfTestVoiceGenomes: async (_db, options) => {
+      assertScope(options);
+      await Promise.resolve();
+      events.push("model-recovery");
+      return {};
+    },
+    reconcileVoiceBuildIntents: async (_db, options) => {
+      assertScope(options);
+      assert.equal(events.at(-1), "model-recovery", "recovery must complete before intent reconciliation");
+      await Promise.resolve();
+      events.push("build-intents");
+      return {};
+    },
+    runVoiceGenomeBuildSweep: async (options) => {
+      assertScope(options);
+      assert.equal(options.db, fixtureDb);
+      assert.equal(options.maxJobs, 4, "model-build capacity must remain bounded at four");
+      assert.equal(completed, idle ? 0 : steps.length, "all eight source steps must precede the build sweep");
+      assert.equal(events.at(-1), "build-intents", "intent reconciliation must complete before the build sweep");
+      await Promise.resolve();
+      events.push("model-build");
+      return buildSummary;
+    },
+  };
+  runInNewContext(`${required.getText(ast)}\n${declarations.join("\n")}\nglobalThis.fixtureMain = main;`, context);
+  const report = await context.fixtureMain();
+  assert.deepEqual(events, [...(idle ? [] : ["scanner-ready", ...steps]), "model-recovery", "build-intents", "model-build"]);
+  assert.equal(report.processed, idle ? 0 : steps.length);
+  assert.equal(report.requeue_failed, undefined, "capability recovery must preserve the source scope");
+  assert.equal(report.model_builds, buildSummary);
+  assert.equal(timersCleared, 1);
+  assert.equal(allocationsClosed, 1);
+  assert.equal(scannerStopped, idle ? 0 : 1);
+}
+const deployedJobsPerRun = Number(workerInfra.match(/name: 'PROCESSING_JOBS_PER_RUN', value: '(\d+)'/)?.[1]);
+assert.equal(deployedJobsPerRun, 12);
+await scheduledRunFixture(runOnce);
+await scheduledRunFixture(runOnce, { jobsPerRun: deployedJobsPerRun });
+ok("one scheduled run walks all eight source steps before its immediate scoped VoiceGenome build sweep", true);
+await scheduledRunFixture(runOnce, { idle: true });
+ok("an already-drained source still reaches scoped recovery, intent reconciliation and build in one run", true);
+const scopedBuildCall = "runVoiceGenomeBuildSweep({ db, maxJobs: 4, sourceScope })";
+assert.equal(runOnce.split(scopedBuildCall).length - 1, 2);
+const firstBuildCall = runOnce.indexOf(scopedBuildCall);
+const lastBuildCall = runOnce.lastIndexOf(scopedBuildCall);
+for (const [offset, idle] of [[firstBuildCall, true], [lastBuildCall, false]]) {
+  const unscoped = runOnce.slice(0, offset) + scopedBuildCall.replace(", sourceScope", "")
+    + runOnce.slice(offset + scopedBuildCall.length);
+  await assert.rejects(() => scheduledRunFixture(unscoped, { idle }), /exact source scope/);
+}
+await assert.rejects(() => scheduledRunFixture(runOnce, { jobsPerRun: 4 }), /all eight source steps/);
+await assert.rejects(() => scheduledRunFixture(runOnce.replace("        preferredSourceId,", "        preferredSourceId: null,")), /source affinity/);
+await assert.rejects(() => scheduledRunFixture(runOnce.replaceAll(scopedBuildCall, scopedBuildCall.replace("maxJobs: 4", "maxJobs: 40"))), /model-build capacity/);
+await assert.rejects(() => scheduledRunFixture(runOnce.slice(0, lastBuildCall) + "Promise.resolve({})"
+  + runOnce.slice(lastBuildCall + scopedBuildCall.length)), /deep-equal/);
+await assert.rejects(() => scheduledRunFixture(runOnce.replace("requeueRecoveredProcessingJobs(db, composed.capabilities, { sourceScope })",
+  "requeueRecoveredProcessingJobs(db, composed.capabilities, {})")), /capability recovery must preserve/);
+for (const [callee, failure] of [
+  ["reconcileSelfTestVoiceGenomes", /recovery must complete/],
+  ["reconcileVoiceBuildIntents", /intent reconciliation must complete/],
+]) {
+  await assert.rejects(() => scheduledRunFixture(runOnce.replaceAll(`await ${callee}(`, `${callee}(`)), failure);
+}
+ok("scheduled-run negative controls reject missing scope, insufficient capacity, lost affinity, skipped awaits and a missing build", true);
 ok("new recordings are picked up within two minutes without concurrent replicas",
   /cronExpression: '\*\/2 \* \* \* \*'/.test(workerInfra)
   && /parallelism: 1/.test(workerInfra) && /replicaCompletionCount: 1/.test(workerInfra));

@@ -183,7 +183,7 @@ type ContextLockerPanelProps = {
   onAuthError?: (error: ReplicaApiError) => void;
   onProposals?: (count: number) => void;
   onItemCount?: (count: number) => void;
-  onTeachSource?: (source: { replicaId: string; itemId: string }) => void;
+  onTeachSource?: (source: { replicaId: string; itemId: string; label?: string }) => void;
   teachSourceLabel?: string;
   onTestSource?: (source: { replicaId: string; itemId: string }) => void;
   testSourceLabel?: string;
@@ -225,7 +225,7 @@ function ContextLockerScope({
    *  panel is the only thing that asks the server. Reporting it up is cheaper
    *  and more honest than a second fetch that could disagree with this one. */
   onItemCount?: (count: number) => void;
-  onTeachSource?: (source: { replicaId: string; itemId: string }) => void;
+  onTeachSource?: (source: { replicaId: string; itemId: string; label?: string }) => void;
   teachSourceLabel?: string;
   onTestSource?: (source: { replicaId: string; itemId: string }) => void;
   testSourceLabel?: string;
@@ -535,7 +535,7 @@ function ContextLockerScope({
         <div className="context-result-actions">
           <button type="button" className="button primary-button" data-teach-source={teachableSource.item_id}
             disabled={busy || loading} onClick={() => {
-              if (mounted.current && !busy && !loading) onTeachSource({ replicaId, itemId: teachableSource.item_id });
+              if (mounted.current && !busy && !loading) onTeachSource({ replicaId, itemId: teachableSource.item_id, label: teachableSource.source_name });
             }}>{teachSourceLabel}</button>
         </div>
       ) : null}
@@ -563,6 +563,11 @@ function ContextLockerScope({
               <span className="field-note">{stateDetail({ key: item.item_id, item, label: "" })}</span>
               {attributionControls(item)}
               <span className="context-result-actions">
+                {onTeachSource && isTeachableContextSource(item) ? (
+                  <button type="button" className="button" data-review-source={item.item_id} disabled={busy || loading} onClick={() => {
+                    if (mounted.current && !busy && !loading) onTeachSource({ replicaId, itemId: item.item_id, label: item.source_name });
+                  }}>Review this source</button>
+                ) : null}
                 {onTestSource && item.kind === "file" && ["extracted", "mined"].includes(item.status) && item.extracted_chars > 0
                   && item.consent_scope === "own_context" && item.authorship === "mine"
                   && ["text", "markdown", "pdf", "docx"].includes(item.format) ?

@@ -111,7 +111,7 @@ const azure = createAzureFoundryClaimExtractor({
 const azureResult = await azure.extract({ batch });
 ok("Azure adapter uses exact OpenAI v1 route without query or redirect and strict JSON schema",
   azureRequest.url === "https://vyakti.services.ai.azure.com/openai/v1/chat/completions"
-  && azureRequest.init.redirect === "error" && azure.version === "openai-v1:claim-extractor/v2:raw-body/v2"
+  && azureRequest.init.redirect === "error" && azure.version === "openai-v1:claim-extractor/v3:raw-body/v2"
   && azureRequest.body.response_format.type === "json_schema" && azureRequest.body.response_format.json_schema.strict === true);
 ok("Azure-only prompt states canonical key and body bounds omitted from its wire schema",
   /key must match \^\[a-z\]\[a-z0-9_\]\{1,63\}\$/.test(azureRequest.body.messages[0].content)

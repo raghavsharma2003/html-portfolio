@@ -300,6 +300,26 @@ export interface CalibrationStatus {
   versions: CalibrationVersion[];
 }
 
+export interface ClaimCitationPreview {
+  excerpt: string;
+  entailment: number;
+}
+
+export interface SourceAwareClaimCitation extends ClaimCitationPreview {
+  source_id: string;
+  evidence_id: string;
+  context_item_id: string | null;
+  modality: "text" | "document" | "audio" | "video";
+  evidence_type: "text_span" | "transcript_span";
+  format: "text" | "markdown" | "pdf" | "docx" | null;
+  interpretation: "owner_supplied_text" | "machine_transcription";
+  citation: { unit: "utf16_code_units"; relative_to: "evidence_text"; start_char: number; end_char: number };
+  source_locator:
+    | { unit: "utf16_code_units"; relative_to: "canonical_source_text"; shape: "contiguous"; start_char: number; end_char: number; page_mapping: "unavailable" }
+    | { unit: "transcript_window_ms"; relative_to: "transcription_input"; start_ms: number; end_ms: number };
+  limitations: string[];
+}
+
 export interface ReplicaClaim {
   claim_id: string;
   domain: string;
@@ -310,7 +330,7 @@ export interface ReplicaClaim {
   status: "proposed" | "approved" | "rejected" | "superseded";
   sensitive: boolean;
   source_count: number;
-  citation_previews: Array<{ excerpt: string; entailment: number }>;
+  citation_previews: Array<ClaimCitationPreview | SourceAwareClaimCitation>;
   decision: "accepted" | "rejected" | "superseded" | null;
   reason_code: string;
   reviewed_at: string | null;

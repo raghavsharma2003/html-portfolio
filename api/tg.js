@@ -149,6 +149,9 @@ import { q } from "./_db.js";
 import { resolveInboundClone, createClonePublicAuthorityGuard } from "./_clonechannel.js";
 import { getChannelSecret } from "./_channel-secrets.js";
 import { withDoor } from "./_incidents.js";
+import { MEERA_AGENT_ID } from "./_agentscope.js";
+import { createTelegramGroupAuthority } from "./_group-audience.js";
+import { normalizeGroupSourceSentAtSeconds } from "./_group-source-event.js";
 
 // Re-exported because they are the product's promises, not this wire's, and
 // evals/mp/tgbot.mjs asserts the card this surface actually posts.
@@ -231,6 +234,8 @@ const base = (over = {}) => ({
   text: "",
   caption: "",
   messageId: null,
+  sourceEventKind: "unsupported_event",
+  sourceSentAtSeconds: null,
   replyToSelf: false,
   fromBot: false,
   reason: "",
@@ -257,6 +262,25 @@ export function parse(payload) {
     isGroup,
     raw: p.ev,
   };
+
+  // Only the ordinary chat namespace is supported for group sourcing/control.
+  // A guest, ephemeral, business or anonymous message may have a narrower or
+  // different audience than chat.id. Never turn its text (including commands)
+  // into a reply to the whole group. Keep parseUpdate's legacy triage exported,
+  // but refuse edits and ambiguous update variants at this actual adapter edge.
+  // Contracts: https://core.telegram.org/bots/api#update and #message (2026-10-01).
+  if (isGroup) {
+    const kinds = Object.keys(payload).filter((key) => key !== "update_id");
+    const supportedKind = kinds.length === 1
+      && ["message", "my_chat_member", "chat_member"].includes(kinds[0])
+      && payload[kinds[0]] === p.ev;
+    const scopedMessage = Object.keys(p.ev).some((key) =>
+      ["receiver_user", "sender_chat", "sender_business_bot", "author_signature", "edit_date",
+        "is_from_offline", "is_anonymous", "guest"].includes(key)
+      || key.startsWith("guest_") || key.startsWith("ephemeral_") || key.startsWith("business_"));
+    if (!supportedKind || scopedMessage)
+      return [base({ ...common, reason: "unsupported-group-source-event" })];
+  }
 
   if (p.kind === "callback") return [base({ reason: "callback-not-in-v1" })];
 
@@ -318,6 +342,12 @@ export function parse(payload) {
       text: m.text || "",
       caption: m.caption || "",
       messageId: m.message_id ?? null,
+      // Copy ONLY the original sent date. edit_date/local arrival time must
+      // never make old text look newly consented, and raw remains untrusted.
+      sourceEventKind: payload.message === m ? "ordinary_message"
+        : payload.edited_message === m ? "edited_message" : "unsupported_event",
+      sourceSentAtSeconds: payload.message === m
+        ? normalizeGroupSourceSentAtSeconds(Object.getOwnPropertyDescriptor(m, "date")?.value) : null,
       replyToSelf: Boolean(m.reply_to_message?.from?.is_bot),
       fromBot: Boolean(from.is_bot),
     }),
@@ -368,22 +398,30 @@ function tgExtra(msg) {
   return extra;
 }
 
-/** The legacy client shape the offline suite injects — kept as the seam so
- *  evals/mp/tgbot.mjs drives the REAL pipeline with no network. Exported
- *  (WS-R60) purely so evals/mp/tgbot.mjs can also pin the REAL outbound
- *  `setMessageReaction` body shape against a monkey-patched fetch, rather
- *  than only against the injected fake client that never reaches `tgCall`
- *  at all — no behaviour change, the function itself is untouched. */
-export const clientFor = (token) => ({
-  message: (chatId, text, extra = {}) =>
-    tgCall("sendMessage", { chat_id: chatId, text, ...extra }, token),
-  react: (chatId, messageId, emoji) =>
-    tgCall(
-      "setMessageReaction",
-      { chat_id: chatId, message_id: messageId, reaction: [{ type: "emoji", emoji }] },
-      token,
-    ),
-});
+/** The same client owns both outbound delivery and current group-authority
+ *  reads. Membership methods follow the official Bot API contract; the pure
+ *  group-audience suite pins their serialized shapes with an injected fetch.
+ *  Legacy message/react injection remains supported for ordinary DM tests. */
+export const clientFor = (suppliedToken) => {
+  // An absent explicitly supplied token must never select tgCall's global
+  // default. Each clone's reads and writes use this same immutable binding.
+  const token = typeof suppliedToken === "string" ? suppliedToken : "";
+  return {
+    message: (chatId, text, extra = {}) =>
+      tgCall("sendMessage", { chat_id: chatId, text, ...extra }, token),
+    react: (chatId, messageId, emoji) =>
+      tgCall(
+        "setMessageReaction",
+        { chat_id: chatId, message_id: messageId, reaction: [{ type: "emoji", emoji }] },
+        token,
+      ),
+    getMe: () => tgCall("getMe", {}, token),
+    getChatMember: (chatId, userId) =>
+      tgCall("getChatMember", { chat_id: chatId, user_id: Number(userId) }, token),
+    getChatMemberCount: (chatId) => tgCall("getChatMemberCount", { chat_id: chatId }, token),
+    getChat: (chatId) => tgCall("getChat", { chat_id: chatId }, token),
+  };
+};
 
 /** Meera's own bot, and the shape the offline suite injects. A per-clone lane
  *  builds its own with `clientFor(<that clone's token>)` — never by mutating a
@@ -437,9 +475,11 @@ export function startLink(roomId, bot = BOT_USERNAME) {
  * asserts that it has not.
  */
 export async function handleUpdate(update, deps = {}) {
-  const engine = deps.engine !== undefined ? deps.engine : await loadEngine();
   const [ev0] = parse(update);
-  const ev = deps.channelRef ? { ...ev0, channelRef: String(deps.channelRef) } : ev0;
+  // Capture routing/text/date primitives before asynchronous engine/binding
+  // work. Later mutation of the raw body cannot rewrite event admission.
+  const ev = Object.freeze(deps.channelRef ? { ...ev0, channelRef: String(deps.channelRef) } : ev0);
+  const engine = deps.engine !== undefined ? deps.engine : await loadEngine();
 
   // The clone binding seam. OPTIONAL by design: absent, this is byte-for-byte
   // the single-agent lane that shipped and `evals/mp/tgbot.mjs` measures it
@@ -452,8 +492,14 @@ export async function handleUpdate(update, deps = {}) {
   let bound = null;
   if (deps.bind) {
     bound = await deps.bind(ev).catch(() => null);
-    if (!bound) return { ok: false, skipped: "clone_unavailable" };
+    if (!bound || typeof bound.send !== "function") return { ok: false, skipped: "clone_unavailable" };
   }
+
+  // Never fill a missing per-clone capability from the default bot. An
+  // incomplete clone binder is fail-closed for groups, while DMs stay intact.
+  const groupAuthority = bound || createTelegramGroupAuthority(deps.authorityClient || deps.send || defaultClient, {
+    agentId: deps.agentId || MEERA_AGENT_ID,
+  });
 
   const ctx = makeCtx(adapter, {
     ...deps,
@@ -461,7 +507,9 @@ export async function handleUpdate(update, deps = {}) {
     agent: bound?.agent ?? deps.agent,
     agentId: bound?.agentId ?? deps.agentId,
     assertPublicAuthority: bound?.assertPublicAuthority ?? deps.assertPublicAuthority,
-    send: bound?.send ?? sendVia(deps.send || defaultClient),
+    groupAudienceWitness: bound ? groupAuthority.groupAudienceWitness : (deps.groupAudienceWitness || groupAuthority.groupAudienceWitness),
+    verifyGroupMembership: bound ? groupAuthority.verifyGroupMembership : (deps.verifyGroupMembership || groupAuthority.verifyGroupMembership),
+    send: bound ? bound.send : sendVia(deps.send || defaultClient),
     botHandle: bound?.botHandle || BOT_USERNAME,
     // `/start` with or without a room token is the linking tap. Without a
     // token it still links: it is the only way a Telegram bot may ever open a
@@ -509,12 +557,15 @@ export async function bindTelegramClone(channelRef, deps = {}) {
   // No token, no lane. Binding a clone we cannot send as would log the
   // student's turn and then go silent, which is worse than never resolving.
   if (!token) return null;
+  const client = clientFor(token);
+  const groupAuthority = createTelegramGroupAuthority(client, { agentId: resolved.agentId, botId: ref });
   return {
     agent: resolved.module,
     agentId: resolved.agentId,
     assertPublicAuthority: createClonePublicAuthorityGuard(db,resolved),
     botHandle: resolved.module?.displayName || BOT_USERNAME,
-    send: sendVia(clientFor(token)),
+    send: sendVia(client),
+    ...groupAuthority,
   };
 }
 

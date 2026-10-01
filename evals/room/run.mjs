@@ -208,16 +208,37 @@ const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra
 }
 
 // ── 4. the cap, at message 21 ─────────────────────────────────────────────
-{
+// Both sides use an explicit clock. Previously the starting month came from
+// Date.now(), while "next month" was always October 2026: on October 1 these
+// became the SAME month and the correctly exhausted quota failed the fixture.
+// These are UTC calendar boundaries, not a fixed 30-day duration. The leap
+// case also verifies that February 29 is still in the exhausted February.
+for (const [label, startAt, nextAt, currentKey, nextKey] of [
+  ["September to October", "2026-09-30", "2026-10-01", "2026-09", "2026-10"],
+  ["December to January", "2026-12-31", "2027-01-01", "2026-12", "2027-01"],
+  ["non-leap February", "2027-02-28", "2027-03-01", "2027-02", "2027-03"],
+  ["leap February", "2028-02-28", "2028-03-01", "2028-02", "2028-03"],
+]) {
+  const capOk = (name, cond) => ok(`${label}: ${name}`, cond);
+  const now = Date.parse(`${startAt}T00:00:00.000Z`);
+  const nextMonth = Date.parse(`${nextAt}T00:00:00.000Z`);
+  const lastMillisecond = nextMonth - 1;
   const state = freshState();
   const db = fakeDb(state);
+  const memlog = [];
+  let replyCalls = 0;
+  const d = deps({ now, memory: fakeMemory(memlog), reply: async (...args) => {
+    replyCalls++;
+    return reply(...args);
+  } });
   const joined = await joinRoom(
     db,
     { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true },
-    deps(),
+    d,
   );
-  const memlog = [];
-  const d = deps({ memory: fakeMemory(memlog) });
+  capOk("the month key changes at exactly the UTC boundary",
+    monthKeyOf(now) === currentKey && monthKeyOf(lastMillisecond) === currentKey &&
+      monthKeyOf(nextMonth) === nextKey && state.followers[0].month_key === currentKey);
 
   let session = joined.session;
   let last = null;
@@ -225,32 +246,79 @@ const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra
     last = await roomSay(db, { session, message: `q${i}` }, d);
     session = last.session;
   }
-  ok("twenty free messages are allowed", last.quota.messages_used === 20 && last.quota.messages_left === 0);
-  ok("the upgrade prompt is a flag on a turn that WORKED, not an interruption",
+  capOk("twenty free messages are allowed", last.quota.messages_used === 20 && last.quota.messages_left === 0);
+  capOk("the upgrade prompt is a flag on a turn that WORKED, not an interruption",
     last.upgrade_prompt === true && Boolean(last.reply));
 
-  const modelCalls = memlog.filter((e) => e.call === "openEpisode").length;
+  const modelCalls = replyCalls;
+  const memoryCalls = memlog.length;
   const capped = await roomSay(db, { session, message: "q21" }, d).catch((e) => e);
-  ok("message 21 is refused", capped?.code === "room_free_cap_reached");
-  ok("the refusal names the allowance", capped?.details?.messages_included === 20);
-  ok("the refusal happens BEFORE any work, not mid-sentence",
-    memlog.filter((e) => e.call === "openEpisode").length === modelCalls);
+  capOk("message 21 is refused", capped?.code === "room_free_cap_reached");
+  capOk("the refusal names the allowance", capped?.details?.messages_included === 20);
+  capOk("the refusal happens BEFORE reply or memory work",
+    replyCalls === modelCalls && memlog.length === memoryCalls);
+
+  const before = await openRoom(db, { slug: SLUG, authUserId: USER_A }, { ...d, now: lastMillisecond });
+  const stillCapped = await roomSay(db, { session: before.session, message: "still q21" },
+    { ...d, now: lastMillisecond }).catch((e) => e);
+  capOk("reopening just before the boundary does not refill the allowance",
+    before.follower.messages_left === 0 && stillCapped?.code === "room_free_cap_reached" &&
+      replyCalls === modelCalls && memlog.length === memoryCalls);
 
   // A new month restores the allowance, through the same statement. The
-  // session is re-opened rather than reused: a token minted a month ago is
+  // session is re-opened rather than reused: the original midnight token is
   // past its TTL, which is itself the behaviour this suite wants.
-  const nextMonth = Date.parse("2026-10-05T00:00:00.000Z");
+  const expired = await roomSay(db, { session, message: "old session" },
+    { ...d, now: nextMonth }).catch((e) => e);
+  capOk("the old session still expires across the calendar transition",
+    expired?.code === "room_session_expired" && replyCalls === modelCalls && memlog.length === memoryCalls);
   const reopened = await openRoom(db, { slug: SLUG, authUserId: USER_A }, { ...d, now: nextMonth });
   // The allowance a follower is SHOWN is computed against the month they are
   // in, not against the month the row was last written in. A stale month key
   // rendered as a spent allowance would tell a follower on the 1st that they
   // have nothing left, which is the number being wrong in the direction that
   // costs the product a customer.
-  ok("re-opening in a new month shows the allowance restored",
+  capOk("re-opening in a new month shows the allowance restored",
     reopened.joined === true && reopened.follower.messages_left === 20);
+  capOk("opening does not spend or rewrite the stored old-month quota",
+    state.followers[0].month_key === currentKey && state.followers[0].month_message_count === 20);
+
+  // Mutate only the actual UPDATE's month parameter, on isolated fixture
+  // copies. These controls prove that a stale clock prevents real rollover,
+  // and an early clock bypasses the real caller's same-month refusal. They
+  // are control-flow evidence, not PostgreSQL parser or concurrency proof.
+  const withSpendMonth = (database, key) => async (sql, params) => database(sql,
+    sql.includes("set month_key = $4") && sql.includes("month_message_count")
+      ? params.map((value, index) => index === 3 ? key : value) : params);
+  const staleMonth = await roomSay(withSpendMonth(fakeDb(structuredClone(state)), currentKey),
+    { session: reopened.session, message: "stale spend month" }, { ...d, now: nextMonth }).catch((e) => e);
+  capOk("NEGATIVE CONTROL: a stale UPDATE month prevents rollover",
+    staleMonth?.code === "room_free_cap_reached" && replyCalls === modelCalls && memlog.length === memoryCalls);
+  const earlyMonth = await roomSay(withSpendMonth(fakeDb(structuredClone(state)), nextKey),
+    { session: before.session, message: "premature spend month" }, { ...d, now: lastMillisecond });
+  capOk("NEGATIVE CONTROL: an early UPDATE month wrongly buys message 21",
+    earlyMonth.quota.messages_used === 1 && Boolean(earlyMonth.reply));
+
   const rolled = await roomSay(db, { session: reopened.session, message: "q22" }, { ...d, now: nextMonth });
-  ok("the month rolls over inside the same UPDATE",
-    rolled.quota.messages_used === 1 && state.followers[0].month_key === monthKeyOf(nextMonth));
+  capOk("the month rolls over inside the same UPDATE",
+    rolled.quota.messages_used === 1 && state.followers[0].month_key === nextKey &&
+      state.followers[0].month_message_count === 1);
+  const reopenedAgain = await openRoom(db, { slug: SLUG, authUserId: USER_A }, { ...d, now: nextMonth });
+  capOk("reopening again preserves the new month's first spend",
+    reopenedAgain.follower.messages_used === 1 && reopenedAgain.follower.messages_left === 19);
+  session = reopenedAgain.session;
+  for (let i = 2; i <= 20; i++) {
+    last = await roomSay(db, { session, message: `new month q${i}` }, { ...d, now: nextMonth });
+    session = last.session;
+  }
+  const afterResetReplyCalls = replyCalls;
+  const afterResetMemoryCalls = memlog.length;
+  const recapped = await roomSay(db, { session, message: "new month q21" },
+    { ...d, now: nextMonth }).catch((e) => e);
+  capOk("the new month grants exactly twenty messages, not an unlimited reset",
+    last.quota.messages_used === 20 && last.quota.messages_left === 0 &&
+      recapped?.code === "room_free_cap_reached" && replyCalls === afterResetReplyCalls &&
+      memlog.length === afterResetMemoryCalls);
 }
 
 // ── 5. no consent, no memory - and the transcript is still bound ──────────

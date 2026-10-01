@@ -14,6 +14,10 @@ jobs:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
+      # Existing regression controls read original Git objects preserved by
+      # this archive. Depth 2 includes its direct parents without merging it.
+      - name: Fetch pinned historical regression controls
+        run: git fetch --no-tags --depth=2 origin 7a8ad90dd63fd30ea5a1a64bde4cf8dc016b3fb4:refs/remotes/origin/codex/handoff-history-20260909
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -23,6 +27,16 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
+      # Browser suites need the same registered Hindi face as the release
+      # gate. Reuse the bundled font, with no separate download or root install.
+      - name: Install the bundled Devanagari face as a system font
+        run: |
+          mkdir -p "$HOME/.local/share/fonts"
+          cp node_modules/@expo-google-fonts/noto-sans-devanagari/400Regular/NotoSansDevanagari_400Regular.ttf "$HOME/.local/share/fonts/"
+          fc-cache -f "$HOME/.local/share/fonts"
+          fc-list | grep -qi "Noto Sans Devanagari" || { echo "::error::Noto Sans Devanagari did not register with fontconfig -- the glyph pass would be blind on this runner"; exit 1; }
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
       - run: npx tsc -b
       # Fails the build if a system prompt outgrows the cap api/chat.js slices
       # it at. Truncation is silent and eats the END of the prompt, which is
@@ -46,6 +60,10 @@ jobs:
       # --stub writes that file with every value empty — nothing granted, and
       # an accidental query fails loudly rather than quietly reaching prod.
       - run: node scripts/write-config.mjs --stub
+      # The eval registry includes real browser fixtures and the audio
+      # simulator; prepare their artifacts before those suites start.
+      - run: npx vite build
+      - run: node evals/echosim/build.mjs
       - run: node evals/run.mjs
       # WS-WATCHPERF. Two suites that compile and RUN shipping Java, so this
       # job — the one that already installs a JDK to build the APK — is the
@@ -73,7 +91,6 @@ jobs:
       # nothing and fail. The flag prints that half as out of scope rather than
       # skipping it silently — see the file header.
       - run: node evals/multimodal/run.mjs --offline
-      - run: npx vite build
       - run: npx cap sync android
       - run: cd android && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4

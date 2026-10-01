@@ -18,7 +18,9 @@ export const ELIGIBLE_TRANSCRIPTS_SQL = `with latest_speaker_decision as (
    order by d.evidence_id,d.created_at desc,d.decision_id desc
 )
 select e.evidence_id,e.source_id,e.span_start_ms,e.span_end_ms,e.confidence,
-       e.input_sha256,e.record_hash,e.value->>'text' as text,e.value->>'language' as language
+       e.input_sha256,e.record_hash,e.value->>'text' as text,e.value->>'language' as language,
+       e.evidence_type,s.kind as source_kind,e.value->'locator' as source_locator,
+       e.value#>>'{provenance,format}' as source_format
   from vy_replica_processing_evidence e
   join vy_replica_source s
     on s.source_id=e.source_id and s.replica_id=e.replica_id and s.owner_user_id=e.owner_user_id

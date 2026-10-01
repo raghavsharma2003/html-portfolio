@@ -1,0 +1,34 @@
+.person-model .claim-review-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-item);
+  margin-block: var(--space-block);
+  padding-block: var(--space-item);
+  border-block: 1px solid var(--line-strong);
+  color: var(--ink);
+}
+.claim-review-scope > div { min-width: 0; flex: 1 1 18rem; }
+.person-model .claim-review-scope h3 { margin: 0; font-size: var(--text-title); }
+.person-model .claim-review-scope p { margin: var(--space-tight) 0 0; line-height: var(--leading-body); overflow-wrap: anywhere; }
+.person-model .claim-review-source-name { font-weight: var(--weight-medium); }
+.person-model .claim-review-scope button { min-height: 44px; }
+.person-model .claim-actions { gap: var(--space-tight); }
+.person-model .claim-actions button { min-height: 44px; min-width: 44px; }
+.person-model .claim-citations { gap: var(--space-item); }
+.person-model .claim-source-evidence { min-width: 0; padding-block: var(--space-row); border-block-start: 1px solid var(--line); }
+.person-model .claim-source-evidence p { margin: 0 0 var(--space-tight); font-size: var(--text-body); color: var(--ink-soft); line-height: var(--leading-body); overflow-wrap: anywhere; }
+.person-model .claim-source-label { display: flex; flex-wrap: wrap; gap: var(--space-tight) var(--space-item); }
+.person-model .claim-source-label strong { color: var(--ink); }
+.person-model .claim-source-label span { color: var(--forest-deep); }
+.person-model .claim-source-evidence blockquote { margin: var(--space-row) 0; color: var(--ink); font-size: var(--text-lead); line-height: var(--leading-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+.person-model .claim-source-location summary { width: fit-content; min-height: 44px; padding-block: var(--space-row); color: var(--forest-deep); font-size: var(--text-body); cursor: pointer; }
+.person-model .claim-proposal-label { margin-bottom: 0; font-size: var(--text-body); font-weight: var(--weight-medium); color: var(--ink-soft); }
+.person-model .claim-meta { flex-wrap: wrap; }
+.person-model .person-claim { min-width: 0; overflow-wrap: anywhere; }
+.person-model :is(.claim-review-scope button, .claim-actions button, .claim-source-location summary, #person-model-title):focus-visible { outline: 2px solid var(--forest); outline-offset: var(--space-hair); }
+.person-model .claim-source-evidence ::selection { background: var(--forest-soft); color: var(--ink); }
+@media (max-width: 480px) {
+  .person-model .claim-review-scope button { width: 100%; }
+}
