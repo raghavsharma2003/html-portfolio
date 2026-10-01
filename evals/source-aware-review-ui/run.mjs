@@ -29,7 +29,7 @@ const { createServer } = await import('node:http');
 const { chromium } = await import('playwright');
 const artifactDir = join(root, 'scratchpad/source-aware-review-ui-synthetic', `node-${process.versions.node}`);
 mkdirSync(artifactDir, { recursive: true });
-const results = [], requests = [], errors = [], unknownRequests = [], pending = [];
+const results = [], requests = [], errors = [], unknownRequests = [], pending = [], actionMeasurements = [];
 let scenario = 'normal', reads = 0, acceptedClaim = null, browser, page;
 let activityScope = { token: 'synthetic-review-a', replicaId: RID };
 const server = createServer(async (req, res) => {
@@ -72,6 +72,29 @@ const server = createServer(async (req, res) => {
 });
 const check = async (name, fn) => { await fn(); results.push(name); console.log('PASS mounted ' + name); };
 const releasePending = () => { while (pending.length) pending.shift()(); };
+const actionNames = ['Keep out', 'Not accurate', 'Outdated', 'This is me'];
+function assertTouchTargets(layout) {
+  assert.deepEqual(layout.buttons.map(button => button.label), actionNames);
+  for (const button of layout.buttons) {
+    assert(button.width >= 44 && button.height >= 44, `44px touch target: ${JSON.stringify(button)}`);
+  }
+}
+function assertActionLayout(layout) {
+  assertTouchTargets(layout);
+  const { container, buttons, viewport } = layout;
+  assert(container.left >= 0 && container.right <= viewport.width, `action container fits viewport: ${JSON.stringify(layout)}`);
+  for (const button of buttons) {
+    assert(button.left >= container.left - 0.5 && button.right <= container.right + 0.5
+      && button.top >= container.top - 0.5 && button.bottom <= container.bottom + 0.5,
+    `wrapped action stays within container: ${JSON.stringify(button)}`);
+  }
+  for (let first = 0; first < buttons.length; first++) for (let second = first + 1; second < buttons.length; second++) {
+    const a = buttons[first], b = buttons[second];
+    const horizontalGap = Math.max(b.left - a.right, a.left - b.right);
+    const verticalGap = Math.max(b.top - a.bottom, a.top - b.bottom);
+    assert(horizontalGap >= 8 || verticalGap >= 8, `actions need an 8px gap without overlap: ${JSON.stringify({ a, b, horizontalGap, verticalGap })}`);
+  }
+}
 async function waitPending() {
   const deadline = Date.now() + 10000;
   while (!pending.length && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
@@ -102,6 +125,11 @@ try {
     }
     assert.fail('control not reachable through the actual Tab order');
   }
+  const readActionLayout = card => card.locator('.claim-actions').evaluate(container => {
+    const rect = element => { const box = element.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height }; };
+    return { viewport: { width: innerWidth, height: innerHeight }, container: rect(container),
+      buttons: [...container.querySelectorAll('button')].map(button => ({ label: button.textContent.trim(), ...rect(button) })) };
+  });
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await check(`${width}: actual locker Teach action carries selected item into real claim review`, async () => {
@@ -155,6 +183,50 @@ try {
       assert(measurements.focused.height >= 44); assert(measurements.focused.left >= -1 && measurements.focused.right <= width + 1);
       assert.notEqual(measurements.focused.outline, 'none'); assert(parseFloat(measurements.focused.outlineWidth) >= 1);
       await page.screenshot({ path: join(artifactDir, `selected-source-${width}.png`), fullPage: true });
+      const card = page.locator('.person-claim').filter({ has: page.getByText(CLAIM_TEXT, { exact: true }) });
+      const receipt = { viewportWidth: width, layout: await readActionLayout(card), negativeControl: null, restoredLayout: null, keyboard: [], mutations: null };
+      actionMeasurements.push(receipt);
+      assertActionLayout(receipt.layout);
+      // Prove the DOM assertion sees the former small targets, not merely that
+      // the source contains a min-height declaration. Remove only this style.
+      const smallTargets = await page.addStyleTag({ content: '.person-model .person-claims > .person-claim:first-child .claim-actions button { min-height: 0 !important; min-width: 0 !important; }' });
+      try {
+        await flushRender();
+        const layout = await readActionLayout(card);
+        receipt.negativeControl = { kind: 'removed_minimum_target_size', layout, detected: false };
+        assert.throws(() => assertTouchTargets(layout), /44px touch target/);
+        receipt.negativeControl.detected = true;
+      } finally {
+        await smallTargets.evaluate(style => style.remove());
+      }
+      await flushRender();
+      receipt.restoredLayout = await readActionLayout(card);
+      assertActionLayout(receipt.restoredLayout);
+      for (const name of actionNames) {
+        const button = card.getByRole('button', { name, exact: true });
+        await page.keyboard.press('Tab'); await reachByTab(button); await flushRender();
+        const focused = await button.evaluate(element => {
+          const box = element.getBoundingClientRect(), css = getComputedStyle(element);
+          const insetX = Math.min(8, box.width / 4), insetY = Math.min(8, box.height / 4);
+          const points = [[box.left + box.width / 2, box.top + box.height / 2],
+            [box.left + insetX, box.top + insetY], [box.right - insetX, box.top + insetY],
+            [box.left + insetX, box.bottom - insetY], [box.right - insetX, box.bottom - insetY]];
+          return { label: element.textContent.trim(), active: element === document.activeElement, focusVisible: element.matches(':focus-visible'),
+            left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height,
+            outline: css.outlineStyle, outlineWidth: css.outlineWidth, outlineColor: css.outlineColor, outlineOffset: css.outlineOffset,
+            viewport: { width: innerWidth, height: innerHeight }, hitTests: points.map(([x, y]) => ({ x, y, unobscured: element.contains(document.elementFromPoint(x, y)) })) };
+        });
+        receipt.keyboard.push(focused);
+        assert(focused.active && focused.focusVisible, `actual Tab focus: ${JSON.stringify(focused)}`);
+        assert.notEqual(focused.outline, 'none'); assert(parseFloat(focused.outlineWidth) >= 1);
+        assert(!['transparent', 'rgba(0, 0, 0, 0)'].includes(focused.outlineColor));
+        assert(focused.left >= 0 && focused.right <= focused.viewport.width && focused.top >= 0 && focused.bottom <= focused.viewport.height,
+          `keyboard target remains in viewport: ${JSON.stringify(focused)}`);
+        assert(focused.hitTests.every(point => point.unobscured), `keyboard target is not occluded: ${JSON.stringify(focused)}`);
+      }
+      receipt.mutations = requests.filter(request => request.method !== 'GET').length;
+      assert.equal(receipt.mutations, 0, 'layout and keyboard focus do not decide a claim');
+      await page.screenshot({ path: join(artifactDir, `claim-actions-${width}.png`) });
     });
     await check(`${width}: All sources restores unrelated and legacy claims without rendering malformed evidence`, async () => {
       const all = page.getByRole('button', { name: 'All sources', exact: true }); await all.focus(); await page.keyboard.press('Enter');
@@ -235,10 +307,10 @@ try {
     releasePending(); await received; await flushRender(); assert.equal(await page.locator('#root').textContent(), '');
   });
   assert.deepEqual(unknownRequests, []); assert.deepEqual(errors, []);
-  writeFileSync(join(artifactDir, 'result.json'), JSON.stringify({ syntheticOnly: true, at: new Date().toISOString(), node: process.versions.node, sourceGroups, mountedGroups: results, errors, unknownRequests }, null, 2));
+  writeFileSync(join(artifactDir, 'result.json'), JSON.stringify({ syntheticOnly: true, at: new Date().toISOString(), node: process.versions.node, sourceGroups, mountedGroups: results, actionMeasurements, errors, unknownRequests }, null, 2));
   console.log(`${sourceGroups.length} source groups and ${results.length} mounted source-aware review groups passed; synthetic hosted evidence only`);
 } catch (cause) {
-  writeFileSync(join(artifactDir, 'failure.json'), JSON.stringify({ syntheticOnly: true, at: new Date().toISOString(), sourceGroups, completedMountedGroups: results, failure: String(cause), errors, unknownRequests }, null, 2));
+  writeFileSync(join(artifactDir, 'failure.json'), JSON.stringify({ syntheticOnly: true, at: new Date().toISOString(), sourceGroups, completedMountedGroups: results, actionMeasurements, failure: String(cause), errors, unknownRequests }, null, 2));
   await page?.screenshot({ path: join(artifactDir, 'failure-synthetic.png'), fullPage: true }).catch(() => {});
   throw cause;
 } finally {

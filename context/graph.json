@@ -18300,6 +18300,24 @@
       "kind": "measurement",
       "title": "Local delivery 44 authority 131 and independent review pass while separate recall APK succeeds",
       "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-final-software-inconclusive-quality",
+      "kind": "measurement",
+      "title": "Exact recall software passes both releases while its frozen relevance outcome stays inconclusive",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupreview20261001-touch-target-phase-baseline",
+      "kind": "measurement",
+      "title": "Prior screenshot estimate motivates four-action touch-target work before actual DOM measurement",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupreview20261001-touch-target-source-freeze",
+      "kind": "measurement",
+      "title": "Scoped four-action CSS and build-only controls pass while mounted target measurements await hosted CI",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -31050,6 +31068,21 @@
       "src": "groupdelivery20261001-truthful-outcome-boundary",
       "rel": "measured_by",
       "dst": "groupdelivery20261001-local-freeze-and-recall-apk"
+    },
+    {
+      "src": "grouprecall20261001-recency-default-after-comparison",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-final-software-inconclusive-quality"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "measured_by",
+      "dst": "groupreview20261001-touch-target-phase-baseline"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "measured_by",
+      "dst": "groupreview20261001-touch-target-source-freeze"
     }
   ]
 }

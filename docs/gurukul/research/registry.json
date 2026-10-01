@@ -478,16 +478,16 @@
     {
       "id": "source-preserving-group-recall",
       "title": "Bounded permitted group-source selection with attribution",
-      "state": "implemented",
-      "outcome": null,
-      "observedAt": null,
+      "state": "completed",
+      "outcome": "inconclusive",
+      "observedAt": "2026-10-01",
       "hypothesis": "Bounded lexical selection can improve older permitted-source recall over recency-only history without losing speaker/subject attribution, current audience constraints or deletion lineage.",
       "sourceIds": ["graphiti-source-lineage", "hindsight-document-semantics", "groupmembench", "socialmembench"],
       "artifactPaths": ["docs/gurukul/research/PORTABLE-GROUP-LAYER-20261001.md", "docs/gurukul/research/GROUP-SOURCE-RECALL-PLAN-20261001.md", "docs/gurukul/research/GROUP-SOURCE-RECALL-IMPLEMENTATION-20261001.md", "docs/gurukul/research/GROUP-SOURCE-RECALL-EVAL-20261001.md", "api/_group-recall/selection.js", "api/_group-recall/selection.d.ts", "evals/source-turn-selection/run.mjs", "evals/group-source-recall/cases.mjs", "evals/group-source-recall/run.mjs", "api/_room.js", "api/_surface.js"],
       "runCommand": "node evals/group-source-recall/run.mjs",
       "successCriteria": ["Preregister 48 invented cases across eight families, three language conditions and two cases per cell; compare identical permitted corpora and budgets.", "Freeze NFKC/lowercase Unicode letter/mark/number tokenization and score one point per unique query token present in a source, with no frequency/IDF bonus and descending numeric source-ID ties, before independent case evaluation.", "Admit under server authority before ranking and bind the full pool at a fixed current-log cutoff; preserve source, episode, revision, speaker and available reply ancestry without guessing subject identity.", "Preserve the mandatory latest 20/current source, add at most 12 older positive matches and render source order; use only raw human source text for vocabulary.", "Test the 32768-byte complete source-bearing UTF-8 JSON limit after embedding/escaping and the explicitly corrected 98304-byte JSON({compiled:{core,tail},turns}) provider-relevant envelope; exclude only unused compiler duplicates/diagnostics and refuse before core64000/tail24000 string-unit truncation boundaries.", "Measure source recall, attribution, disagreements, corrections, dissent, audience changes and revoked/deleted evidence separately; planned counts and budgets are not results.", "Capture server mode once: unset/recency reads20 and lexical_recency explicitly opts into160; do not default-promote lexical based only on the frozen comparison, and do not apply its unused32-term gate to recency.", "Keep derived assistant history excluded until complete durable dependency lineage exists; no benchmark reproduction, second datastore or learned retrieval is assumed."],
       "evidenceScope": "offline_contract",
-      "result": null
+      "result": "2026-10-01: exact recall code 34da5259acad448b6204b3dbc0a791ca2b2c6ad6 passes both24/24 releases (36862600955), separate actual synthetic PostgreSQL42 groups (36862600958) and APK36862601154; release relational gates explicitly skip without NEON_URL. Local/hosted contracts include selector46, caller131 and comparison48cases+23controls. Frozen selection is inconclusive for useful relevance: lexical older targets27/54 versus recency0/54, but all24adversarial variant2 cases miss27older targets and select288irrelevant catalogue distractors. Both preserve960/960recent records and3/3recent corrections; final maximum serialized-turn bytes9430/17664. Corpus/scoring were not tuned; the report preserves symmetric null-label adaptation, generic coverage/unused-recency-limit corrections and the explicit provider-envelope correction chronology. No answer quality, user value, semantic cross-script understanding or live authorization trial was measured. Default remains recency20; lexical160 is explicit server opt-in and not promoted. Software acceptance does not imply a journal, dependent forgetting, native group UI, deployment or whole-layer readiness."
     }
   ]
 }
