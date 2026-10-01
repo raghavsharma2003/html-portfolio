@@ -18318,6 +18318,24 @@
       "kind": "measurement",
       "title": "Scoped four-action CSS and build-only controls pass while mounted target measurements await hosted CI",
       "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-explicit-success-fixture-repair",
+      "kind": "decision",
+      "title": "Repair intended-success send doubles without weakening strict delivery or distinct authority failures",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-public-inflight-fixture-receipt",
+      "kind": "measurement",
+      "title": "Delivery APK fails one strict-acknowledgement fixture while evaluation-only repair passes ten local controls",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-no-undefined-success-or-native-acl-shortcut",
+      "kind": "rejection",
+      "title": "Do not accept undefined receipts or treat web-account and creator-owner identity as native group membership",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -31083,6 +31101,21 @@
       "src": "groupai20261001-review-touch-target-followup",
       "rel": "measured_by",
       "dst": "groupreview20261001-touch-target-source-freeze"
+    },
+    {
+      "src": "groupdelivery20261001-explicit-success-fixture-repair",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-public-inflight-fixture-receipt"
+    },
+    {
+      "src": "groupdelivery20261001-explicit-success-fixture-repair",
+      "rel": "caused_by",
+      "dst": "groupdelivery20261001-no-undefined-success-or-native-acl-shortcut"
+    },
+    {
+      "src": "groupdelivery20261001-explicit-success-fixture-repair",
+      "rel": "part_of",
+      "dst": "groupdelivery20261001-truthful-outcome-boundary"
     }
   ]
 }

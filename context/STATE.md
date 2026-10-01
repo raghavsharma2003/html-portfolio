@@ -1,5 +1,13 @@
 # STATE — read this first, then the graph
 
+## START HERE: DELIVERY FIXTURE REGRESSION REPAIRED LOCALLY, UI STILL UNPUSHED (2026-10-01)
+
+UI checkpoint `8ad3af260fd57dc09a9026b8d339a6f3846895ac` is committed locally but NOT pushed; its actual target DOM/negative-CSS/visual evidence remains unrun. Exact delivery `35e9ee89` APK run `36864453809`, job `110376375203`, fails only `candidate-activation-public-inflight` at line 19: expected `clone_unavailable`, got `surface_delivery_unconfirmed` with accepted 0/attempted 1. Root reproduced the failure locally on Node 24. Two test doubles intended to succeed returned undefined, so the newly strict acknowledgement check correctly stopped before the intended later authority assertion.
+
+The bounded repair changes evaluation code only: intended-success sends return `{ok:true}`; six authority-code/404/no-outcome controls are retained/strengthened and four undefined/false public-text/ordinary-reaction refusal controls are added. Root passes 10/10. Production delivery is unchanged. Release `36864453658` is still running on Node 24 `110376375151` and Node 22 `110376375689`; do not assume a final 23/24 result. Delivery SQL run `36864453663`, job `110376376366`, passes 42 groups at `2026-10-01T12:51:14.5765928Z` under the same synthetic-query scope, not a production database. Preserve the failed APK receipt, commit the evaluation repair, and push it with the local UI checkpoint only after the active delivery release finishes.
+
+A separate read-only native identity audit reports verified web-account person and platform person are not end-to-end linked, no native member route, and creator-owner ACL is not group-member authority. Its `/chup` before-guard probe is source/caller evidence, not a live exploit or adopted policy. A report is being prepared; no identity/native feature or privacy option is implemented/approved here. Durable effects remain planned, recall stays completed/inconclusive and lexical unpromoted, and whole-layer readiness remains open.
+
 ## START HERE: FOUR-ACTION TOUCH-TARGET SOURCE FREEZE (2026-10-01)
 
 The UI working delta changes only `src/studio/source-aware-review.css`: the four scoped review actions have minimum 44 x 44 px targets, `var(--space-tight)` gap (8 px), and the existing forest 2 px focus rule now includes them. No TSX, copy or authority behavior changes. Impeccable adaptation/craft guidance and ui-ux touch-spacing guidance shape this bounded existing-identity repair, not a redesign or complete UX claim.

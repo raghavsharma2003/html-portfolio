@@ -1,5 +1,13 @@
 # GroupAI readiness ledger, 29 September 2026
 
+## Delivery fixture repair prepared; UI remains local, 1 October
+
+UI `8ad3af260fd57dc09a9026b8d339a6f3846895ac` is committed locally and not pushed, so the new target DOM/negative-CSS/visual proof remains unrun. Delivery `35e9ee89` APK run `36864453809`, job `110376375203`, fails only `candidate-activation-public-inflight`: line 19 expected `clone_unavailable` but got `surface_delivery_unconfirmed` (accepted 0/attempted 1). Root reproduced it on Node 24. Two intended-success send mocks returned undefined and hit the strict delivery boundary before the intended later authority check.
+
+The evaluation-only repair supplies `{ok:true}` for those declared successes, retains/strengthens six authority-code/404/no-outcome cases and adds four undefined/false public-text/ordinary-reaction refusal controls; root 10/10 pass. Production delivery is unchanged. SQL run `36864453663`/job `110376376366` passes 42 at `2026-10-01T12:51:14.5765928Z` under the same synthetic-query scope. Release `36864453658` remains running on Node 24 `110376375151`/Node 22 `110376375689`; no final gate count is assumed. Preserve the APK failure, commit the repair separately and push with the local UI checkpoint after the current delivery proof finishes.
+
+Read-only native identity audit reports no end-to-end web-account/platform-person linkage or native group-member route; creator-owner ACL is not that membership boundary. A `/chup` before-guard probe is source/caller evidence only, not a live exploit or implementation. The report is being prepared; no identity feature or privacy option is adopted. Durable effects remain planned and recall completed/inconclusive, with no whole-layer readiness claim.
+
 ## Four-action touch-target candidate prepared, 1 October
 
 Production UI changes are limited to `src/studio/source-aware-review.css`: scoped 44 x 44 px minima on four claim actions, existing `var(--space-tight)` 8 px gap and the existing forest 2 px focus rule extended to the buttons. No TSX/copy/authority semantics change. Root follows the existing identity using Impeccable adaptation/craft and ui-ux touch-spacing guidance. Network-blocked `--build-only` passes 17 source groups and the actual fixture bundle; copy seven scopes/21 controls, empty static detector, metadata and whitespace checks pass.
