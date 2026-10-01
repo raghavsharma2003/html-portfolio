@@ -330,11 +330,41 @@ await check("mutation: removing pre-model guard is caught by actual model dispat
   f.state.beforeCompile = () => { f.state.room.read_consent_at = null; };
   await assert.rejects(() => suppressed(f), /raw model dispatch count/);
 });
-await check("mutation: removing source receipt comparison leaks revoked source and is caught", async () => {
-  const f = fixture({ sources: changed("surface", "if (JSON.stringify(await sourceReader()) !== sourceReceipt) throw groupAuthorityError();", "await sourceReader();") });
+const sourceCheck = "if (JSON.stringify(await sourceReader()) !== sourceReceipt) throw groupAuthorityError();";
+assert.equal(SOURCE.surface.split(sourceCheck).length - 1, 2, "two source checkpoints bracket the external audience witness");
+const withoutSourceCheck = (index) => {
+  const offset = index === 0 ? SOURCE.surface.indexOf(sourceCheck) : SOURCE.surface.lastIndexOf(sourceCheck);
+  return { ...SOURCE, surface: SOURCE.surface.slice(0, offset) + "await sourceReader();" + SOURCE.surface.slice(offset + sourceCheck.length) };
+};
+await check("mutation: either retained source checkpoint still blocks persistent revocation", async () => {
+  for (const index of [0, 1]) {
+    const f = fixture({ sources: withoutSourceCheck(index) });
+    f.state.facts = [{ id: "51", body: "ochre", citations: ["50"] }];
+    f.state.duringModel = () => { f.state.grantValid = false; };
+    await suppressed(f, 1);
+  }
+});
+await check("mutation: removing both source receipt comparisons leaks revoked source and is caught", async () => {
+  const f = fixture({ sources: { ...SOURCE, surface: SOURCE.surface.replaceAll(sourceCheck, "await sourceReader();") } });
   f.state.facts = [{ id: "51", body: "ochre", citations: ["50"] }];
   f.state.duringModel = () => { f.state.grantValid = false; };
   await assert.rejects(() => suppressed(f, 1), /wire delivery count/);
+});
+await check("mutation: first source checkpoint catches revocation even if the later witness restores it", async () => {
+  for (const mutated of [false, true]) {
+    const f = fixture({ sources: mutated ? withoutSourceCheck(0) : SOURCE });
+    f.state.facts = [{ id: "51", body: "ochre", citations: ["50"] }];
+    f.state.beforeCompile = () => { f.state.grantValid = false; };
+    f.state.onWitness = (n) => { if (n === 3) f.state.grantValid = true; };
+    if (mutated) await assert.rejects(() => suppressed(f), /raw model dispatch count/);
+    else await suppressed(f);
+  }
+});
+await check("mutation: final source checkpoint catches revocation during the external witness", async () => {
+  const f = fixture({ sources: withoutSourceCheck(1) });
+  f.state.facts = [{ id: "51", body: "ochre", citations: ["50"] }];
+  f.state.onWitness = (n) => { if (n === 3) f.state.grantValid = false; };
+  await assert.rejects(() => suppressed(f), /raw model dispatch count/);
 });
 await check("mutation: removing fragment authority check is caught on second wire write", async () => {
   const f = fixture({ split: true, sources: changed("surface", "    await assertAuthority?.();\n    last = await ctx.send", "    last = await ctx.send") });

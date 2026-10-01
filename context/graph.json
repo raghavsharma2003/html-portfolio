@@ -18126,6 +18126,42 @@
       "kind": "rejection",
       "title": "Private Room tests and linked-member subsets cannot establish shared-group readiness",
       "at": "2026-09-29"
+    },
+    {
+      "id": "groupai20261001-portable-boundary-after-proof",
+      "kind": "decision",
+      "title": "Repair observed gates while researching an actually shared group-intelligence boundary",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-hosted-baseline-failures",
+      "kind": "measurement",
+      "title": "Three checkpoint workflows fail SQL typing, caller evaluations and supply-chain security",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-no-portability-or-green-shortcuts",
+      "kind": "rejection",
+      "title": "Do not substitute architectural packaging or historical green receipts for current proof",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-early-repair-checkpoint",
+      "kind": "decision",
+      "title": "Publish bounded verification repairs separately from the developing portable kernel",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-early-repair-evidence",
+      "kind": "measurement",
+      "title": "Five focused suites and static gates pass for the early verification repair candidate",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-no-unverified-kernel-union",
+      "kind": "rejection",
+      "title": "Do not union unfinished portability work or upgrade offline checks into hosted acceptance",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -30721,6 +30757,36 @@
       "src": "groupai20260929-layer-acceptance-ledger",
       "rel": "part_of",
       "dst": "human-experience-compiler"
+    },
+    {
+      "src": "groupai20261001-portable-boundary-after-proof",
+      "rel": "measured_by",
+      "dst": "groupai20261001-hosted-baseline-failures"
+    },
+    {
+      "src": "groupai20261001-portable-boundary-after-proof",
+      "rel": "caused_by",
+      "dst": "groupai20261001-no-portability-or-green-shortcuts"
+    },
+    {
+      "src": "groupai20261001-portable-boundary-after-proof",
+      "rel": "part_of",
+      "dst": "groupai20260929-layer-acceptance-ledger"
+    },
+    {
+      "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "measured_by",
+      "dst": "groupai20261001-early-repair-evidence"
+    },
+    {
+      "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "caused_by",
+      "dst": "groupai20261001-no-unverified-kernel-union"
+    },
+    {
+      "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "part_of",
+      "dst": "groupai20261001-portable-boundary-after-proof"
     }
   ]
 }

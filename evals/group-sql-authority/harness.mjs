@@ -30,14 +30,43 @@ export function hostedGuard(env = process.env, platform = process.platform) {
 
 // PostgreSQL performs the parameter typing. PREPARE retains the production
 // placeholders; only EXECUTE's synthetic argument literals are serialized.
+// ARRAY['uuid', ...] is an independently typed text[] expression, not an
+// unknown argument, and PostgreSQL cannot implicitly coerce it to uuid[].
+// Encode PostgreSQL's array input text instead so PREPARE's inferred type wins.
+// https://www.postgresql.org/docs/16/arrays.html#ARRAYS-INPUT
+// https://www.postgresql.org/docs/16/sql-prepare.html
+function arrayText(value) {
+  const items = [];
+  for (let i = 0; i < value.length; i++) {
+    assert.ok(Object.hasOwn(value, i), 'sparse synthetic SQL array');
+    const item = value[i];
+    if (item === null || item === undefined) { items.push('NULL'); continue; }
+    assert.ok(['string', 'number', 'boolean'].includes(typeof item),
+      'synthetic SQL arrays accept scalars only; JSON arrays require JSON.stringify');
+    if (typeof item === 'number') assert.ok(Number.isFinite(item));
+    const text = String(item);
+    assert.ok(!text.includes('\0'));
+    items.push('"' + text.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"');
+  }
+  return '{' + items.join(',') + '}';
+}
+
 export function literal(value) {
   if (value === null || value === undefined) return 'NULL';
-  if (Array.isArray(value)) return value.length ? `ARRAY[${value.map(literal).join(',')}]` : "'{}'";
+  if (Array.isArray(value)) return literal(arrayText(value));
   if (typeof value === 'number') { assert.ok(Number.isFinite(value)); return String(value); }
   if (typeof value === 'boolean') return String(value);
   const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
   assert.ok(!text.includes('\0'));
   return `'${text.replaceAll("'", "''")}'`;
+}
+
+export function preparedInput(name, sql, params = []) {
+  assert.match(name, /^q[1-9][0-9]*$/);
+  assert.ok(Array.isArray(params));
+  // Explicitly retain standard string-literal semantics for both quote layers.
+  // The production statement is inserted byte-for-byte, not rewritten/cast.
+  return `\\pset format csv\n\\pset tuples_only off\nSET standard_conforming_strings=on;\nPREPARE ${name} AS ${sql};\nEXECUTE ${name}${params.length ? '(' + params.map(literal).join(',') + ')' : ''};\n`;
 }
 
 export function createDatabase() {
@@ -62,7 +91,7 @@ export function createDatabase() {
     const name = `q${++sequence}`;
     // Top-level CTE writes cannot be nested in another CTE, so psql itself
     // returns CSV. A one-statement PREPARE is still the exact production SQL.
-    const output = psql(`\\pset format csv\n\\pset tuples_only off\nPREPARE ${name} AS ${sql};\nEXECUTE ${name}${params.length ? '(' + params.map(literal).join(',') + ')' : ''};\n`);
+    const output = psql(preparedInput(name, sql, params));
     const rows = parseCsv(output);
     if (!rows.length) return [];
     const headers = rows.shift();

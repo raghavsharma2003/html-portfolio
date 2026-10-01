@@ -1,6 +1,9 @@
 // A deliberately small SQL-shaped store for evals/agentroom.mjs. It is not a
 // SQL validator; every accepted route asserts the shipping statement carries
 // the agent predicate/write column that separates the two fixture agents.
+import assert from "node:assert/strict";
+import { disclosurePredicate, NEGATIVE_AFFECT_TAGS } from "../../api/_disclosure.js";
+
 export const AGENT_A = "a0000000-0000-4000-8000-0000000000a1";
 export const AGENT_B = "a0000000-0000-4000-8000-0000000000b2";
 export const PERSON_A = "11111111-1111-4111-8111-111111111111";
@@ -21,6 +24,7 @@ export const state = {
   episodes: [],
   participants: [],
   actions: [],
+  hiddenSourceIds: new Set(),
   identities: [
     { surface: "discord", surface_user_id: "student-1", person_id: PERSON_A, handle: "student one" },
     { surface: "discord", surface_user_id: "student-2", person_id: PERSON_B, handle: "student two" },
@@ -56,10 +60,10 @@ export const state = {
     },
   ],
   members: [
-    { agent_id: AGENT_A, group_id: ROOM_A, person_id: PERSON_A, handle: "student one", honorific: "tum", quiet_level: "normal", linked_at: now(), left_at: null },
-    { agent_id: AGENT_A, group_id: ROOM_A, person_id: PERSON_B, handle: "student two", honorific: "aap", quiet_level: "normal", linked_at: now(), left_at: null },
-    { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_A, handle: "student one", honorific: "tu", quiet_level: "normal", linked_at: now(), left_at: null },
-    { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_B, handle: "student two", honorific: "tum", quiet_level: "normal", linked_at: now(), left_at: null },
+    { agent_id: AGENT_A, group_id: ROOM_A, person_id: PERSON_A, surface: "discord", surface_user_id: "student-1", handle: "student one", honorific: "tum", quiet_level: "normal", linked_at: now(), left_at: null },
+    { agent_id: AGENT_A, group_id: ROOM_A, person_id: PERSON_B, surface: "discord", surface_user_id: "student-2", handle: "student two", honorific: "aap", quiet_level: "normal", linked_at: now(), left_at: null },
+    { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_A, surface: "discord", surface_user_id: "student-1", handle: "student one", honorific: "tu", quiet_level: "normal", linked_at: now(), left_at: null },
+    { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_B, surface: "discord", surface_user_id: "student-2", handle: "student two", honorific: "tum", quiet_level: "normal", linked_at: now(), left_at: null },
   ],
   facts: [
     { id: 11, agent_id: AGENT_A, person_id: PERSON_A, group_id: null, name: "a-dm", body: "A private algebra preference", kind: "user", created_at: now() },
@@ -77,6 +81,14 @@ const membersFor = (groupId, agentId) =>
   state.members.filter(
     (m) => m.group_id === Number(groupId) && m.agent_id === agentId && m.left_at == null,
   );
+const audienceFor = (groupId, agentId) => membersFor(groupId, agentId)
+  .filter((m) => m.linked_at).map((m) => m.person_id).sort();
+const SOURCE_BIND = { recipients: "$1", isGroup: "$2", roomId: "$3", negTags: "$4", agentId: "$5" };
+const requireSourceScope = (s, params, kind) => {
+  assert(s.includes(flat(disclosurePredicate(kind, SOURCE_BIND))), `full shipping ${kind} disclosure predicate`);
+  assert.deepEqual(params.slice(0, 4), [audienceFor(params[2], params[4]), true, params[2], NEGATIVE_AFFECT_TAGS]);
+  assert(state.groups.some((g) => g.id === Number(params[2]) && g.agent_id === params[4]), "source read uses owning agent/group pair");
+};
 
 export async function route(sql, params = []) {
   const s = flat(sql);
@@ -102,6 +114,14 @@ export async function route(sql, params = []) {
           g.agent_id === params[2],
       );
       return row ? [{ ...row }] : [];
+    }
+
+    if (s.startsWith("select g.id, g.agent_id") && s.includes("as linked_members")) {
+      assert(s.includes("g.id = $1::bigint and g.agent_id = $2::uuid"), "current authority uses owning agent/group pair");
+      const group = state.groups.find((g) => g.id === Number(params[0]) && g.agent_id === params[1]);
+      if (!group) return [];
+      return [{ ...group, entitled: true, recipients: audienceFor(params[0], params[1]),
+        linked_members: membersFor(params[0], params[1]).map((member) => ({ ...member })) }];
     }
 
     if (s.startsWith("insert into vy_group_member")) {
@@ -166,20 +186,28 @@ export async function route(sql, params = []) {
       return row ? [{ id: row.id, ended_at: row.ended_at, started_at: row.started_at }] : [];
     }
 
-    if (s.startsWith("insert into vy_episode (")) {
+    if (s.startsWith("with made as (insert into vy_episode")) {
       requireAgent(s, "episode write");
+      assert(s.includes("'audience_turn'") && s.includes("insert into vy_episode_participant"));
+      assert(s.includes("unnest($4::uuid[])") && s.includes("and $4::uuid[] = (select array_agg"));
+      assert(s.includes("and m.left_at is null and m.linked_at is not null"));
+      assert.deepEqual(params[3], audienceFor(params[0], params[2]), "episode binds the complete current audience");
       const row = {
         id: nextEpisode++,
-        agent_id: params[3],
+        agent_id: params[2],
         group_id: Number(params[0]),
         device_id: params[1],
         started_at: now(),
         ended_at: now(),
         provisional: true,
+        recipients: [...params[3]],
       };
       const group = state.groups.find((g) => g.id === row.group_id && g.agent_id === row.agent_id);
       if (!group) throw new Error("episode write crossed room owner");
       state.episodes.push(row);
+      state.participants.push(...row.recipients.map((personId) => ({
+        episode_id: row.id, person_id: personId, role: "participant",
+      })));
       return [{ id: row.id }];
     }
 
@@ -194,7 +222,15 @@ export async function route(sql, params = []) {
 
     if (s.startsWith("insert into meera_log")) {
       requireAgent(s, "log write");
-      const isRoom = s.includes("group_id)");
+      const isRoom = s.includes("group_id, episode_id)");
+      if (isRoom) {
+        assert(s.includes("e.id=$8::bigint") && s.includes("e.disclosure_scope='participants'"));
+        assert(s.includes("cardinality(e.disclosure_deny)=0") && s.includes("$9::uuid[] = (select array_agg"));
+        const episode = state.episodes.find((e) => e.id === params[7] && e.agent_id === params[6] && e.group_id === Number(params[5]));
+        assert(episode, "log binds an episode belonging to this agent and group");
+        assert.deepEqual(params[8], episode.recipients, "log retains its immutable episode audience");
+        assert.deepEqual(params[8], audienceFor(params[5], params[6]), "log binds current audience");
+      }
       const row = isRoom
         ? {
             id: nextLog++,
@@ -204,6 +240,7 @@ export async function route(sql, params = []) {
             content: params[3],
             speaker_person_id: params[4],
             group_id: Number(params[5]),
+            episode_id: params[7],
           }
         : {
             id: nextLog++,
@@ -234,8 +271,10 @@ export async function route(sql, params = []) {
     if (s.startsWith("select f.id, f.body, f.name") && s.includes("from vy_fact f")) {
       requireAgent(s, "fact recall");
       const [recipients, isGroup, groupId, _neg, agentId] = params;
+      if (isGroup) requireSourceScope(s, params, "fact");
       return state.facts.filter(
         (f) =>
+          !state.hiddenSourceIds.has(f.id) &&
           f.agent_id === agentId &&
           (isGroup ? f.group_id === Number(groupId) : recipients.includes(f.person_id) || f.group_id != null),
       );
@@ -243,15 +282,32 @@ export async function route(sql, params = []) {
 
     if (s.startsWith("select f.id, f.body, f.kind") && s.includes("from vy_fact f")) {
       requireAgent(s, "bridge recall");
+      requireSourceScope(s, params, "fact");
       const agentId = params[4];
       return state.facts.filter(
-        (f) => f.agent_id === agentId && f.group_id === Number(params[2]),
+        (f) => !state.hiddenSourceIds.has(f.id) && f.agent_id === agentId && f.group_id === Number(params[2]),
       );
     }
 
     if (s.startsWith("select f.id, f.phrase")) {
       requireAgent(s, "phrase recall");
+      requireSourceScope(s, params, "phrase");
       return [];
+    }
+
+    if (s.startsWith("select l.id, l.role, l.content")) {
+      requireSourceScope(s, params, "episode");
+      assert(s.includes("join vy_episode f on f.id = l.episode_id"));
+      assert(s.includes("f.agent_id = l.agent_id and f.group_id = l.group_id"));
+      assert(s.includes("l.group_id = $3::bigint and l.agent_id = $5::uuid"));
+      assert(s.includes("l.role = 'me' and l.speaker_person_id is not null"));
+      assert(s.includes("f.superseded_by is null"));
+      // Declared authoritative fixture rows, not a simulation of PostgreSQL's
+      // disclosure/withdrawal semantics. The full predicate is checked above.
+      return state.logs.filter((l) => l.group_id === Number(params[2]) && l.agent_id === params[4] &&
+        l.role === "me" && l.speaker_person_id != null && l.episode_id != null)
+        .sort((a, b) => b.id - a.id).slice(0, params[5])
+        .map(({ id, role, content, episode_id, speaker_person_id }) => ({ id, role, content, episode_id, speaker_person_id }));
     }
 
     if (s.startsWith("select m.person_id, m.quiet_level, m.linked_at")) {

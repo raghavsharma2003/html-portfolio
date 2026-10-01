@@ -62,18 +62,24 @@ function validate(source, name, gate) {
 function validateFailureLogs(source) {
   const list = commands(source, 'gate');
   onceBefore(list, 'node scripts/verify-release.mjs', 'actions/upload-artifact@v4');
-  assert.equal(list.filter(value => value === 'actions/upload-artifact@v4').length, 1, 'one diagnostics upload');
+  assert.equal(list.filter(value => value === 'actions/upload-artifact@v4').length, 2, 'two explicitly scoped evidence uploads');
   const uploads = jobLines(source, 'gate').join('\n').split(/^ {6}- /m)
     .filter(step => /^ {8}uses: actions\/upload-artifact@v4$/m.test(step));
-  assert.equal(uploads.length, 1);
-  const upload = uploads[0];
-  for (const field of [
-    '        if: ${{ failure() }}',
-    '          name: release-failure-logs-node-${{ matrix.node-version }}',
-    '          path: scratchpad/release-logs/',
-    '          retention-days: 7',
-    '          if-no-files-found: warn',
-  ]) assert.ok(upload.split('\n').includes(field), `diagnostics requires ${field.trim()}`);
+  assert.equal(uploads.length, 2);
+  for (const [name, condition, path] of [
+    ['release-failure-logs-node-${{ matrix.node-version }}', 'failure()', 'scratchpad/release-logs/'],
+    ['source-review-ui-node-${{ matrix.node-version }}', 'always()', 'scratchpad/source-aware-review-ui-synthetic/'],
+  ]) {
+    const matches = uploads.filter(step => step.split('\n').includes(`          name: ${name}`));
+    assert.equal(matches.length, 1, `one named upload ${name}`);
+    for (const field of [
+      `        if: \${{ ${condition} }}`,
+      `          path: ${path}`,
+      '          retention-days: 7',
+      '          if-no-files-found: warn',
+    ]) assert.ok(matches[0].split('\n').includes(field), `evidence requires ${field.trim()}`);
+    assert.ok(!matches[0].includes('include-hidden-files: true'), 'hidden files remain excluded');
+  }
 }
 function validateBundledFont(source, name, gate) {
   const lines = jobLines(source, name);
@@ -139,6 +145,14 @@ check('diagnostic upload must follow the release gate', () => {
   const beforeGate = release.replace('      - run: node scripts/verify-release.mjs\n', '')
     .replace('          if-no-files-found: warn', '          if-no-files-found: warn\n      - run: node scripts/verify-release.mjs');
   assert.throws(() => validateFailureLogs(beforeGate));
+});
+check('synthetic UI evidence cannot broaden its path, identity or hidden-file policy', () => {
+  for (const [before, after] of [
+    ['path: scratchpad/source-aware-review-ui-synthetic/', 'path: scratchpad/'],
+    ['name: source-review-ui-node-${{ matrix.node-version }}', 'name: source-review-ui'],
+    ['if: ${{ always() }}', 'if: ${{ success() }}'],
+    ['retention-days: 7', 'include-hidden-files: true\n          retention-days: 7'],
+  ]) assert.throws(() => validateFailureLogs(release.replace(before, after)));
 });
 check('APK and release register the same bundled Hindi face before browser gates', () => {
   validateBundledFont(apk, 'build', 'node evals/run.mjs');

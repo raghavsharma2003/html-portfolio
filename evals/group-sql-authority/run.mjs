@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createDatabase, hash, hostedGuard, literal, parseCsv, production, read, schemaPlan, uid } from './harness.mjs';
+import { createDatabase, hash, hostedGuard, literal, parseCsv, preparedInput, production, read, schemaPlan, uid } from './harness.mjs';
 
 const mode = process.argv.slice(2);
 assert.ok(mode.length === 1 && ['--source-only', '--hosted-postgres'].includes(mode[0]),
@@ -23,10 +23,18 @@ if (mode[0] === '--source-only') {
   });
   await check('PostgreSQL serializer preserves hostile and multiline synthetic values', () => {
     assert.equal(literal("x');select 'y"), "'x'');select ''y'");
-    assert.equal(literal([P, Q]), `ARRAY['${P}','${Q}']`);
+    assert.equal(literal([P, Q]), `'{"${P}","${Q}"}'`);
     assert.equal(literal([]), "'{}'");
     assert.throws(() => literal(NaN));
     assert.deepEqual(parseCsv('id,body\n1,"Hindi 🎨\r\n exact, ""quoted"""'), [['id', 'body'], ['1', 'Hindi 🎨\r\n exact, "quoted"']]);
+  });
+  await check('array literals preserve scalar type inference and reject implicit JSON or sparse arrays', () => {
+    assert.equal(literal([null, 'NULL', '', 17, true]), `'{NULL,"NULL","","17","true"}'`);
+    assert.equal(literal(['a,b', '{x}', '"quoted"', 'path\\leaf', "x');select 'y", 'Hindi 🎨\r\nexact']),
+      `'{"a,b","{x}","\\"quoted\\"","path\\\\leaf","x'');select ''y","Hindi 🎨\r\nexact"}'`);
+    for (const value of [[{}], [[P]], [NaN], ['x\0y'], Array(1)]) assert.throws(() => literal(value));
+    const inherited = Array(1); Object.setPrototypeOf(inherited, { 0: P });
+    assert.throws(() => literal(inherited));
   });
   const calls = [];
   const m = await production(async (sql, params) => { calls.push({ sql, params }); return []; });
@@ -39,6 +47,19 @@ if (mode[0] === '--source-only') {
     assert.ok(calls[1].sql.includes('episode_id'));
     assert.ok(calls[2].sql.includes('disclosure predicate'));
     assert.match(calls[2].sql, /l\.role\s*=\s*'me'/);
+  });
+  await check('prepared production SQL stays exact while independently typed ARRAY regression is rejected', () => {
+    const { sql, params } = calls[0];
+    const expectedArgs = `('${params[0]}','${params[1]}','${params[2]}','{"${P}","${Q}"}')`;
+    const verify = input => {
+      assert.ok(input.includes(`SET standard_conforming_strings=on;\nPREPARE q1 AS ${sql};\n`));
+      assert.ok(input.endsWith(`EXECUTE q1${expectedArgs};\n`));
+    };
+    const actual = preparedInput('q1', sql, params);
+    verify(actual);
+    assert.throws(() => verify(actual.replace(literal([P, Q]), `ARRAY['${P}','${Q}']`)));
+    assert.throws(() => verify(actual.replace(sql, sql.replace('$4::uuid[]', '$4::text[]'))));
+    assert.throws(() => preparedInput('q1;select 1', sql, params));
   });
   await check('actual owner-review query and canonical DDL selected, not handwritten', () => {
     assert.ok(m.CLAIMS_SQL.includes('review_consent'));
@@ -66,6 +87,15 @@ await check('dedicated synthetic PostgreSQL identity and empty schema', async ()
   assert.match(identity.version, /^PostgreSQL 16\.15\b/);
   assert.equal((await db.execute("select tablename from pg_tables where schemaname='public'")).length, 0);
   console.log(`database: ${identity.version}`);
+});
+await check('PREPARE chooses UUID/bigint/text/JSON array types without serializer coercion', async () => {
+  const hostile = [null, 'NULL', '', 'a,b', '{x}', '"quoted"', 'path\\leaf', "x');select 'y", 'Hindi 🎨\r\nexact'];
+  const json = [{ tag: 'sad', intensity: 0.5 }];
+  const [row] = await db.execute('select to_json($1::uuid[]) uuids,to_json($2::bigint[]) ids,to_json($3::text[]) words,to_json($4::uuid[]) empty,$5::jsonb document',
+    [[P, Q], ['1', '2'], hostile, [], JSON.stringify(json)]);
+  assert.deepEqual(row.uuids, [P, Q]); assert.deepEqual(row.ids, [1, 2]);
+  assert.deepEqual(row.words, hostile); assert.deepEqual(row.empty, []);
+  assert.deepEqual(row.document, json);
 });
 await check('canonical bounded schema applies with PostgreSQL constraints intact', async () => {
   db.ddl('create extension if not exists pgcrypto');
@@ -140,7 +170,7 @@ await check('late joiner cannot inherit earlier audience or change its participa
 });
 await check('disclosure happens before LIMIT and explicit deny/private/negative affect wins', async () => {
   const denied = await episode(); const deniedLog = await turn(denied.id, { content: 'Synthetic withheld' }); assert.ok(deniedLog);
-  for (const [field, value] of [['disclosure_deny', [P]], ['disclosure_scope', 'private'], ['affect_tags', [{ tag: 'sad', intensity: 0.5 }]]]) {
+  for (const [field, value] of [['disclosure_deny', [P]], ['disclosure_scope', 'private'], ['affect_tags', JSON.stringify([{ tag: 'sad', intensity: 0.5 }])]]) {
     await db.execute(`update vy_episode set ${field}=$2 where id=$1 returning id`, [denied.id, value]);
     const rows = await history([P, Q], G, A, 1);
     assert.equal(rows.length, 1); assert.notEqual(rows[0].id, deniedLog);

@@ -1,5 +1,27 @@
 # GroupAI readiness ledger, 29 September 2026
 
+## Early verification repair candidate, 1 October
+
+Root has verified the bounded post-`3510afa8` repair candidate locally: group-turn authority 55, Teach CTA 25, agentroom 33, safe SQL source-wrapper seven and source-aware claim review 21 groups pass under network blocking. Forced TypeScript, copy seven scopes/21 negative controls, workflow lint seven files and engine freshness pass. An initial agentroom command named a nonexistent path; the corrected actual `evals/agentroom.mjs` ran successfully. No local server/browser or PostgreSQL was executed.
+
+All five new suites are now registered in the main runner, and only source-aware review UI is classified as browser work. The safe SQL wrapper passes seven groups through that actual registry. Review UI `--build-only` passes 14 controls and builds its actual fixture bundle without a server/browser. Release CI now preserves synthetic review screenshots/results at an explicitly bounded artifact path. The separate sanitized failure-log upload remains bounded; CI prerequisite controls cover both exact paths/triggers and pass 14 groups with negative controls. The exact-lock, no-install-scripts dependency install contains 160 packages and `brace-expansion` 5.0.12. Root independently reran `npm audit --omit=dev --audit-level=high`, exit 0 with zero high/critical and three moderate findings; this is not the full security gate. Static Impeccable inspection reports no findings across four source-review UI paths, not visual acceptance.
+
+Publish this early repair candidate to obtain new actual hosted SQL, mounted UI and full-release evidence; none is claimed yet. The new portable kernel under `api/_group-runtime` is still in development and excluded from this repair checkpoint. Its research/adoption and real-caller evidence will be logged separately. The prior failures below remain historical observations, and the open capability rows remain open. **Group AI is not ready.**
+
+## Continuation update, 1 October
+
+The user authorized deeper primary-source/open-source/paper research and continued engineering toward a layer reusable in other projects. Starting code is `3510afa8` on `codex/multimodal-layer-20260927`. Whole-layer readiness remains unachieved. The existing September 30 gaps below are retained, not replaced by an architectural claim.
+
+Root verified three hosted failure receipts on October 1:
+
+| Run / inspected job | Blocker | Current action |
+|---|---|---|
+| SQL `36695070364` / `109820954239` | Parameter 4's `text[]` versus `uuid[]` mismatch | Diagnose the actual fixture/query boundary, preserve typed authority and rerun hosted synthetic PostgreSQL. |
+| APK `36695070158` / `109820951408` | `feed-meet-teach-cta`: undefined `accountScope`; `agentroom`: absent `compileInputs[2]` | Trace current caller contracts and repair demonstrated fixture/source defects without bypassing checks. |
+| Release `36695070346` / Node 22 `109820953964` | Evaluation and supply-chain security fail, two of 24 gates; high-severity `brace-expansion` | Repair and verify the dependency path, then rerun full configured gates. |
+
+These are observed failures, not repair receipts. The local group-turn negative control and missing registry wiring remain additional immediate work. Parallel research is examining durable execution, authorization and memory/benchmark methods to select a truly shared boundary, not to justify another service or duplicate identity store. Root owns registration, adoption and combined proof. No local DB/server/browser, paid provider, cloud mutation, private-data transfer or deployment follows from this plan. No new key is needed for these engineering/research steps; real transport/provider and consented human-group acceptance still need separately authorized setup and budget.
+
 ## Preservation update, 30 September
 
 Saved on `codex/multimodal-layer-20260927` in `raghavsharma2003/html-portfolio` at the user's request before a usage limit. This is an unverified implementation checkpoint, not a ready release. Root's fresh network-blocked results: backend review 21, Telegram audience 58, UI source-only 14, SQL-harness source-only five groups passed. Group-turn authority failed at `run.mjs:337` after 46 groups, in the source-receipt mutation's expected wire-delivery refusal. Preserve and diagnose that exact failure. No database, browser server, live provider or deployment was run locally.

@@ -187,6 +187,17 @@ jobs:
       # reporting, never gating.
       - run: node scripts/verify-release.mjs
 
+      # Only this synthetic fixture's screenshots and outcome are retained.
+      # No owner uploads, application logs or provider responses are included.
+      - name: Upload synthetic source-review UI evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-review-ui-node-${{ matrix.node-version }}
+          path: scratchpad/source-aware-review-ui-synthetic/
+          retention-days: 7
+          if-no-files-found: warn
+
       # The console prints only the tail of each failed gate. Preserve the
       # complete sanitized output written by safeGateOutput for diagnosis.
       - name: Upload sanitized release failure logs

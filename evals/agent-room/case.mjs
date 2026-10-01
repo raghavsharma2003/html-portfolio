@@ -2,11 +2,13 @@ import { dispatch, makeCtx, roomForChat } from "../../api/_surface.js";
 import { disclosurePredicate } from "../../api/_disclosure.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
 import {
   AGENT_A,
   AGENT_B,
   CHAT_KEY,
   PERSON_A,
+  PERSON_B,
   ROOM_A,
   ROOM_B,
   state,
@@ -46,12 +48,27 @@ const engine = {
 };
 
 const sent = [];
-const ctxFor = (agentId, displayName) =>
+const modelInputs = [];
+// This is an injected synthetic complete-audience capability, not evidence
+// that the production Discord adapter implements one. Its audience is
+// declared independently of the server roster passed to the capability.
+const audienceWitness = async (event, { roomId, agentId }) => {
+  assert.equal(event.surface, "discord");
+  assert.equal(event.chatKey, CHAT_KEY);
+  assert.equal(roomId, agentId === AGENT_A ? ROOM_A : ROOM_B);
+  return { complete: true, recipients: [PERSON_A, PERSON_B], revision: "a".repeat(64) };
+};
+const ctxFor = (agentId, displayName, { witness = audienceWitness, duringReply } = {}) =>
   makeCtx(adapter, {
     agentId,
     agent: { id: agentId, displayName },
     engine,
-    reply: async () => `reply from ${displayName}`,
+    groupAudienceWitness: witness,
+    reply: async (compiled, turns) => {
+      modelInputs.push({ agentId, compiled, turns });
+      await duringReply?.();
+      return `reply from ${displayName}`;
+    },
     send: async (chatKey, message) => {
       sent.push({ agentId, chatKey, message });
       return { ok: true };
@@ -144,6 +161,60 @@ ok(
 );
 ok("every SQL route used by dispatch was understood", state.unsupported.length === 0, state.unsupported.join(" | "));
 ok("four replies reached the injected wire", sent.length === 4, `${sent.length} sends`);
+ok("both room logs retain the owning episode", roomLogs.every((log) => state.episodes.some((episode) =>
+  episode.id === log.episode_id && episode.agent_id === log.agent_id && episode.group_id === log.group_id)));
+ok("both immutable episodes retain the complete audience", state.episodes.every((episode) =>
+  JSON.stringify(episode.recipients) === JSON.stringify([PERSON_A, PERSON_B]) &&
+  state.participants.filter((participant) => participant.episode_id === episode.id).length === 2));
+
+console.log("\n—— group authority refusal controls ——");
+const effects = () => [compileInputs.length, modelInputs.length, sent.length,
+  state.logs.length, state.episodes.length, state.actions.length];
+for (const [label, witness] of [
+  ["missing complete-audience capability", null],
+  ["incomplete audience", async () => ({ complete: false, recipients: [PERSON_A, PERSON_B], revision: "a".repeat(64) })],
+  ["linked subset instead of complete audience", async () => ({ complete: true, recipients: [PERSON_A], revision: "a".repeat(64) })],
+  ["malformed witness revision", async () => ({ complete: true, recipients: [PERSON_A, PERSON_B], revision: "not-a-revision" })],
+]) {
+  const before = effects();
+  const result = await dispatch(groupEvent, ctxFor(AGENT_A, "agent A", { witness }));
+  ok(`${label} refuses before compile, model, wire or persistence`,
+    result.action === "lurk" && result.reason === "group_audience_unverified" &&
+    JSON.stringify(effects()) === JSON.stringify(before));
+}
+
+const group = state.groups.find((row) => row.id === ROOM_A);
+const initialConsent = group.read_consent_at;
+try {
+  group.read_consent_at = null;
+  const before = effects();
+  const result = await dispatch(groupEvent, ctxFor(AGENT_A, "agent A"));
+  ok("missing current read consent refuses without side effects", result.reason === "group_audience_unverified" &&
+    JSON.stringify(effects()) === JSON.stringify(before));
+} finally {
+  group.read_consent_at = initialConsent;
+}
+
+for (const [label, invalidate, restore] of [
+  ["authority revoked during generation", () => { group.read_consent_at = null; }, () => { group.read_consent_at = initialConsent; }],
+  ["source withdrawn during generation", () => state.hiddenSourceIds.add(12), () => state.hiddenSourceIds.delete(12)],
+]) {
+  const sendsBefore = sent.length;
+  const modelsBefore = modelInputs.length;
+  const assistantLogsBefore = state.logs.filter((log) => log.role === "her").length;
+  try {
+    await assert.rejects(dispatch(groupEvent, ctxFor(AGENT_A, "agent A", { duringReply: invalidate })),
+      { code: "group_authority_unavailable" });
+    ok(`${label} refuses delivery and assistant persistence after one model call`,
+      modelInputs.length === modelsBefore + 1 && sent.length === sendsBefore &&
+      state.logs.filter((log) => log.role === "her").length === assistantLogsBefore);
+  } finally {
+    restore();
+  }
+}
+ok("assistant audit rows are not recalled on subsequent group turns", modelInputs.slice(4).length === 2 &&
+  modelInputs.slice(4).every((input) => input.turns.length > 1 && input.turns.every((turn) => turn.role !== "assistant")));
+ok("all negative controls use understood SQL routes", state.unsupported.length === 0, state.unsupported.join(" | "));
 
 const migration = readFileSync(
   new URL("../../db/migrations/064_agent_room_binding.sql", import.meta.url),
@@ -167,6 +238,7 @@ console.log(
 );
 console.log(
   "\nSCOPE: real dispatch/_surface/_room/_disclosure control flow with api/_db.js " +
-    "replaced at its module boundary; no network, model, filesystem write or live database.",
+    "replaced at its module boundary and a synthetic audience capability; no network, real model, filesystem write or live database. " +
+    "This does not prove PostgreSQL semantics or a production Discord audience witness.",
 );
 process.exitCode = failures.length ? 1 : 0;
