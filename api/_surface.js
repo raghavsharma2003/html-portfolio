@@ -643,23 +643,72 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
  * they are decided here rather than in three adapters.
  */
 export async function deliver(ctx, chatKey, msg, { assertAuthority } = {}) {
-  if (msg.kind === "reaction") { await ctx.assertPublicAuthority?.(); await assertAuthority?.(); return await ctx.send(chatKey, msg); }
-  const parts = ctx.adapter.render(String(msg.text ?? ""));
-  if (!parts.length) return { ok: false, error: "empty render" };
+  if (msg.kind === "reaction") {
+    await ctx.assertPublicAuthority?.();
+    await assertAuthority?.();
+    return await sendAccepted(ctx, chatKey, msg, 0);
+  }
+  // Validate the complete local render before any external attempt. Otherwise
+  // a malformed later fragment can follow an already accepted first fragment.
+  let rendered;
+  try { rendered = ctx.adapter.render(String(msg.text ?? "")); }
+  catch { throw deliveryUnconfirmed("not_executed", "render_unavailable", 0, 0, null); }
+  const parts = [];
+  let renderReason = "invalid_render";
+  try {
+    if (!Array.isArray(rendered)) throw new Error();
+    if (!rendered.length) { renderReason = "empty_render"; throw new Error(); }
+    for (let i = 0; i < rendered.length; i++) {
+      const item = Object.getOwnPropertyDescriptor(rendered, String(i));
+      const part = item && "value" in item ? item.value : null;
+      if (!part || typeof part !== "object" || Array.isArray(part)) throw new Error();
+      const properties = Object.getOwnPropertyDescriptors(part);
+      const text = properties.text;
+      if (!text || !("value" in text) || typeof text.value !== "string" || !text.value.length ||
+          Reflect.ownKeys(properties).some((key) => !("value" in properties[key]))) throw new Error();
+      parts.push(Object.freeze(Object.defineProperties({}, properties)));
+    }
+  } catch { throw deliveryUnconfirmed("not_executed", renderReason, 0, 0, null); }
   let last = null;
   for (let i = 0; i < parts.length; i++) {
     await ctx.assertPublicAuthority?.();
     await assertAuthority?.();
-    last = await ctx.send(chatKey, {
+    last = await sendAccepted(ctx, chatKey, {
       ...msg,
       kind: "text",
       text: parts[i].text,
       replyTo: i === 0 ? (msg.replyTo ?? null) : null,
       buttons: i === parts.length - 1 ? (msg.buttons || []) : [],
       native: parts[i],
-    });
+    }, i);
   }
   return last;
+}
+
+function deliveryUnconfirmed(outcome, reason, acceptedFragments, attemptedFragments, failedFragment) {
+  // These describe DELIVERY ONLY. Commands, source writes or generation may
+  // already have completed. Even not_executed is not permission to replay the
+  // entire operation; unknown never means the remote side rejected the send.
+  return Object.freeze(Object.assign(new Error("surface_delivery_unconfirmed"), {
+    code: "surface_delivery_unconfirmed", status: 502, phase: "delivery",
+    outcome, reason, acceptedFragments, attemptedFragments, failedFragment,
+    retrySafe: false,
+  }));
+}
+
+async function sendAccepted(ctx, chatKey, msg, acceptedFragments) {
+  try {
+    const receipt = await ctx.send(chatKey, msg);
+    const ok = receipt && typeof receipt === "object" && !Array.isArray(receipt)
+      ? Object.getOwnPropertyDescriptor(receipt, "ok") : null;
+    if (!ok || !("value" in ok) || ok.value !== true) throw new Error();
+    // Adapter acknowledgement only, not proof of human/device delivery.
+    // Collecting web adapters intentionally have no remote message ID.
+    return receipt;
+  } catch {
+    throw deliveryUnconfirmed("unknown", "send_unconfirmed", acceptedFragments,
+      acceptedFragments + 1, acceptedFragments);
+  }
 }
 
 /**

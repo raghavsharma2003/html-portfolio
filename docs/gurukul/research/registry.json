@@ -469,9 +469,9 @@
       "observedAt": null,
       "hypothesis": "An existing-storage effect journal can suppress known replays and preserve uncertain sends without blindly retrying possible disclosures.",
       "sourceIds": ["temporal-activities", "transactional-outbox"],
-      "artifactPaths": ["docs/gurukul/research/PORTABLE-GROUP-LAYER-20261001.md"],
+      "artifactPaths": ["docs/gurukul/research/PORTABLE-GROUP-LAYER-20261001.md", "docs/gurukul/research/GROUP-DELIVERY-DURABILITY-20261001.md", "api/_surface.js", "evals/surface-delivery/run.mjs"],
       "runCommand": null,
-      "successCriteria": ["Use immutable scoped transport-event identity and payload hash, detecting conflicting replays.", "Distinguish prepared, executing, confirmed, not_executed, unknown and cancelled effects with deterministic crash/fault injection.", "Treat timeout after dispatch as unknown rather than retry permission; do not claim a new lease fences an already in-flight external request.", "Prove cancellation/revocation and actual SQL semantics before real transport or provider trials; no journal is implemented by the checkpoint extraction."],
+      "successCriteria": ["Use immutable scoped transport-event identity and payload hash, detecting conflicting replays.", "Distinguish prepared, executing, confirmed, not_executed, unknown and cancelled effects with deterministic crash/fault injection.", "Require explicit adapter ok:true for attempted fragment/reaction success, stop after unconfirmed delivery and never let a later fragment mask failure; schema-free truthful outcomes alone are not a durable journal.", "Treat false/malformed/missing receipts, throws and timeouts after dispatch as unknown rather than retry permission; a command action may already complete before failed acknowledgement and a new lease cannot fence an in-flight external request.", "Prove cancellation/revocation and actual SQL semantics before real transport or provider trials; no journal is implemented by the checkpoint extraction."],
       "evidenceScope": "offline_contract",
       "result": null
     },

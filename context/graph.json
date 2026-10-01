@@ -18264,6 +18264,42 @@
       "kind": "measurement",
       "title": "Final root and reviewer recall caller checks pass locally while new hosted SQL and release remain pending",
       "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-truthful-outcome-boundary",
+      "kind": "decision",
+      "title": "Require explicit adapter acknowledgements without converting ambiguous delivery into retry permission",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-starting-probes",
+      "kind": "measurement",
+      "title": "Three author-reported actual-module delivery failures motivate a schema-free successor after recall commit",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-no-ambiguous-retry-or-success",
+      "kind": "rejection",
+      "title": "Do not report ambiguous or partially failed sends as success or infer safe retry and rollback",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-hosted-sql-34da5259",
+      "kind": "measurement",
+      "title": "Pushed recall 34da5259 passes 42 actual PostgreSQL groups while release and APK remain running",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-render-error-review",
+      "kind": "measurement",
+      "title": "Delivery baseline probes reproduce false success and raw errors; render sanitization review remains pending",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-local-freeze-and-recall-apk",
+      "kind": "measurement",
+      "title": "Local delivery 44 authority 131 and independent review pass while separate recall APK succeeds",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -30984,6 +31020,36 @@
       "src": "grouprecall20261001-provider-projection-correction",
       "rel": "part_of",
       "dst": "grouprecall20261001-preregistered-implementation"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-starting-probes"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "caused_by",
+      "dst": "groupdelivery20261001-no-ambiguous-retry-or-success"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "part_of",
+      "dst": "groupai20260929-layer-acceptance-ledger"
+    },
+    {
+      "src": "grouprecall20261001-provider-projection-correction",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-hosted-sql-34da5259"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-render-error-review"
+    },
+    {
+      "src": "groupdelivery20261001-truthful-outcome-boundary",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-local-freeze-and-recall-apk"
     }
   ]
 }
