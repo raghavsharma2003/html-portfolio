@@ -450,16 +450,16 @@
     {
       "id": "portable-turn-checkpoints",
       "title": "Reusable checkpointed authority through real adapters",
-      "state": "implemented",
-      "outcome": null,
-      "observedAt": null,
+      "state": "completed",
+      "outcome": "pass",
+      "observedAt": "2026-10-01",
       "hypothesis": "A dependency-free checkpoint unit can serve unrelated adapters while preserving policy, authority and source commitments through the actual group dispatch path.",
       "sourceIds": ["temporal-activities", "openfga-immutable-models", "spicedb-consistency"],
       "artifactPaths": ["api/_group-runtime/checkpoints.js", "api/_group-runtime/checkpoints.d.ts", "api/_group-runtime/README.md", "api/_group-runtime/package.json", "evals/turn-checkpoints/run.mjs", "api/_surface.js", "evals/group-turn-authority/run.mjs", "docs/gurukul/research/PORTABLE-GROUP-LAYER-20261001.md"],
       "runCommand": "node evals/turn-checkpoints/run.mjs",
       "successCriteria": ["Run the unit without ambient I/O or Vyakti identities using two unrelated synthetic adapters and explicit policy/scope readers.", "Reject malformed or unbounded DTOs, rebinding, failed or changing reads and sticky-invalidated turns; detach immutable snapshots before awaits.", "Through the actual dispatch caller, refuse source/authority/destination changes and preserve adapter binding through generation and send.", "Keep checkpointed consistency distinct from atomic send, durable delivery, datastore revisions and whole-layer acceptance; record final root/reviewed and hosted integrated receipts before assigning an outcome.", "Keep the four-file package private and explicitly UNLICENSED, without dependencies/scripts, publication or root lockfile changes."],
       "evidenceScope": "offline_contract",
-      "result": null
+      "result": "2026-10-01: exact pushed code 3e036e7db552b1cc802c2a42451787fc5791d4a1 passes root and hosted kernel 39 and actual group-turn 86 groups, with independent integration approval after immutable whole-turn/default-send binding repairs. Release run 36848366333 passes 24/24 on Node 22 and 24; both explicitly skip relational gates without NEON_URL. Separate synthetic PostgreSQL16.15 run 36848366256 passes 30 actual-SQL groups on 27 canonical tables/249 DDL statements. APK36848366332 passes, including UI17source/22mounted, Room120 and agentroom33. Scope is deterministic software contracts and integrated caller behavior, not atomic external sends, durable delivery, provider/model quality, external benchmark reproduction or a consented group task. The four-file package remains private/UNLICENSED and unpublished. Two SHA-verified final390/1440 claim screenshots show the synthetic source/interpretation/quote/locator caveats and controls without horizontal clipping; compact review buttons need measured touch-target follow-up, so this is not whole-UX/contrast/human acceptance. Durable effects and source-preserving group recall remain planned."
     },
     {
       "id": "durable-group-effects",

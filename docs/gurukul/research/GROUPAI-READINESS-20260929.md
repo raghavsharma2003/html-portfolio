@@ -1,5 +1,17 @@
 # GroupAI readiness ledger, 29 September 2026
 
+## Exact portable code passes hosted software gates, 1 October
+
+Pushed code `3e036e7db552b1cc802c2a42451787fc5791d4a1` passes release run `36848366333` on both Node versions: Node 24 job `110323876079` passes 24/24 at `2026-10-01T10:32:29.8471681Z`, Node 22 job `110323876327` passes 24/24 at `2026-10-01T10:32:51.5275775Z`. Both explicitly skip relational gates without `NEON_URL`; the separate actual PostgreSQL 16.15 run `36848366256`, job `110323875430`, passes 30 groups at `2026-10-01T10:19:52.4565753Z` on 27 synthetic canonical tables/249 exact DDL statements. This does not verify the live catalog, Neon transport or concurrent races.
+
+APK run `36848366332`, job `110323875960`, succeeds with Gradle at 10:28:20 UTC. Hosted logs include UI 17 source/22 mounted, actual caller 86, kernel 39, Room 120 and agentroom 33. APK artifact `11154723017` is 19,310,119 bytes with SHA-256 `0742a770ea34f6902d24a930e8b1766921eae61c729463dfa7f0b44fa125c014`. It is a build artifact, not a deployment. Root inspected final 390/1440 claim views from Node 22 artifact `11154688995`, SHA-256 `b9156669a5803bfc1624450f18056914e0f21adaadb6e8b9867479beba67bb8f`. Its Node 22.23.2 result at `2026-10-01T10:31:57.533Z` reports 17 source/22 mounted with no errors or unknown requests. Interpretation, exact Hindi/emoji quote, source identity, honest UTF-16/page/speaker limits, focus and four review controls are visible without horizontal clipping. Missing claim-view evidence is closed, not whole-UX approval.
+
+The review buttons appear about 27 px high in the screenshots; their CSS uses 7 px vertical padding without a 44 px minimum. The header's existing 44 px rule does not cover them. Next measure actual hit boxes and enlarge the four review actions as needed in a separately tested UI pass, preserving authority and focus. No runtime CSS changes, contrast audit, human usability result or aggregate design-health score are part of this receipt.
+
+The portable checkpoint experiment alone is completed/pass at automated software-contract scope. The private/UNLICENSED package is not externally published and does not implement durable effects, atomic sending or a memory service. Durable effects and source-preserving recall experiments remain planned. Native group UI, private-to-group grants, group media, full derived-source forgetting, cross-platform/live transport and a consented human group task remain open. Root's following receipt commit is documentation only; the tested source stays `3e036e7d`. **The checkpoint unit has verified software evidence; the whole Group AI layer is not ready.**
+
+The next bounded memory slice is captured in [the group-source recall plan](GROUP-SOURCE-RECALL-PLAN-20261001.md). The plan is design-only and unimplemented; source-preserving recall remains planned/null in the research ledger. No runtime recall, new provider or expanded audience admission is implied.
+
 ## Hosted SQL receipt and portable candidate, 1 October
 
 Early repair `8944f021` is pushed and verified. Root inspected PostgreSQL run `36845203578`, job `110313574009`: PostgreSQL 16.15, 27 canonical tables/249 DDL statements, 30 groups pass at `2026-10-01T09:50:21Z`. Actual query cases cover source-scoped history, late joins, withdrawal and owner review with five citations/current-source/consent. Duplicate PR run `36845207570` reports success but its details were not separately inspected. This closes the earlier array-type proof blocker for those synthetic cases only; live catalog, Neon transport, concurrency, provider and human acceptance are not covered.
@@ -82,14 +94,14 @@ Owner source review is a separate useful slice: selected Context Locker source f
 
 | Evidence level | Current state | What it establishes |
 |---|---|---|
-| Source review | Working guard/Telegram/source-review code exists; independent reviews are in progress or reported. | Inspectable mechanisms only. |
-| Offline real-caller controls | Initial author reports below; final root results pending. | Bounded control flow with doubles, not PostgreSQL semantics. |
-| Actual PostgreSQL | Early repair `8944f021`: inspected hosted run `36845203578` passes 30 groups on PostgreSQL 16.15. | Actual scoped production queries on 27 synthetic canonical tables; not live catalog, Neon transport or concurrent races. |
-| Hosted browser and full release | Early repair APK and both release jobs fail two fixture suites after 22 mounted review cases; release is 23/24. | Partial browser evidence and dependency-security pass only; local fixture repairs need mounted/full hosted reruns and portable-candidate verification. |
+| Source review | Exact `3e036e7d` portable integration independently approved after immutable destination/default-send repairs. | Inspectable mechanisms and reviewed caller binding, not atomic external delivery. |
+| Offline real-caller controls | Root-confirmed kernel 39 and integrated caller 86; related caller suites and hosted reruns pass. | Bounded control flow with doubles, not live provider/transport guarantees. |
+| Actual PostgreSQL | Exact `3e036e7d`: run `36848366256` passes 30 groups on PostgreSQL 16.15. | Actual scoped production queries on 27 synthetic canonical tables/249 exact DDL statements; not live catalog, Neon transport or concurrent races. |
+| Hosted browser and full release | Exact `3e036e7d`: release 24/24 on Node 22/24 and APK succeeds; UI 17 source/22 mounted and two SHA-verified claim views inspected. | Configured software acceptance and bounded synthetic visual evidence; relational skips stay explicit, touch targets need follow-up, no whole-UX/contrast/human result. |
 | Real transport/provider | Not run. | Requires current permissions, consent, bot/platform configuration and a bounded provider budget. |
 | Consented human group task | Not run. | Participants can use, inspect, correct, withdraw and delete within the agreed group task. Required for whole-layer readiness. |
 
-The SQL workflow uses a synthetic GitHub service database without a Neon key. Its October 1 actual 30-group proof supersedes the original preparation-only status, only within the inspected run's scope. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Goal status is not changed by this ledger.
+The SQL workflow uses a synthetic GitHub service database without a Neon key. Its October 1 actual 30-group proof on exact `3e036e7d` supersedes the original preparation-only status, only within the inspected run's scope. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Whole-layer goal status is not changed by this ledger.
 
 ## Initial evidence, attributed precisely
 

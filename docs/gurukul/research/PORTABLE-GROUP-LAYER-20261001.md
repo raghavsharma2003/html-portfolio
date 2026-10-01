@@ -39,6 +39,8 @@ Graphiti's inspected release is Apache-2.0 and Hindsight's is MIT. Missing or in
 
 ## Next reusable contracts, not implemented by extraction
 
+Implementation planning for source recall is recorded in [the source-preserving group recall plan](GROUP-SOURCE-RECALL-PLAN-20261001.md). Its candidate limits and 48-case comparison are proposals, not implemented or measured recall results.
+
 **Source-preserving selection:** admit rows under server authority before ranking, then retain source/episode/revision, speaker and available reply ancestry. Distinguish speaker identity from inferred subject identity. Measure the entire serialized packet, including metadata. An internal read-set receipt is not an answer citation. Compare recency-only with bounded lexical selection on identical permitted sources before adding learned retrieval or another datastore.
 
 **Durable effect handling:** the next persistence design needs a scoped immutable transport-event ID and payload hash, with conflict detection and explicit `prepared`, `executing`, `confirmed`, `not_executed`, `unknown` and `cancelled` states. A timeout after dispatch is `unknown`, not permission to resend. A fresh lease cannot fence an old in-flight HTTP request unless the downstream service honors that fence. Implement this in the existing storage authority only after its actual SQL proof; the checkpoint module does not provide it.
@@ -54,3 +56,11 @@ Graphiti's inspected release is Apache-2.0 and Hindsight's is MIT. Missing or in
 5. Obtain current transport/provider authority and a bounded budget for an explicitly consented group task. Measure usefulness, unwanted interruptions, correction fidelity, latency and total cost independently of software pass counts.
 
 Reject or simplify any addition that does not improve an agreed task under identical authority and resource budgets. Keep owner approval and deterministic disclosure mandatory. A larger framework, more papers, or a passing synthetic benchmark is not a readiness or superiority claim.
+
+## Verified checkpoint, 1 October
+
+Steps 1 and 2 above have a bounded software receipt for exact code `3e036e7db552b1cc802c2a42451787fc5791d4a1`: [release run 36848366333](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36848366333) passes all 24 configured checks on both Node 22 and 24; [separate PostgreSQL run 36848366256](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36848366256) passes 30 actual-query groups; [APK run 36848366332](https://github.com/raghavsharma2003/html-portfolio/actions/runs/36848366332) succeeds. The release jobs explicitly skip relational gates without `NEON_URL`; the separate SQL proof uses synthetic PostgreSQL 16.15, not the live catalog or Neon transport. Hosted logs include 39 kernel groups, 86 actual group-turn groups and 17 source/22 mounted review groups.
+
+Independent integration review exposed and verified a real mutable-destination defect before this commit: authorization captured one destination while the later send could read a changed event/context/adapter/room. The accepted integration snapshots these inputs before its first await and captures the original default send method with a frozen receiver. Mutation controls exercise the actual caller. Trusted callback internals and the external send race remain outside the kernel's guarantee.
+
+The final SHA-verified 390/1440 claim screenshots show the original Hindi/emoji quotation, a visibly labeled interpretation, explicit coordinate limits and review actions without horizontal clipping. This is a scoped synthetic capture inspection, not complete accessibility or human-usability approval. Compact review action targets need a separately measured UI follow-up. Only the portable checkpoint experiment is completed/pass at automated software-contract scope. Steps 3 through 5, durable effects, source-preserving recall and whole-layer acceptance remain open.

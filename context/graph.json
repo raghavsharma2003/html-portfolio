@@ -18186,6 +18186,36 @@
       "kind": "rejection",
       "title": "Immutable receipts do not protect mutable delivery bindings or establish benchmark transfer",
       "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-exact-portable-software-receipt",
+      "kind": "decision",
+      "title": "Accept exact portable checkpoint software evidence while leaving whole-layer capabilities open",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-hosted-3e036e7d",
+      "kind": "measurement",
+      "title": "Exact 3e036e7d passes both 24-check releases, synthetic actual SQL and APK",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-green-software-not-whole-layer",
+      "kind": "rejection",
+      "title": "Configured software gates do not complete durable memory, live transport or human group acceptance",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-review-touch-target-followup",
+      "kind": "decision",
+      "title": "Measure and enlarge compact review hit targets in a separate verified UI pass",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-final-claim-view-receipt",
+      "kind": "measurement",
+      "title": "Two SHA-verified final claim views close viewport evidence while exposing touch-target follow-up",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -30831,6 +30861,36 @@
       "src": "groupai20261001-checkpointed-portability-contract",
       "rel": "part_of",
       "dst": "groupai20261001-portable-boundary-after-proof"
+    },
+    {
+      "src": "groupai20261001-exact-portable-software-receipt",
+      "rel": "measured_by",
+      "dst": "groupai20261001-hosted-3e036e7d"
+    },
+    {
+      "src": "groupai20261001-exact-portable-software-receipt",
+      "rel": "caused_by",
+      "dst": "groupai20261001-green-software-not-whole-layer"
+    },
+    {
+      "src": "groupai20261001-exact-portable-software-receipt",
+      "rel": "part_of",
+      "dst": "groupai20261001-checkpointed-portability-contract"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "measured_by",
+      "dst": "groupai20261001-final-claim-view-receipt"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "caused_by",
+      "dst": "groupai20261001-green-software-not-whole-layer"
+    },
+    {
+      "src": "groupai20261001-exact-portable-software-receipt",
+      "rel": "measured_by",
+      "dst": "groupai20261001-final-claim-view-receipt"
     }
   ]
 }
