@@ -4,7 +4,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sourceControls } from './source-controls.mjs';
-import { RID, OTHER_ITEM, ITEM, EXCERPT, SOURCE_NAME, CLAIM_TEXT, OTHER_TEXT, FIFTH_TEXT, claims, personStatus, extractionStatus, locker } from './fixtures.mjs';
+import { activityFixture } from './activity-fixture.mjs';
+import { RID, OTHER_RID, OTHER_ITEM, ITEM, EXCERPT, SOURCE_NAME, CLAIM_TEXT, OTHER_TEXT, FIFTH_TEXT, claims, personStatus, extractionStatus, locker } from './fixtures.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const sourceGroups = await sourceControls(root);
@@ -30,6 +31,7 @@ const artifactDir = join(root, 'scratchpad/source-aware-review-ui-synthetic', `n
 mkdirSync(artifactDir, { recursive: true });
 const results = [], requests = [], errors = [], unknownRequests = [], pending = [];
 let scenario = 'normal', reads = 0, acceptedClaim = null, browser, page;
+let activityScope = { token: 'synthetic-review-a', replicaId: RID };
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://synthetic-fixture');
@@ -40,6 +42,8 @@ const server = createServer(async (req, res) => {
       const replicaId = url.searchParams.get('replica_id') || body.replica_id;
       requests.push({ path: url.pathname, method: req.method, replicaId, auth: req.headers.authorization, body });
       assert(['Bearer synthetic-review-a', 'Bearer synthetic-review-b'].includes(req.headers.authorization), 'synthetic-only authorization');
+      const activity = activityFixture({ method: req.method, url, authorization: req.headers.authorization, raw }, activityScope);
+      if (activity) return send(200, activity);
       if (url.pathname === '/api/context-items' && req.method === 'GET') return send(200, locker());
       if (url.pathname === '/api/replica-claims' && req.method === 'GET') return send(200, { extraction: extractionStatus(replicaId) });
       if (url.pathname === '/api/replica-person-model' && req.method === 'GET') {
@@ -83,8 +87,13 @@ try {
   const flushRender = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   async function open(next = 'normal', query = '') {
     releasePending(); scenario = next; reads = 0; acceptedClaim = null; requests.length = 0;
+    activityScope = { token: 'synthetic-review-a', replicaId: RID };
     await page.goto(`${origin}/?view=enrich&replica=${RID}${query}`);
     await page.waitForFunction(() => !!window.sourceReviewProbe?.committed);
+  }
+  async function changeScope(kind) {
+    activityScope = { ...activityScope, ...(kind === 'token' ? { token: 'synthetic-review-b' } : kind === 'replica' ? { replicaId: OTHER_RID } : {}) };
+    await page.evaluate(value => window.sourceReviewProbe.change(value), kind);
   }
   async function reachByTab(locator) {
     for (let count = 0; count < 80; count++) {
@@ -116,6 +125,12 @@ try {
       assert.match(await card.locator('details').textContent(), /Canonical text offsets: 103 to/);
       assert.match(await card.locator('details').textContent(), /Quote offsets: 3 to/);
       assert.match(await card.locator('details').textContent(), /Page mapping is unavailable/);
+      // The studio has an inner scroller: fullPage alone cannot capture the
+      // cards below its viewport. Capture the actual open card before moving
+      // focus to the media cards, retaining the separate source-banner image.
+      await card.scrollIntoViewIfNeeded();
+      await flushRender();
+      await page.screenshot({ path: join(artifactDir, `selected-claim-${width}.png`) });
       for (const [body, visual] of [['Audio evidence remains a fallible transcription.', false], ['Video audio is not an interpretation of the picture.', true]]) {
         const media = page.locator('.person-claim').filter({ has: page.getByText(body, { exact: true }) });
         await media.locator('summary').click();
@@ -193,7 +208,7 @@ try {
   for (const change of ['owner', 'token', 'replica']) await check(`pending actual review read cannot survive ${change} replacement`, async () => {
     await open('late', '&direct=1'); await page.getByText('Loading reviewed claims…', { exact: true }).waitFor();
     await waitPending();
-    await page.evaluate(kind => window.sourceReviewProbe.change(kind), change);
+    await changeScope(change);
     await page.waitForFunction(kind => { const value = window.sourceReviewProbe.committed; return kind === 'owner' ? value.owner === 'synthetic-owner-b' : kind === 'token' ? value.token === 'synthetic-review-b' : value.replicaId === '10000000-0000-4000-8000-000000000002'; }, change);
     await page.getByText('CURRENT_SCOPE_SYNTHETIC_PROPOSAL', { exact: true }).waitFor();
     const received = page.waitForResponse(response => response.url().includes('/api/replica-person-model'));
@@ -206,7 +221,7 @@ try {
     await open(); await page.getByRole('button', { name: /Files, images, links/ }).click();
     await page.locator(`[data-review-source="${ITEM}"]`).click();
     await page.getByRole('heading', { name: 'Reviewing this source', exact: true }).waitFor();
-    await page.evaluate(kind => window.sourceReviewProbe.change(kind), change);
+    await changeScope(change);
     await page.waitForFunction(kind => { const value = window.sourceReviewProbe.committed; return kind === 'owner' ? value.owner === 'synthetic-owner-b' : kind === 'token' ? value.token === 'synthetic-review-b' : value.replicaId === '10000000-0000-4000-8000-000000000002'; }, change);
     await page.waitForFunction(() => !document.querySelector('.claim-review-scope'));
     assert.equal(await page.locator('.claim-review-source-name').count(), 0);

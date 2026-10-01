@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
+import { activityFixture } from './activity-fixture.mjs';
 import { ITEM, OTHER_ITEM, RID, OTHER_RID, SOURCE, EXCERPT, SOURCE_NAME, citation, transcript, claims, personStatus, extractionStatus } from './fixtures.mjs';
 
 const transpile = source => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
@@ -18,6 +19,54 @@ function changeOnce(source, before, after) { assert.equal(source.split(before).l
 export async function sourceControls(root) {
   const groups = [];
   const check = (name, fn) => { fn(); groups.push(name); console.log('PASS source ' + name); };
+  const activityScope = { token: 'synthetic-review-a', replicaId: RID };
+  const activityRequest = { method: 'GET', url: new URL(`http://synthetic-fixture/api/replica-activity?replica_id=${RID}&unchanged=0`), authorization: 'Bearer synthetic-review-a' };
+  check('inert activity fixture accepts only the current authenticated replica', () => {
+    for (const scope of [activityScope, { ...activityScope, token: 'synthetic-review-b' }, { ...activityScope, replicaId: OTHER_RID }]) {
+      const url = new URL(activityRequest.url); url.searchParams.set('replica_id', scope.replicaId);
+      const view = activityFixture({ ...activityRequest, url, authorization: `Bearer ${scope.token}` }, scope);
+      assert.deepEqual(view, { replica_id: scope.replicaId, generated_at: '2026-09-29T00:00:00Z', jobs: [], lanes: [], in_flight: false, next_poll_ms: null });
+    }
+    for (const authorization of [undefined, 'Bearer not-a-fixture-token', 'Bearer synthetic-review-b']) {
+      assert.throws(() => activityFixture({ ...activityRequest, authorization }, activityScope), /authorization/);
+    }
+    const other = new URL(activityRequest.url); other.searchParams.set('replica_id', OTHER_RID);
+    assert.throws(() => activityFixture({ ...activityRequest, url: other }, activityScope), /replica matches/);
+    assert.throws(() => activityFixture(activityRequest, { ...activityScope, replicaId: OTHER_RID }), /replica matches/);
+  });
+  check('activity fixture leaves unknown routes/methods rejected and fails malformed reads', () => {
+    for (const method of ['POST', 'DELETE', 'PATCH', 'OPTIONS']) assert.equal(activityFixture({ ...activityRequest, method }, activityScope), null);
+    for (const path of ['/api/replica-activity/other', '/api/unknown']) {
+      const url = new URL(activityRequest.url); url.pathname = path;
+      assert.equal(activityFixture({ ...activityRequest, url }, activityScope), null);
+    }
+    for (const query of [`replica_id=${RID}`, `replica_id=${RID}&unchanged=0&unexpected=1`, `replica_id=${RID}&replica_id=${OTHER_RID}&unchanged=0`,
+      `replica_id=${RID}&unchanged=-1`, `replica_id=${RID}&unchanged=NaN`, `replica_id=${RID}&unchanged=0&unchanged=1`, `replica_id=${RID}&unchanged=9007199254740992`]) {
+      assert.throws(() => activityFixture({ ...activityRequest, url: new URL(`http://synthetic-fixture/api/replica-activity?${query}`) }, activityScope));
+    }
+    assert.throws(() => activityFixture({ ...activityRequest, raw: '{}' }, activityScope), /no request body/);
+    const runner = readFileSync(join(root, 'evals/source-aware-review-ui/run.mjs'), 'utf8');
+    assert(runner.includes('unknownRequests.push({ path: url.pathname, method: req.method })'));
+    assert(runner.includes('assert.deepEqual(unknownRequests, []); assert.deepEqual(errors, []);'));
+  });
+  const activityApi = readFileSync(join(root, 'src/studio/activityApi.ts'), 'utf8');
+  const replicaApi = readFileSync(join(root, 'src/studio/replicaApi.ts'), 'utf8');
+  const activityRead = nodeMatching(activityApi, node => ts.isFunctionDeclaration(node) && node.name?.text === 'fetchActivity');
+  const replicaRead = nodeMatching(replicaApi, node => ts.isFunctionDeclaration(node) && node.name?.text === 'replicaRequest');
+  const wireRequests = [];
+  const wire = { AbortSignal, encodeURIComponent, fetch: async (path, init) => {
+    wireRequests.push({ path, init });
+    const view = activityFixture({ method: init.method || 'GET', url: new URL(path, 'http://synthetic-fixture'), authorization: init.headers.Authorization, raw: init.body || '' }, activityScope);
+    assert(view); return { ok: true, status: 200, json: async () => view };
+  } };
+  runInNewContext(transpile(`${replicaRead.replace(/^export /, '')}\n${activityRead.replace(/^export /, '')}\nglobalThis.readActivity = fetchActivity;`), wire);
+  const view = await wire.readActivity(activityScope.token, activityScope.replicaId);
+  check('actual activityApi and replicaRequest serialize into the inert direct-view contract', () => {
+    assert.equal(wireRequests.length, 1); assert.equal(view.replica_id, RID);
+    assert.equal(view.next_poll_ms, null); assert.equal(view.in_flight, false);
+    assert.deepEqual(view.jobs, []); assert.deepEqual(view.lanes, []);
+    assert.equal(Object.hasOwn(view, 'activity'), false);
+  });
   const source = readFileSync(join(root, 'src/studio/sourceAwareReview.ts'), 'utf8');
   const helper = await moduleFrom(source);
   check('exact Hindi, emoji and CRLF preserved in typed document citation', () => {

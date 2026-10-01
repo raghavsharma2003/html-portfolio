@@ -66,10 +66,10 @@ export const state = {
     { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_B, surface: "discord", surface_user_id: "student-2", handle: "student two", honorific: "tum", quiet_level: "normal", linked_at: now(), left_at: null },
   ],
   facts: [
-    { id: 11, agent_id: AGENT_A, person_id: PERSON_A, group_id: null, name: "a-dm", body: "A private algebra preference", kind: "user", created_at: now() },
-    { id: 12, agent_id: AGENT_A, person_id: PERSON_A, group_id: ROOM_A, name: "a-room", body: "A room remembers vectors", kind: "world", created_at: now() },
-    { id: 21, agent_id: AGENT_B, person_id: PERSON_A, group_id: null, name: "b-dm", body: "B private poetry preference", kind: "user", created_at: now() },
-    { id: 22, agent_id: AGENT_B, person_id: PERSON_A, group_id: ROOM_B, name: "b-room", body: "B room remembers metaphors", kind: "world", created_at: now() },
+    { id: 11, agent_id: AGENT_A, person_id: PERSON_A, group_id: null, name: "a-dm", body: "A private algebra preference", kind: "user", citations: null, created_at: now() },
+    { id: 12, agent_id: AGENT_A, person_id: PERSON_A, group_id: ROOM_A, name: "a-room", body: "A room remembers vectors", kind: "world", citations: null, created_at: now() },
+    { id: 21, agent_id: AGENT_B, person_id: PERSON_A, group_id: null, name: "b-dm", body: "B private poetry preference", kind: "user", citations: null, created_at: now() },
+    { id: 22, agent_id: AGENT_B, person_id: PERSON_A, group_id: ROOM_B, name: "b-room", body: "B room remembers metaphors", kind: "world", citations: null, created_at: now() },
   ],
 };
 

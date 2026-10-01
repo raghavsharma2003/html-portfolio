@@ -1,5 +1,15 @@
 # GroupAI readiness ledger, 29 September 2026
 
+## Hosted SQL receipt and portable candidate, 1 October
+
+Early repair `8944f021` is pushed and verified. Root inspected PostgreSQL run `36845203578`, job `110313574009`: PostgreSQL 16.15, 27 canonical tables/249 DDL statements, 30 groups pass at `2026-10-01T09:50:21Z`. Actual query cases cover source-scoped history, late joins, withdrawal and owner review with five citations/current-source/consent. Duplicate PR run `36845207570` reports success but its details were not separately inspected. This closes the earlier array-type proof blocker for those synthetic cases only; live catalog, Neon transport, concurrency, provider and human acceptance are not covered.
+
+APK `36845203553`, job `110313573225`, fails source-aware-review UI and `room`. The 22 mounted review cases pass before a legitimate missing-fixture `replica-activity` GET causes failure; the Room next-month date is hardcoded to October 5 and no longer represents a rollover. Release `36845203689` completes 23/24 on Node 22 job `110313573898` and Node 24 job `110313574230`, failing evaluation on those same two fixtures; dependency security now passes. Working evaluation-only fixes pass root UI source 17 and Room 120/0 controls, including four UTC boundaries/eight mutants. Mounted/full hosted reruns remain pending. Screenshot artifact availability is not visual acceptance.
+
+The dependency-free checkpoint unit in `api/_group-runtime` now has independent integration approval and root local passes: kernel 39, integrated group-turn 86, agentroom 33, surface 84, audience 58, Room 120, UI source 17 plus fixture build, research 15 and registry 23/10. Earlier checks preceded a reviewer-discovered mutable-destination defect; the approved fix shares immutable event/context/adapter/room snapshots before awaits and captures the original default send method/frozen receiver. Package `@vyakti/turn-checkpoints` 0.1.0 is private/UNLICENSED with no dependencies/scripts; root packing confirms four files and no bundled dependencies, while agent self-import succeeds. No publication or root lockfile change occurred. Strict declarations and forced TypeScript completed with exit 0; copy seven scopes/21 controls and workflow seven files passed. No SQL bytes changed.
+
+Root inspected two SHA-verified early screenshots at 390/1440: source banners/labels/focus are readable, but claim cards are outside the captured viewports. Additional claim screenshots await the next hosted run and inspection. Full integrated hosted release/UI is pending. The [portable-layer research](PORTABLE-GROUP-LAYER-20261001.md) motivates this narrowly stated checkpoint contract, not a new service or durable-delivery claim. Eight new source cards and three experiments retain all 15 old source/seven experiment objects by direct comparison; metadata 23/10 and research-cycle 15 checks pass. The portable experiment stays `implemented`/null until final hosted integrated evidence; the other new experiments are planned. Next publish this candidate, inspect full gates and claim captures, then continue the open capability rows. Durable effects, source-preserving recall, full dependency-safe forgetting and the capability rows below remain open. **Group AI is not ready.**
+
 ## Early verification repair candidate, 1 October
 
 Root has verified the bounded post-`3510afa8` repair candidate locally: group-turn authority 55, Teach CTA 25, agentroom 33, safe SQL source-wrapper seven and source-aware claim review 21 groups pass under network blocking. Forced TypeScript, copy seven scopes/21 negative controls, workflow lint seven files and engine freshness pass. An initial agentroom command named a nonexistent path; the corrected actual `evals/agentroom.mjs` ran successfully. No local server/browser or PostgreSQL was executed.
@@ -74,12 +84,12 @@ Owner source review is a separate useful slice: selected Context Locker source f
 |---|---|---|
 | Source review | Working guard/Telegram/source-review code exists; independent reviews are in progress or reported. | Inspectable mechanisms only. |
 | Offline real-caller controls | Initial author reports below; final root results pending. | Bounded control flow with doubles, not PostgreSQL semantics. |
-| Actual PostgreSQL | New keyless ephemeral GitHub CI workflow/harness written; no run result yet. | Must execute production SQL against synthetic hosted PostgreSQL, with no local DB or owner data. |
-| Hosted browser and full release | Pending for the combined source. | Desktop/mobile interactions and normal configured software gates. |
+| Actual PostgreSQL | Early repair `8944f021`: inspected hosted run `36845203578` passes 30 groups on PostgreSQL 16.15. | Actual scoped production queries on 27 synthetic canonical tables; not live catalog, Neon transport or concurrent races. |
+| Hosted browser and full release | Early repair APK and both release jobs fail two fixture suites after 22 mounted review cases; release is 23/24. | Partial browser evidence and dependency-security pass only; local fixture repairs need mounted/full hosted reruns and portable-candidate verification. |
 | Real transport/provider | Not run. | Requires current permissions, consent, bot/platform configuration and a bounded provider budget. |
 | Consented human group task | Not run. | Participants can use, inspect, correct, withdraw and delete within the agreed group task. Required for whole-layer readiness. |
 
-The SQL workflow uses a synthetic GitHub service database without a Neon key. This is new proof preparation, not an assertion of actual SQL success. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Goal status is not changed by this ledger.
+The SQL workflow uses a synthetic GitHub service database without a Neon key. Its October 1 actual 30-group proof supersedes the original preparation-only status, only within the inspected run's scope. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Goal status is not changed by this ledger.
 
 ## Initial evidence, attributed precisely
 

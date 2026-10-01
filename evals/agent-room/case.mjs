@@ -55,7 +55,7 @@ const modelInputs = [];
 const audienceWitness = async (event, { roomId, agentId }) => {
   assert.equal(event.surface, "discord");
   assert.equal(event.chatKey, CHAT_KEY);
-  assert.equal(roomId, agentId === AGENT_A ? ROOM_A : ROOM_B);
+  assert.equal(roomId, String(agentId === AGENT_A ? ROOM_A : ROOM_B));
   return { complete: true, recipients: [PERSON_A, PERSON_B], revision: "a".repeat(64) };
 };
 const ctxFor = (agentId, displayName, { witness = audienceWitness, duringReply } = {}) =>

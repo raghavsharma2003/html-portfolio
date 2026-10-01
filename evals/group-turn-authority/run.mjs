@@ -12,7 +12,7 @@ import * as neverRules from "../../api/_never-rules.js";
 import * as engine from "../../api/_engine.gen.js";
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
-const SOURCE = { room: read("api/_room.js"), surface: read("api/_surface.js") };
+const SOURCE = { room: read("api/_room.js"), surface: read("api/_surface.js"), checkpoints: read("api/_group-runtime/checkpoints.js") };
 const AGENT = "a0000000-0000-4000-8000-000000000001";
 const P1 = "b0000000-0000-4000-8000-000000000001";
 const P2 = "b0000000-0000-4000-8000-000000000002";
@@ -36,7 +36,7 @@ function loadModule(source, filename, imports) {
   return exports;
 }
 
-function fixture({ sources = SOURCE, audience = [P1, P2], split = false } = {}) {
+function fixture({ sources = SOURCE, audience = [P1, P2], split = false, useDefaultSend = false } = {}) {
   const state = {
     room: { id: "91", agent_id: AGENT, surface: "telegram", surface_chat_id: "-100001",
       read_consent_at: "2026-09-29T00:00:00Z", quiet_level: "normal", member_cap: 6,
@@ -45,11 +45,13 @@ function fixture({ sources = SOURCE, audience = [P1, P2], split = false } = {}) 
     witnessComplete: true, witnessRevision: "a".repeat(64), witnessRecipients: null,
     membershipVerified: false, authorityError: false, historyError: false,
     allowedHistory: [], facts: [], words: [], grantValid: true, sinceHerLast: 90000,
-    beforeCompile: null, duringModel: null, afterSend: null, onAuthority: null, onWitness: null,
+    beforeCompile: null, duringModel: null, afterSend: null, onAuthority: null, onWitness: null, onSources: null,
+    returnedRoom: null,
     historyTransform: (rows) => rows,
   };
   const lookupRoom = clone(state.room);
-  const calls = { sql: [], model: [], sent: [], episodes: [], logs: [], authority: 0, sources: 0, witnesses: 0 };
+  const calls = { sql: [], model: [], sent: [], episodes: [], logs: [], authority: 0, sources: 0, witnesses: 0,
+    witnessInputs: [], redirected: [], defaultReceivers: [] };
   const assertSourceQuery = (sql, args, kind) => {
     assert(sql.includes(disclosure.disclosurePredicate(kind, BIND)), `full shipping ${kind} disclosure predicate`);
     assert.deepEqual(clone(args.slice(0, 5)), [state.audience, true, "91", disclosure.NEGATIVE_AFFECT_TAGS, AGENT]);
@@ -77,8 +79,10 @@ function fixture({ sources = SOURCE, audience = [P1, P2], split = false } = {}) 
         left_at: id === P1 && !state.memberActive ? "2026-09-29T01:00:00Z" : null, quiet_level: "normal",
       })) }];
     }
-    if (s.startsWith("select") && s.includes("from vy_group ") && !s.includes("from vy_group_member"))
-      return [clone(lookupRoom)];
+    if (s.startsWith("select") && s.includes("from vy_group ") && !s.includes("from vy_group_member")) {
+      state.returnedRoom = clone(lookupRoom);
+      return [state.returnedRoom];
+    }
     if (s.includes("extract(epoch from")) return [{ ms: state.sinceHerLast }];
     if (s.startsWith("select f.phrase from vy_phrase")) {
       assertSourceQuery(sql, args, "phrase"); return [];
@@ -107,6 +111,7 @@ function fixture({ sources = SOURCE, audience = [P1, P2], split = false } = {}) 
       assertSourceQuery(sql, args, "fact");
       if (s.includes("f.kind")) return [];
       calls.sources++;
+      await state.onSources?.(calls.sources);
       return state.grantValid ? clone(state.facts) : [];
     }
     if (s.startsWith("select f.id, f.phrase, f.origin_episode")) {
@@ -140,23 +145,31 @@ function fixture({ sources = SOURCE, audience = [P1, P2], split = false } = {}) 
     "node:crypto": crypto, "./_db.js": { q }, "./_agentscope.js": { MEERA_AGENT_ID: AGENT },
     "./_disclosure.js": disclosure,
   });
+  const checkpoints = loadModule(sources.checkpoints, "api/_group-runtime/checkpoints.js", {});
   const surface = loadModule(sources.surface, "api/_surface.js", {
     "./_db.js": { q }, "./_config.js": {}, "./_agentscope.js": { MEERA_AGENT_ID: AGENT },
     "./_room.js": room, "./_never-rules.js": neverRules,
     "./_reply-engine-capability.js": { replyEngineCapability: failIO },
     "./_azure-surface-reply.js": { azureSurfaceReply: failIO },
     "./_model-serving-policy.js": { resolveReplyServingProvider: failIO },
+    "./_group-runtime/checkpoints.js": checkpoints,
   });
-  const adapter = { surface: "telegram", render: (text) => split
-    ? [{ text: text.slice(0, 3) }, { text: text.slice(3) }] : [{ text }] };
+  const adapter = { surface: "telegram", receiverMarker: "original-adapter", render: (text) => split
+    ? [{ text: text.slice(0, 3) }, { text: text.slice(3) }] : [{ text }],
+    async send(chat, msg) {
+      calls.defaultReceivers.push({ marker: this.receiverMarker, frozen: Object.isFrozen(this) });
+      calls.sent.push(clone({ chat, msg })); await state.afterSend?.(); return { ok: true };
+    },
+  };
   const ctx = surface.makeCtx(adapter, {
     agentId: AGENT,
     engine: { ...engine, compile(input) { state.beforeCompile?.(); return engine.compile(input); } },
     reply: async (compiled, turns) => {
       calls.model.push(clone({ compiled, turns })); await state.duringModel?.(); return "haan bilkul";
     },
-    send: async (chat, msg) => { calls.sent.push(clone({ chat, msg })); await state.afterSend?.(); return { ok: true }; },
-    groupAudienceWitness: async () => {
+    send: useDefaultSend ? undefined : async (chat, msg) => { calls.sent.push(clone({ chat, msg })); await state.afterSend?.(); return { ok: true }; },
+    groupAudienceWitness: async (event, scope) => {
+      calls.witnessInputs.push(clone({ event, scope }));
       calls.witnesses++; await state.onWitness?.(calls.witnesses);
       return { complete: state.witnessComplete,
         recipients: [...(state.witnessRecipients || state.audience)], revision: state.witnessRevision };
@@ -191,6 +204,136 @@ await check("actual dispatch compiles and gates a source-bound turn once", async
   assert.equal(f.calls.logs[0].speaker_person_id, P1);
   assert.equal(f.calls.logs[1].speaker_person_id, null);
   assert.equal(f.calls.authority >= 7, true);
+});
+
+const routingMutations = {
+  destination: (f) => { f.ev.chatKey = "-100999"; },
+  surface: (f) => { f.ev.surface = "discord"; },
+  replyTarget: (f) => { f.ev.messageId = "foreign-message"; },
+  agent: (f) => { f.ctx.agentId = P3; },
+  table: (f) => { f.ctx.t = (name) => { f.calls.redirected.push({ kind: "table", name }); return `wrong_${name}`; }; },
+  send: (f) => { f.ctx.send = async (chat, msg) => { f.calls.redirected.push({ kind: "send", chat, msg }); return { ok: true }; }; },
+  render: (f) => { f.ctx.adapter.render = () => { f.calls.redirected.push({ kind: "render" }); return [{ text: "REPLACED_RENDER" }]; }; },
+  room: (f) => { f.state.returnedRoom.id = "92"; f.state.returnedRoom.room_device_id = P3; },
+};
+async function routingControl(kind, phase, sources = SOURCE) {
+  const f = fixture({ sources });
+  let mutated = false;
+  f.state[phase] = () => { if (!mutated) { mutated = true; routingMutations[kind](f); } };
+  let result;
+  try { result = await f.run(); }
+  catch (error) { if (error.code !== "group_authority_unavailable") throw error; }
+  assert.equal(mutated, true, "routing mutation reached its awaited phase");
+  assert.deepEqual(f.calls.redirected, [], "bound context cannot switch table/send/render handles");
+  assert(!f.calls.sql.some(({ sql, args }) => sql.includes("wrong_") || args.includes(P3) || args.includes("92")),
+    "bound room and agent cannot switch SQL read/write scope");
+  assert(f.calls.witnessInputs.every(({ event, scope }) => event.surface === "telegram" && event.chatKey === "-100001" &&
+    scope.roomId === "91" && scope.agentId === AGENT), "bound witness routing cannot change");
+  assert.equal(result?.action, "speak", "unchanged authority still completes on original routing");
+  assert.equal(f.calls.model.length, 1);
+  assert.equal(f.calls.sent.length, 1);
+  assert.equal(f.calls.sent[0].chat, "-100001", "delivery keeps the authorized destination");
+  assert.equal(f.calls.sent[0].msg.replyTo, "17", "delivery keeps the original message target");
+  assert.equal(f.calls.sent[0].msg.text, "haan bilkul", "delivery keeps the bound renderer output");
+}
+for (const kind of ["destination", "surface", "replyTarget"])
+  await check(`caller event ${kind} mutation during model cannot change bound routing`, () => routingControl(kind, "duringModel"));
+for (const phase of ["onSources", "duringModel"])
+  for (const kind of ["agent", "table", "send", "render", "room"])
+    await check(`caller ${kind} mutation at ${phase} keeps bound handles and scope`, () => routingControl(kind, phase));
+
+async function defaultSendControl(kind, phase, sources = SOURCE) {
+  const f = fixture({ sources, split: true, useDefaultSend: true });
+  let mutated = false;
+  f.state[phase] = () => {
+    if (mutated) return;
+    mutated = true;
+    if (kind === "method") f.ctx.adapter.send = async (chat, msg) => {
+      f.calls.redirected.push({ kind: "default-send", chat, msg }); return { ok: true };
+    };
+    else f.ctx.adapter.receiverMarker = "replaced-adapter";
+  };
+  const result = await f.run();
+  assert.equal(mutated, true, "default transport mutation reached its awaited phase");
+  assert.deepEqual(f.calls.redirected, [], "bound default transport cannot switch method");
+  assert.deepEqual(f.calls.defaultReceivers.map(({ marker }) => marker), ["original-adapter", "original-adapter"],
+    "bound default transport cannot switch receiver");
+  assert(f.calls.defaultReceivers.every(({ frozen }) => frozen), "default transport receiver is immutable");
+  assert.equal(result.action, "speak");
+  assert.equal(f.calls.model.length, 1);
+  assert.equal(f.calls.sent.length, 2);
+  assert(f.calls.sent.every(({ chat }) => chat === "-100001"));
+  assert.equal(f.calls.sent.map(({ msg }) => msg.text).join(""), "haan bilkul");
+  assert.deepEqual(f.calls.sent.map(({ msg }) => msg.replyTo), ["17", null]);
+}
+for (const phase of ["duringModel", "afterSend"])
+  for (const kind of ["method", "receiver"])
+    await check(`default transport ${kind} mutation at ${phase} cannot change either fragment`, () => defaultSendControl(kind, phase));
+
+await check("missing default transport fails closed even if the original adapter later adds send", async () => {
+  const f = fixture(), adapter = { surface: "telegram", render: (text) => [{ text }] };
+  const ctx = f.surface.makeCtx(adapter);
+  adapter.send = async () => { f.calls.redirected.push({ kind: "late-send" }); return { ok: true }; };
+  await assert.rejects(() => f.surface.deliver(ctx, "-100001", { kind: "text", text: "not authorized" }), /surface_send_unavailable/);
+  assert.deepEqual(f.calls.redirected, []);
+});
+
+async function assertGuardBlocksEffects(f, guard) {
+  await assert.rejects(() => f.surface.gatedReply(f.ctx, { core: "test", tail: "", sections: {} }, [], {
+    assertAuthority: guard.assertAuthority,
+  }), { code: "group_authority_unavailable" });
+  await assert.rejects(() => f.surface.deliver(f.ctx, f.ev.chatKey, { kind: "text", text: "must not send" }, {
+    assertAuthority: guard.assertAuthority,
+  }), { code: "group_authority_unavailable" });
+  assert.equal(f.calls.model.length, 0, "invalidated wrapper must block raw model");
+  assert.equal(f.calls.sent.length, 0, "invalidated wrapper must block delivery");
+}
+
+async function rebindControl(sources = SOURCE) {
+  const f = fixture({ sources });
+  const guard = await f.surface.createGroupTurnGuard(f.ev, f.ctx, f.state.room);
+  assert.equal(guard.guarantee, "checkpointed");
+  assert(Object.isFrozen(guard) && Object.isFrozen(guard.recipients) && Object.isFrozen(guard.authority));
+  const source = [{ evidenceId: "source-1", citations: null }], reader = () => source;
+  guard.bindSources(reader, source);
+  await guard.assertAuthority();
+  assert.throws(() => guard.bindSources(reader, source), { code: "group_authority_unavailable" });
+  const reads = f.calls.authority;
+  await assertGuardBlocksEffects(f, guard);
+  assert.equal(f.calls.authority, reads, "rebound invalidated wrapper does not reread authority");
+}
+await check("actual wrapper binds sources only once and blocks model/delivery after identical rebind", () => rebindControl());
+
+async function stickyControl(kind, sources = SOURCE) {
+  const f = fixture({ sources });
+  const guard = await f.surface.createGroupTurnGuard(f.ev, f.ctx, f.state.room);
+  const originalConsent = f.state.room.read_consent_at;
+  let source = [{ evidenceId: "source-1", citations: null }];
+  guard.bindSources(() => source, source);
+  await guard.assertAuthority();
+  if (kind === "authority") f.state.room.read_consent_at = null;
+  else source = [];
+  await assert.rejects(() => guard.assertAuthority(), { code: "group_authority_unavailable" });
+  f.state.room.read_consent_at = originalConsent;
+  source = [{ evidenceId: "source-1", citations: null }];
+  const reads = f.calls.authority;
+  await assertGuardBlocksEffects(f, guard);
+  assert.equal(f.calls.authority, reads, "restoring state cannot revive an invalidated wrapper");
+}
+for (const kind of ["authority", "source"]) await check(`actual wrapper ${kind} invalidation stays closed after state is restored`, () => stickyControl(kind));
+
+await check("actual wrapper rejects unbound effects and cannot be rescued by binding afterward", async () => {
+  const f = fixture();
+  const guard = await f.surface.createGroupTurnGuard(f.ev, f.ctx, f.state.room);
+  await assertGuardBlocksEffects(f, guard);
+  assert.throws(() => guard.bindSources(() => [], []), { code: "group_authority_unavailable" });
+});
+
+await check("actual wrapper maps invalid source DTO failure without permitting model or delivery", async () => {
+  const f = fixture();
+  const guard = await f.surface.createGroupTurnGuard(f.ev, f.ctx, f.state.room);
+  assert.throws(() => guard.bindSources(() => [], [{ citations: undefined }]), { code: "group_authority_unavailable" });
+  await assertGuardBlocksEffects(f, guard);
 });
 
 await check("late joiner gets only DB-authorized human history and no unsupported assistant evidence", async () => {
@@ -318,6 +461,40 @@ function changed(which, from, to) {
   return { ...SOURCE, [which]: value };
 }
 
+await check("mutation: removing event snapshot exposes unauthorized delivery destination", async () => {
+  await assert.rejects(() => routingControl("destination", "duringModel", changed("surface",
+    "ev = Object.freeze({ ...ev, adminBits: Object.freeze({ ...ev.adminBits }) });", "")), /delivery keeps the authorized destination/);
+});
+await check("mutation: removing context snapshot exposes replaced send handle", async () => {
+  await assert.rejects(() => routingControl("send", "duringModel", changed("surface",
+    "ctx = Object.freeze({ ...ctx, adapter: Object.freeze({ ...ctx.adapter }) });", "")), /bound context cannot switch table\/send\/render handles/);
+});
+await check("mutation: retaining mutable nested adapter exposes replaced renderer", async () => {
+  await assert.rejects(() => routingControl("render", "duringModel", changed("surface",
+    "adapter: Object.freeze({ ...ctx.adapter })", "adapter: ctx.adapter")), /bound context cannot switch table\/send\/render handles/);
+});
+await check("mutation: removing room snapshot exposes changed SQL scope", async () => {
+  await assert.rejects(() => routingControl("room", "duringModel", changed("surface",
+    "const room = Object.freeze({ ...foundRoom });", "const room = foundRoom;")), /bound room and agent cannot switch SQL read\/write scope/);
+});
+await check("mutation: old default-send closure exposes swapped adapter method and receiver", async () => {
+  const oldClosure = changed("surface", "send: deps.send || defaultSend,", "send: deps.send || ((chatKey, msg) => adapter.send(chatKey, msg)),");
+  for (const kind of ["method", "receiver"])
+    for (const phase of ["duringModel", "afterSend"])
+      await assert.rejects(() => defaultSendControl(kind, phase, oldClosure), /bound default transport cannot switch/);
+});
+await check("mutation: captured method with mutable original receiver is rejected", async () => {
+  await assert.rejects(() => defaultSendControl("receiver", "afterSend", changed("surface",
+    "sendAdapter.send.bind(sendAdapter)", "sendAdapter.send.bind(adapter)")), /bound default transport cannot switch receiver/);
+});
+
+await check("mutation: actual wrapper detects a removed one-time source-binding guard", async () => {
+  await assert.rejects(() => rebindControl(changed("checkpoints", 'if (sourceReader !== null) fail("sources_already_bound");', "")), /Missing expected exception/);
+});
+await check("mutation: actual wrapper detects non-sticky kernel failure", async () => {
+  await assert.rejects(() => stickyControl("source", changed("checkpoints", "invalidReason ??= reason;", "")), /Missing expected rejection/);
+});
+
 await check("mutation: actual raw second reply call is executed and caught", async () => {
   const f = fixture({ sources: changed("surface", "export async function onGroupMessage(ev, ctx) {",
     "export async function onGroupMessage(ev, ctx) {\n await ctx.reply({}, []);") });
@@ -330,11 +507,12 @@ await check("mutation: removing pre-model guard is caught by actual model dispat
   f.state.beforeCompile = () => { f.state.room.read_consent_at = null; };
   await assert.rejects(() => suppressed(f), /raw model dispatch count/);
 });
-const sourceCheck = "if (JSON.stringify(await sourceReader()) !== sourceReceipt) throw groupAuthorityError();";
-assert.equal(SOURCE.surface.split(sourceCheck).length - 1, 2, "two source checkpoints bracket the external audience witness");
+const sourceCheck = "await checkSources();";
+assert.equal(SOURCE.checkpoints.split(sourceCheck).length - 1, 2, "two kernel source checkpoints bracket the external audience witness");
 const withoutSourceCheck = (index) => {
-  const offset = index === 0 ? SOURCE.surface.indexOf(sourceCheck) : SOURCE.surface.lastIndexOf(sourceCheck);
-  return { ...SOURCE, surface: SOURCE.surface.slice(0, offset) + "await sourceReader();" + SOURCE.surface.slice(offset + sourceCheck.length) };
+  const offset = index === 0 ? SOURCE.checkpoints.indexOf(sourceCheck) : SOURCE.checkpoints.lastIndexOf(sourceCheck);
+  return { ...SOURCE, checkpoints: SOURCE.checkpoints.slice(0, offset) +
+    'await read(sourceReader, "source_read_failed", "invalid_source_snapshot", false);' + SOURCE.checkpoints.slice(offset + sourceCheck.length) };
 };
 await check("mutation: either retained source checkpoint still blocks persistent revocation", async () => {
   for (const index of [0, 1]) {
@@ -345,7 +523,9 @@ await check("mutation: either retained source checkpoint still blocks persistent
   }
 });
 await check("mutation: removing both source receipt comparisons leaks revoked source and is caught", async () => {
-  const f = fixture({ sources: { ...SOURCE, surface: SOURCE.surface.replaceAll(sourceCheck, "await sourceReader();") } });
+  const receiptCheck = 'if (current.receipt !== sourceReceipt) fail("sources_changed");';
+  assert.equal(SOURCE.checkpoints.split(receiptCheck).length - 1, 1, "one actual comparator serves both source checkpoints");
+  const f = fixture({ sources: changed("checkpoints", receiptCheck, "") });
   f.state.facts = [{ id: "51", body: "ochre", citations: ["50"] }];
   f.state.duringModel = () => { f.state.grantValid = false; };
   await assert.rejects(() => suppressed(f, 1), /wire delivery count/);

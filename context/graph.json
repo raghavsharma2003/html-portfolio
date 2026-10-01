@@ -18162,6 +18162,30 @@
       "kind": "rejection",
       "title": "Do not union unfinished portability work or upgrade offline checks into hosted acceptance",
       "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-checkpointed-portability-contract",
+      "kind": "decision",
+      "title": "Inject authority into an immutable checkpoint boundary without promising atomic external delivery",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-hosted-sql-and-ui-receipts",
+      "kind": "measurement",
+      "title": "Early repair passes 30 hosted PostgreSQL groups while APK retains two fixture failures",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-portable-research-candidate",
+      "kind": "measurement",
+      "title": "Eight primary-source cards and three bounded experiments accompany the unaccepted portable candidate",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupai20261001-mutable-destination-and-benchmark-transfer",
+      "kind": "rejection",
+      "title": "Immutable receipts do not protect mutable delivery bindings or establish benchmark transfer",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -30785,6 +30809,26 @@
     },
     {
       "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "part_of",
+      "dst": "groupai20261001-portable-boundary-after-proof"
+    },
+    {
+      "src": "groupai20261001-early-repair-checkpoint",
+      "rel": "measured_by",
+      "dst": "groupai20261001-hosted-sql-and-ui-receipts"
+    },
+    {
+      "src": "groupai20261001-checkpointed-portability-contract",
+      "rel": "measured_by",
+      "dst": "groupai20261001-portable-research-candidate"
+    },
+    {
+      "src": "groupai20261001-checkpointed-portability-contract",
+      "rel": "caused_by",
+      "dst": "groupai20261001-mutable-destination-and-benchmark-transfer"
+    },
+    {
+      "src": "groupai20261001-checkpointed-portability-contract",
       "rel": "part_of",
       "dst": "groupai20261001-portable-boundary-after-proof"
     }

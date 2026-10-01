@@ -53,6 +53,7 @@ import { MEERA_AGENT_ID } from "./_agentscope.js";
 // every surface's reply path and must not gain a transitive dependency on
 // storage config or a database client to enforce an owner's rule.
 import { replyViolatesNeverRule } from "./_never-rules.js";
+import { createTurnCheckpoints } from "./_group-runtime/checkpoints.js";
 import {
   setReadConsent,
   setQuiet,
@@ -1245,46 +1246,46 @@ const groupAuthorityError = () => Object.assign(new Error("group_authority_unava
  * A guard is local to one turn; no context shared with another turn mutates. */
 export async function createGroupTurnGuard(ev, ctx, room) {
   if (typeof ctx.groupAudienceWitness !== "function") throw groupAuthorityError();
-  let expected = null;
-  let sourceReader = null;
-  let sourceReceipt = null;
-  let recipients = null;
-  const checkScope = async () => {
-    const current = await groupTurnAuthority(room.id, ctx.agentId, ctx.t);
-    const audience = normalizeGroupRecipients(current?.recipients);
-    if (!current || !current.read_consent_at || current.entitled !== true || !audience ||
-        audience.length < QUORUM || audience.length > Number(current.member_cap) ||
-        String(current.id) !== String(room.id) || current.agent_id !== ctx.agentId ||
-        current.surface !== ev.surface || String(current.surface_chat_id) !== String(ev.chatKey) ||
-        !Array.isArray(current.linked_members)) throw groupAuthorityError();
-    const witness = await ctx.groupAudienceWitness(ev, { roomId: room.id, agentId: ctx.agentId,
-      room: { ...room, ...current }, linkedMembers: current.linked_members });
-    const verified = normalizeGroupRecipients(witness?.recipients);
-    if (witness?.complete !== true || !verified || JSON.stringify(verified) !== JSON.stringify(audience) ||
-        typeof witness.revision !== "string" || !/^[a-f0-9]{64}$/i.test(witness.revision)) throw groupAuthorityError();
-    const receipt = JSON.stringify({ authority: current, recipients: audience, revision: witness.revision });
-    if (expected !== null && receipt !== expected) throw groupAuthorityError();
-    expected = receipt;
-    recipients = audience;
-  };
-  await checkScope();
-  return {
-    recipients,
-    authority: JSON.parse(expected).authority,
-    bindSources(reader, source) { sourceReader = reader; sourceReceipt = JSON.stringify(source); },
-    async assertAuthority() {
-      await checkScope();
-      if (sourceReader) {
-        if (JSON.stringify(await sourceReader()) !== sourceReceipt) throw groupAuthorityError();
-        // Scope may have changed while source authority was being read.
-        await checkScope();
-        // The external audience witness can itself be slow. A source revoked
-        // during that await must not survive merely because membership stayed
-        // unchanged. These checkpoints are not an atomic egress barrier.
-        if (JSON.stringify(await sourceReader()) !== sourceReceipt) throw groupAuthorityError();
-      }
+  const table = ctx.t;
+  const readAudience = ctx.groupAudienceWitness.bind(ctx);
+  const event = Object.freeze({ surface: ev.surface, chatKey: String(ev.chatKey), isGroup: ev.isGroup === true });
+  let checkpoints;
+  try {
+    checkpoints = await createTurnCheckpoints({
+      scope: { groupId: String(room.id), agentId: ctx.agentId, surface: event.surface, chatKey: event.chatKey },
+      policyVersion: "vyakti.group-authority/v1",
+      readAuthority: async ({ scope }) => {
+        const current = await groupTurnAuthority(scope.groupId, scope.agentId, table);
+        const audience = normalizeGroupRecipients(current?.recipients);
+        if (!current || !current.read_consent_at || current.entitled !== true || !audience ||
+            audience.length < QUORUM || audience.length > Number(current.member_cap) ||
+            String(current.id) !== scope.groupId || current.agent_id !== scope.agentId ||
+            current.surface !== scope.surface || String(current.surface_chat_id) !== scope.chatKey ||
+            !Array.isArray(current.linked_members)) throw groupAuthorityError();
+        const witness = await readAudience(event, { roomId: scope.groupId, agentId: scope.agentId,
+          room: current, linkedMembers: current.linked_members });
+        const verified = normalizeGroupRecipients(witness?.recipients);
+        if (witness?.complete !== true || !verified || JSON.stringify(verified) !== JSON.stringify(audience) ||
+            typeof witness.revision !== "string" || !/^[a-f0-9]{64}$/i.test(witness.revision)) throw groupAuthorityError();
+        return { authority: current, recipients: audience, revision: witness.revision };
+      },
+    });
+  } catch { throw groupAuthorityError(); }
+  // The portable module compares immutable checkpoints; this adapter still
+  // owns all SQL, consent and platform checks. Neither makes external sends atomic.
+  return Object.freeze({
+    guarantee: checkpoints.guarantee,
+    recipients: checkpoints.authority.recipients,
+    authority: checkpoints.authority.authority,
+    bindSources(reader, source) {
+      try { checkpoints.bindSources(reader, source); }
+      catch { throw groupAuthorityError(); }
     },
-  };
+    async assertAuthority() {
+      try { await checkpoints.assertCurrent(); }
+      catch { throw groupAuthorityError(); }
+    },
+  });
 }
 
 /**
@@ -1293,9 +1294,16 @@ export async function createGroupTurnGuard(ev, ctx, room) {
  * RENDER through the real compiler.
  */
 export async function onGroupMessage(ev, ctx) {
+  // Use the same routing and reader handles for the entire turn, including
+  // effects after awaited generation. A fixed guard with a mutable destination
+  // would authorize one chat and send to another. Current database authority
+  // is still re-read; this snapshot does not freeze consent or membership.
+  ev = Object.freeze({ ...ev, adminBits: Object.freeze({ ...ev.adminBits }) });
+  ctx = Object.freeze({ ...ctx, adapter: Object.freeze({ ...ctx.adapter }) });
   if (ev.fromBot) return { ok: true, skipped: "bot message" };
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
-  if (!room) return { ok: true, skipped: "unknown room" };
+  const foundRoom = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
+  if (!foundRoom) return { ok: true, skipped: "unknown room" };
+  const room = Object.freeze({ ...foundRoom });
   // No engine, no room behaviour AT ALL — not even the participation decision,
   // which lives in the same bundle. She stays silent and the failure is loud.
   // A degraded fallback here would be a second Meera nobody tested.
@@ -1614,12 +1622,18 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
  *  drives exactly that path with a known family-4 violation. */
 export function makeCtx(adapter, deps = {}) {
   const engine = deps.engine !== undefined ? deps.engine : null;
+  // Capture the default transport method and receiver now. Retaining only a
+  // closure which later looks up adapter.send defeats the per-turn snapshot.
+  const sendAdapter = Object.freeze({ ...adapter });
+  const defaultSend = typeof sendAdapter.send === "function"
+    ? sendAdapter.send.bind(sendAdapter)
+    : async () => { throw new Error("surface_send_unavailable"); };
   return {
     adapter,
     t: deps.t || ident,
     engine,
     reply: deps.reply || ((compiled, turns) => think(engine, compiled, turns)),
-    send: deps.send || ((chatKey, msg) => adapter.send(chatKey, msg)),
+    send: deps.send || defaultSend,
     botHandle: deps.botHandle || "",
     // The clone binding (see THE CLONE BINDING above). Both default to
     // Meera's, so a caller that passes neither gets today's behaviour exactly.
