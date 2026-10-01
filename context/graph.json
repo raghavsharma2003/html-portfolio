@@ -18372,6 +18372,36 @@
       "kind": "measurement",
       "title": "Known-consent local caller and ingress checks pass while real PostgreSQL offset wire proof and SQL50 remain pending",
       "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-hosted-sql-af17fbca",
+      "kind": "measurement",
+      "title": "Pushed af17fbca passes actual SQL50 and unmodified PostgreSQL authority-to-helper wire case while release runs",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-publication-held-request-barrier",
+      "kind": "decision",
+      "title": "Repair publication scope fixtures with actual held-request and committed-DOM barriers",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-af17-publication-fixture-failure",
+      "kind": "measurement",
+      "title": "Exact af17 APK and SQL pass but Node24 release fails one mounted pending-POST fixture",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-no-click-completion-as-request-proof",
+      "kind": "rejection",
+      "title": "Do not treat completed clicks or unchanged production source as proof of held requests and passing scope guards",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-publication-barrier-source-freeze",
+      "kind": "measurement",
+      "title": "Four evaluation files pass eight barrier and nine source controls while fresh mounted proof remains pending",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -31182,6 +31212,31 @@
       "src": "groupconsent20261001-source-time-fence",
       "rel": "measured_by",
       "dst": "groupconsent20261001-local-candidate-and-pg-offset"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "measured_by",
+      "dst": "groupconsent20261001-hosted-sql-af17fbca"
+    },
+    {
+      "src": "grouprelease20261001-publication-held-request-barrier",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-af17-publication-fixture-failure"
+    },
+    {
+      "src": "grouprelease20261001-publication-held-request-barrier",
+      "rel": "caused_by",
+      "dst": "grouprelease20261001-no-click-completion-as-request-proof"
+    },
+    {
+      "src": "grouprelease20261001-publication-held-request-barrier",
+      "rel": "part_of",
+      "dst": "groupconsent20261001-source-time-fence"
+    },
+    {
+      "src": "grouprelease20261001-publication-held-request-barrier",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-publication-barrier-source-freeze"
     }
   ]
 }

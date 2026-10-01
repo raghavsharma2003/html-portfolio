@@ -1,5 +1,29 @@
 # GroupAI readiness ledger, 29 September 2026
 
+## Publication barrier fixture ready for hosted rerun, 1 October
+
+Root approves a four-file evaluation-only repair: `evals/teacher-sheet-publication/{mounted.mjs,host.tsx,held-request.mjs,barrier-controls.mjs}`. Network-blocked build-only passes eight barrier/source controls and builds the real component fixture; nine publication source/handler controls and whitespace pass. Independent review APPROVES mounted source SHA-256 `676022e5dc69437c0f689f221ad9c2be0d6423636710b2670676431a8bc50669`. No production/runtime/source-admission/UI bytes change, and the existing mounted registry entry automatically runs the eight controls without a new registration.
+
+Actual server-parsed request kind/generation is held before scope invalidation; a host-effect committed witness and fresh DOM reset precede response release. Strict idle/duplicate/stale/deadline checks remain, with no fixed sleep, zero-request acceptance or authority relaxation. All 40 mounted groups are retained but UNRUN on this candidate, so fresh hosted execution remains required.
+
+Exact prior `af17fbca` Node 22 job `110443043651` completes 24/24 at `2026-10-01T15:47:29.7377596Z` in run `36884146068`, relational skips explicit without `NEON_URL`. Node 24 remains failed 23/24 on the recorded fixture; APK and SQL50 pass separately. Af17 therefore is not fully release-accepted. Known-consent admission stays implemented/null until both new complete release jobs pass. Existing measured 44 px UI is unchanged, both user choices stay unanswered and no local browser/server/live provider/deployment is introduced.
+
+## Source-time APK/SQL pass; Node 24 mounted fixture failure, 1 October
+
+Exact `af17fbca` APK `36884146042`/`110443041774` succeeds, Gradle `2026-10-01T15:34:08.7433419Z`, including group 170/delivery 44/event 26/agentroom 48/UI 17+22/public 10. Artifact `11173522836`: 19,310,090 bytes, SHA-256 `c971b62ec1471e4059c2e6992090acd207a6144cd1d1c81ebf66dcc4ba4607f3`. SQL50 remains passed. Release `36884146068` Node 24 `110443044132` ends 23/24 at `2026-10-01T15:42:07.7100167Z`, failing only evaluation. Node 22 remains running as last checked.
+
+Root verifies sanitized artifact `11173519286`, SHA-256 `a11521ee9b8a6d2313778b61ba9d4808014645800dd77f1dc38125618cea6ecc`. `teacher-sheet-publication-ui` passes 21 mounted checks, then `mounted.mjs:86:142` expects one pending POST but gets zero. A source-diagnosed race may cancel it before server enqueue because scope changes after click completion without an actual held-request witness. Relevant production UI/runtime source is unchanged, but this does not waive the failure.
+
+The test-only candidate will wait for exact request kind/generation, then committed DOM scope before releasing old work, including analogous GET/load paths. No timeout inflation, zero-request acceptance or weakened guards; no repaired pass yet. Planning/triage preceded this log request and mounted proof remains future hosted work, with no local server/browser. Known-consent admission stays implemented/null until new combined CI; unanswered user choices and all broader readiness gaps remain open.
+
+## Source-time SQL50 accepted; final integrated jobs running, 1 October
+
+Root confirms committed/pushed `af17fbcab64578b1862665a10f27f6944a4d492d` and clean source before this documentation receipt. Actual synthetic SQL `36884146027`/job `110443045307` passes 50 groups at `2026-10-01T15:26:29.9791243Z`. The real authority-query-to-helper boundary runs as case 31: raw group `2026-09-01 00:00:00+00` and member `2026-09-01T00:00:00+00:00` reach the helper unchanged, logged at `2026-10-01T15:26:22.7009548Z`. This closes the PostgreSQL wire-format proof gap, not live database/concurrency/erasure serialization.
+
+Release `36884146068` remains running on Node 22 `110443043651` and Node 24 `110443044132`; scheduled Hindi `110443046314` is skipped. APK `36884146042`/`110443041774` is in progress. Known-consent admission stays implemented/null until combined completion. Previous `fe652992` full gates and measured 44 px UI remain their exact historical evidence; UI source is unchanged but final integrated proof is not assumed. Only documentation receipts are intended now, with no new product code/deployment/provider action.
+
+Both live-trial and replay-policy questions remain unanswered. Durable effects remain planned, recall relevance remains inconclusive, and no whole-layer readiness claim follows from SQL50.
+
 ## Exact delivery/UI acceptance and local consent-time candidate, 1 October
 
 Exact `fe652992ef97cf18db3c1cdaeaa8c79663471f93` passes release `36866389378`: Node 22 `110382812341` all 24 at `2026-10-01T13:20:34.8260449Z`, Node 24 `110382812447` all 24 at `2026-10-01T13:21:02.4768893Z`, both relational skips explicit without `NEON_URL`. Separate SQL `36866389181`/`110382811375` passes 42 at `2026-10-01T13:08:16.7470297Z`. APK `36866389182`/`110382811468` succeeds, Gradle `2026-10-01T13:16:55.4914295Z`, logs delivery 44/public-inflight 10/UI 17 source/22 mounted. Artifact `11165025368`: 19,310,091 bytes, SHA-256 `e07a77a86ce854c2758003f1637cbc4c66fbaeff5da0e80d7e4ab6d8b8cf3bcc`.
@@ -188,12 +212,12 @@ Owner source review is a separate useful slice: selected Context Locker source f
 |---|---|---|
 | Source review | Exact `3e036e7d` portable integration independently approved after immutable destination/default-send repairs. | Inspectable mechanisms and reviewed caller binding, not atomic external delivery. |
 | Offline real-caller controls | Root-confirmed kernel 39 and integrated caller 86; related caller suites and hosted reruns pass. | Bounded control flow with doubles, not live provider/transport guarantees. |
-| Actual PostgreSQL | Exact `fe652992`: run `36866389181` passes 42 existing groups; new consent-time candidate's 50 groups remain unrun. | Actual scoped synthetic SQL only; no live catalog, Neon transport, concurrent-race or newer consent-time acceptance. |
-| Hosted browser and full release | Exact `fe652992`: both releases 24/24, APK succeeds, delivery 44/public 10/UI 17+22; measured targets and reviewed captures at 390/1440 pass. | Bounded software and synthetic-web acceptance; new consent-time hosted proof remains pending, no whole-layer/device/human result. |
+| Actual PostgreSQL | Exact `af17fbca`: run `36884146027` passes 50 groups, including raw PostgreSQL authority-query-to-helper case 31. | Actual scoped synthetic SQL/helper proof only; no live catalog, Neon transport, concurrent/serialized-erasure result. |
+| Hosted browser and full release | Exact `af17fbca`: APK succeeds, Node 22 release 24/24, Node 24 23/24 on one publication fixture. Four-file fixture repair has only source/build proof so far. | Mixed af17 result is not full release acceptance; new 40-group mounted and combined gates remain required, no whole-layer/device/human result. |
 | Real transport/provider | Not run. | Requires current permissions, consent, bot/platform configuration and a bounded provider budget. |
 | Consented human group task | Not run. | Participants can use, inspect, correct, withdraw and delete within the agreed group task. Required for whole-layer readiness. |
 
-The SQL workflow uses a synthetic GitHub service database without a Neon key. Exact `fe652992` passes the existing 42 groups; the new known-consent candidate adds a separate 50-group proof requirement that is still unrun. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Whole-layer goal status is not changed by this ledger.
+The SQL workflow uses a synthetic GitHub service database without a Neon key. Exact `af17fbca` passes SQL50/APK and Node 22 release, but Node 24 fails the mounted publication fixture; a source-approved evaluation-only repair awaits hosted execution. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Whole-layer goal status is not changed by this ledger.
 
 ## Initial evidence, attributed precisely
 
