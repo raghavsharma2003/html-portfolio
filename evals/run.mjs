@@ -305,6 +305,8 @@ const suites = {
   "group-turn-authority": "group-turn-authority/run.mjs",
   "group-sql-authority-source": "group-sql-authority/source-only.mjs",
   "turn-checkpoints": "turn-checkpoints/run.mjs",
+  "source-turn-selection": "source-turn-selection/run.mjs",
+  "group-source-recall": "group-source-recall/run.mjs",
   contextcanonical: "context-canonical-evidence/run.mjs",
   acceptedclaimrelational: "experience-compiler/relational-materializer.mjs",
   mirrorrelationalrecall: "mirrorcall-relational-recall/run.mjs",

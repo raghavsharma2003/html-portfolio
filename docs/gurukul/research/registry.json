@@ -478,14 +478,14 @@
     {
       "id": "source-preserving-group-recall",
       "title": "Bounded permitted group-source selection with attribution",
-      "state": "planned",
+      "state": "implemented",
       "outcome": null,
       "observedAt": null,
       "hypothesis": "Bounded lexical selection can improve older permitted-source recall over recency-only history without losing speaker/subject attribution, current audience constraints or deletion lineage.",
       "sourceIds": ["graphiti-source-lineage", "hindsight-document-semantics", "groupmembench", "socialmembench"],
-      "artifactPaths": ["docs/gurukul/research/PORTABLE-GROUP-LAYER-20261001.md", "api/_surface.js"],
-      "runCommand": null,
-      "successCriteria": ["Preregister 48 invented cases across eight families, three language conditions and two cases per cell; compare identical permitted corpora and budgets.", "Admit under server authority before ranking; preserve source, episode, revision, speaker and available reply ancestry without guessing subject identity.", "Measure the whole serialized packet including metadata, source recall, disagreements, corrections, dissent, audience changes and revoked/deleted evidence separately.", "Keep derived assistant history excluded until complete durable dependency lineage exists; no benchmark reproduction, second datastore or learned retrieval is assumed."],
+      "artifactPaths": ["docs/gurukul/research/PORTABLE-GROUP-LAYER-20261001.md", "docs/gurukul/research/GROUP-SOURCE-RECALL-PLAN-20261001.md", "docs/gurukul/research/GROUP-SOURCE-RECALL-IMPLEMENTATION-20261001.md", "docs/gurukul/research/GROUP-SOURCE-RECALL-EVAL-20261001.md", "api/_group-recall/selection.js", "api/_group-recall/selection.d.ts", "evals/source-turn-selection/run.mjs", "evals/group-source-recall/cases.mjs", "evals/group-source-recall/run.mjs", "api/_room.js", "api/_surface.js"],
+      "runCommand": "node evals/group-source-recall/run.mjs",
+      "successCriteria": ["Preregister 48 invented cases across eight families, three language conditions and two cases per cell; compare identical permitted corpora and budgets.", "Freeze NFKC/lowercase Unicode letter/mark/number tokenization and score one point per unique query token present in a source, with no frequency/IDF bonus and descending numeric source-ID ties, before independent case evaluation.", "Admit under server authority before ranking and bind the full pool at a fixed current-log cutoff; preserve source, episode, revision, speaker and available reply ancestry without guessing subject identity.", "Preserve the mandatory latest 20/current source, add at most 12 older positive matches and render source order; use only raw human source text for vocabulary.", "Test the 32768-byte complete source-bearing UTF-8 JSON limit after embedding/escaping and the explicitly corrected 98304-byte JSON({compiled:{core,tail},turns}) provider-relevant envelope; exclude only unused compiler duplicates/diagnostics and refuse before core64000/tail24000 string-unit truncation boundaries.", "Measure source recall, attribution, disagreements, corrections, dissent, audience changes and revoked/deleted evidence separately; planned counts and budgets are not results.", "Capture server mode once: unset/recency reads20 and lexical_recency explicitly opts into160; do not default-promote lexical based only on the frozen comparison, and do not apply its unused32-term gate to recency.", "Keep derived assistant history excluded until complete durable dependency lineage exists; no benchmark reproduction, second datastore or learned retrieval is assumed."],
       "evidenceScope": "offline_contract",
       "result": null
     }

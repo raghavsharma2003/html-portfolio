@@ -54,6 +54,7 @@ import { MEERA_AGENT_ID } from "./_agentscope.js";
 // storage config or a database client to enforce an owner's rule.
 import { replyViolatesNeverRule } from "./_never-rules.js";
 import { createTurnCheckpoints } from "./_group-runtime/checkpoints.js";
+import { selectSourceTurns } from "./_group-recall/selection.js";
 import {
   setReadConsent,
   setQuiet,
@@ -69,6 +70,7 @@ import {
   roomBridge,
   roomWords,
   roomHistoryEvidence,
+  roomSourceCandidates,
   groupTurnAuthority,
   normalizeGroupRecipients,
   openOrExtendGroupEpisode,
@@ -412,8 +414,12 @@ function stripMaterialBlock(text, engine) {
   return out;
 }
 
-export function honestyContextFor(engine, compiled, turns, { record = [], nameable = [] } = {}) {
-  const history = (turns || []).map((m) => ({
+export function honestyContextFor(engine, compiled, turns, { record = [], nameable = [], humanSourceTexts } = {}) {
+  // An attributed source packet is model input, not a human utterance. Its
+  // JSON keys, IDs and current display labels must not become their vocabulary
+  // or commitments. Ordinary direct-message callers retain their own roles.
+  const sourceTurns = humanSourceTexts === undefined ? turns : groupHumanSourceTurns(humanSourceTexts);
+  const history = (sourceTurns || []).map((m) => ({
     from: m.role === "assistant" ? "her" : "me",
     text: String(m.content ?? ""),
   }));
@@ -428,6 +434,38 @@ export function honestyContextFor(engine, compiled, turns, { record = [], nameab
     hisVocab: engine.hisVocabulary(history),
     sharedVocab: engine.sharedVocabulary([...record.map(String), ...nameable.map(String)]),
   };
+}
+
+const groupContextError = (reason) => Object.assign(new Error("group_context_unavailable"),
+  { code: "group_context_unavailable", reason, status: 503 });
+
+function groupHumanSourceTurns(texts) {
+  if (!Array.isArray(texts) || texts.length < 1 || texts.length > 32) throw groupContextError("invalid_source_texts");
+  const turns = [];
+  for (let i = 0; i < texts.length; i++) {
+    const item = Object.getOwnPropertyDescriptor(texts, String(i));
+    if (!item || !("value" in item) || typeof item.value !== "string" || item.value.length > 4000)
+      throw groupContextError("invalid_source_texts");
+    turns.push({ role: "user", content: item.value });
+  }
+  return turns;
+}
+
+// This bounds the provider-relevant application context, not provider wire
+// overhead or tokenizer output. The compiler's duplicate `system` and
+// diagnostic fields are not sent by either adapter and are not counted here.
+// Required compiled safety material is never truncated.
+function assertGroupContextBudget(compiled, turns) {
+  // Both existing provider adapters cap these segments. Refuse before their
+  // slices instead of silently dropping required safety/personality context.
+  if (typeof compiled?.core !== "string" || typeof compiled?.tail !== "string")
+    throw groupContextError("invalid_context");
+  if (compiled.core.length > 64_000 || compiled.tail.length > 24_000)
+    throw groupContextError("context_over_budget");
+  let serialized;
+  try { serialized = JSON.stringify({ compiled: { core: compiled.core, tail: compiled.tail }, turns }); }
+  catch { throw groupContextError("invalid_context"); }
+  if (Buffer.byteLength(serialized, "utf8") > 98304) throw groupContextError("context_over_budget");
 }
 
 /** Does this bundle carry the gate at all? A stale api/_engine.gen.js is the
@@ -573,8 +611,10 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
   // knows the replica loads them (api/_review-queue.js::loadNeverRules) and
   // hands them down, and a lane that does not passes none and is unchanged.
   const neverRules = Array.isArray(opts.neverRules) ? opts.neverRules : [];
+  if (opts.humanSourceTexts !== undefined) groupHumanSourceTurns(opts.humanSourceTexts);
   await ctx.assertPublicAuthority?.();
   await opts.assertAuthority?.();
+  if (opts.groupContextBudget === true) assertGroupContextBudget(compiled, turns);
   const raw = await ctx.reply(compiled, turns);
   await ctx.assertPublicAuthority?.();
   await opts.assertAuthority?.();
@@ -1241,6 +1281,16 @@ export async function dmHistory(device, t = ident, limit = 30, agentId = MEERA_A
 const groupAuthorityError = () => Object.assign(new Error("group_authority_unavailable"),
   { code: "group_authority_unavailable", status: 503 });
 
+/** Server-selected experiment only. The frozen comparison improves easy
+ * older-source retrieval but fails adversarial lexical distractors. Keep
+ * attributed recency as the default until separate value evidence improves. */
+export function groupSourceRecallMode(env = process.env) {
+  const mode = env.GROUP_SOURCE_RECALL_MODE;
+  if (mode === undefined || mode === "recency") return "recency";
+  if (mode === "lexical_recency") return mode;
+  throw groupContextError("invalid_recall_mode");
+}
+
 /** Bind a complete, freshly verified external audience to current server
  * membership. An optional linked-member subset is NOT an audience witness.
  * A guard is local to one turn; no context shared with another turn mutates. */
@@ -1421,17 +1471,27 @@ export async function onGroupMessage(ev, ctx) {
 
   // ── RETRIEVE. Everything below this line came through the predicate.
   if (!episodeId || !logId) throw groupAuthorityError();
+  const recallMode = groupSourceRecallMode();
+  const candidateLimit = recallMode === "lexical_recency" ? 160 : 20;
   const readSources = async () => await Promise.all([
     roomRecall(room.id, recipients, { agentId: ctx.agentId, strict: true }, ctx.t),
     roomBridge(room.id, recipients, ctx.t, ctx.agentId, { strict: true }),
     roster(room.id, ctx.t, ctx.agentId, { strict: true }),
-    roomHistory(room.id, ctx.t, 20, ctx.agentId, { recipients, withEvidence: true }),
+    roomSourceCandidates(room.id, recipients, { agentId: ctx.agentId, throughLogId: logId, limit: candidateLimit }, ctx.t),
   ]);
   const sources = await readSources();
   guard.bindSources(readSources, sources);
   const [facts, bridge, members, historyEvidence] = sources;
   if (!historyEvidence.some((row) => String(row.id) === String(logId) && row.role === "me" &&
       row.speaker_person_id === speaker && row.content === turnText)) throw groupAuthorityError();
+
+  const selection = selectSourceTurns({
+    query: turnText,
+    currentSourceId: String(logId),
+    currentSpeakerId: speaker,
+    candidates: historyEvidence.map((row) => groupSourceForSelection(row, members)),
+    mode: recallMode,
+  });
 
   // ── RENDER through the REAL compiler, with the mp slots live.
   const compiled = ctx.engine.compile({
@@ -1455,8 +1515,6 @@ export async function onGroupMessage(ev, ctx) {
     roomBundle: { members, bridge },
   });
 
-  const history = historyEvidence.filter((row) => String(row.id) !== String(logId))
-    .map((row) => ({ role: row.role === "her" ? "assistant" : "user", content: row.content }));
   // In a room the shared record is what came through the predicate for THIS
   // room's recipient set, plus the bridge rows — every one of them already
   // disclosure-checked above. She may retell what she was handed here and
@@ -1464,9 +1522,13 @@ export async function onGroupMessage(ev, ctx) {
   const gatedOut = await gatedReply(
     ctx,
     compiled,
-    [...history, { role: "user", content: `${ev.handle}: ${turnText}` }],
+    selection.turns,
     {
       record: [...facts.map((f) => f.body), ...bridge.map(({ evidence: _evidence, ...b }) => JSON.stringify(b))],
+      humanSourceTexts: selection.rawTexts,
+      nameable: [...new Set(selection.packet.history.concat(selection.packet.current)
+        .map((row) => row.speakerLabel).filter((label) => label !== null))],
+      groupContextBudget: true,
       label: `${ev.surface}/room`,
       assertAuthority: guard.assertAuthority,
     },
@@ -1496,6 +1558,40 @@ export async function onGroupMessage(ev, ctx) {
     said: Boolean(text),
     gate: { applied: gatedOut.gated, findings: gatedOut.findings.length },
   };
+}
+
+/** Normalize only the already-authorized, checkpoint-bound SQL rows. Names
+ * are current roster labels, never historical identity evidence. The source
+ * ID and recorded author remain distinct from that optional display label. */
+function groupSourceForSelection(row, members) {
+  const id = (value) => {
+    if (typeof value === "number" && !Number.isSafeInteger(value)) throw groupContextError("invalid_source");
+    if ((typeof value !== "string" && typeof value !== "number") || !/^[1-9][0-9]{0,18}$/.test(String(value)) ||
+        BigInt(value) > 9223372036854775807n) throw groupContextError("invalid_source");
+    return String(value);
+  };
+  if (row.role !== "me" || typeof row.speaker_person_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.speaker_person_id))
+    throw groupContextError("invalid_source");
+  let recordedAt = null;
+  if (row.at !== null) {
+    const match = typeof row.at === "string" && /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(?:Z|[+-]\d{2}(?::?\d{2})?)$/.exec(row.at);
+    if (!match) throw groupContextError("invalid_source");
+    const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    if (month < 1 || month > 12 || day < 1 || day > days[month - 1] ||
+        Number(match[4]) > 23 || Number(match[5]) > 59 || Number(match[6]) > 59)
+      throw groupContextError("invalid_source");
+    const recordedTime = new Date(row.at);
+    if (!Number.isFinite(recordedTime.getTime())) throw groupContextError("invalid_source");
+    recordedAt = recordedTime.toISOString();
+  }
+  const name = members.find((member) => member.person_id === row.speaker_person_id)?.name;
+  const speakerLabel = typeof name === "string" && name.trim() && name.length <= 160 &&
+    !/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/.test(name) ? name.trim() : null;
+  return { sourceId: id(row.id), order: id(row.id), episodeId: id(row.episode_id),
+    speakerId: row.speaker_person_id, speakerLabel, recordedAt, text: row.content };
 }
 
 /** Her own last word in THIS ROOM. `group_id = $1` pins it, so a DM row

@@ -409,6 +409,7 @@ export async function roster(groupId, t = ident, agentId = MEERA_AGENT_ID, { str
   return rows.map((r) => {
     const h = r.honorific === "aap" || r.honorific === "tu" || r.honorific === "tum" ? r.honorific : null;
     return {
+      person_id: r.person_id,
       name: r.username || String(r.person_id).slice(0, 8),
       honorific: h || "tum",
       rank: h === "aap" ? "elder" : h === "tu" ? "younger" : h === "tum" ? "peer" : "unknown",
@@ -460,6 +461,50 @@ export async function roomHistoryEvidence(groupId, recipients, { limit = 20, age
         and f.superseded_by is null ${pred}
       order by l.id desc limit $6::integer`,
     [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId, Math.max(1, Math.min(40, Number(limit) | 0))],
+  );
+}
+
+/** A bounded candidate pool of actual, attributed human observations. This is
+ * the same authority-first history read, not a wider search permission. The
+ * caller supplies the immutable current turn's stored log ID; later arrivals
+ * cannot displace that turn during source revalidation. `at` is database
+ * recording time, NOT a verified transport-event timestamp. Errors propagate:
+ * an unavailable read must never become an empty or unrestricted fallback. */
+export async function roomSourceCandidates(groupId, recipients, { agentId = MEERA_AGENT_ID, throughLogId, limit = 160 } = {}, t = ident) {
+  const invalid = () => { throw new Error("room_source_candidates_invalid"); };
+  const positiveId = (value) => {
+    if (typeof value === "number") {
+      if (!Number.isSafeInteger(value) || value <= 0) invalid();
+      value = String(value);
+    }
+    if (typeof value !== "string" || !/^[1-9][0-9]{0,18}$/.test(value)
+        || BigInt(value) > 9223372036854775807n) invalid();
+    return value;
+  };
+  const uuid = (value) => typeof value === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  const roomId = positiveId(groupId), cutoff = positiveId(throughLogId);
+  if (!uuid(agentId) || typeof t !== "function" || !Number.isInteger(limit) || limit < 1 || limit > 160
+      || !Array.isArray(recipients) || recipients.length < 1 || recipients.length > 160) invalid();
+  const audience = [];
+  for (let i = 0; i < recipients.length; i++) {
+    const descriptor = Object.getOwnPropertyDescriptor(recipients, String(i));
+    if (!descriptor || !("value" in descriptor) || !uuid(descriptor.value)) invalid();
+    audience.push(descriptor.value.toLowerCase());
+  }
+  if (new Set(audience).size !== audience.length) invalid();
+  const pred = applyResolver(disclosurePredicate("episode", BIND), t);
+  return await q(
+    `select l.id, l.role, l.content, l.at, l.episode_id, l.speaker_person_id
+       from ${t("meera_log")} l
+       join ${t("vy_episode")} f on f.id = l.episode_id
+        and f.agent_id = l.agent_id and f.group_id = l.group_id
+      where l.group_id = $3::bigint and l.agent_id = $5::uuid
+        and l.role = 'me' and l.speaker_person_id is not null
+        and f.superseded_by is null ${pred}
+        and l.id <= $6::bigint
+      order by l.id desc limit $7::integer`,
+    [audience, true, roomId, NEGATIVE_AFFECT_TAGS, agentId, cutoff, limit],
   );
 }
 

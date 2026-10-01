@@ -11,9 +11,13 @@ import {
   PERSON_B,
   ROOM_A,
   ROOM_B,
+  appendLaterHumanSource,
   state,
 } from "./store.mjs";
 
+const priorRecallMode = process.env.GROUP_SOURCE_RECALL_MODE;
+delete process.env.GROUP_SOURCE_RECALL_MODE;
+try {
 let pass = 0;
 const failures = [];
 const ok = (name, condition, detail = "") => {
@@ -58,8 +62,9 @@ const audienceWitness = async (event, { roomId, agentId }) => {
   assert.equal(roomId, String(agentId === AGENT_A ? ROOM_A : ROOM_B));
   return { complete: true, recipients: [PERSON_A, PERSON_B], revision: "a".repeat(64) };
 };
-const ctxFor = (agentId, displayName, { witness = audienceWitness, duringReply } = {}) =>
-  makeCtx(adapter, {
+const ctxFor = (agentId, displayName, { witness = audienceWitness, duringReply } = {}) => {
+  state.expectedCandidateMode = process.env.GROUP_SOURCE_RECALL_MODE === "lexical_recency" ? "lexical_recency" : "recency";
+  return makeCtx(adapter, {
     agentId,
     agent: { id: agentId, displayName },
     engine,
@@ -75,6 +80,7 @@ const ctxFor = (agentId, displayName, { witness = audienceWitness, duringReply }
     },
     botHandle: displayName,
   });
+};
 
 const dmEvent = {
   surface: "discord",
@@ -212,8 +218,73 @@ for (const [label, invalidate, restore] of [
     restore();
   }
 }
+const groupPacket = (input) => {
+  assert.equal(input.turns.length, 1, "group source packet is the only human model turn");
+  assert.equal(input.turns[0].role, "user");
+  const packet = JSON.parse(input.turns[0].content);
+  assert(packet.current && Array.isArray(packet.history), "group packet contains current and historical sources");
+  return packet;
+};
+const sourceRowFor = (source, input) => state.logs.find((row) => source.sourceId === String(row.id) &&
+  row.agent_id === input.agentId && row.group_id === (input.agentId === AGENT_A ? ROOM_A : ROOM_B));
 ok("assistant audit rows are not recalled on subsequent group turns", modelInputs.slice(4).length === 2 &&
-  modelInputs.slice(4).every((input) => input.turns.length > 1 && input.turns.every((turn) => turn.role !== "assistant")));
+  modelInputs.slice(4).every((input) => {
+    const packet = groupPacket(input);
+    return packet.history.length > 0 && [...packet.history, packet.current].every((source) => sourceRowFor(source, input)?.role === "me");
+  }));
+ok("group source packets preserve owning agent, speaker, episode and exact text", modelInputs.slice(2).every((input) => {
+  const packet = groupPacket(input);
+  return [...packet.history, packet.current].every((source) => {
+    const row = sourceRowFor(source, input);
+    return row && source.speakerId === row.speaker_person_id && source.episodeId === String(row.episode_id) &&
+      source.text === row.content && source.recordedAt === row.at && source.span.unit === "utf16" &&
+      source.span.start === 0 && source.span.end === row.content.length;
+  });
+}));
+ok("each current source appears exactly once in its group packet", modelInputs.slice(2).every((input) => {
+  const packet = groupPacket(input);
+  return packet.current.text === groupEvent.text && packet.current.speakerId === PERSON_A &&
+    !packet.history.some((source) => source.sourceId === packet.current.sourceId);
+}));
+
+const sendsBeforeLaterSource = sent.length;
+const readsBeforeLaterSource = state.candidateReads.length;
+let concurrentSource;
+const concurrentResult = await dispatch(groupEvent, ctxFor(AGENT_A, "agent A", {
+  duringReply: () => { concurrentSource = appendLaterHumanSource(ROOM_A, AGENT_A, "A later question outside this turn's source boundary"); },
+}));
+const pinnedReads = state.candidateReads.slice(readsBeforeLaterSource);
+ok("a later concurrent source cannot displace the current question during revalidation", concurrentResult.said === true &&
+  sent.length === sendsBeforeLaterSource + 1 && pinnedReads.length > 1 &&
+  pinnedReads.every((read) => read.throughLogId === String(concurrentResult.logId) &&
+    read.ids.includes(String(concurrentResult.logId)) && !read.ids.includes(String(concurrentSource.id))));
+const concurrentPacket = groupPacket(modelInputs.at(-1));
+ok("later source text never enters the frozen model packet", concurrentPacket.current.sourceId === String(concurrentResult.logId) &&
+  ![...concurrentPacket.history, concurrentPacket.current].some((source) => source.sourceId === String(concurrentSource.id)));
+ok("unset server mode keeps all incumbent candidate reads at 20", state.candidateReads.length > 0 &&
+  state.candidateReads.every((read) => read.limit === 20) &&
+  modelInputs.slice(2).every((input) => groupPacket(input).selection.mode === "recency"));
+
+for (const [agentId, roomId, displayName] of [[AGENT_A, ROOM_A, "agent A"], [AGENT_B, ROOM_B, "agent B"]]) {
+  process.env.GROUP_SOURCE_RECALL_MODE = "lexical_recency";
+  const readsBefore = state.candidateReads.length;
+  const sendsBefore = sent.length;
+  const result = await dispatch(groupEvent, ctxFor(agentId, displayName, {
+    // The shipping caller must capture server mode before its candidate read;
+    // changing ambient configuration in flight cannot widen or shrink a reread.
+    duringReply: () => { process.env.GROUP_SOURCE_RECALL_MODE = "recency"; },
+  }));
+  const reads = state.candidateReads.slice(readsBefore);
+  const input = modelInputs.at(-1);
+  const packet = groupPacket(input);
+  ok(`${displayName} explicit lexical mode uses 160 and preserves owner/source boundary`, result.said === true &&
+    result.room === roomId && sent.length === sendsBefore + 1 && sent.at(-1).agentId === agentId &&
+    reads.length > 1 && reads.every((read) => read.limit === 160 && read.agentId === agentId &&
+      String(read.groupId) === String(roomId) && read.throughLogId === String(result.logId)) &&
+    input.agentId === agentId && packet.selection.mode === "lexical_recency" &&
+    [...packet.history, packet.current].every((source) => sourceRowFor(source, input)?.role === "me"));
+}
+delete process.env.GROUP_SOURCE_RECALL_MODE;
 ok("all negative controls use understood SQL routes", state.unsupported.length === 0, state.unsupported.join(" | "));
 
 const migration = readFileSync(
@@ -242,3 +313,7 @@ console.log(
     "This does not prove PostgreSQL semantics or a production Discord audience witness.",
 );
 process.exitCode = failures.length ? 1 : 0;
+} finally {
+  if (priorRecallMode === undefined) delete process.env.GROUP_SOURCE_RECALL_MODE;
+  else process.env.GROUP_SOURCE_RECALL_MODE = priorRecallMode;
+}

@@ -61,6 +61,65 @@ if (mode[0] === '--source-only') {
     assert.throws(() => verify(actual.replace(sql, sql.replace('$4::uuid[]', '$4::text[]'))));
     assert.throws(() => preparedInput('q1;select 1', sql, params));
   });
+  await check('source candidate SQL exactly preserves the history authority with only projection, cutoff and bound changes', async () => {
+    const before = calls.length;
+    await m.roomSourceCandidates('1', [P, Q], { agentId: A, throughLogId: '123' });
+    assert.equal(calls.length, before + 1);
+    const candidate = calls.at(-1), historySql = calls[2].sql;
+    const expected = historySql.replace('l.content, l.episode_id', 'l.content, l.at, l.episode_id')
+      .replace('      order by l.id desc limit $6::integer', '        and l.id <= $6::bigint\n      order by l.id desc limit $7::integer');
+    assert.equal(candidate.sql, expected);
+    assert.deepEqual(Array.from(candidate.params[0]), [P, Q]);
+    assert.deepEqual(Array.from(candidate.params).slice(1, 3), [true, '1']);
+    assert.deepEqual(Array.from(candidate.params).slice(4), [A, '123', 160]);
+    // These mutations must not be mistaken for the full production query.
+    for (const fragment of ['l.at, ', 'join vy_episode f on f.id = l.episode_id',
+      'and f.agent_id = l.agent_id', 'and f.group_id = l.group_id',
+      'l.group_id = $3::bigint', 'l.agent_id = $5::uuid', "l.role = 'me'",
+      'l.speaker_person_id is not null', 'f.superseded_by is null',
+      'and l.id <= $6::bigint', 'order by l.id desc', 'limit $7::integer']) {
+      assert.ok(candidate.sql.includes(fragment), fragment);
+      assert.throws(() => assert.equal(candidate.sql.replace(fragment, ''), expected), fragment);
+    }
+    await m.roomSourceCandidates(1, [P.toUpperCase(), Q], { agentId: A, throughLogId: 123, limit: 1 }, table => 'test_' + table);
+    const scoped = calls.at(-1);
+    assert.match(scoped.sql, /from test_meera_log l/);
+    assert.match(scoped.sql, /join test_vy_episode f/);
+    assert.match(scoped.sql, /from test_vy_disclosure_grant g/);
+    assert.match(scoped.sql, /from test_vy_episode_participant p/);
+    assert.deepEqual(Array.from(scoped.params[0]), [P, Q]);
+    assert.deepEqual(Array.from(scoped.params).slice(5), ['123', 1]);
+  });
+  await check('source candidate invalid bounds and malformed audiences fail before any query', async () => {
+    const options = { agentId: A, throughLogId: '123' }, before = calls.length;
+    const invalid = [
+      ...[undefined, null, '', '0', '-1', '01', '1.5', '1;select 1', '9223372036854775808', 0, -1, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1, {}]
+        .flatMap(value => [[value, [P, Q], options], ['1', [P, Q], { ...options, throughLogId: value }]]),
+      ...[0, -1, 161, 1.5, '160', NaN, Infinity, null].map(limit => ['1', [P, Q], { ...options, limit }]),
+      ...[null, [], Array(2), [P, P], [P, P.toUpperCase()], ['bad'], [P, null], Array(161).fill(P)]
+        .map(audience => ['1', audience, options]),
+      ['1', [P, Q], { ...options, agentId: 'bad' }],
+    ];
+    for (const args of invalid) await assert.rejects(m.roomSourceCandidates(...args), /^Error: room_source_candidates_invalid$/);
+    let accessed = 0;
+    const accessor = [P, Q]; Object.defineProperty(accessor, '0', { get() { accessed++; return P; } });
+    await assert.rejects(m.roomSourceCandidates('1', accessor, options), /room_source_candidates_invalid/);
+    const inherited = Array(1); Object.setPrototypeOf(inherited, { 0: P });
+    await assert.rejects(m.roomSourceCandidates('1', inherited, options), /room_source_candidates_invalid/);
+    assert.equal(accessed, 0); assert.equal(calls.length, before);
+  });
+  await check('source read database failure propagates without history or unrestricted fallback', async () => {
+    let count = 0; const failure = new Error('synthetic_candidate_query_failure');
+    const broken = await production(async () => { count++; throw failure; });
+    await assert.rejects(broken.roomSourceCandidates('1', [P, Q], { agentId: A, throughLogId: '123' }), error => error === failure);
+    assert.equal(count, 1);
+  });
+  await check('roster retains exact recorded person ID additively without guessing a historical name', async () => {
+    const raw = [{ person_id: P, username: 'Current handle', honorific: 'aap', linked_at: '2026-09-01', quiet_level: 'normal' }];
+    const mocked = await production(async () => raw);
+    const [row] = await mocked.roster('1', undefined, A, { strict: true });
+    assert.deepEqual({ ...row }, { person_id: P, name: 'Current handle', honorific: 'aap', rank: 'elder', quiet: 'normal', linked: true });
+  });
   await check('actual owner-review query and canonical DDL selected, not handwritten', () => {
     assert.ok(m.CLAIMS_SQL.includes('review_consent'));
     assert.ok(m.CLAIMS_SQL.includes('digest(convert_to('));
@@ -194,6 +253,189 @@ await check('withdrawal removes own turns/audience/grants and preserves other ag
   assert.ok((await history([P, Q], GB, B)).some(r => r.id === lOther));
   assert.equal((await db.execute('select id from meera_log where id=$1', [l1])).length, 0);
   assert.equal((await db.execute('select id from meera_log where id=$1', [lOther])).length, 1);
+});
+
+// Candidate recall has its own fixtures: the preceding withdrawal intentionally
+// removed P from all earlier A episodes. These are raw historical observations,
+// not current-state claims, and no hosted query uses real user data.
+const GC = await group(A, '-10004'), GX = await group(A, '-10005');
+const ec = await episode(GC), ex = await episode(GX);
+assert.ok(ec?.id); assert.ok(ex?.id);
+const candidateRows = await db.execute(`insert into meera_log
+  (agent_id,device_id,group_id,episode_id,speaker_person_id,role,content,at)
+  select $1::uuid,$2::uuid,$3::bigint,$4::bigint,$5::uuid,'me',
+    'Candidate ' || n.i || E' Hindi 🎨\\r\\nexact',
+    '2026-09-01T00:00:00Z'::timestamptz - n.i * interval '1 second'
+  from generate_series(1,170) n(i) order by n.i returning id,content,at,episode_id,speaker_person_id`,
+  [A, DEVICE, GC, ec.id, P]);
+candidateRows.sort((a, b) => BigInt(a.id) < BigInt(b.id) ? -1 : 1);
+const initialCutoff = candidateRows.at(-1).id;
+const candidates = (recipients = [P, Q], throughLogId = initialCutoff, g = GC, agentId = A, limit = 160) =>
+  m.roomSourceCandidates(g, recipients, { agentId, throughLogId, limit });
+const ids = rows => rows.map(row => row.id);
+let capturedCandidate;
+const captureCandidate = await production(async (sql, params) => { capturedCandidate = { sql, params }; return []; });
+async function mutantCandidates(transform, { recipients = [P, Q], throughLogId = initialCutoff, groupId = GC, agentId = A, limit = 160 } = {}) {
+  await captureCandidate.roomSourceCandidates(groupId, recipients, { agentId, throughLogId, limit });
+  const mutated = transform(capturedCandidate.sql);
+  assert.notEqual(mutated, capturedCandidate.sql, 'candidate SQL mutation must actually change the captured production query');
+  return db.query(mutated, capturedCandidate.params);
+}
+await check('candidate pool is latest 160 authorized humans with exact attribution and recording time, not the old 20-row window', async () => {
+  const rows = await candidates();
+  assert.equal(rows.length, 160);
+  assert.deepEqual(ids(rows), ids(candidateRows.slice(-160).reverse()));
+  assert.equal(rows[0].content, candidateRows.at(-1).content);
+  assert.equal(rows[0].at, candidateRows.at(-1).at);
+  assert.deepEqual(Object.keys(rows[0]), ['id', 'role', 'content', 'at', 'episode_id', 'speaker_person_id']);
+  assert.equal(rows[0].episode_id, ec.id); assert.equal(rows[0].speaker_person_id, P); assert.equal(rows[0].role, 'me');
+  assert.deepEqual(ids(await history([P, Q], GC)), ids(candidateRows.slice(-20).reverse()), 'existing history retains its original default');
+  const wrongOrder = await mutantCandidates(sql => sql.replace('order by l.id desc', 'order by l.at desc'));
+  assert.throws(() => assert.deepEqual(ids(wrongOrder), ids(rows)), 'recording-time ordering mutant must be caught');
+  const overLimit = await mutantCandidates(sql => sql.replace('limit $7::integer', 'limit ($7::integer + 1)'));
+  assert.equal(overLimit.length, 161);
+  assert.throws(() => assert.equal(overLimit.length, 160), '161-row mutant must be caught');
+});
+await check('candidate cutoff is inclusive and remains fixed when later human turns arrive', async () => {
+  const cutoff = candidateRows[164].id;
+  const before = await candidates([P, Q], cutoff);
+  assert.deepEqual(ids(before), ids(candidateRows.slice(5, 165).reverse()));
+  const newer = await turn(ec.id, { groupId: GC, content: 'Later concurrent correction outside this turn snapshot' }); assert.ok(newer);
+  assert.deepEqual(await candidates([P, Q], cutoff), before);
+  assert.deepEqual(ids(await candidates([P, Q], cutoff, GC, A, 1)), [cutoff]);
+  assert.deepEqual(ids(await candidates([P, Q], newer, GC, A, 1)), [newer]);
+  const noCutoff = await mutantCandidates(sql => sql.replace('and l.id <= $6::bigint', 'and $6::bigint > 0'), { throughLogId: cutoff, limit: 1 });
+  assert.deepEqual(ids(noCutoff), [newer]);
+  assert.throws(() => assert.deepEqual(ids(noCutoff), [cutoff]), 'missing fixed-cutoff mutant must be caught');
+});
+
+const GT = await group(A, '-10006'), et = await episode(GT), ebad = await episode(GT);
+assert.ok(et?.id); assert.ok(ebad?.id);
+const safeLog = await turn(et.id, { groupId: GT, speakerPersonId: Q, content: 'Allowed peer observation' });
+const badLog = await turn(ebad.id, { groupId: GT, content: 'Candidate controlled by mutable episode policy' });
+assert.ok(safeLog); assert.ok(badLog);
+const targeted = (recipients = [P, Q], cutoff = badLog, limit = 160) => candidates(recipients, cutoff, GT, A, limit);
+const mutantTargeted = (transform, opts = {}) => mutantCandidates(transform, { groupId: GT, throughLogId: badLog, ...opts });
+await check('candidate disclosure filters deny, private, one-to-one and negative affect before LIMIT', async () => {
+  for (const [field, value] of [['disclosure_deny', [P]], ['disclosure_scope', 'private'], ['disclosure_scope', 'participants_1to1'],
+    ['affect_tags', JSON.stringify([{ tag: 'sad', intensity: 0.5 }])]]) {
+    await db.execute(`update vy_episode set ${field}=$2 where id=$1 returning id`, [ebad.id, value]);
+    assert.deepEqual(ids(await targeted([P, Q], badLog, 1)), [safeLog]);
+    await db.execute("update vy_episode set disclosure_deny='{}',disclosure_scope='participants',affect_tags='[]'::jsonb where id=$1 returning id", [ebad.id]);
+  }
+});
+await check('candidate excludes assistant, unattributed and episode-less legacy rows with rejecting SQL controls', async () => {
+  const extra = [];
+  for (const values of [{ role: 'her', speaker_person_id: P, episode_id: et.id },
+    { role: 'me', speaker_person_id: null, episode_id: et.id },
+    { role: 'me', speaker_person_id: P, episode_id: null }]) {
+    const [row] = await insert('meera_log', { agent_id: A, device_id: DEVICE, group_id: GT, content: 'Ineligible synthetic historical row', ...values });
+    extra.push(row.id);
+  }
+  const cutoff = extra.at(-1), expected = [badLog, safeLog];
+  assert.deepEqual(ids(await targeted([P, Q], cutoff)), expected);
+  const mutations = [
+    [sql => sql.replace("l.role = 'me'", 'true'), extra[0]],
+    [sql => sql.replace('l.speaker_person_id is not null', 'true'), extra[1]],
+    [sql => sql.replace('f.id = l.episode_id', `f.id = coalesce(l.episode_id, ${et.id}::bigint)`), extra[2]],
+  ];
+  for (const [mutate, forbiddenId] of mutations) {
+    const rows = await mutantTargeted(mutate, { throughLogId: cutoff });
+    assert.ok(ids(rows).includes(forbiddenId));
+    assert.throws(() => assert.deepEqual(ids(rows), expected), 'ineligible source mutation must be detected');
+  }
+});
+await check('candidate same-group and same-agent joins reject corrupted legacy bindings and other valid scopes', async () => {
+  const [wrongGroup] = await insert('meera_log', { agent_id: A, device_id: DEVICE, group_id: GX, episode_id: et.id, speaker_person_id: P, role: 'me', content: 'Wrong log group' });
+  const [wrongAgent] = await insert('meera_log', { agent_id: B, device_id: DEVICE, group_id: GT, episode_id: et.id, speaker_person_id: P, role: 'me', content: 'Wrong log agent' });
+  const elsewhere = await turn(ex.id, { groupId: GX, content: 'Valid other group source' }); assert.ok(elsewhere);
+  const cutoff = elsewhere;
+  const expected = [badLog, safeLog];
+  assert.deepEqual(ids(await targeted([P, Q], cutoff)), expected);
+  assert.equal((await candidates([P, Q], cutoff, GT, B)).length, 0);
+  // Redundant join + WHERE checks each preserve isolation; removal of both
+  // must be caught by the corrupted-log fixtures, not hidden by redundancy.
+  for (const [single, joined, forbidden] of [
+    ['l.group_id = $3::bigint', 'f.group_id = l.group_id', wrongGroup.id],
+    ['l.agent_id = $5::uuid', 'f.agent_id = l.agent_id', wrongAgent.id],
+  ]) {
+    assert.deepEqual(ids(await mutantTargeted(sql => sql.replace(single, 'true'), { throughLogId: cutoff })), expected);
+    assert.deepEqual(ids(await mutantTargeted(sql => sql.replace(joined, 'true'), { throughLogId: cutoff })), expected);
+    const widened = await mutantTargeted(sql => sql.replace(single, 'true').replace(joined, 'true'), { throughLogId: cutoff });
+    assert.ok(ids(widened).includes(forbidden));
+    assert.throws(() => assert.deepEqual(ids(widened), expected), 'paired-scope mutation must be caught');
+  }
+});
+await check('candidate supersession immediately excludes a source and removal of the guard is detected', async () => {
+  await db.execute('update vy_episode set superseded_by=$2 where id=$1 returning id', [ebad.id, et.id]);
+  assert.deepEqual(ids(await targeted()), [safeLog]);
+  const widened = await mutantTargeted(sql => sql.replace('f.superseded_by is null', 'true'));
+  assert.ok(ids(widened).includes(badLog));
+  assert.throws(() => assert.deepEqual(ids(widened), [safeLog]));
+  await db.execute('update vy_episode set superseded_by=null where id=$1 returning id', [ebad.id]);
+});
+await check('candidate late join cannot inherit old evidence and participant-predicate mutation is caught', async () => {
+  await insert('vy_group_member', { group_id: GT, agent_id: A, person_id: LATE, linked_at: '2026-09-02T00:00:00Z', surface: 'telegram', surface_user_id: '-100062' });
+  assert.equal((await targeted([P, Q, LATE])).length, 0);
+  const widened = await mutantTargeted(sql => sql.replace('and p.person_id = r.pid', ''), { recipients: [P, Q, LATE] });
+  assert.deepEqual(ids(widened), [badLog, safeLog]);
+  assert.throws(() => assert.equal(widened.length, 0));
+  await db.execute('delete from vy_group_member where group_id=$1 and person_id=$2 returning person_id', [GT, LATE]);
+});
+await check('candidate ordinary departure preserves witnessed peer recall but never grants a later outsider access', async () => {
+  await db.execute('update vy_group_member set left_at=now() where group_id=$1 and person_id=$2 returning person_id', [GT, P]);
+  assert.deepEqual(ids(await targeted([Q])), [badLog, safeLog]);
+  assert.equal((await targeted([Q, LATE])).length, 0);
+  assert.equal((await db.execute('select person_id from vy_episode_participant where episode_id=$1', [ebad.id])).length, 2,
+    'ordinary departure does not rewrite an immutable historical audience');
+  await db.execute('update vy_group_member set left_at=null where group_id=$1 and person_id=$2 returning person_id', [GT, P]);
+});
+await check('candidate grants cover every recipient and revoked or other-agent grants cannot reopen a source', async () => {
+  assert.equal((await targeted([LATE])).length, 0);
+  const [grant] = await insert('vy_disclosure_grant', { agent_id: A, subject_kind: 'episode', subject_id: ebad.id,
+    granted_by: P, granted_to: LATE, group_id: GT, citations: [et.id] });
+  assert.deepEqual(ids(await targeted([LATE])), [badLog]);
+  assert.equal((await targeted([Q, LATE])).length, 0, 'one granted recipient is not a covering grant set');
+  await db.execute('update vy_disclosure_grant set t_invalid=now() where id=$1 returning id', [grant.id]);
+  assert.equal((await targeted([LATE])).length, 0);
+  const widened = await mutantTargeted(sql => sql.replace('g.t_invalid is null', 'true'), { recipients: [LATE] });
+  assert.deepEqual(ids(widened), [badLog]);
+  assert.throws(() => assert.equal(widened.length, 0));
+  await db.execute('update vy_disclosure_grant set t_invalid=null,agent_id=$2 where id=$1 returning id', [grant.id, B]);
+  assert.equal((await targeted([LATE])).length, 0);
+  await db.execute('delete from vy_disclosure_grant where id=$1 returning id', [grant.id]);
+});
+await check('candidate explicit deny and negative affect defeat even a complete grant', async () => {
+  const [grant] = await insert('vy_disclosure_grant', { agent_id: A, subject_kind: 'episode', subject_id: ebad.id,
+    granted_by: P, granted_to: LATE, group_id: GT, citations: [et.id] });
+  await db.execute("update vy_episode set disclosure_scope='private' where id=$1 returning id", [ebad.id]);
+  assert.deepEqual(ids(await targeted([LATE])), [badLog], 'preserve existing explicit-grant override of structural private scope');
+  await db.execute('update vy_episode set disclosure_deny=$2 where id=$1 returning id', [ebad.id, [LATE]]);
+  assert.equal((await targeted([LATE])).length, 0);
+  const denyRemoved = await mutantTargeted(sql => sql.replace(/-- \(0\) explicit deny[\s\S]*?(?=-- \(5\) hard floor)/, ''), { recipients: [LATE] });
+  assert.deepEqual(ids(denyRemoved), [badLog]);
+  assert.throws(() => assert.equal(denyRemoved.length, 0));
+  await db.execute("update vy_episode set disclosure_deny='{}',affect_tags=$2::jsonb where id=$1 returning id", [ebad.id, JSON.stringify([{ tag: 'sad' }])]);
+  assert.equal((await targeted([LATE])).length, 0);
+  const affectRemoved = await mutantTargeted(sql => sql.replace("where (atag->>'tag') = any(($4)::text[])", "where false and ($4)::text[] is not null"), { recipients: [LATE] });
+  assert.deepEqual(ids(affectRemoved), [badLog]);
+  assert.throws(() => assert.equal(affectRemoved.length, 0));
+  await db.execute("update vy_episode set disclosure_scope='participants',affect_tags='[]'::jsonb where id=$1 returning id", [ebad.id]);
+  await db.execute('delete from vy_disclosure_grant where id=$1 returning id', [grant.id]);
+});
+await check('candidate episode erasure cannot leave a readable orphan log', async () => {
+  const erased = await episode(GT); const erasedLog = await turn(erased.id, { groupId: GT, content: 'Source about to be erased' });
+  assert.ok(erasedLog); assert.ok(ids(await targeted([P, Q], erasedLog)).includes(erasedLog));
+  await db.execute('delete from vy_episode where id=$1 returning id', [erased.id]);
+  assert.ok(!ids(await targeted([P, Q], erasedLog)).includes(erasedLog));
+});
+await check('candidate withdrawal removes own text and original-audience rights while retaining the witnessed peer and other agent', async () => {
+  const before = await targeted(); assert.deepEqual(ids(before), [badLog, safeLog]);
+  const receipt = await m.withdrawSharedRows(P, { agentId: A });
+  assert.ok(receipt.room_turns > 0); assert.ok(receipt.participant_rows > 0);
+  assert.equal((await targeted([P, Q])).length, 0);
+  assert.deepEqual(ids(await targeted([Q])), [safeLog]);
+  assert.ok(ids(await candidates([P, Q], lOther, GB, B)).includes(lOther));
 });
 
 for (const [replica, owner] of [[RID, OWNER], [OTHER_RID, OTHER_OWNER]]) {

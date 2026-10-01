@@ -18216,6 +18216,54 @@
       "kind": "measurement",
       "title": "Two SHA-verified final claim views close viewport evidence while exposing touch-target follow-up",
       "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-preregistered-implementation",
+      "kind": "decision",
+      "title": "Implement actual source-preserving group recall with preregistered overlap scoring and complete byte budgets",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-starting-baseline",
+      "kind": "measurement",
+      "title": "Pushed clean d884a954 is the baseline; new recall source and independent 48-case comparison remain unverified",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-no-posthoc-or-partial-budget-proof",
+      "kind": "rejection",
+      "title": "Do not tune on held-out cases or substitute partial payload limits and old green receipts for recall proof",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-recency-default-after-comparison",
+      "kind": "decision",
+      "title": "Keep attributed recency default after adversarial lexical misses and require actual provider segment bounds",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-working-comparison-and-budget-gap",
+      "kind": "measurement",
+      "title": "Frozen 48-case comparison reports lexical misses and review exposes a provider truncation gap",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-no-lexical-promotion-or-segment-truncation",
+      "kind": "rejection",
+      "title": "Do not promote lexical recall from pooled selection gains or rely on total bytes to prevent segment cuts",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-provider-projection-correction",
+      "kind": "decision",
+      "title": "Count only provider-consumed core tail and turns while retaining segment caps and documented preregistration corrections",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprecall20261001-source-freeze-receipts",
+      "kind": "measurement",
+      "title": "Final root and reviewer recall caller checks pass locally while new hosted SQL and release remain pending",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -30891,6 +30939,51 @@
       "src": "groupai20261001-exact-portable-software-receipt",
       "rel": "measured_by",
       "dst": "groupai20261001-final-claim-view-receipt"
+    },
+    {
+      "src": "grouprecall20261001-preregistered-implementation",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-starting-baseline"
+    },
+    {
+      "src": "grouprecall20261001-preregistered-implementation",
+      "rel": "caused_by",
+      "dst": "grouprecall20261001-no-posthoc-or-partial-budget-proof"
+    },
+    {
+      "src": "grouprecall20261001-preregistered-implementation",
+      "rel": "part_of",
+      "dst": "groupai20261001-portable-boundary-after-proof"
+    },
+    {
+      "src": "grouprecall20261001-recency-default-after-comparison",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-working-comparison-and-budget-gap"
+    },
+    {
+      "src": "grouprecall20261001-recency-default-after-comparison",
+      "rel": "caused_by",
+      "dst": "grouprecall20261001-no-lexical-promotion-or-segment-truncation"
+    },
+    {
+      "src": "grouprecall20261001-recency-default-after-comparison",
+      "rel": "part_of",
+      "dst": "grouprecall20261001-preregistered-implementation"
+    },
+    {
+      "src": "grouprecall20261001-provider-projection-correction",
+      "rel": "measured_by",
+      "dst": "grouprecall20261001-source-freeze-receipts"
+    },
+    {
+      "src": "grouprecall20261001-provider-projection-correction",
+      "rel": "caused_by",
+      "dst": "grouprecall20261001-no-lexical-promotion-or-segment-truncation"
+    },
+    {
+      "src": "grouprecall20261001-provider-projection-correction",
+      "rel": "part_of",
+      "dst": "grouprecall20261001-preregistered-implementation"
     }
   ]
 }

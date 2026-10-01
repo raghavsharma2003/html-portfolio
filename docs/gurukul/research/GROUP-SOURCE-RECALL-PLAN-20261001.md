@@ -2,6 +2,8 @@
 
 Date: 1 October 2026. Status: **design only, unimplemented and unvalidated**. No retrieval benchmark, provider experiment, live SQL, transport test, or user-quality result follows from this document. It extends [the portable-layer research](PORTABLE-GROUP-LAYER-20261001.md) and preserves every open requirement in [the GroupAI readiness ledger](GROUPAI-READINESS-20260929.md).
 
+Continuation note: the status above records the original preregistration. A later working implementation, corrected provider-envelope accounting and the decision to keep lexical recall opt-in are described in [the implementation companion](GROUP-SOURCE-RECALL-IMPLEMENTATION-20261001.md). The [frozen comparison report](GROUP-SOURCE-RECALL-EVAL-20261001.md) records executed results, including adverse cases; it does not retroactively turn this plan into a validated quality claim.
+
 ## Objective and non-goals
 
 Retrieve relevant older, actual human group turns beyond the current 20-turn window while retaining their source identity and disclosure authority. Reuse the existing PostgreSQL source of truth and the real group caller. The reusable component is a bounded, provider-neutral selector, not a new memory database, learned-fact writer, or parallel authorization system.

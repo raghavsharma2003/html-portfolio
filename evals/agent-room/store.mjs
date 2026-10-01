@@ -25,6 +25,9 @@ export const state = {
   participants: [],
   actions: [],
   hiddenSourceIds: new Set(),
+  currentHumanLogByScope: new Map(),
+  candidateReads: [],
+  expectedCandidateMode: "recency",
   identities: [
     { surface: "discord", surface_user_id: "student-1", person_id: PERSON_A, handle: "student one" },
     { surface: "discord", surface_user_id: "student-2", person_id: PERSON_B, handle: "student two" },
@@ -83,6 +86,7 @@ const membersFor = (groupId, agentId) =>
   );
 const audienceFor = (groupId, agentId) => membersFor(groupId, agentId)
   .filter((m) => m.linked_at).map((m) => m.person_id).sort();
+const scopeKey = (groupId, agentId) => JSON.stringify([String(groupId), agentId]);
 const SOURCE_BIND = { recipients: "$1", isGroup: "$2", roomId: "$3", negTags: "$4", agentId: "$5" };
 const requireSourceScope = (s, params, kind) => {
   assert(s.includes(flat(disclosurePredicate(kind, SOURCE_BIND))), `full shipping ${kind} disclosure predicate`);
@@ -241,6 +245,7 @@ export async function route(sql, params = []) {
             speaker_person_id: params[4],
             group_id: Number(params[5]),
             episode_id: params[7],
+            at: now(),
           }
         : {
             id: nextLog++,
@@ -252,6 +257,7 @@ export async function route(sql, params = []) {
             group_id: null,
           };
       state.logs.push(row);
+      if (isRoom && row.role === "me") state.currentHumanLogByScope.set(scopeKey(row.group_id, row.agent_id), String(row.id));
       return s.includes("returning id") ? [{ id: row.id }] : [];
     }
 
@@ -302,12 +308,30 @@ export async function route(sql, params = []) {
       assert(s.includes("l.group_id = $3::bigint and l.agent_id = $5::uuid"));
       assert(s.includes("l.role = 'me' and l.speaker_person_id is not null"));
       assert(s.includes("f.superseded_by is null"));
+      const isCandidateRead = s.includes("l.at,");
+      if (isCandidateRead) {
+        assert(s.includes("and l.id <= $6::bigint"), "candidate read has a fixed current-log boundary");
+        assert(s.includes("order by l.id desc limit $7::integer"), "candidate read has bounded newest-first order");
+        assert(s.indexOf(flat(disclosurePredicate("episode", SOURCE_BIND))) < s.indexOf("order by l.id desc"),
+          "disclosure applies before candidate order and limit");
+        assert.equal(params.length, 7, "candidate query has exactly seven typed bindings");
+        assert(["recency", "lexical_recency"].includes(state.expectedCandidateMode), "fixture has a declared captured server mode");
+        assert.equal(params[6], state.expectedCandidateMode === "lexical_recency" ? 160 : 20,
+          "candidate read limit matches the explicitly captured server mode");
+        assert.equal(String(params[5]), state.currentHumanLogByScope.get(scopeKey(params[2], params[4])),
+          "all candidate reads retain this turn's persisted human-log cutoff");
+      }
       // Declared authoritative fixture rows, not a simulation of PostgreSQL's
       // disclosure/withdrawal semantics. The full predicate is checked above.
-      return state.logs.filter((l) => l.group_id === Number(params[2]) && l.agent_id === params[4] &&
-        l.role === "me" && l.speaker_person_id != null && l.episode_id != null)
-        .sort((a, b) => b.id - a.id).slice(0, params[5])
-        .map(({ id, role, content, episode_id, speaker_person_id }) => ({ id, role, content, episode_id, speaker_person_id }));
+      const rows = state.logs.filter((l) => l.group_id === Number(params[2]) && l.agent_id === params[4] &&
+        l.role === "me" && l.speaker_person_id != null && l.episode_id != null &&
+        (!isCandidateRead || BigInt(l.id) <= BigInt(params[5])))
+        .sort((a, b) => b.id - a.id).slice(0, isCandidateRead ? params[6] : params[5])
+        .map(({ id, role, content, at, episode_id, speaker_person_id }) => ({ id, role, content,
+          ...(isCandidateRead ? { at } : {}), episode_id, speaker_person_id }));
+      if (isCandidateRead) state.candidateReads.push({ groupId: params[2], agentId: params[4],
+        throughLogId: String(params[5]), limit: params[6], ids: rows.map((row) => String(row.id)) });
+      return rows;
     }
 
     if (s.startsWith("select m.person_id, m.quiet_level, m.linked_at")) {
@@ -339,4 +363,22 @@ export async function route(sql, params = []) {
     state.unsupported.push(error.message);
     throw error;
   }
+}
+
+// A declared concurrent source fixture, not a second production write path.
+// It must not update the current dispatched turn's immutable cutoff witness.
+export function appendLaterHumanSource(groupId, agentId, content) {
+  const group = state.groups.find((row) => row.id === groupId && row.agent_id === agentId);
+  assert(group, "concurrent fixture uses an existing owning group");
+  const episode = { id: nextEpisode++, group_id: groupId, agent_id: agentId,
+    device_id: group.room_device_id, started_at: now(), ended_at: now(), provisional: true,
+    recipients: audienceFor(groupId, agentId) };
+  state.episodes.push(episode);
+  state.participants.push(...episode.recipients.map((person_id) => ({
+    episode_id: episode.id, person_id, role: "participant",
+  })));
+  const row = { id: nextLog++, agent_id: agentId, device_id: group.room_device_id,
+    group_id: groupId, episode_id: episode.id, role: "me", content, at: now(), speaker_person_id: PERSON_B };
+  state.logs.push(row);
+  return row;
 }

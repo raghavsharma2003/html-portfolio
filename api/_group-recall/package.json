@@ -1,0 +1,17 @@
+{
+  "name": "@vyakti/source-turn-selection",
+  "version": "0.1.0",
+  "description": "Bounded dependency-free selection and rendering of already-authorized source turns",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "types": "./selection.d.ts",
+  "exports": {
+    ".": {
+      "types": "./selection.d.ts",
+      "import": "./selection.js",
+      "default": "./selection.js"
+    }
+  },
+  "files": ["selection.js", "selection.d.ts", "README.md"]
+}
