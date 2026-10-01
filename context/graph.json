@@ -18426,6 +18426,30 @@
       "kind": "measurement",
       "title": "Three-file readiness observer fixture has local source and bundle proof while mounted outcomes remain pending",
       "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-796c-pushed-sql-and-replay-audit",
+      "kind": "measurement",
+      "title": "Pushed 796c SQL50 passes while release runs and independent audit reproduces known duplicate-event effects",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-review-auth-chronology-triage",
+      "kind": "decision",
+      "title": "Hold review-fixture edits until actual request and scope chronology explains the captured auth mismatch",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-796c-review-auth-failure",
+      "kind": "measurement",
+      "title": "Exact 796c APK fails a review-fixture auth assertion after 22 mounted passes while refresh summary passes",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-no-auth-allowlist-or-error-filter",
+      "kind": "rejection",
+      "title": "Do not allow arbitrary auth scopes filter captured errors or infer masked tokens to force fixture success",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -31281,6 +31305,26 @@
       "src": "grouprelease20261001-refresh-causal-triage",
       "rel": "measured_by",
       "dst": "grouprelease20261001-refresh-observer-source-freeze"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-796c-pushed-sql-and-replay-audit"
+    },
+    {
+      "src": "grouprelease20261001-review-auth-chronology-triage",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-796c-review-auth-failure"
+    },
+    {
+      "src": "grouprelease20261001-review-auth-chronology-triage",
+      "rel": "caused_by",
+      "dst": "grouprelease20261001-no-auth-allowlist-or-error-filter"
+    },
+    {
+      "src": "grouprelease20261001-review-auth-chronology-triage",
+      "rel": "part_of",
+      "dst": "groupconsent20261001-source-time-fence"
     }
   ]
 }

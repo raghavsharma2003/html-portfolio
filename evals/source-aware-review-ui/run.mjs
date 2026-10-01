@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sourceControls } from './source-controls.mjs';
-import { activityFixture } from './activity-fixture.mjs';
+import { activityFixture, captureActivityScope } from './activity-fixture.mjs';
 import { RID, OTHER_RID, OTHER_ITEM, ITEM, EXCERPT, SOURCE_NAME, CLAIM_TEXT, OTHER_TEXT, FIFTH_TEXT, claims, personStatus, extractionStatus, locker } from './fixtures.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -32,17 +32,28 @@ mkdirSync(artifactDir, { recursive: true });
 const results = [], requests = [], errors = [], unknownRequests = [], pending = [], actionMeasurements = [];
 let scenario = 'normal', reads = 0, acceptedClaim = null, browser, page;
 let activityScope = { token: 'synthetic-review-a', replicaId: RID };
+let fixtureOrigin, documentSequence = 0, documentId, viewportWidth = 390, directView = false, activityPhase = 'initial';
+let activityRequests = [];
+const allActivityRequests = [];
+const activeActivityHandlers = new Set();
+const scopeLabels = scope => ({ token: scope.token === 'synthetic-review-a' ? 'synthetic-a' : scope.token === 'synthetic-review-b' ? 'synthetic-b' : 'unexpected',
+  replica: scope.replicaId === RID ? 'primary' : scope.replicaId === OTHER_RID ? 'alternate' : 'unexpected' });
+const activityWitnesses = records => records.map(read => ({ documentId: read.documentId, sequence: read.sequence, phase: read.phase, expected: read.expected,
+  admitted: Boolean(read.scope), status: read.status, finished: read.finished, settled: read.settled, observed: read.observed }));
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://synthetic-fixture');
+    if (url.pathname === '/api/replica-activity') activeActivityHandlers.add(req);
     const send = (status, value) => { if (!res.destroyed) { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); } };
     if (url.pathname.startsWith('/api/')) {
+      const admittedActivityScope = captureActivityScope({ method: req.method, url, authorization: req.headers.authorization, referer: req.headers.referer },
+        { ...activityScope, documentId, origin: fixtureOrigin });
       let raw = ''; for await (const piece of req) raw += piece;
       const body = raw ? JSON.parse(raw) : {};
       const replicaId = url.searchParams.get('replica_id') || body.replica_id;
       requests.push({ path: url.pathname, method: req.method, replicaId, auth: req.headers.authorization, body });
       assert(['Bearer synthetic-review-a', 'Bearer synthetic-review-b'].includes(req.headers.authorization), 'synthetic-only authorization');
-      const activity = activityFixture({ method: req.method, url, authorization: req.headers.authorization, raw }, activityScope);
+      const activity = activityFixture({ method: req.method, url, authorization: req.headers.authorization, raw }, admittedActivityScope);
       if (activity) return send(200, activity);
       if (url.pathname === '/api/context-items' && req.method === 'GET') return send(200, locker());
       if (url.pathname === '/api/replica-claims' && req.method === 'GET') return send(200, { extraction: extractionStatus(replicaId) });
@@ -69,6 +80,7 @@ const server = createServer(async (req, res) => {
     const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.svg': 'image/svg+xml' };
     res.writeHead(200, { 'content-type': mime[extname(path)] || 'application/octet-stream' }); res.end(assets.get(path));
   } catch (cause) { errors.push(String(cause)); res.writeHead(500); res.end('synthetic fixture error'); }
+  finally { activeActivityHandlers.delete(req); }
 });
 const check = async (name, fn) => { await fn(); results.push(name); console.log('PASS mounted ' + name); };
 const releasePending = () => { while (pending.length) pending.shift()(); };
@@ -103,20 +115,74 @@ async function waitPending() {
 try {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
+  fixtureOrigin = origin;
   browser = await chromium.launch({ headless: true });
-  page = await browser.newPage({ reducedMotion: 'reduce' }); page.setDefaultTimeout(12000);
-  page.on('pageerror', cause => errors.push(cause.message));
-  await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   const flushRender = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  async function waitActivitySettled(afterSequence = 0) {
+    if (directView) return;
+    const expected = { ...activityScope, documentId };
+    const currentReads = () => activityRequests.filter(read => read.sequence > afterSequence && read.scope
+      && read.documentId === expected.documentId && read.scope.token === expected.token && read.scope.replicaId === expected.replicaId);
+    const deadline = Date.now() + 10000;
+    const settled = () => currentReads().some(read => read.finished && read.status === 200)
+      && activityRequests.every(read => read.settled && read.observed) && activeActivityHandlers.size === 0;
+    while (!settled() && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    const witness = JSON.stringify({ documentId: expected.documentId, expected: scopeLabels(expected), afterSequence, activeServerHandlers: activeActivityHandlers.size, requests: activityWitnesses(activityRequests) });
+    assert(currentReads().some(read => read.finished && read.status === 200), `exact Activity request finished with 200 before fixture advances: ${witness}`);
+    assert(activityRequests.every(read => read.settled && read.observed), `Activity request identities and header observers settled: ${witness}`);
+    assert.equal(activeActivityHandlers.size, 0, `Activity server handlers drained: ${witness}`);
+  }
   async function open(next = 'normal', query = '') {
-    releasePending(); scenario = next; reads = 0; acceptedClaim = null; requests.length = 0;
+    releasePending();
+    if (page) { await flushRender(); await waitActivitySettled(); }
+    // Retire the old document before changing server expectations. Reusing its
+    // page while resetting authority races old ActivityPanel HTTP requests.
+    await page?.close();
+    scenario = next; reads = 0; acceptedClaim = null; requests.length = 0;
+    documentId = String(++documentSequence); directView = new URLSearchParams(query).has('direct');
+    activityPhase = `open:${next}`;
     activityScope = { token: 'synthetic-review-a', replicaId: RID };
-    await page.goto(`${origin}/?view=enrich&replica=${RID}${query}`);
+    const documentReads = []; activityRequests = documentReads;
+    const currentDocumentId = documentId;
+    page = await browser.newPage({ reducedMotion: 'reduce', viewport: { width: viewportWidth, height: 1000 } }); page.setDefaultTimeout(12000);
+    const activityRead = request => new URL(request.url()).pathname === '/api/replica-activity';
+    page.on('pageerror', cause => errors.push(cause.message));
+    // Register before navigation/transition can emit a fast request. A receipt
+    // is bound to this Playwright Request object, not a global success count.
+    page.on('request', async request => {
+      if (!activityRead(request)) return;
+      const read = { request, sequence: documentReads.length + 1, documentId: currentDocumentId, phase: activityPhase, expected: scopeLabels(activityScope),
+        scope: null, status: null, finished: false, settled: false, observed: false };
+      documentReads.push(read); allActivityRequests.push(read);
+      try {
+        assert.equal(currentDocumentId, documentId, 'Activity dispatch belongs to the active page');
+        const expected = Object.freeze({ ...activityScope, documentId: currentDocumentId, origin });
+        // allHeaders includes auth; freeze expected authority before its RPC.
+        const headers = await request.allHeaders();
+        read.scope = captureActivityScope({ method: request.method(), url: new URL(request.url()), authorization: headers.authorization, referer: headers.referer },
+          expected);
+      } catch (cause) { errors.push(String(cause)); }
+      finally { read.observed = true; }
+    });
+    page.on('response', response => { const read = documentReads.find(value => value.request === response.request()); if (read) read.status = response.status(); });
+    page.on('requestfinished', request => { const read = documentReads.find(value => value.request === request); if (read) { read.finished = true; read.settled = true; } });
+    page.on('requestfailed', request => { const read = documentReads.find(value => value.request === request); if (read) read.settled = true; });
+    await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+    await page.goto(`${origin}/?view=enrich&replica=${RID}&fixture_document=${documentId}${query}`);
     await page.waitForFunction(() => !!window.sourceReviewProbe?.committed);
+    await flushRender(); await waitActivitySettled();
   }
   async function changeScope(kind) {
+    await flushRender(); await waitActivitySettled();
+    const dispatchedBeforeChange = activityRequests.length;
+    activityPhase = `change:${kind}`;
     activityScope = { ...activityScope, ...(kind === 'token' ? { token: 'synthetic-review-b' } : kind === 'replica' ? { replicaId: OTHER_RID } : {}) };
     await page.evaluate(value => window.sourceReviewProbe.change(value), kind);
+    await page.waitForFunction(value => { const scope = window.sourceReviewProbe.committed;
+      return value === 'owner' ? scope.owner === 'synthetic-owner-b' : value === 'token' ? scope.token === 'synthetic-review-b' : scope.replicaId === '10000000-0000-4000-8000-000000000002'; }, kind);
+    await flushRender(); await waitActivitySettled(dispatchedBeforeChange);
   }
   async function reachByTab(locator) {
     for (let count = 0; count < 80; count++) {
@@ -131,7 +197,7 @@ try {
       buttons: [...container.querySelectorAll('button')].map(button => ({ label: button.textContent.trim(), ...rect(button) })) };
   });
   for (const width of [390, 1440]) {
-    await page.setViewportSize({ width, height: 1000 });
+    viewportWidth = width;
     await check(`${width}: actual locker Teach action carries selected item into real claim review`, async () => {
       await open(); await page.getByRole('button', { name: /Files, images, links/ }).click();
       const teach = page.locator(`[data-teach-source="${ITEM}"]`);
@@ -307,10 +373,12 @@ try {
     releasePending(); await received; await flushRender(); assert.equal(await page.locator('#root').textContent(), '');
   });
   assert.deepEqual(unknownRequests, []); assert.deepEqual(errors, []);
-  writeFileSync(join(artifactDir, 'result.json'), JSON.stringify({ syntheticOnly: true, at: new Date().toISOString(), node: process.versions.node, sourceGroups, mountedGroups: results, actionMeasurements, errors, unknownRequests }, null, 2));
+  writeFileSync(join(artifactDir, 'result.json'), JSON.stringify({ syntheticOnly: true, at: new Date().toISOString(), node: process.versions.node, sourceGroups, mountedGroups: results,
+    actionMeasurements, activityRequests: activityWitnesses(allActivityRequests), errors, unknownRequests }, null, 2));
   console.log(`${sourceGroups.length} source groups and ${results.length} mounted source-aware review groups passed; synthetic hosted evidence only`);
 } catch (cause) {
-  writeFileSync(join(artifactDir, 'failure.json'), JSON.stringify({ syntheticOnly: true, at: new Date().toISOString(), sourceGroups, completedMountedGroups: results, actionMeasurements, failure: String(cause), errors, unknownRequests }, null, 2));
+  writeFileSync(join(artifactDir, 'failure.json'), JSON.stringify({ syntheticOnly: true, at: new Date().toISOString(), sourceGroups, completedMountedGroups: results,
+    actionMeasurements, activityRequests: activityWitnesses(allActivityRequests), failure: String(cause), errors, unknownRequests }, null, 2));
   await page?.screenshot({ path: join(artifactDir, 'failure-synthetic.png'), fullPage: true }).catch(() => {});
   throw cause;
 } finally {

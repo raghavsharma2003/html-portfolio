@@ -1,5 +1,23 @@
 # GroupAI readiness ledger, 29 September 2026
 
+## Review fixture authorization error after mounted passes, 1 October
+
+Exact `796c3ca4` APK `36892121383`/job `110470049489` fails `source-aware-review-ui` at `2026-10-01T16:34:26.1491414Z`. All 22 mounted checks pass before final `run.mjs:309:49` finds a fixture-server error: `activity authorization matches current fixture scope`. Actual/expected bearer values are masked, so no value or shared-race cause is inferred. Production/UI source is unchanged but the error is not waived.
+
+Refresh reports PASS after 41,312 ms at `2026-10-01T16:31:19.0777369Z`; root now verifies the detailed stdout at `16:34:26.2011141Z` through `.2019346Z`: ten observer controls, all 12 old/current 390/1440 create/list/select groups, the preceding 24-outcome readiness assertion and all 24 source controls pass. Both release jobs in `36892121428` now pass 24/24: Node 22 `110470050028` at `2026-10-01T16:40:25.1245459Z`, Node 24 `110470050691` at `2026-10-01T16:40:59.4316967Z`, both explicit relational skips. SQL50 also passes; the separate failed APK still blocks combined acceptance.
+
+Root/agent identify mutable `activityScope` expectations before old-page unload and browser scope commit, read after awaited request-body parsing; valid already-issued old requests can meet a newer global expectation. Historical masked token identity remains unknown. A test-only candidate is authorized after the start checkpoint, with exact method still being selected and no new pass. Retain 17 source/22 mounted groups, all 44 px/keyboard/occlusion/no-mutation checks, strict auth and the empty-error gate; no broad auth allowlist or error filter.
+
+The four-file evaluation candidate (`README.md`, `activity-fixture.mjs`, `run.mjs`, `source-controls.mjs`) is now FROZEN and independently APPROVED at run-source SHA-256 `92cf759434c64e0c49189bed232800b5c66135d4aaf4dea84116f7178485fd2e`. Root independently reruns network-blocked 20 source groups (original 17 plus three) and actual fixture build after diagnostics; both pass, production diff versus af17 is empty and whitespace passes. Exact request identity/HTTP 200/response finished/header-observer complete/server drain precede changes, with per-document generations and pre-await admitted-scope snapshots; no fetch monkeypatch. Each new active scope needs its own real read; direct views explicitly report no activity expectation. Artifacts hold sanitized document/phase/synthetic-scope/completion witnesses only. All 22 mounted/44 px focus/occlusion/negative controls are preserved but await new hosted execution. Ready for root commit/push, not combined acceptance or experiment promotion.
+
+Additive focused hosted Node 22/24 preflight is only a read-only efficiency recommendation, not implemented or measured and not a full-gate replacement. Known-consent remains implemented/null; both user choices are unanswered and no local browser/server/live actions occur.
+
+## Refresh repair pushed; SQL50 verified, combined jobs pending, 1 October
+
+Root confirms `796c3ca4670c9ce5a3de7ba39f33f95eb7e0c68e` pushed with a clean tree before this receipt; application/database/package/workflow bytes remain equal to `af17fbca`. Actual SQL `36892121400`/job `110470050838` passes 50 at `2026-10-01T16:28:21.1509591Z`; raw-authority query-to-helper case 31 passes at `2026-10-01T16:28:14.3279690Z`. Root selector 46 also passes after push. Release `36892121428` remains running on Node 22 `110470050028` and Node 24 `110470050691`, and APK `36892121383` is running. No registry outcome is promoted.
+
+A final independent read-only audit finds no additional unlogged blocker within its scope but reproduces the known replay gap with actual modules and synthetic doubles/no I/O: one event submitted twice gives two model calls/two sends/two episodes/two human logs. This remains a real missing capability, not fixed by source-time admission or truthful delivery. The next durable slice depends on the owner's unanswered retention/relink choice; live group/Azure/consent inputs are also unanswered. Historical failures remain and no live policy/action/deployment occurs.
+
 ## Refresh observer fixture approved at source; mounted rerun required, 1 October
 
 Three evaluation-only files are frozen and independently approved: `refresh.mjs`, `readiness-probe.mjs`, `readiness-probe-controls.mjs`. Root independently reruns network-blocked build-only: three original/ten new observer controls and both actual old/current bundles pass; the 24 existing refresh-source controls pass. Production diff against `af17fbca` is empty and whitespace passes. Actual readiness polling was reproduced ignoring focus, but historical failed CI lacks polling telemetry, so the old failure's exact cause remains unconfirmed. No production code changes.
@@ -228,12 +246,12 @@ Owner source review is a separate useful slice: selected Context Locker source f
 |---|---|---|
 | Source review | Exact `3e036e7d` portable integration independently approved after immutable destination/default-send repairs. | Inspectable mechanisms and reviewed caller binding, not atomic external delivery. |
 | Offline real-caller controls | Root-confirmed kernel 39 and integrated caller 86; related caller suites and hosted reruns pass. | Bounded control flow with doubles, not live provider/transport guarantees. |
-| Actual PostgreSQL | Exact `1123d242`: run `36888098218` passes 50 groups; prior af17 receipt includes raw PostgreSQL authority-query-to-helper case 31. | Actual scoped synthetic SQL/helper proof only; no live catalog, Neon transport, concurrent/serialized-erasure result. |
-| Hosted browser and full release | Pushed `1123d242`: APK passes the repaired 40 publication groups/eight controls; Node 22 release succeeds, Node 24 is 23/24 on first-use refresh. | Publication repair has actual mounted proof; distinct refresh diagnosis/combined acceptance remain open, no whole-layer/device/human result. |
+| Actual PostgreSQL | Exact `796c3ca4`: run `36892121400` passes 50 groups including actual raw-authority helper case 31. | Actual scoped synthetic SQL/helper proof only; no live catalog, Neon transport, concurrent/serialized-erasure result. |
+| Hosted browser and full release | Exact `796c3ca4`: both releases pass 24/24 and refresh detail is verified, but APK fails review-fixture activity authorization after 22 mounted checks. | Separate APK failure blocks combined acceptance; four-file fixture now has root/source approval but awaits hosted proof, no whole-layer/device/human result. |
 | Real transport/provider | Not run. | Requires current permissions, consent, bot/platform configuration and a bounded provider budget. |
 | Consented human group task | Not run. | Participants can use, inspect, correct, withdraw and delete within the agreed group task. Required for whole-layer readiness. |
 
-The SQL workflow uses a synthetic GitHub service database without a Neon key. Exact `1123d242` now has its own SQL50 and publication-fixture proof, but Node 24 fails a distinct refresh suite and its source-approved repair still awaits mounted CI. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Whole-layer goal status is not changed by this ledger.
+The SQL workflow uses a synthetic GitHub service database without a Neon key. Exact `796c3ca4` has its own SQL50, but APK fails a review-fixture auth assertion and complete release proof remains pending. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Whole-layer goal status is not changed by this ledger.
 
 ## Initial evidence, attributed precisely
 

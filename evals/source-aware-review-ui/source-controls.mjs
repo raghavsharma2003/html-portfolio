@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import { activityFixture } from './activity-fixture.mjs';
+import { activityFixture, captureActivityScope } from './activity-fixture.mjs';
 import { ITEM, OTHER_ITEM, RID, OTHER_RID, SOURCE, EXCERPT, SOURCE_NAME, citation, transcript, claims, personStatus, extractionStatus } from './fixtures.mjs';
 
 const transpile = source => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
@@ -48,6 +48,46 @@ export async function sourceControls(root) {
     const runner = readFileSync(join(root, 'evals/source-aware-review-ui/run.mjs'), 'utf8');
     assert(runner.includes('unknownRequests.push({ path: url.pathname, method: req.method })'));
     assert(runner.includes('assert.deepEqual(unknownRequests, []); assert.deepEqual(errors, []);'));
+  });
+  const documentScope = { ...activityScope, documentId: '7', origin: 'http://synthetic-fixture' };
+  const documentRequest = { ...activityRequest, referer: 'http://synthetic-fixture/?fixture_document=7' };
+  check('activity admission freezes expected authority before delayed body and scope replacement', () => {
+    const expected = { ...documentScope };
+    const admitted = captureActivityScope(documentRequest, expected);
+    assert(Object.isFrozen(admitted)); expected.token = 'synthetic-review-b'; expected.replicaId = OTHER_RID;
+    assert.equal(activityFixture(documentRequest, admitted).replica_id, RID);
+    assert.throws(() => activityFixture(documentRequest, expected), /authorization/, 'mutable-current-scope negative control reproduces the hosted race');
+    assert.throws(() => activityFixture({ ...documentRequest, authorization: 'Bearer synthetic-review-b' }, admitted), /authorization/, 'changed auth cannot adopt the new expected scope after dispatch');
+    const changedReplica = new URL(documentRequest.url); changedReplica.searchParams.set('replica_id', OTHER_RID);
+    assert.throws(() => activityFixture({ ...documentRequest, url: changedReplica }, admitted), /replica matches/);
+  });
+  check('activity admission rejects prior documents and new requests misusing a retired scope', () => {
+    for (const referer of [undefined, 'http://synthetic-fixture/?fixture_document=6', 'http://other-fixture/?fixture_document=7',
+      'http://synthetic-fixture/not-host?fixture_document=7', 'http://synthetic-fixture/?fixture_document=7&fixture_document=6']) {
+      assert.throws(() => captureActivityScope({ ...documentRequest, referer }, documentScope));
+    }
+    assert.throws(() => captureActivityScope(documentRequest, { ...documentScope, token: 'synthetic-review-b' }), /authorization/);
+    assert.throws(() => captureActivityScope(documentRequest, { ...documentScope, replicaId: OTHER_RID }), /replica matches/);
+    assert.throws(() => captureActivityScope({ ...documentRequest, authorization: 'Bearer synthetic-review-b' }, documentScope), /authorization/);
+    const newRequest = { ...documentRequest, authorization: 'Bearer synthetic-review-b' };
+    const nextScope = captureActivityScope(newRequest, { ...documentScope, token: 'synthetic-review-b' });
+    assert.equal(activityFixture(newRequest, nextScope).replica_id, RID);
+  });
+  check('actual mounted handler captures activity authority before its first request-body await', () => {
+    const runner = readFileSync(join(root, 'evals/source-aware-review-ui/run.mjs'), 'utf8');
+    const capture = runner.indexOf('const admittedActivityScope = captureActivityScope(');
+    const bodyAwait = runner.indexOf('for await (const piece of req)');
+    assert(capture >= 0 && bodyAwait > capture);
+    assert(runner.includes('raw }, admittedActivityScope)'));
+    const open = nodeMatching(runner, node => ts.isFunctionDeclaration(node) && node.name?.text === 'open');
+    assert(open.indexOf('await page?.close()') < open.indexOf('activityScope ='));
+    assert(open.includes('fixture_document=${documentId}'));
+    const change = nodeMatching(runner, node => ts.isFunctionDeclaration(node) && node.name?.text === 'changeScope');
+    assert(change.indexOf('await waitActivitySettled()') < change.indexOf('activityScope ='));
+    assert(change.includes('await waitActivitySettled(dispatchedBeforeChange)'));
+    const barrier = nodeMatching(runner, node => ts.isFunctionDeclaration(node) && node.name?.text === 'waitActivitySettled');
+    for (const guard of ['read.sequence > afterSequence', 'read.documentId === expected.documentId', 'read.scope.token === expected.token',
+      'read.scope.replicaId === expected.replicaId', 'read.finished && read.status === 200', 'activeActivityHandlers.size === 0']) assert(barrier.includes(guard), guard);
   });
   const activityApi = readFileSync(join(root, 'src/studio/activityApi.ts'), 'utf8');
   const replicaApi = readFileSync(join(root, 'src/studio/replicaApi.ts'), 'utf8');
