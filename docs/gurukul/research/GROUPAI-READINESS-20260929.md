@@ -1,5 +1,21 @@
 # GroupAI readiness ledger, 29 September 2026
 
+## Refresh observer fixture approved at source; mounted rerun required, 1 October
+
+Three evaluation-only files are frozen and independently approved: `refresh.mjs`, `readiness-probe.mjs`, `readiness-probe-controls.mjs`. Root independently reruns network-blocked build-only: three original/ten new observer controls and both actual old/current bundles pass; the 24 existing refresh-source controls pass. Production diff against `af17fbca` is empty and whitespace passes. Actual readiness polling was reproduced ignoring focus, but historical failed CI lacks polling telemetry, so the old failure's exact cause remains unconfirmed. No production code changes.
+
+Atomic current-scope idle precedes one focus event; the fresh HTTP response and live committed fresh-token effect both precede releasing held old work. No direct auth mutation, repeated focus or timeout inflation. All 12 mounted groups/24 outcomes remain intact and await new hosted execution. Known-consent remains implemented/null; local checks are not mounted or complete-release acceptance.
+
+Exact `1123d242` SQL `36888098218`/`110456476480` passes 50 at `2026-10-01T15:56:49.7395589Z`; APK `36888098072`/`110456475115` passes publication 40+8 at `2026-10-01T16:08:30.8746332Z`, Gradle at `2026-10-01T16:10:38.2711128Z`, artifact `11175638724` (19,310,089 bytes; SHA-256 `a8cdec9df4a379a8fb3490d3afc8dfe6bcecf74603b0db836b69cb6d4b7d98d1`). Release Node 22 `110456477089` passes 24 at `2026-10-01T16:10:40.6850954Z`; Node 24 `110456477335` remains 23/24 at `2026-10-01T16:10:25.2073123Z`. The failure is retained, not waived. Both user choices remain unanswered and no local browser/server/live activity occurs.
+
+## Publication repair verified; first-use refresh remains blocked, 1 October
+
+Pushed `1123d242` APK `36888098072`/job `110456475115` succeeds, executing 40 publication mounted groups/eight controls at `2026-10-01T16:08:30.8746332Z`; Gradle succeeds at `2026-10-01T16:10:38.2711128Z`. Release `36888098216` Node 22 `110456477089` reports success (exact completion log time pending), while Node 24 `110456477335` finishes 23/24 at `2026-10-01T16:10:25.2073123Z`, failing only `first-use-refresh-ui`. The publication repair is now mounted-proven, but the complete release remains unaccepted.
+
+Root verifies artifact `11176586427`, SHA-256 `990b34972e490121164c8cea8912161c4f908fbbbde41bc5c384d14ca08d8248`. Three mounted cases pass: old/current 390 create and old 390 list. Current 390 list-success holds an old-token operation but never receives the expected `/api/account` refresh; the bounded HTTP barrier at `refresh.mjs` lines 93/100/109 expires with only the operation pending. No cause shared with publication is inferred.
+
+The test-only agent is inspecting actual readiness/focus registration, navigation and auth lifecycle, preserving all 12 old/current success/error/no-write cases. Production stays untouched; no direct auth mutation, repeated focus, timeout inflation or guard weakening. No repair outcome exists yet. Known-consent remains implemented/null, both user choices remain unanswered and no local browser/server or live action occurs.
+
 ## Publication barrier fixture ready for hosted rerun, 1 October
 
 Root approves a four-file evaluation-only repair: `evals/teacher-sheet-publication/{mounted.mjs,host.tsx,held-request.mjs,barrier-controls.mjs}`. Network-blocked build-only passes eight barrier/source controls and builds the real component fixture; nine publication source/handler controls and whitespace pass. Independent review APPROVES mounted source SHA-256 `676022e5dc69437c0f689f221ad9c2be0d6423636710b2670676431a8bc50669`. No production/runtime/source-admission/UI bytes change, and the existing mounted registry entry automatically runs the eight controls without a new registration.
@@ -212,12 +228,12 @@ Owner source review is a separate useful slice: selected Context Locker source f
 |---|---|---|
 | Source review | Exact `3e036e7d` portable integration independently approved after immutable destination/default-send repairs. | Inspectable mechanisms and reviewed caller binding, not atomic external delivery. |
 | Offline real-caller controls | Root-confirmed kernel 39 and integrated caller 86; related caller suites and hosted reruns pass. | Bounded control flow with doubles, not live provider/transport guarantees. |
-| Actual PostgreSQL | Exact `af17fbca`: run `36884146027` passes 50 groups, including raw PostgreSQL authority-query-to-helper case 31. | Actual scoped synthetic SQL/helper proof only; no live catalog, Neon transport, concurrent/serialized-erasure result. |
-| Hosted browser and full release | Exact `af17fbca`: APK succeeds, Node 22 release 24/24, Node 24 23/24 on one publication fixture. Four-file fixture repair has only source/build proof so far. | Mixed af17 result is not full release acceptance; new 40-group mounted and combined gates remain required, no whole-layer/device/human result. |
+| Actual PostgreSQL | Exact `1123d242`: run `36888098218` passes 50 groups; prior af17 receipt includes raw PostgreSQL authority-query-to-helper case 31. | Actual scoped synthetic SQL/helper proof only; no live catalog, Neon transport, concurrent/serialized-erasure result. |
+| Hosted browser and full release | Pushed `1123d242`: APK passes the repaired 40 publication groups/eight controls; Node 22 release succeeds, Node 24 is 23/24 on first-use refresh. | Publication repair has actual mounted proof; distinct refresh diagnosis/combined acceptance remain open, no whole-layer/device/human result. |
 | Real transport/provider | Not run. | Requires current permissions, consent, bot/platform configuration and a bounded provider budget. |
 | Consented human group task | Not run. | Participants can use, inspect, correct, withdraw and delete within the agreed group task. Required for whole-layer readiness. |
 
-The SQL workflow uses a synthetic GitHub service database without a Neon key. Exact `af17fbca` passes SQL50/APK and Node 22 release, but Node 24 fails the mounted publication fixture; a source-approved evaluation-only repair awaits hosted execution. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Whole-layer goal status is not changed by this ledger.
+The SQL workflow uses a synthetic GitHub service database without a Neon key. Exact `1123d242` now has its own SQL50 and publication-fixture proof, but Node 24 fails a distinct refresh suite and its source-approved repair still awaits mounted CI. No local database/container/server, live provider call, cloud resource or deployment is part of the current checkpoint. Whole-layer goal status is not changed by this ledger.
 
 ## Initial evidence, attributed precisely
 

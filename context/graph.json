@@ -18402,6 +18402,30 @@
       "kind": "measurement",
       "title": "Four evaluation files pass eight barrier and nine source controls while fresh mounted proof remains pending",
       "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-refresh-causal-triage",
+      "kind": "decision",
+      "title": "Diagnose the distinct first-use refresh lifecycle before changing fixture timing or auth",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-1123-refresh-failure",
+      "kind": "measurement",
+      "title": "Pushed 1123 APK verifies publication repair while Node24 release fails a missing account refresh request",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-no-shared-cause-or-auth-shortcut",
+      "kind": "rejection",
+      "title": "Do not assume a shared fixture cause or force authentication and repeated focus to hide missing refresh",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "grouprelease20261001-refresh-observer-source-freeze",
+      "kind": "measurement",
+      "title": "Three-file readiness observer fixture has local source and bundle proof while mounted outcomes remain pending",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -31237,6 +31261,26 @@
       "src": "grouprelease20261001-publication-held-request-barrier",
       "rel": "measured_by",
       "dst": "grouprelease20261001-publication-barrier-source-freeze"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-1123-refresh-failure"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "caused_by",
+      "dst": "grouprelease20261001-no-shared-cause-or-auth-shortcut"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "part_of",
+      "dst": "groupconsent20261001-source-time-fence"
+    },
+    {
+      "src": "grouprelease20261001-refresh-causal-triage",
+      "rel": "measured_by",
+      "dst": "grouprelease20261001-refresh-observer-source-freeze"
     }
   ]
 }
