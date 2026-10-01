@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createDatabase, hash, hostedGuard, literal, parseCsv, preparedInput, production, read, schemaPlan, uid } from './harness.mjs';
+import { assertGroupSourceEvent } from '../../api/_group-source-event.js';
 
 const mode = process.argv.slice(2);
 assert.ok(mode.length === 1 && ['--source-only', '--hosted-postgres'].includes(mode[0]),
@@ -9,6 +10,10 @@ async function check(name, fn) { await fn(); passed++; console.log(`ok ${passed}
 const A = uid(1), B = uid(2), P = uid(11), Q = uid(12), LATE = uid(13), DEVICE = uid(21);
 const OWNER = uid(101), OTHER_OWNER = uid(102), RID = uid(201), OTHER_RID = uid(202);
 const policy = 'synthetic-group-review-v1';
+// Explicit source/consent instants keep prior fixtures independent of the host
+// clock. Late-join fixtures use September 2, still before this valid source.
+const CONSENT_AT = '2026-09-01T00:00:00.000Z';
+const SOURCE_SENT_AT = '2026-09-03T00:00:00.000Z';
 const plan = schemaPlan();
 
 if (mode[0] === '--source-only') {
@@ -39,8 +44,8 @@ if (mode[0] === '--source-only') {
   const calls = [];
   const m = await production(async (sql, params) => { calls.push({ sql, params }); return []; });
   await check('actual episode, log and disclosure query capture without database execution', async () => {
-    await m.openOrExtendGroupEpisode('1', { roomDevice: DEVICE, agentId: A, recipients: [Q, P] });
-    await m.logRoomTurn({ groupId: '1', roomDevice: DEVICE, agentId: A, episodeId: '2', recipients: [P, Q], role: 'me', speakerPersonId: P, content: 'synthetic' });
+    await m.openOrExtendGroupEpisode('1', { roomDevice: DEVICE, agentId: A, recipients: [Q, P], sourceSentAt: SOURCE_SENT_AT });
+    await m.logRoomTurn({ groupId: '1', roomDevice: DEVICE, agentId: A, episodeId: '2', recipients: [P, Q], role: 'me', speakerPersonId: P, content: 'synthetic', sourceSentAt: SOURCE_SENT_AT });
     await m.roomHistoryEvidence('1', [P, Q], { agentId: A });
     assert.equal(calls.length, 3);
     assert.ok(calls[0].sql.includes('with made as'));
@@ -50,7 +55,7 @@ if (mode[0] === '--source-only') {
   });
   await check('prepared production SQL stays exact while independently typed ARRAY regression is rejected', () => {
     const { sql, params } = calls[0];
-    const expectedArgs = `('${params[0]}','${params[1]}','${params[2]}','{"${P}","${Q}"}')`;
+    const expectedArgs = `('${params[0]}','${params[1]}','${params[2]}','{"${P}","${Q}"}','${SOURCE_SENT_AT}')`;
     const verify = input => {
       assert.ok(input.includes(`SET standard_conforming_strings=on;\nPREPARE q1 AS ${sql};\n`));
       assert.ok(input.endsWith(`EXECUTE q1${expectedArgs};\n`));
@@ -60,6 +65,45 @@ if (mode[0] === '--source-only') {
     assert.throws(() => verify(actual.replace(literal([P, Q]), `ARRAY['${P}','${Q}']`)));
     assert.throws(() => verify(actual.replace(sql, sql.replace('$4::uuid[]', '$4::text[]'))));
     assert.throws(() => preparedInput('q1;select 1', sql, params));
+  });
+  await check('both source writers require a canonical positive whole-second source instant before querying', async () => {
+    const before = calls.length;
+    const badDates = [undefined, null, '', 0, 1, 1700000000, 1n, {}, new Date(SOURCE_SENT_AT),
+      '1970-01-01T00:00:00.000Z', '1969-12-31T23:59:59.000Z', '0000-01-01T00:00:00.000Z',
+      '2026-09-03', '2026-09-03T00:00:00Z', '2026-09-03T00:00:00.001Z', '2026-09-03T00:00:00.0000Z',
+      '2026-09-03T00:00:00.000+00:00', '2026-02-29T00:00:00.000Z', '2026-02-30T00:00:00.000Z',
+      '2026-09-03T24:00:00.000Z', '2026-09-03T00:00:60.000Z', ' 2026-09-03T00:00:00.000Z'];
+    for (const sourceSentAt of badDates) {
+      assert.equal(await m.openOrExtendGroupEpisode('1', { roomDevice: DEVICE, agentId: A, recipients: [P, Q], sourceSentAt }), null);
+      for (const role of ['me', 'her']) assert.equal(await m.logRoomTurn({ groupId: '1', roomDevice: DEVICE, agentId: A,
+        episodeId: '2', recipients: [P, Q], role, speakerPersonId: role === 'me' ? P : null,
+        content: 'Must not be written', sourceSentAt }), null);
+    }
+    assert.equal(calls.length, before, 'invalid source instants never reach q and cannot fall back to receipt time');
+    for (const sourceSentAt of ['1970-01-01T00:00:01.000Z', '2028-02-29T12:00:00.000Z', '2099-12-31T23:59:59.000Z']) {
+      await m.openOrExtendGroupEpisode('1', { roomDevice: DEVICE, agentId: A, recipients: [P, Q], sourceSentAt });
+      assert.equal(calls.at(-1).params[4], sourceSentAt);
+      await m.logRoomTurn({ groupId: '1', roomDevice: DEVICE, agentId: A, episodeId: '2', recipients: [P, Q],
+        role: 'me', speakerPersonId: P, content: 'Synthetic valid source', sourceSentAt });
+      assert.equal(calls.at(-1).params[9], sourceSentAt);
+    }
+    assert.equal(calls.length, before + 6, 'input validation adds no unapproved age/future policy');
+  });
+  await check('writer SQL fences group consent and every admitted member at the same statement snapshot', () => {
+    for (const [call, dateBind, audienceBind] of [[calls[0], '$5', '$4'], [calls[1], '$10', '$9']]) {
+      const verify = sql => {
+        for (const clause of [`g.read_consent_at < ${dateBind}::timestamptz`,
+          `cm.linked_at >= ${dateBind}::timestamptz`, 'cm.group_id = g.id and cm.agent_id = g.agent_id',
+          'cm.left_at is null and cm.linked_at is not null', `${audienceBind}::uuid[] = (select array_agg(m.person_id order by m.person_id)`])
+          assert.ok(sql.includes(clause), clause);
+      };
+      verify(call.sql);
+      assert.equal(call.params[Number(dateBind.slice(1)) - 1], SOURCE_SENT_AT);
+      assert.throws(() => verify(call.sql.replace(`g.read_consent_at < ${dateBind}`, `g.read_consent_at <= ${dateBind}`)));
+      assert.throws(() => verify(call.sql.replace(`cm.linked_at >= ${dateBind}`, `cm.linked_at > ${dateBind}`)));
+      assert.throws(() => verify(call.sql.replace('cm.group_id = g.id', 'true')));
+      assert.throws(() => verify(call.sql.replace('cm.agent_id = g.agent_id', 'true')));
+    }
   });
   await check('source candidate SQL exactly preserves the history authority with only projection, cutoff and bound changes', async () => {
     const before = calls.length;
@@ -170,14 +214,14 @@ async function insert(table, object) {
 }
 for (const id of [A, B]) await insert('vy_agent', { agent_id: id, slug: `synthetic-${id}`, display_name: 'Synthetic only' });
 async function group(agent, suffix, people = [P, Q]) {
-  const [row] = await insert('vy_group', { agent_id: agent, room_device_id: DEVICE, name: 'Synthetic group', surface: 'telegram', surface_chat_id: suffix, read_consent_at: '2026-09-01T00:00:00Z' });
-  for (const [i, person] of people.entries()) await insert('vy_group_member', { group_id: row.id, agent_id: agent, person_id: person, linked_at: '2026-09-01T00:00:00Z', surface: 'telegram', surface_user_id: `${suffix}${i}` });
+  const [row] = await insert('vy_group', { agent_id: agent, room_device_id: DEVICE, name: 'Synthetic group', surface: 'telegram', surface_chat_id: suffix, read_consent_at: CONSENT_AT });
+  for (const [i, person] of people.entries()) await insert('vy_group_member', { group_id: row.id, agent_id: agent, person_id: person, linked_at: CONSENT_AT, surface: 'telegram', surface_user_id: `${suffix}${i}` });
   return row.id;
 }
 const G = await group(A, '-10001'), G2 = await group(A, '-10002'), GB = await group(B, '-10003');
-const episode = (g = G, agentId = A, recipients = [P, Q]) => m.openOrExtendGroupEpisode(g, { roomDevice: DEVICE, agentId, recipients });
+const episode = (g = G, agentId = A, recipients = [P, Q], sourceSentAt = SOURCE_SENT_AT) => m.openOrExtendGroupEpisode(g, { roomDevice: DEVICE, agentId, recipients, sourceSentAt });
 const turn = (ep, opts = {}) => m.logRoomTurn({ groupId: G, roomDevice: DEVICE, agentId: A, episodeId: ep,
-  recipients: [P, Q], role: 'me', speakerPersonId: P, content: 'Synthetic original', ...opts });
+  recipients: [P, Q], role: 'me', speakerPersonId: P, content: 'Synthetic original', sourceSentAt: SOURCE_SENT_AT, ...opts });
 const history = (recipients = [P, Q], g = G, agentId = A, limit = 20) => m.roomHistoryEvidence(g, recipients, { agentId, limit });
 let e1, l1, eOther, lOther;
 await check('one statement creates exact immutable audience and independent turn episodes', async () => {
@@ -195,12 +239,12 @@ await check('creation rejects partial, unlinked, departed, wrong-agent and conse
   assert.equal(await episode(G, A, [P]), null);
   await db.execute('update vy_group_member set linked_at=null where group_id=$1 and person_id=$2 returning group_id', [G, Q]);
   assert.equal(await episode(), null);
-  await db.execute('update vy_group_member set linked_at=now(),left_at=now() where group_id=$1 and person_id=$2 returning group_id', [G, Q]);
+  await db.execute('update vy_group_member set linked_at=$3::timestamptz,left_at=now() where group_id=$1 and person_id=$2 returning group_id', [G, Q, CONSENT_AT]);
   assert.equal(await episode(), null);
   await db.execute('update vy_group_member set left_at=null where group_id=$1 returning group_id', [G]);
   await db.execute('update vy_group set read_consent_at=null where id=$1 returning id', [G]);
   assert.equal(await episode(), null); assert.equal(await turn(e1.id), null);
-  await db.execute('update vy_group set read_consent_at=now() where id=$1 returning id', [G]);
+  await db.execute('update vy_group set read_consent_at=$2::timestamptz where id=$1 returning id', [G, CONSENT_AT]);
 });
 await check('log binding rejects cross-group, cross-agent and stale episode audiences', async () => {
   assert.equal(await turn(e1.id, { groupId: G2 }), null);
@@ -436,6 +480,147 @@ await check('candidate withdrawal removes own text and original-audience rights 
   assert.equal((await targeted([P, Q])).length, 0);
   assert.deepEqual(ids(await targeted([Q])), [safeLog]);
   assert.ok(ids(await candidates([P, Q], lOther, GB, B)).includes(lOther));
+});
+
+// Source-event fences are deliberately tested in a fresh group after the
+// withdrawal cases. These are ordered statement snapshots, NOT a concurrent
+// erasure serialization proof or a historical membership/replay policy.
+const GEVENT = await group(A, '-10007');
+const EVENT_AFTER = '2026-09-03T00:00:01.000Z', EVENT_LATER = '2026-09-03T00:00:02.000Z';
+const eventEpisode = (sourceSentAt = SOURCE_SENT_AT) => episode(GEVENT, A, [P, Q], sourceSentAt);
+const eventTurn = (episodeId, sourceSentAt = SOURCE_SENT_AT, role = 'me') => turn(episodeId, {
+  groupId: GEVENT, sourceSentAt, role, speakerPersonId: role === 'me' ? P : null, content: 'Synthetic known-consent source event' });
+const memberTime = (person, at) => db.execute('update vy_group_member set linked_at=$3::timestamptz where group_id=$1 and person_id=$2 returning person_id', [GEVENT, person, at]);
+const groupTime = at => db.execute('update vy_group set read_consent_at=$2::timestamptz where id=$1 returning id', [GEVENT, at]);
+await check('source writes accept a trusted canonical event strictly after known consent for human and assistant audit', async () => {
+  const ep = await eventEpisode(); assert.ok(ep?.id);
+  const human = await eventTurn(ep.id), audit = await eventTurn(ep.id, SOURCE_SENT_AT, 'her');
+  assert.ok(human); assert.ok(audit);
+  const rows = await db.execute('select id,role,episode_id,speaker_person_id,at from meera_log where id=any($1::bigint[]) order by id', [[human, audit]]);
+  assert.deepEqual(rows.map(r => r.role), ['me', 'her']);
+  assert.deepEqual(rows.map(r => r.episode_id), [ep.id, ep.id]);
+  assert.deepEqual(rows.map(r => r.speaker_person_id), [P, null]);
+  assert.ok(rows.every(r => r.at), 'database recording time remains separate from the source-event admission fence');
+});
+await check('source writes refuse delayed events before or exactly at group read consent without persisting new rows', async () => {
+  const ep = await eventEpisode(); assert.ok(ep?.id);
+  const before = await db.execute('select count(*) n from meera_log where group_id=$1', [GEVENT]);
+  for (const sourceSentAt of ['2026-08-31T23:59:59.000Z', CONSENT_AT]) {
+    assert.equal(await eventEpisode(sourceSentAt), null);
+    assert.equal(await eventTurn(ep.id, sourceSentAt), null);
+    assert.equal(await eventTurn(ep.id, sourceSentAt, 'her'), null);
+  }
+  assert.deepEqual(await db.execute('select count(*) n from meera_log where group_id=$1', [GEVENT]), before);
+});
+await check('source writes fence every recipient, not only the speaker, and fail at exact or subsecond-later link equality', async () => {
+  const ep = await eventEpisode(); assert.ok(ep?.id);
+  for (const person of [P, Q]) {
+    for (const linkedAt of [SOURCE_SENT_AT, '2026-09-03T00:00:00.001Z', EVENT_AFTER]) {
+      await memberTime(person, linkedAt);
+      assert.equal(await eventEpisode(), null);
+      assert.equal(await eventTurn(ep.id), null);
+      assert.equal(await eventTurn(ep.id, SOURCE_SENT_AT, 'her'), null);
+    }
+    await memberTime(person, CONSENT_AT);
+  }
+  assert.ok((await eventEpisode())?.id);
+});
+await check('source episode creation rechecks a recipient relink after caller observation even when all person IDs stay unchanged', async () => {
+  const before = await db.execute('select person_id,linked_at from vy_group_member where group_id=$1 order by person_id', [GEVENT]);
+  assert.deepEqual(before.map(r => r.person_id), [P, Q]);
+  await memberTime(Q, SOURCE_SENT_AT);
+  const after = await db.execute('select person_id,linked_at from vy_group_member where group_id=$1 order by person_id', [GEVENT]);
+  assert.deepEqual(after.map(r => r.person_id), before.map(r => r.person_id));
+  assert.notEqual(after[1].linked_at, before[1].linked_at);
+  assert.equal(await eventEpisode(), null);
+  const newer = await eventEpisode(EVENT_AFTER); assert.ok(newer?.id);
+  assert.ok(await eventTurn(newer.id, EVENT_AFTER));
+  await memberTime(Q, CONSENT_AT);
+});
+await check('source human and assistant writes recheck relink between episode creation and log insertion', async () => {
+  const ep = await eventEpisode(); assert.ok(ep?.id);
+  await memberTime(Q, EVENT_AFTER);
+  assert.equal(await eventTurn(ep.id), null);
+  assert.equal(await eventTurn(ep.id, SOURCE_SENT_AT, 'her'), null);
+  const newer = await eventEpisode(EVENT_LATER); assert.ok(newer?.id);
+  assert.ok(await eventTurn(newer.id, EVENT_LATER));
+  assert.ok(await eventTurn(newer.id, EVENT_LATER, 'her'));
+  await memberTime(Q, CONSENT_AT);
+});
+await check('source writes recheck renewed group consent between episode and log while permitting genuinely newer events', async () => {
+  const ep = await eventEpisode(); assert.ok(ep?.id);
+  await groupTime(EVENT_AFTER);
+  assert.equal(await eventEpisode(), null);
+  assert.equal(await eventTurn(ep.id), null);
+  assert.equal(await eventTurn(ep.id, SOURCE_SENT_AT, 'her'), null);
+  const newer = await eventEpisode(EVENT_LATER); assert.ok(newer?.id);
+  assert.ok(await eventTurn(newer.id, EVENT_LATER));
+  await groupTime(CONSENT_AT);
+});
+await check('captured writer SQL mutations cannot silently relax consent equality or omit a non-speaker recipient', async () => {
+  let captured;
+  const capture = await production(async (sql, params) => { captured = { sql, params }; return []; });
+  const ep = await eventEpisode(); assert.ok(ep?.id);
+  async function mutated(kind, sourceSentAt, transform) {
+    captured = null;
+    if (kind === 'episode') await capture.openOrExtendGroupEpisode(GEVENT, { roomDevice: DEVICE, agentId: A, recipients: [P, Q], sourceSentAt });
+    else await capture.logRoomTurn({ groupId: GEVENT, roomDevice: DEVICE, agentId: A, episodeId: ep.id, recipients: [P, Q],
+      role: kind, speakerPersonId: kind === 'me' ? P : null, content: 'Synthetic timestamp negative control', sourceSentAt });
+    assert.ok(captured);
+    const sql = transform(captured.sql, kind === 'episode' ? '$5' : '$10');
+    assert.notEqual(sql, captured.sql, 'writer negative control must mutate actual captured SQL');
+    return db.query(sql, captured.params);
+  }
+  // Isolate the group-consent equality guard from the independently strict
+  // member guard by giving members an earlier known consent instant.
+  for (const person of [P, Q]) await memberTime(person, '2026-08-31T23:59:59.000Z');
+  for (const kind of ['episode', 'me', 'her']) {
+    assert.equal(kind === 'episode' ? await eventEpisode(CONSENT_AT) : await eventTurn(ep.id, CONSENT_AT, kind), null);
+    const rows = await mutated(kind, CONSENT_AT, (sql, bind) => sql.replace(`g.read_consent_at < ${bind}::timestamptz`, `g.read_consent_at <= ${bind}::timestamptz`));
+    assert.equal(rows.length, 1);
+    assert.throws(() => assert.equal(rows.length, 0), 'group equality relaxation must be caught');
+  }
+  await memberTime(P, CONSENT_AT); await memberTime(Q, SOURCE_SENT_AT);
+  for (const kind of ['episode', 'me', 'her']) {
+    assert.equal(kind === 'episode' ? await eventEpisode() : await eventTurn(ep.id, SOURCE_SENT_AT, kind), null);
+    const equal = await mutated(kind, SOURCE_SENT_AT, (sql, bind) => sql.replace(`cm.linked_at >= ${bind}::timestamptz`, `cm.linked_at > ${bind}::timestamptz`));
+    assert.equal(equal.length, 1);
+    assert.throws(() => assert.equal(equal.length, 0), 'member equality relaxation must be caught');
+    const onlySpeaker = await mutated(kind, SOURCE_SENT_AT, sql => sql.replace('and cm.left_at is null', `and cm.person_id = '${P}'::uuid and cm.left_at is null`));
+    assert.equal(onlySpeaker.length, 1);
+    assert.throws(() => assert.equal(onlySpeaker.length, 0), 'speaker-only consent check must be caught');
+  }
+  await memberTime(Q, CONSENT_AT);
+});
+await check('actual PostgreSQL group authority timestamps cross the real source-event helper boundary without format rewriting', async () => {
+  const event = { kind: 'message', isGroup: true, sourceEventKind: 'ordinary_message',
+    sourceSentAtSeconds: Date.parse(SOURCE_SENT_AT) / 1000, surface: 'telegram', chatKey: '-10007', surfaceUserId: '-100070' };
+  const authority = await m.groupTurnAuthority(GEVENT, A);
+  assert.ok(authority);
+  assert.deepEqual(Array.from(authority.recipients), [P, Q]);
+  assert.equal(authority.linked_members.length, 2);
+  // The synthetic PostgreSQL text column uses +00 while its jsonb aggregate
+  // carries +00:00. Do not normalize either before passing the actual receipt
+  // to the production helper: doing so would hide the cross-boundary defect.
+  assert.match(authority.read_consent_at, / \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?\+00$/);
+  assert.match(authority.linked_members[0].linked_at, /T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?\+00:00$/);
+  console.log(`synthetic authority timestamp formats: group=${JSON.stringify(authority.read_consent_at)} member=${JSON.stringify(authority.linked_members[0].linked_at)}`);
+  assert.equal(assertGroupSourceEvent(event, authority, [P, Q]), SOURCE_SENT_AT);
+  const refused = receipt => assert.throws(() => assertGroupSourceEvent(event, receipt, [P, Q]),
+    error => error.code === 'group_source_event_unavailable' && error.status === 503);
+  await groupTime(SOURCE_SENT_AT);
+  refused(await m.groupTurnAuthority(GEVENT, A));
+  await groupTime(CONSENT_AT);
+  for (const linkedAt of [SOURCE_SENT_AT, '2026-09-03T00:00:00.000001Z', EVENT_AFTER]) {
+    await memberTime(Q, linkedAt);
+    const relinked = await m.groupTurnAuthority(GEVENT, A);
+    assert.deepEqual(Array.from(relinked.recipients), [P, Q], 'same recipient IDs do not hide a changed link date');
+    refused(relinked);
+  }
+  await memberTime(Q, '2026-09-02T23:59:59.999999Z');
+  assert.equal(assertGroupSourceEvent(event, await m.groupTurnAuthority(GEVENT, A), [P, Q]), SOURCE_SENT_AT,
+    'exact PostgreSQL microseconds immediately before the event remain earlier');
+  await memberTime(Q, CONSENT_AT);
 });
 
 for (const [replica, owner] of [[RID, OWNER], [OTHER_RID, OTHER_OWNER]]) {

@@ -18336,6 +18336,42 @@
       "kind": "rejection",
       "title": "Do not accept undefined receipts or treat web-account and creator-owner identity as native group membership",
       "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-source-time-fence",
+      "kind": "decision",
+      "title": "Fence authenticated ordinary source time against known consent and every recipient link before raw writes",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-phase-baseline-and-delivery-release",
+      "kind": "measurement",
+      "title": "Delivery release fails one fixture on both Node versions while new consent-time source work remains unverified",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-no-receipt-time-or-policy-laundering",
+      "kind": "rejection",
+      "title": "Do not turn receipt or edit time into original consent authority or adopt unanswered replay policy",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupdelivery20261001-hosted-fe652992",
+      "kind": "measurement",
+      "title": "Exact fe652992 passes both 24-check releases separate SQL42 and APK after strict-send fixture repair",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupreview20261001-measured-touch-targets-fe652992",
+      "kind": "measurement",
+      "title": "Eight synthetic web action targets measure 44px with detected 27px regression and verified focus and spacing",
+      "at": "2026-10-01"
+    },
+    {
+      "id": "groupconsent20261001-local-candidate-and-pg-offset",
+      "kind": "measurement",
+      "title": "Known-consent local caller and ingress checks pass while real PostgreSQL offset wire proof and SQL50 remain pending",
+      "at": "2026-10-01"
     }
   ],
   "edges": [
@@ -31116,6 +31152,36 @@
       "src": "groupdelivery20261001-explicit-success-fixture-repair",
       "rel": "part_of",
       "dst": "groupdelivery20261001-truthful-outcome-boundary"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "measured_by",
+      "dst": "groupconsent20261001-phase-baseline-and-delivery-release"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "caused_by",
+      "dst": "groupconsent20261001-no-receipt-time-or-policy-laundering"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "part_of",
+      "dst": "groupai20260929-layer-acceptance-ledger"
+    },
+    {
+      "src": "groupdelivery20261001-explicit-success-fixture-repair",
+      "rel": "measured_by",
+      "dst": "groupdelivery20261001-hosted-fe652992"
+    },
+    {
+      "src": "groupai20261001-review-touch-target-followup",
+      "rel": "measured_by",
+      "dst": "groupreview20261001-measured-touch-targets-fe652992"
+    },
+    {
+      "src": "groupconsent20261001-source-time-fence",
+      "rel": "measured_by",
+      "dst": "groupconsent20261001-local-candidate-and-pg-offset"
     }
   ]
 }

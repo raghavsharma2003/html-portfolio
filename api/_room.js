@@ -674,20 +674,34 @@ function ageShort(at) {
 
 // ── writes ────────────────────────────────────────────────────────────────
 
+// This is an input-shape check, not source authentication or a delivery-age
+// policy. Only the trusted transport adapter can establish where it came from.
+// Positive whole-second transport instants use exact Date.toISOString output;
+// round-trip rejects normalized invalid dates, subsecond instants and offsets
+// instead of guessing receipt time. No age/future policy is introduced here.
+function validSourceSentAt(value) {
+  if (typeof value !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.000Z$/.test(value)) return false;
+  const instant = Date.parse(value);
+  return Number.isFinite(instant) && instant > 0 && new Date(instant).toISOString() === value;
+}
+
 /**
  * A new immutable-audience episode per human turn. Retaining the exported
  * name avoids inventing another caller path, but this MUST NOT extend an old
  * episode: adding today's members would authorize yesterday's conversation.
  * Episode and initial participants are created in ONE SQL statement against
  * the same current-membership snapshot. No inferred audience is accepted.
+ * Known group/member consent must predate the source event, not its delayed
+ * receipt. This statement-snapshot fence does not serialize concurrent erasure
+ * or relinking, nor replace the caller's repeated authority checks.
  */
 export async function openOrExtendGroupEpisode(
   groupId,
-  { roomDevice = null, agentId = MEERA_AGENT_ID, recipients = [] } = {},
+  { roomDevice = null, agentId = MEERA_AGENT_ID, recipients = [], sourceSentAt = null } = {},
   t = ident,
 ) {
   const audience = normalizeGroupRecipients(recipients);
-  if (!audience || audience.length < QUORUM) return null;
+  if (!audience || audience.length < QUORUM || !validSourceSentAt(sourceSentAt)) return null;
   const ins = await q(
     `with made as (insert into ${t("vy_episode")}
        (agent_id, person_id, group_id, device_id, channel, participation, disclosure_scope,
@@ -695,6 +709,10 @@ export async function openOrExtendGroupEpisode(
      select $3::uuid, null, g.id, $2::uuid, 'chat', 'group', 'participants', now(), now(), 'audience_turn', '', true
        from ${t("vy_group")} g where g.id = $1::bigint and g.agent_id = $3::uuid
         and g.read_consent_at is not null and cardinality($4::uuid[]) between ${QUORUM} and g.member_cap
+        and g.read_consent_at < $5::timestamptz
+        and not exists (select 1 from ${t("vy_group_member")} cm
+          where cm.group_id = g.id and cm.agent_id = g.agent_id
+            and cm.left_at is null and cm.linked_at is not null and cm.linked_at >= $5::timestamptz)
         and $4::uuid[] = (select array_agg(m.person_id order by m.person_id)
           from ${t("vy_group_member")} m where m.group_id = g.id and m.agent_id = g.agent_id
            and m.left_at is null and m.linked_at is not null)
@@ -714,7 +732,7 @@ export async function openOrExtendGroupEpisode(
     // violation on the first real room turn — invisible until a token exists,
     // which is exactly when it would have fired. Found by the WS-BINDING
     // fixture (its check 0 mirrors production's catalog, defaults included).
-    [groupId, roomDevice, agentId, audience],
+    [groupId, roomDevice, agentId, audience, sourceSentAt],
   );
   return ins[0] ? { id: ins[0].id, extended: false } : null;
 }
@@ -755,11 +773,11 @@ export async function addEpisodeParticipant(episodeId, personId, role = "partici
  */
 export async function logRoomTurn(
   { groupId, roomDevice, speakerPersonId, role, content, kind = "text", agentId = MEERA_AGENT_ID,
-    episodeId = null, recipients = [] },
+    episodeId = null, recipients = [], sourceSentAt = null },
   t = ident,
 ) {
   const audience = normalizeGroupRecipients(recipients);
-  if (!episodeId || !audience || (role !== "me" && role !== "her") ||
+  if (!episodeId || !audience || !validSourceSentAt(sourceSentAt) || (role !== "me" && role !== "her") ||
       (role === "me" && (!speakerPersonId || !audience.includes(String(speakerPersonId).toLowerCase())))) return null;
   const r = await q(
     `insert into ${t("meera_log")} (agent_id, device_id, role, channel, kind, content, at, speaker_person_id, group_id, episode_id)
@@ -767,6 +785,10 @@ export async function logRoomTurn(
        from ${t("vy_group")} g join ${t("vy_episode")} e on e.group_id=g.id and e.agent_id=g.agent_id
       where g.id = $6::bigint and g.agent_id = $7::uuid and e.id=$8::bigint
         and g.read_consent_at is not null and e.superseded_by is null
+        and g.read_consent_at < $10::timestamptz
+        and not exists (select 1 from ${t("vy_group_member")} cm
+          where cm.group_id = g.id and cm.agent_id = g.agent_id
+            and cm.left_at is null and cm.linked_at is not null and cm.linked_at >= $10::timestamptz)
         and e.disclosure_scope='participants' and cardinality(e.disclosure_deny)=0
         and $9::uuid[] = (select array_agg(p.person_id order by p.person_id)
            from ${t("vy_episode_participant")} p where p.episode_id=e.id)
@@ -784,6 +806,7 @@ export async function logRoomTurn(
       agentId,
       episodeId,
       audience,
+      sourceSentAt,
     ],
   );
   return r[0]?.id ?? null;

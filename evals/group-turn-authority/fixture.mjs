@@ -13,12 +13,14 @@ import * as engine from "../../api/_engine.gen.js";
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 export const SOURCE = { room: read("api/_room.js"), surface: read("api/_surface.js"), checkpoints: read("api/_group-runtime/checkpoints.js"),
-  selection: read("api/_group-recall/selection.js") };
+  selection: read("api/_group-recall/selection.js"), sourceEvent: read("api/_group-source-event.js"), telegram: read("api/tg.js") };
 export const AGENT = "a0000000-0000-4000-8000-000000000001";
 export const P1 = "b0000000-0000-4000-8000-000000000001";
 export const P2 = "b0000000-0000-4000-8000-000000000002";
 export const P3 = "b0000000-0000-4000-8000-000000000003";
 export const DEVICE = "c0000000-0000-4000-8000-000000000001";
+export const SOURCE_SENT_AT = "2026-09-30T00:00:00.000Z";
+export const SOURCE_SENT_AT_SECONDS = Date.parse(SOURCE_SENT_AT) / 1000;
 const BIND = { recipients: "$1", isGroup: "$2", roomId: "$3", negTags: "$4", agentId: "$5" };
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 const flat = (text) => text.replace(/\s+/g, " ").trim();
@@ -40,7 +42,7 @@ function loadModule(source, filename, imports, env = {}) {
 // Candidate-mode fixtures deliberately opt in; separate controls below prove
 // that an unset deployment stays on recency and request fields cannot opt in.
 export function fixture({ sources = SOURCE, audience = [P1, P2], split = false, useDefaultSend = false,
-  env = { GROUP_SOURCE_RECALL_MODE: "lexical_recency" } } = {}) {
+  env = { GROUP_SOURCE_RECALL_MODE: "lexical_recency" }, withTelegram = false } = {}) {
   const declaredCandidateLimit = env.GROUP_SOURCE_RECALL_MODE === "lexical_recency" ? 160 : 20;
   const state = {
     room: { id: "91", agent_id: AGENT, surface: "telegram", surface_chat_id: "-100001",
@@ -52,6 +54,9 @@ export function fixture({ sources = SOURCE, audience = [P1, P2], split = false, 
     allowedHistory: [], facts: [], words: [], grantValid: true, sinceHerLast: 90000,
     beforeCompile: null, duringModel: null, afterSend: null, onAuthority: null, onWitness: null, onSources: null,
     returnedRoom: null, compiledOverride: null, memberQuiet: "normal",
+    linkedAt: Object.fromEntries(audience.map((personId) => [personId, "2026-09-29T00:00:00Z"])),
+    expectedSourceSentAt: SOURCE_SENT_AT, episodeWriteAllowed: true, logWriteAllowed: true,
+    beforeEpisodeWrite: null, beforeLogWrite: null,
     historyTransform: (rows) => rows,
     rosterTransform: (rows) => rows,
   };
@@ -88,7 +93,7 @@ export function fixture({ sources = SOURCE, audience = [P1, P2], split = false, 
       assert(s.includes("g.id = $1::bigint and g.agent_id = $2::uuid"));
       return [{ ...clone(state.room), recipients: [...state.audience], linked_members: state.audience.map((id, i) => ({
         person_id: id, surface: "telegram", surface_user_id: String(101 + i),
-        linked_at: id === P1 && !state.linked ? null : "2026-09-29T00:00:00Z",
+        linked_at: id === P1 && !state.linked ? null : (Object.hasOwn(state.linkedAt, id) ? state.linkedAt[id] : "2026-09-29T00:00:00Z"),
         left_at: id === P1 && !state.memberActive ? "2026-09-29T01:00:00Z" : null, quiet_level: "normal",
       })) }];
     }
@@ -105,7 +110,14 @@ export function fixture({ sources = SOURCE, audience = [P1, P2], split = false, 
       assert(s.includes("insert into vy_episode_participant") && s.includes("unnest($4::uuid[])"));
       assert(s.includes("and m.left_at is null and m.linked_at is not null"));
       assert(s.includes("and $4::uuid[] = (select array_agg"));
-      assert.deepEqual(clone(args), ["91", DEVICE, AGENT, state.audience]);
+      assert(s.includes("and g.read_consent_at < $5::timestamptz"), "episode write requires consent strictly before source time");
+      assert(s.includes("where cm.group_id = g.id and cm.agent_id = g.agent_id") &&
+        s.includes("and cm.left_at is null and cm.linked_at is not null and cm.linked_at >= $5::timestamptz"),
+      "episode write fences every current linked member against source time");
+      assert.deepEqual(clone(args), ["91", DEVICE, AGENT, state.audience, state.expectedSourceSentAt]);
+      await state.beforeEpisodeWrite?.();
+      // Declared synthetic SQL outcome, not a copied temporal policy evaluator.
+      if (!state.episodeWriteAllowed) return [];
       const row = { id: String(200 + calls.episodes.length), recipients: clone(args[3]) };
       calls.episodes.push(row); return [{ id: row.id }];
     }
@@ -114,7 +126,15 @@ export function fixture({ sources = SOURCE, audience = [P1, P2], split = false, 
       assert(s.includes("e.disclosure_scope='participants'") && s.includes("cardinality(e.disclosure_deny)=0"));
       assert(s.includes("p.episode_id=e.id") && s.includes("m.left_at is null and m.linked_at is not null"));
       assert.deepEqual(clone([args[0], args[5], args[6], args[8]]), [DEVICE, "91", AGENT, state.audience]);
+      assert.equal(args.length, 10, "human and assistant log writes bind source time explicitly");
+      assert.equal(args[9], state.expectedSourceSentAt, "log uses the original captured source time");
+      assert(s.includes("and g.read_consent_at < $10::timestamptz"), "log write requires consent strictly before source time");
+      assert(s.includes("where cm.group_id = g.id and cm.agent_id = g.agent_id") &&
+        s.includes("and cm.left_at is null and cm.linked_at is not null and cm.linked_at >= $10::timestamptz"),
+      "log write fences every current linked member against source time");
       assert(calls.episodes.some((ep) => ep.id === args[7] && JSON.stringify(ep.recipients) === JSON.stringify(args[8])));
+      await state.beforeLogWrite?.(args[1]);
+      if (!state.logWriteAllowed) return [];
       const row = { id: String(300 + calls.logs.length), role: args[1], content: args[3],
         speaker_person_id: args[4], episode_id: args[7], at: null };
       calls.logs.push(clone(row)); return [{ id: row.id }];
@@ -170,6 +190,7 @@ export function fixture({ sources = SOURCE, audience = [P1, P2], split = false, 
   });
   const checkpoints = loadModule(sources.checkpoints, "api/_group-runtime/checkpoints.js", {});
   const selection = loadModule(sources.selection, "api/_group-recall/selection.js", {});
+  const sourceEvent = loadModule(sources.sourceEvent, "api/_group-source-event.js", {});
   const surface = loadModule(sources.surface, "api/_surface.js", {
     "./_db.js": { q }, "./_config.js": {}, "./_agentscope.js": { MEERA_AGENT_ID: AGENT },
     "./_room.js": room, "./_never-rules.js": neverRules,
@@ -178,6 +199,7 @@ export function fixture({ sources = SOURCE, audience = [P1, P2], split = false, 
     "./_model-serving-policy.js": { resolveReplyServingProvider: failIO },
     "./_group-runtime/checkpoints.js": checkpoints,
     "./_group-recall/selection.js": selection,
+    "./_group-source-event.js": sourceEvent,
   }, env);
   const adapter = { surface: "telegram", receiverMarker: "original-adapter", render: (text) => split
     ? [{ text: text.slice(0, 3) }, { text: text.slice(3) }] : [{ text }],
@@ -214,6 +236,19 @@ export function fixture({ sources = SOURCE, audience = [P1, P2], split = false, 
   });
   const ev = { kind: "message", surface: "telegram", chatKey: "-100001", isGroup: true,
     surfaceUserId: "101", handle: "Ada", text: "Can we discuss the painting?", replyToSelf: true,
-    messageId: "17", fromBot: false };
-  return { state, calls, surface, room, ctx, ev, run: () => surface.dispatch(ev, ctx) };
+    messageId: "17", fromBot: false, sourceEventKind: "ordinary_message", sourceSentAtSeconds: SOURCE_SENT_AT_SECONDS };
+  // The actual Telegram parser is used for edge-to-dispatch integration. Its
+  // unrelated HTTP/config/secret/network dependencies are inert and never read.
+  const telegram = withTelegram ? loadModule(sources.telegram, "api/tg.js", {
+    "node:crypto": crypto,
+    "./_ratelimit.js": { allow: failIO, ipOf: failIO },
+    "./_config.js": {}, "./_surface.js": surface, "./_db.js": { q },
+    "./_clonechannel.js": { resolveInboundClone: failIO, createClonePublicAuthorityGuard: failIO },
+    "./_channel-secrets.js": { getChannelSecret: failIO },
+    "./_incidents.js": { withDoor: (_db, _name, handler) => handler },
+    "./_agentscope.js": { MEERA_AGENT_ID: AGENT },
+    "./_group-audience.js": { createTelegramGroupAuthority: failIO },
+    "./_group-source-event.js": sourceEvent,
+  }, {}) : null;
+  return { state, calls, surface, room, ctx, ev, telegram, run: () => surface.dispatch(ev, ctx) };
 }

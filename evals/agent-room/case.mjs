@@ -11,6 +11,9 @@ import {
   PERSON_B,
   ROOM_A,
   ROOM_B,
+  CONSENT_AT,
+  LINKED_AT,
+  SOURCE_SENT_AT,
   appendLaterHumanSource,
   state,
 } from "./store.mjs";
@@ -102,6 +105,8 @@ const groupEvent = {
   isGroup: true,
   text: "teacher, what did this room decide?",
   messageId: "m-1",
+  sourceEventKind: "ordinary_message",
+  sourceSentAtSeconds: Date.parse(SOURCE_SENT_AT) / 1000,
 };
 
 console.log("\n—— two-agent DM dispatch ——");
@@ -285,6 +290,38 @@ for (const [agentId, roomId, displayName] of [[AGENT_A, ROOM_A, "agent A"], [AGE
     [...packet.history, packet.current].every((source) => sourceRowFor(source, input)?.role === "me"));
 }
 delete process.env.GROUP_SOURCE_RECALL_MODE;
+ok("human and assistant writes retain the admitted source time separately from recording time",
+  state.temporalWrites.some((write) => write.operation === "episode") &&
+  state.temporalWrites.some((write) => write.operation === "human_log") &&
+  state.temporalWrites.some((write) => write.operation === "assistant_log") &&
+  state.temporalWrites.every((write) => write.sourceSentAt === SOURCE_SENT_AT) &&
+  state.logs.filter((log) => log.group_id !== null).every((log) => typeof log.at === "string" && log.at !== SOURCE_SENT_AT));
+
+for (const [label, patch] of [
+  ["missing source kind", { sourceEventKind: undefined }],
+  ["missing source time", { sourceSentAtSeconds: undefined }],
+  ["edited source", { sourceEventKind: "edited_message" }],
+  ["fractional source time", { sourceSentAtSeconds: groupEvent.sourceSentAtSeconds + 0.5 }],
+  ["source at read-consent boundary", { sourceSentAtSeconds: Date.parse(CONSENT_AT) / 1000 }],
+  ["source at recipient-link boundary", { sourceSentAtSeconds: Date.parse(LINKED_AT) / 1000 }],
+]) {
+  const before = effects();
+  await assert.rejects(dispatch({ ...groupEvent, ...patch }, ctxFor(AGENT_A, "agent A")),
+    { code: "group_source_event_unavailable" });
+  ok(`${label} refuses before content writes, compilation, model or wire`,
+    JSON.stringify(effects()) === JSON.stringify(before));
+}
+const otherRecipient = state.members.find((member) => member.agent_id === AGENT_A && member.person_id === PERSON_B);
+const priorOtherLink = otherRecipient.linked_at;
+try {
+  otherRecipient.linked_at = SOURCE_SENT_AT;
+  const before = effects();
+  await assert.rejects(dispatch(groupEvent, ctxFor(AGENT_A, "agent A")), { code: "group_source_event_unavailable" });
+  ok("a non-sender linked at event time also blocks admission without content effects",
+    JSON.stringify(effects()) === JSON.stringify(before));
+} finally {
+  otherRecipient.linked_at = priorOtherLink;
+}
 ok("all negative controls use understood SQL routes", state.unsupported.length === 0, state.unsupported.join(" | "));
 
 const migration = readFileSync(

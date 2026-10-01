@@ -11,6 +11,9 @@ export const PERSON_B = "22222222-2222-4222-8222-222222222222";
 export const ROOM_A = 101;
 export const ROOM_B = 202;
 export const CHAT_KEY = "shared-room-77";
+export const CONSENT_AT = "2026-09-29T00:00:00.000Z";
+export const LINKED_AT = "2026-09-29T00:00:01.000Z";
+export const SOURCE_SENT_AT = "2026-09-29T00:00:02.000Z";
 
 const now = () => new Date().toISOString();
 let nextLog = 1;
@@ -28,6 +31,7 @@ export const state = {
   currentHumanLogByScope: new Map(),
   candidateReads: [],
   expectedCandidateMode: "recency",
+  temporalWrites: [],
   identities: [
     { surface: "discord", surface_user_id: "student-1", person_id: PERSON_A, handle: "student one" },
     { surface: "discord", surface_user_id: "student-2", person_id: PERSON_B, handle: "student two" },
@@ -42,7 +46,7 @@ export const state = {
       surface_chat_id: CHAT_KEY,
       tg_chat_id: null,
       room_device_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      read_consent_at: now(),
+      read_consent_at: CONSENT_AT,
       quiet_level: "normal",
       member_cap: 6,
       created_at: now(),
@@ -56,17 +60,17 @@ export const state = {
       surface_chat_id: CHAT_KEY,
       tg_chat_id: null,
       room_device_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      read_consent_at: now(),
+      read_consent_at: CONSENT_AT,
       quiet_level: "normal",
       member_cap: 6,
       created_at: now(),
     },
   ],
   members: [
-    { agent_id: AGENT_A, group_id: ROOM_A, person_id: PERSON_A, surface: "discord", surface_user_id: "student-1", handle: "student one", honorific: "tum", quiet_level: "normal", linked_at: now(), left_at: null },
-    { agent_id: AGENT_A, group_id: ROOM_A, person_id: PERSON_B, surface: "discord", surface_user_id: "student-2", handle: "student two", honorific: "aap", quiet_level: "normal", linked_at: now(), left_at: null },
-    { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_A, surface: "discord", surface_user_id: "student-1", handle: "student one", honorific: "tu", quiet_level: "normal", linked_at: now(), left_at: null },
-    { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_B, surface: "discord", surface_user_id: "student-2", handle: "student two", honorific: "tum", quiet_level: "normal", linked_at: now(), left_at: null },
+    { agent_id: AGENT_A, group_id: ROOM_A, person_id: PERSON_A, surface: "discord", surface_user_id: "student-1", handle: "student one", honorific: "tum", quiet_level: "normal", linked_at: LINKED_AT, left_at: null },
+    { agent_id: AGENT_A, group_id: ROOM_A, person_id: PERSON_B, surface: "discord", surface_user_id: "student-2", handle: "student two", honorific: "aap", quiet_level: "normal", linked_at: LINKED_AT, left_at: null },
+    { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_A, surface: "discord", surface_user_id: "student-1", handle: "student one", honorific: "tu", quiet_level: "normal", linked_at: LINKED_AT, left_at: null },
+    { agent_id: AGENT_B, group_id: ROOM_B, person_id: PERSON_B, surface: "discord", surface_user_id: "student-2", handle: "student two", honorific: "tum", quiet_level: "normal", linked_at: LINKED_AT, left_at: null },
   ],
   facts: [
     { id: 11, agent_id: AGENT_A, person_id: PERSON_A, group_id: null, name: "a-dm", body: "A private algebra preference", kind: "user", citations: null, created_at: now() },
@@ -92,6 +96,14 @@ const requireSourceScope = (s, params, kind) => {
   assert(s.includes(flat(disclosurePredicate(kind, SOURCE_BIND))), `full shipping ${kind} disclosure predicate`);
   assert.deepEqual(params.slice(0, 4), [audienceFor(params[2], params[4]), true, params[2], NEGATIVE_AFFECT_TAGS]);
   assert(state.groups.some((g) => g.id === Number(params[2]) && g.agent_id === params[4]), "source read uses owning agent/group pair");
+};
+const requireTemporalFences = (s, sourceBind) => {
+  assert(s.includes(`and g.read_consent_at < ${sourceBind}::timestamptz`),
+    "source event must strictly postdate group read consent");
+  assert(s.includes("and not exists (select 1 from vy_group_member cm where cm.group_id = g.id and cm.agent_id = g.agent_id"),
+    "temporal member fence retains the same owning group and agent");
+  assert(s.includes(`and cm.left_at is null and cm.linked_at is not null and cm.linked_at >= ${sourceBind}::timestamptz)`),
+    "source event must strictly postdate every current linked participant");
 };
 
 export async function route(sql, params = []) {
@@ -196,6 +208,10 @@ export async function route(sql, params = []) {
       assert(s.includes("unnest($4::uuid[])") && s.includes("and $4::uuid[] = (select array_agg"));
       assert(s.includes("and m.left_at is null and m.linked_at is not null"));
       assert.deepEqual(params[3], audienceFor(params[0], params[2]), "episode binds the complete current audience");
+      assert.equal(params.length, 5, "episode receives the source-event time as its fifth binding");
+      assert.equal(params[4], SOURCE_SENT_AT, "episode source time comes from the admitted event, not receipt time");
+      requireTemporalFences(s, "$5");
+      state.temporalWrites.push({ operation: "episode", sourceSentAt: params[4] });
       const row = {
         id: nextEpisode++,
         agent_id: params[2],
@@ -228,6 +244,10 @@ export async function route(sql, params = []) {
       requireAgent(s, "log write");
       const isRoom = s.includes("group_id, episode_id)");
       if (isRoom) {
+        assert.equal(params.length, 10, "human and assistant logs retain the source-event time as binding ten");
+        assert.equal(params[9], SOURCE_SENT_AT, "log source time comes from the admitted event, not receipt time");
+        requireTemporalFences(s, "$10");
+        state.temporalWrites.push({ operation: params[1] === "her" ? "assistant_log" : "human_log", sourceSentAt: params[9] });
         assert(s.includes("e.id=$8::bigint") && s.includes("e.disclosure_scope='participants'"));
         assert(s.includes("cardinality(e.disclosure_deny)=0") && s.includes("$9::uuid[] = (select array_agg"));
         const episode = state.episodes.find((e) => e.id === params[7] && e.agent_id === params[6] && e.group_id === Number(params[5]));

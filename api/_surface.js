@@ -55,6 +55,7 @@ import { MEERA_AGENT_ID } from "./_agentscope.js";
 import { replyViolatesNeverRule } from "./_never-rules.js";
 import { createTurnCheckpoints } from "./_group-runtime/checkpoints.js";
 import { selectSourceTurns } from "./_group-recall/selection.js";
+import { assertGroupSourceEvent } from "./_group-source-event.js";
 import {
   setReadConsent,
   setQuiet,
@@ -109,6 +110,10 @@ const ident = (n) => n;
  *                                    `text` and `text||caption` differently in
  *                                    two places and that is behaviour, not noise
  * @property {string|null} messageId  native id, for threading and reactions
+ * @property {string|null} [sourceEventKind] adapter-declared ordinary message
+ *                                    provenance; required before group source writes
+ * @property {number|null} [sourceSentAtSeconds] original platform-sent Unix seconds,
+ *                                    copied before awaits, never inferred from arrival
  * @property {boolean} replyToSelf    is this a reply to the agent's own message
  * @property {boolean} fromBot        did a bot send it
  * @property {string}  reason         why an 'ignore' event is being ignored
@@ -1437,6 +1442,12 @@ export async function onGroupMessage(ev, ctx) {
     entitled: true,
   };
 
+  // A delayed observation must not acquire a newer known consent audience.
+  // The adapter supplies primitive sent-time provenance; neither receipt time
+  // nor a mutable raw payload can substitute. SQL repeats the timestamp fence
+  // at its own write snapshot. This does not prove historical membership.
+  const sourceSentAt = assertGroupSourceEvent(ev, guard.authority, recipients);
+
   const wordEvidence = gates.readConsent && gates.quorum
     ? await roomWords(room.id, recipients, ctx.t, ctx.agentId, { strict: true, withEvidence: true })
     : [];
@@ -1462,7 +1473,7 @@ export async function onGroupMessage(ev, ctx) {
   if (gates.readConsent && gates.quorum && gates.speakerLinked && gates.entitled) {
     const ep = await openOrExtendGroupEpisode(
       room.id,
-      { roomDevice, agentId: ctx.agentId, recipients },
+      { roomDevice, agentId: ctx.agentId, recipients, sourceSentAt },
       ctx.t,
     );
     episodeId = ep?.id ?? null;
@@ -1477,6 +1488,7 @@ export async function onGroupMessage(ev, ctx) {
         agentId: ctx.agentId,
         episodeId,
         recipients,
+        sourceSentAt,
       },
       ctx.t,
     );
@@ -1592,7 +1604,7 @@ export async function onGroupMessage(ev, ctx) {
     }, { assertAuthority: guard.assertAuthority });
     await logRoomTurn(
       { groupId: room.id, roomDevice, speakerPersonId: null, role: "her", content: text, agentId: ctx.agentId,
-        episodeId, recipients },
+        episodeId, recipients, sourceSentAt },
       ctx.t,
     );
   }

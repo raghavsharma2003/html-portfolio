@@ -308,6 +308,7 @@ const suites = {
   "source-turn-selection": "source-turn-selection/run.mjs",
   "group-source-recall": "group-source-recall/run.mjs",
   "surface-delivery": "surface-delivery/run.mjs",
+  "group-source-event": "group-source-event/run.mjs",
   contextcanonical: "context-canonical-evidence/run.mjs",
   acceptedclaimrelational: "experience-compiler/relational-materializer.mjs",
   mirrorrelationalrecall: "mirrorcall-relational-recall/run.mjs",

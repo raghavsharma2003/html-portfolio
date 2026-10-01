@@ -185,3 +185,59 @@ The test agent extracted the existing actual-module fixture into `evals/group-tu
 Root subsequently moved the array-kind and initial length checks into the validation catch. Independent rerun passes all 12 focused checks: the original ten plus both reproduced Proxy cases. The Proxy failures now produce only `surface_delivery_unconfirmed`, `phase:'delivery'`, `status:502`, `outcome:'not_executed'`, `reason:'invalid_render'`, zero accepted/attempted fragments, null failed-fragment index, `retrySafe:false` and no cause, with zero sends. Exact `_surface.js` source SHA-256 read by the fixture and hashed within that run: `3c9da1b4854ad07b5b17045d0266e1b9e80fd1c48a7d0edf7fc31b23678d9669`. Preserve the earlier working failure above; this later correction does not erase it.
 
 Independent review approves the bounded adapter-acceptance/early-stop/error-privacy contract at that source hash. This is not full integrated or hosted acceptance, actual PostgreSQL, durable replay suppression, transport reconciliation, provider billing proof or a live-user result. No code/context files were changed by the reviewer; only this audit document was written.
+
+## Design addendum: finite retention without permanent personal replay records
+
+This subsequent source-only design is not adopted or implemented. A user choice about the product tradeoffs is pending; no freshness interval, retention period, broad cancellation policy or live authority is inferred from this proposal. The schema-free delivery fix above does not implement the design below.
+
+### Observed membership and reauthorization limits
+
+`_room.js:linkMember` preserves an existing link time through `coalesce(linked_at, now())`. The current `_surface.js:upsertRoomMember` clears `linked_at` when a previously departed member rejoins, but does not refresh `joined_at`. The legacy `_room.js:upsertMember` clears `left_at` without clearing the old link time. Source search found no current production caller of that legacy writer; this does not make its behavior a safe alternative admission path.
+
+`markMemberLeft` records departure without deleting the row. `withdrawSharedRows` currently removes source/ACL material before setting membership left. A full wipe subsequently deletes `vy_group_member`, `vy_tg_person` and `vy_surface_identity` through the relational manifest. Its guarded tail also removes device mappings and the person row when no mapped device remains. Thus the old membership timestamps cannot remain a permanent replay barrier after erasure.
+
+The room-specific `/start r<group>` path verifies current platform membership, upserts membership and calls `linkMember`, but does not check the control event's timestamp or one-use identity before `linkIdentity`. A replayed old link update can therefore recreate/relink identity. A plain `/start` without a group is a separate DM/identity issue; it must not become permission for group ingestion, and the proposal is not an account-wide anti-resurrection result.
+
+An additional delayed-event issue concerns **every current recipient**, not only the speaker. A message sent before a newly admitted member's consent must not be persisted as if that member were part of the message's original audience. Current group authority contains current `linked_at` values but no historical transport roster. The new event gate can conservatively reject known-pre-consent messages; it cannot reconstruct missed departures/rejoins or prove the historical audience from current timestamps alone.
+
+`setReadConsent(true)` writes the database's current time on every call. Clone-channel saving can change `external_ref` on an existing channel row, and `updated_at` also changes on ordinary saves/status changes. These fields are not immutable installation generations. Token rotation, agent reassignment and receiving-bot identity must not be conflated.
+
+### Proposed active authority, not departed-person tombstones
+
+The smallest coarse design considered adds an explicit installation/binding generation and activation cutoff, plus a group-scoped `intake_epoch` and monotonic `retired_through_event_second`. These remain active configuration/group authority and are deleted with that authority. They do not need a list of departed people, retained sender addresses, old event IDs or permanent personal text hashes after retirement.
+
+Deduplication still uses physical Telegram bot ID plus update ID, with the initially admitted agent, binding generation, group, group epoch and envelope hash immutable. A token refresh for the same bot does not create a new dedup namespace. Agent/bot reassignment, new installation or an explicitly defined resume transition needs a fresh authority generation/cutoff; arbitrary `updated_at` is not that transition. A same-key replay under a different binding is a conflict rather than a new request.
+
+First scope remains ordinary authenticated Telegram group messages, with explicit update kind and validated occurrence fields. Edited, business, guest, ephemeral and anonymous-sender forms require separate contracts. The primary API describes `Message.date` as positive sent Unix time and provides `edit_date` separately; the timestamp used here must be extracted from the authenticated Telegram update, not accepted as a freely supplied application field. It is provider-reported time, not independently reconstructed historical membership. [Message fields](https://core.telegram.org/bots/api#message)
+
+### Freshness, expiry and retirement are one contract
+
+An example considered is a 24-hour ordinary-event admission window with metadata retained for 48 hours after admission. **Neither value is selected.** They would be application policy, not a claim about Telegram retry duration. Admission would reject future/malformed occurrence times and require the event to be strictly after the installation boundary, group retirement cutoff and every relevant current recipient's consent boundary. A boundary second is rejected conservatively because an integer Telegram timestamp cannot establish ordering within that second. This loses some legitimate immediate/delayed messages and requires product acceptance.
+
+Database-clock behavior must be an explicit assumption. Stored cutoffs never move backward, and retirement includes the maximum transport event timestamp among removed records. Generations protect authority transitions; timestamps separately bound freshness. Neither is a universal causal clock or an external-send fence.
+
+Before deleting intake/source metadata for forgetting, a proposed single SQL authority transition locks affected group rows, rotates their intake epoch, monotonically advances the retirement cutoff, marks the departing membership inactive, and invalidates pending work. Source/identity deletion follows only after that invalidation. Intake must lock/check the same generation so a concurrent writer cannot admit under retired authority. A new lease never revokes a request already in flight.
+
+This boundary is deliberately group-scoped: retiring a person's old work also invalidates other members' older pending group work. It retains no departed-person identity, but has a real availability/cancellation cost. The alternative is a larger per-membership generation and fresh single-use relinking challenge design. Neither alternative is implicitly approved by this report.
+
+Expiry cleanup must advance the group retirement cutoff over the purged event timestamps before deleting those rows. A real, bounded cleanup caller is required; opportunistic deletion when another message arrives does not bound retention for an inactive group. A missing or failing cleanup run is an operational failure to expose, not a reason to describe metadata as already expired/deleted.
+
+The room-specific link path must apply the same binding/group freshness boundary **before** creating identity. It must still verify current transport membership. Reusing an old `/start` must not reopen the old admission period. Existing `linked_at` can remain a useful additional check after a genuine new link, but is not itself a durable event key or sufficient anti-replay proof.
+
+### Minimal event record and crash behavior
+
+A proposed event record contains physical bot/update identity, canonical envelope hash, agent/binding/group generations, speaker attribution, event/admission/expiry times, persisted human-log/episode IDs and execution state. It contains no raw message, generated response, handle or credential. Nevertheless, its associations and hash are personal metadata while retained, so it belongs in the person export/erasure paths and owner/group reach checks; the phrase content-free is not an anonymity exemption.
+
+Prefer a single conditional SQL statement that admits the unique event and creates its initial episode, participants and human log. A duplicate receives the existing identity/state, not a second call to the source writers. If the SQL response is lost, read back the same key and hash; without reliable readback, stop before generation. Do not infer rollback from a failed HTTP response.
+
+Execution is claimed conditionally before the model call. No automatic lease takeover, regeneration or resend follows an `executing`/unknown result. If generated text is lost while only metadata remains, the system cannot resume that answer; it must report interruption/uncertainty rather than generate silently again. Storing generated text to make an outbox resumable is a separate content-lineage/erasure expansion.
+
+If an initial implementation retains the current separate episode/log writes, a crash may leave a partial source write. It must then be described as duplicate suppression with partial-write uncertainty, never atomic intake. Retrying source writers after an uncertain claim would recreate the original duplication problem.
+
+### Decisions and proof still required
+
+Root/user must select the freshness/retention intervals, accept conservative stale/boundary-second rejection, choose coarse group cancellation versus the larger challenge design, and identify a real cleanup caller. No default is chosen here. The first ordinary-group-only scope and no-automatic-retry rule must remain explicit.
+
+Required proof includes simultaneous duplicate/conflicting events, delayed traffic predating any recipient's consent, stale group-link controls, withdrawal/rejoin, identity deletion/recreation, agent rebinding, token rotation, expiry retirement, database response loss, partial source writes and unknown model/send outcomes. These need actual caller tests and synthetic hosted SQL concurrency evidence; none ran for this design-only addendum.
+
+Migration source `163` was still absent when this addendum was inspected. That is a source-only observation, not a number reservation, production-catalog verification or authority to apply it. No API, test, context, database or configuration file was changed for this addendum, and no provider/database/server was run.

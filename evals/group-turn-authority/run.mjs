@@ -4,14 +4,14 @@
 // results; it does not reimplement a SQL evaluator or infer who may see a row.
 import assert from "node:assert/strict";
 import ts from "typescript";
-import { SOURCE, fixture, clone, AGENT, P1, P2, P3, DEVICE } from "./fixture.mjs";
+import { SOURCE, fixture, clone, AGENT, P1, P2, P3, DEVICE, SOURCE_SENT_AT, SOURCE_SENT_AT_SECONDS } from "./fixture.mjs";
 
 let groups = 0;
 async function check(name, test) { await test(); console.log(`ok ${++groups} ${name}`); }
 async function suppressed(f, modelCount = 0, sendCount = 0) {
   let error;
   try { await f.run(); } catch (caught) { error = caught; }
-  if (error && error.code !== "group_authority_unavailable" && error.message !== "history authority unavailable") throw error;
+  if (error && !["group_authority_unavailable", "group_source_event_unavailable"].includes(error.code) && error.message !== "history authority unavailable") throw error;
   assert.equal(f.calls.model.length, modelCount, "raw model dispatch count");
   assert.equal(f.calls.sent.length, sendCount, "wire delivery count");
 }
@@ -59,6 +59,128 @@ await check("actual dispatch compiles and gates a source-bound turn once", async
   assert.equal(f.calls.logs[1].speaker_person_id, null);
   assert.equal(f.calls.authority >= 7, true);
   assert(providerContextBytes(f.calls.model[0]) <= 98304, "real ordinary compiler output fits the provider-relevant budget");
+});
+
+async function assertTemporalRefused(f) {
+  let error;
+  try { await f.run(); } catch (caught) { error = caught; }
+  assert.equal(f.calls.sql.filter(({ sql }) => /insert into (vy_episode|meera_log)/.test(sql)).length, 0,
+    "temporal admission must refuse before source-write SQL");
+  assert.equal(f.calls.logs.length, 0); assert.equal(f.calls.episodes.length, 0);
+  assert.equal(f.calls.model.length, 0); assert.equal(f.calls.sent.length, 0);
+  assert.equal(error?.code, "group_source_event_unavailable");
+  assert.equal(error?.message, "group_source_event_unavailable");
+  assert.equal(error?.status, 503);
+  assert.equal(Object.hasOwn(error, "cause"), false);
+}
+for (const [name, mutate] of [
+  ["missing sent time", (f) => { delete f.ev.sourceSentAtSeconds; }],
+  ["missing event kind", (f) => { delete f.ev.sourceEventKind; }],
+  ["edited source", (f) => { f.ev.sourceEventKind = "edited_message"; }],
+  ["fractional sent time", (f) => { f.ev.sourceSentAtSeconds += 0.5; }],
+  ["string sent time", (f) => { f.ev.sourceSentAtSeconds = String(SOURCE_SENT_AT_SECONDS); }],
+  ["nonpositive sent time", (f) => { f.ev.sourceSentAtSeconds = 0; }],
+  ["sent before current room consent", (f) => { f.state.room.read_consent_at = "2026-10-01T00:00:00Z"; }],
+  ["sent exactly at current room consent", (f) => { f.state.room.read_consent_at = SOURCE_SENT_AT; }],
+  ["consent one microsecond after source", (f) => { f.state.room.read_consent_at = "2026-09-30T00:00:00.000001Z"; }],
+  ["speaker linked after source", (f) => { f.state.linkedAt[P1] = "2026-10-01T00:00:00Z"; }],
+  ["speaker linked exactly at source", (f) => { f.state.linkedAt[P1] = SOURCE_SENT_AT; }],
+  ["other recipient linked after source", (f) => { f.state.linkedAt[P2] = "2026-10-01T00:00:00Z"; }],
+  ["other recipient linked exactly at source", (f) => { f.state.linkedAt[P2] = SOURCE_SENT_AT; }],
+  ["other recipient missing link time", (f) => { f.state.linkedAt[P2] = null; }],
+]) await check(`${name} cannot gain admission from current membership alone`, async () => {
+  const f = fixture(); mutate(f); await assertTemporalRefused(f);
+});
+
+await check("valid source time reaches episode and both log writes without replacing recording timestamps", async () => {
+  const f = fixture(); await f.run();
+  const episode = f.calls.sql.find(({ sql }) => sql.includes("with made as (insert into"));
+  const logs = f.calls.sql.filter(({ sql }) => sql.startsWith("insert into meera_log"));
+  assert.equal(episode.args[4], SOURCE_SENT_AT);
+  assert.equal(logs.length, 2); assert(logs.every(({ args }) => args[9] === SOURCE_SENT_AT));
+  assert(logs.every(({ sql }) => sql.includes("$4, now(), $5::uuid")), "database recording clock is not replaced by source time");
+  assert(f.calls.logs.every((row) => row.at === null), "fixture recording-time null stays separate from supplied source time");
+});
+await check("temporal admission chooses no arbitrary delivery-age or retention window", async () => {
+  const f = fixture();
+  f.state.room.read_consent_at = "2019-01-01T00:00:00Z";
+  f.state.linkedAt[P1] = f.state.linkedAt[P2] = "2019-01-02T00:00:00Z";
+  f.ev.sourceSentAtSeconds = Date.parse("2020-01-01T00:00:00Z") / 1000;
+  f.state.expectedSourceSentAt = "2020-01-01T00:00:00.000Z";
+  assert.equal((await f.run()).action, "speak");
+  assert.equal(f.calls.sent.length, 1);
+});
+
+for (const phase of ["onAuthority", "duringModel"]) await check(`source primitives mutated at ${phase} cannot replace captured time or kind`, async () => {
+  const f = fixture();
+  f.state[phase] = () => { f.ev.sourceSentAtSeconds = 0; f.ev.sourceEventKind = "edited_message"; };
+  assert.equal((await f.run()).action, "speak");
+  assert(f.calls.sql.filter(({ sql }) => sql.startsWith("insert into meera_log")).every(({ args }) => args[9] === SOURCE_SENT_AT));
+});
+await check("an invalid captured event cannot be rescued by mutating the caller during authority read", async () => {
+  const f = fixture(); f.ev.sourceSentAtSeconds = 0;
+  f.state.onAuthority = () => { f.ev.sourceSentAtSeconds = SOURCE_SENT_AT_SECONDS; };
+  await assertTemporalRefused(f);
+});
+
+for (const phase of ["episode", "human log"]) await check(`declared SQL temporal refusal at ${phase} prevents content after a member boundary changes`, async () => {
+  const f = fixture();
+  const changeBoundary = () => { f.state.linkedAt[P2] = SOURCE_SENT_AT; };
+  if (phase === "episode") f.state.beforeEpisodeWrite = () => { changeBoundary(); f.state.episodeWriteAllowed = false; };
+  else f.state.beforeLogWrite = (role) => { if (role === "me") { changeBoundary(); f.state.logWriteAllowed = false; } };
+  await assert.rejects(() => f.run(), { code: "group_authority_unavailable" });
+  assert.equal(f.calls.logs.length, 0); assert.equal(f.calls.model.length, 0); assert.equal(f.calls.sent.length, 0);
+  assert.equal(f.calls.episodes.length, phase === "episode" ? 0 : 1, "already-created empty episode is not falsely claimed rolled back");
+});
+await check("assistant audit write also receives source-time fence after already confirmed delivery", async () => {
+  const f = fixture();
+  f.state.beforeLogWrite = (role) => { if (role === "her") { f.state.linkedAt[P2] = SOURCE_SENT_AT; f.state.logWriteAllowed = false; } };
+  const result = await f.run();
+  assert.equal(result.said, true); assert.equal(f.calls.sent.length, 1, "already accepted wire effect is not claimed undone");
+  assert.equal(f.calls.logs.length, 1); assert.equal(f.calls.logs[0].role, "me");
+});
+for (const action of ["react", "lurk"]) await check(`${action} path fences ordinary source content before persistence`, async () => {
+  const valid = fixture(); valid.ev.replyToSelf = false;
+  valid.state.sinceHerLast = action === "react" ? 900000 : 1;
+  if (action === "react") valid.state.words = [{ id: "8", phrase: "painting", origin_episode: "7" }];
+  assert.equal((await valid.run()).action, action);
+  assert.equal(valid.calls.logs.filter((row) => row.role === "me").length, 1);
+  const invalid = fixture(); invalid.ev.replyToSelf = false; invalid.state.sinceHerLast = valid.state.sinceHerLast;
+  invalid.state.words = clone(valid.state.words); delete invalid.ev.sourceSentAtSeconds;
+  await assertTemporalRefused(invalid);
+});
+await check("ordinary command scope remains separate from the ordinary-source time gate", async () => {
+  const f = fixture(); f.ev.text = "/chup me"; delete f.ev.sourceSentAtSeconds; delete f.ev.sourceEventKind;
+  assert.equal((await f.run()).quiet, "member");
+  assert.equal(f.calls.commandMutations.length, 1); assert.equal(f.calls.logs.length, 0); assert.equal(f.calls.model.length, 0);
+});
+
+const telegramMessage = (text = "Can we discuss the painting?") => ({ message_id: 17, date: SOURCE_SENT_AT_SECONDS,
+  chat: { id: -100001, type: "supergroup", title: "Synthetic group" }, from: { id: 101, username: "Ada", is_bot: false },
+  text, reply_to_message: { from: { is_bot: true } } });
+await check("actual Telegram parse feeds copied source primitives despite raw mutation during authority read", async () => {
+  const f = fixture({ withTelegram: true }); const payload = { update_id: 91, message: telegramMessage() };
+  const [event] = f.telegram.parse(payload);
+  assert.equal(event.sourceEventKind, "ordinary_message"); assert.equal(event.sourceSentAtSeconds, SOURCE_SENT_AT_SECONDS);
+  f.state.onAuthority = () => { payload.message.date = 0; payload.message.text = "REPLACED_RAW_PAYLOAD"; };
+  assert.equal((await f.surface.dispatch(event, f.ctx)).action, "speak");
+  assert.equal(payload.message.date, 0, "fixture changed the raw event during an awaited read");
+  assert.equal(f.calls.logs[0].content, "Can we discuss the painting?");
+  assert(f.calls.sql.filter(({ sql }) => sql.startsWith("insert into meera_log")).every(({ args }) => args[9] === SOURCE_SENT_AT));
+});
+for (const [name, update] of [
+  ["edited group command", () => ({ edited_message: telegramMessage("/chup me") })],
+  ["ephemeral group command", () => ({ message: { ...telegramMessage("/chup me"), ephemeral_message: true } })],
+  ["guest group command", () => ({ message: { ...telegramMessage("/chup me"), guest_query_id: "synthetic" } })],
+  ["business group command", () => ({ message: { ...telegramMessage("/chup me"), business_connection_id: "synthetic" } })],
+  ["anonymous group command", () => ({ message: { ...telegramMessage("/chup me"), sender_chat: { id: -100001 } } })],
+  ["ambiguous group update", () => ({ message: telegramMessage("/chup me"), edited_message: telegramMessage("/chup me") })],
+]) await check(`actual Telegram ${name} is ignored before real dispatch writes or sends`, async () => {
+  const f = fixture({ withTelegram: true }); const [event] = f.telegram.parse(update());
+  assert.equal(event.kind, "ignore");
+  const result = await f.surface.dispatch(event, f.ctx);
+  assert.equal(result.ok, true); assert.equal(f.calls.sql.length, 0);
+  assert.equal(f.calls.model.length, 0); assert.equal(f.calls.sent.length, 0); assert.equal(f.calls.commandMutations.length, 0);
 });
 
 await check("older authorized source beyond twenty reaches actual model with exact speaker and episode", async () => {
@@ -503,6 +625,47 @@ function changedCandidate(from, to) {
   assert.equal(text.split(from).length - 1, 1, "unique candidate-reader mutation anchor");
   return { ...SOURCE, room: SOURCE.room.slice(0, declaration.getStart(ast)) + text.replace(from, to) + SOURCE.room.slice(declaration.end) };
 }
+
+await check("mutation: bypassing temporal helper reaches write SQL even though declared SQL backstop refuses", async () => {
+  const f = fixture({ sources: changed("surface", "const sourceSentAt = assertGroupSourceEvent(ev, guard.authority, recipients);",
+    "const sourceSentAt = new Date(ev.sourceSentAtSeconds * 1000).toISOString();") });
+  f.state.room.read_consent_at = SOURCE_SENT_AT; f.state.episodeWriteAllowed = false;
+  await assert.rejects(() => assertTemporalRefused(f), /temporal admission must refuse before source-write SQL/);
+  assert.equal(f.calls.logs.length, 0); assert.equal(f.calls.model.length, 0); assert.equal(f.calls.sent.length, 0);
+});
+await check("mutation: permitting equality at consent boundary is caught before claimed SQL proof", async () => {
+  const f = fixture({ sources: changed("sourceEvent",
+    'need(eventMicros > timestampMicros(own(authority, "read_consent_at")));',
+    'need(eventMicros >= timestampMicros(own(authority, "read_consent_at")));') });
+  f.state.room.read_consent_at = SOURCE_SENT_AT; f.state.episodeWriteAllowed = false;
+  await assert.rejects(() => assertTemporalRefused(f), /temporal admission must refuse before source-write SQL/);
+  assert.equal(f.calls.model.length, 0); assert.equal(f.calls.sent.length, 0);
+});
+await check("mutation: checking only the sender omits another recipient's link boundary", async () => {
+  const f = fixture({ sources: changed("sourceEvent", 'need(eventMicros > timestampMicros(own(member, "linked_at")));',
+    'if (transportUser === speakerUser) need(eventMicros > timestampMicros(own(member, "linked_at")));') });
+  f.state.linkedAt[P2] = SOURCE_SENT_AT; f.state.episodeWriteAllowed = false;
+  await assert.rejects(() => assertTemporalRefused(f), /temporal admission must refuse before source-write SQL/);
+  assert.equal(f.calls.model.length, 0); assert.equal(f.calls.sent.length, 0);
+});
+function changedWriter(name, from) {
+  const ast = ts.createSourceFile("api/_room.js", SOURCE.room, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const declaration = ast.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
+  assert(declaration, "actual writer mutation target");
+  const body = declaration.getText(ast);
+  assert.equal(body.split(from).length - 1, 1, "unique temporal writer mutation anchor");
+  return { ...SOURCE, room: SOURCE.room.slice(0, declaration.getStart(ast)) + body.replace(from, "") + SOURCE.room.slice(declaration.end) };
+}
+for (const [name, field, pattern] of [
+  ["openOrExtendGroupEpisode", "and g.read_consent_at < $5::timestamptz", /episode write requires consent strictly before source time/],
+  ["openOrExtendGroupEpisode", "and cm.linked_at >= $5::timestamptz", /episode write fences every current linked member/],
+  ["logRoomTurn", "and g.read_consent_at < $10::timestamptz", /log write requires consent strictly before source time/],
+  ["logRoomTurn", "and cm.linked_at >= $10::timestamptz", /log write fences every current linked member/],
+]) await check(`mutation: ${name} cannot omit temporal SQL fence ${field}`, async () => {
+  const f = fixture({ sources: changedWriter(name, field) });
+  await assert.rejects(() => f.run(), pattern);
+  assert.equal(f.calls.logs.length, 0); assert.equal(f.calls.model.length, 0); assert.equal(f.calls.sent.length, 0);
+});
 
 await check("mutation: omitting the candidate pool from source binding permits revoked omitted evidence", async () => {
   const f = fixture({ sources: changed("surface", "guard.bindSources(readSources, sources);",
