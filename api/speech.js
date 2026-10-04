@@ -14,6 +14,7 @@
 // a free speedup out of it.
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { gateOk } from "./_gate.js";
 import { withGeminiKey, isQuota, isTransient, poolSize, poolHealth } from "./_gkeys.js";
 
 import { OPENROUTER_KEY } from "./_config.js";
@@ -268,11 +269,12 @@ function wavHeader(pcmBytes) {
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Maya-Gate");
   // the native app is cross-origin: without this it pays a preflight RTT on
   // EVERY speech request — pure added latency on the hottest path
   res.setHeader("Access-Control-Max-Age", "86400");
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (!gateOk(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "speech", 60)) return res.status(429).json({ error: "slow down" });
   const t0 = Date.now(); // WS-OBS: request wall-clock for the summary row

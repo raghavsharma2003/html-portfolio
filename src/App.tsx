@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppState, rotateDeviceId, memoryWritesAllowed, MEMORY_CONSENT_VERSION } from "./state/store";
 import type { AuthInfo, AppState, MemoryConsent } from "./state/store";
 import Onboarding from "./components/Onboarding";
+import GateScreen from "./components/GateScreen";
+import { GATE_EVENT, fetchGateRequired, hasGateToken } from "./engine/gate";
 import { MemoryConsentPrompt } from "./components/MemoryConsent";
 import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
@@ -135,6 +137,30 @@ const NOTIFY_API_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.verce
 export default function App() {
   const [state, setState] = useAppState();
   const [inCall, setInCall] = useState(false);
+  // THE DOOR (src/engine/gate.ts, api/_gate.js). A device that has entered the
+  // word once is "ok" from the first frame, with no network wait, which is why
+  // it is initialised from storage. Everyone else asks the server whether a
+  // word is required at all. The server is what actually refuses requests; this
+  // state only decides which screen to show, so when the answer cannot be had
+  // the UI goes in (see fetchGateRequired).
+  const [gate, setGate] = useState<"checking" | "ok" | "locked">(() => (hasGateToken() ? "ok" : "checking"));
+  useEffect(() => {
+    if (gate !== "checking") return;
+    let live = true;
+    void fetchGateRequired().then((required) => {
+      if (live) setGate(required ? "locked" : "ok");
+    });
+    return () => {
+      live = false;
+    };
+  }, [gate]);
+  // The server closed the door on a device that used to be let in (the word
+  // was changed): src/engine/gate.ts has already dropped the token.
+  useEffect(() => {
+    const shut = () => setGate("locked");
+    window.addEventListener(GATE_EVENT, shut);
+    return () => window.removeEventListener(GATE_EVENT, shut);
+  }, []);
   // THINGS THEY DO TOGETHER. Both are overlays rendered as SIBLINGS of Chat and
   // CallVoice, never replacements: opening a board must not unmount the chat or
   // drop a live call, because the whole point of the activity layer is that
@@ -1441,11 +1467,28 @@ export default function App() {
   // established yet.
   const askMemoryConsent = state.onboarded && !state.memoryConsent;
 
+  // Someone who is already registered, not yet let in: the page by itself.
+  // (New people meet it as the last onboarding step instead.)
+  if (state.onboarded && gate === "locked") {
+    return <GateScreen onOpen={() => setGate("ok")} />;
+  }
+  // Brief, and only for a device with no token: the status question is in
+  // flight. Paint the app's own background rather than a flash of the chat.
+  if (state.onboarded && gate === "checking") {
+    return (
+      <div className="app grain">
+        <div className="ambient" />
+      </div>
+    );
+  }
+
   return (
     <div className="app grain">
       <div className="ambient" />
       {!state.onboarded ? (
         <Onboarding
+          gate={gate}
+          onGateOpen={() => setGate("ok")}
           deviceId={state.deviceId}
           onDone={(user, consent) => {
             track(state.deviceId, "onboarded", { vibe: user.vibe });

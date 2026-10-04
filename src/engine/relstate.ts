@@ -959,7 +959,7 @@ export function renderRelSnapshot(
   now: Date = new Date(),
 ): RenderResult {
   const lines: string[] = [];
-  lines.push(`honorific: ${state.honorific} (${honorificAgeLabel(meta.lastHonorificMoveAt)})`);
+  lines.push(`honorific: ${state.honorific} (${honorificAgeLabel(meta.lastHonorificMoveAt, now)})`);
   lines.push(`trust: ${bandTrust(state.trust)}`);
   // record vs stance (rejected.md `rupture-never-closes`): the DB column
   // (state.repair_state) never changes here — only the LABEL a lapsed
@@ -979,7 +979,7 @@ export function renderRelSnapshot(
     stance === "open"
       ? `${state.repair_state} (open)`
       : stance === "settled"
-        ? `${state.repair_state} (settled ${honorificAgeLabel(meta.lastRuptureMoveAt ?? null)}, not currently held)`
+        ? `${state.repair_state} (settled ${honorificAgeLabel(meta.lastRuptureMoveAt ?? null, now)}, not currently held)`
         : state.repair_state;
   lines.push(`repair: ${repairLabel}`);
   const csLabel =

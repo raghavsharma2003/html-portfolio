@@ -18,6 +18,7 @@
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
+import { gateEnabled, gateToken, passwordOk } from "./_gate.js";
 
 import { SUPABASE_URL, SUPABASE_KEY } from "./_config.js";
 
@@ -65,10 +66,29 @@ async function passthrough(res, upstream) {
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Maya-Gate");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "account", 20)) return res.status(429).json({ error: "slow down" });
+
+  // THE DOOR (api/_gate.js). Answered before the Supabase check on purpose: the
+  // gate has nothing to do with the auth backend, and a deploy with no Supabase
+  // must still be able to let people in or keep them out.
+  const gop = req.body?.op;
+  if (gop === "gate_status") return res.status(200).json({ required: gateEnabled() });
+  if (gop === "gate") {
+    // Stricter than the route-wide 20/min: this is the one op that can be
+    // ground against. In-memory per lambda, so it slows a script rather than
+    // stopping one, which is the same honest limit api/_ratelimit.js states.
+    if (!allow(ipOf(req), "gate", 8)) return res.status(429).json({ error: "slow down" });
+    if (!gateEnabled()) return res.status(200).json({ ok: true, token: "" });
+    if (!passwordOk(req.body?.password)) {
+      await new Promise((r) => setTimeout(r, 400));
+      return res.status(401).json({ error: "wrong password" });
+    }
+    return res.status(200).json({ ok: true, token: gateToken() });
+  }
+
   if (!SB_URL || !SB_KEY) return res.status(500).json({ error: "no backend configured" });
 
   try {

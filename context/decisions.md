@@ -2665,3 +2665,97 @@ zero engine changes, 412/412), a new surface is an adapter
 this file so the next build reads which pieces are Maya's and which are
 the layer's. Multi-agent tenancy (migration 009) and per-agent isolation
 already exist server-side.
+
+
+---
+
+## `password-gate` — a shared entry word in front of the app (2026-10-04)
+
+**Layer: app + a server door.** Owner: "put a password so people don't come and
+exploit her limits and test her", shown after registration, once per device,
+existing users enter it once too. The word is set in Vercel as the sensitive
+env var `ACCESS_PASSWORD`; it is never in the repo.
+
+- **The server enforces, the page only asks.** `api/_gate.js` turns the word
+  into a token (HMAC-SHA256 keyed by the word) and ten cost-bearing or
+  person-touching endpoints (chat, speech, live-token, search, gif, memory,
+  route, episodes, life, export) return 401 + `X-Maya-Gate: required` without
+  it. A browser-only gate is a CSS problem; anyone can call /api/chat directly.
+- **One fetch wrapper, not forty call sites** (`src/engine/gate.ts`): attaches
+  the token to this app's own /api (same-origin and the production host the
+  native shell calls) and to nothing else; a 401 gate response drops the token
+  and puts the page back up.
+- **Where the page appears:** last step of onboarding (the memory answer is
+  held, and the two day-one memory seeds fire only after the door opens, since
+  they are API calls the server would 401); alone, in front of the app, for
+  existing users with no token.
+- **Rotation is the revoke button:** the token is derived from the word, so
+  changing `ACCESS_PASSWORD` signs everybody out.
+- **Forgiving of phones:** compared case-insensitively and trimmed.
+- **Open on purpose:** account (the exchange itself), telemetry, diag, trace,
+  clock, culture, consolidate*, push-token, taste-queue, and the Telegram,
+  WhatsApp, Discord surfaces. `evals/gate.mjs` fails if a protected route stops
+  being protected and if the open list grows past 20.
+- **Off by default.** No `ACCESS_PASSWORD` = no gate, so previews, CI, and every
+  eval that calls a handler directly behave as before. Cost: a forgotten env
+  var is a silently open door. The status op (`gate_status`) reports it.
+- **Honest limits:** it is a SHARED word. Anyone told it can pass it on. The
+  rate limit is in-memory per lambda (same limit `_ratelimit.js` states). The
+  word itself is guessable by a person who thinks about the product name. It
+  deters casual probing; it is not accounts.
+- **Live probes:** `scripts/verify-deploy.mjs` and `verify-release --live` carry
+  the token when `ACCESS_PASSWORD` is in the environment and print SKIPPED (not
+  ok) when it is not. The GitHub Actions secret `ACCESS_PASSWORD` is the owner's
+  to add; until then the two gated deploy probes skip.
+
+**Reverses if:** real accounts (sign-in required) land, or the abuse the gate
+was meant to stop is shown to come from people who were given the word.
+
+---
+
+## `forget-requires-asking` — a model's [forget] marker no longer deletes by itself (2026-10-04)
+
+**Layer: OS (client engine).** 3 Oct 2026, 09:34 IST: a caller read out
+"998185". Her reply carried `[forget: call]`. The engine resolved it to the whole
+call and deleted 44 rows of a seven-minute conversation. Nobody had asked for
+anything. The deletion was not recoverable (see `rejected.md#unrecoverable-delete`).
+
+The persona's one line, "only for an actual ask", is a request to a model, and
+the engine believed whatever marker came back. Now the engine checks THEIR
+words: `userAskedToForget(latest, history)` (src/engine/memory.ts) requires a
+delete/forget/bhool/hata/mita/erase/remove-class word, in Latin or Devanagari,
+in this turn or the burst within 90s before it, in addition to the marker. A
+refused marker is logged as `chat.forget_rejected` (the class only, never the
+text), and if her words already claimed a deletion they are replaced by a line
+that asserts nothing. Biased on purpose toward not deleting: a missed phrasing
+costs a re-ask, a false positive costs unrecoverable rows. 44 checks in
+`evals/forget/intent.mjs`, a gate in `evals/run.mjs`.
+
+**Reverses if:** the false-reject rate on real Hinglish asks is shown to be
+high (a `forget_rejected` followed by the person re-asking inside a minute is
+the signal).
+
+**Persona note, not changed here (Fable owns persona.ts):** her refused-delete
+line was "main save nahi kar rahi", a statement about storage that is false for
+the call log. Any claim about what is or is not stored should come from a
+fact, not a joke.
+
+---
+
+## `forget-retention-policy` — OPEN: owner chose "new session, keep everything" (2026-10-04)
+
+Asked what an EXPLICIT forget should do to stored text. Options offered: hold
+7 days then purge (recommended), hard delete (today), new session and keep
+everything. The owner chose the third. NOT built yet, on purpose: it is not a
+patch. It touches `opForget` and every table in its cascade, the export and
+teardown manifests, the withdraw and relcheck gates, the consent copy
+("make her forget"), the privacy page, and the KnowsScreen/MoreSheet wording,
+and it conflicts with the erasure promise and DPDP unless the copy changes with
+it. Proposed shape when built: scoped forgets (call, day, item) MOVE the log
+rows into a set-aside table (all existing read paths stay correct, recovery is a
+move back), "forget everything" and account deletion stay true deletion, her
+receipt wording stops saying "deleted", and the consent/privacy copy says what
+is kept. Needs the owner to confirm scope (windows only, or items too).
+
+**Reverses if:** counsel or a DPDP erasure request says retained-after-forget
+is not allowed.

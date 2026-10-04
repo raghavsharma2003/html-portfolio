@@ -1417,7 +1417,7 @@ ${lines.map((l) => `- ${l}`).join("\n")}` : "";
 }
 function renderRelSnapshot(state, meta = { lastHonorificMoveAt: null }, now = /* @__PURE__ */ new Date()) {
   const lines = [];
-  lines.push(`honorific: ${state.honorific} (${honorificAgeLabel(meta.lastHonorificMoveAt)})`);
+  lines.push(`honorific: ${state.honorific} (${honorificAgeLabel(meta.lastHonorificMoveAt, now)})`);
   lines.push(`trust: ${bandTrust(state.trust)}`);
   const stance = ruptureStance(
     {
@@ -1428,7 +1428,7 @@ function renderRelSnapshot(state, meta = { lastHonorificMoveAt: null }, now = /*
     },
     now
   );
-  const repairLabel = stance === "open" ? `${state.repair_state} (open)` : stance === "settled" ? `${state.repair_state} (settled ${honorificAgeLabel(meta.lastRuptureMoveAt ?? null)}, not currently held)` : state.repair_state;
+  const repairLabel = stance === "open" ? `${state.repair_state} (open)` : stance === "settled" ? `${state.repair_state} (settled ${honorificAgeLabel(meta.lastRuptureMoveAt ?? null, now)}, not currently held)` : state.repair_state;
   lines.push(`repair: ${repairLabel}`);
   const csLabel = state.cs_on_stress === "retreat_l2" ? "retreats toward english under stress" : state.cs_on_stress === "intensify_l1" ? "leans more hindi under stress" : "direction unclear";
   const csBase = state.cs_ratio === null ? "baseline unknown" : `baseline ${bandCsRatio(state.cs_ratio)}`;
@@ -3189,11 +3189,20 @@ function compile(input) {
   const gate = hasTurn ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle?.phraseLedger || []) : { moment: "none", pulled: false };
   if (input.relBundle) {
     if (romanceOk && !input.roomBundle) {
-      const t2 = renderRelSnapshot(input.relBundle.relState, {
-        lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
-        lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
-        warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture
-      });
+      const t2 = renderRelSnapshot(
+        input.relBundle.relState,
+        {
+          lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
+          lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
+          warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture
+        },
+        // The compiler's own clock, not the wall's. Production passes the real
+        // time here so nothing changes for a person; a fixture that pins nowMs
+        // now gets a pinned render instead of one that quietly rots as the
+        // calendar moves ("settled 6w" appeared on its own 43 days after the
+        // fixture date and turned the release gate red with no code change).
+        typeof input.nowMs === "number" ? new Date(input.nowMs) : void 0
+      );
       if (t2.text) tail += `
 
 ${t2.text}`;
@@ -3360,6 +3369,47 @@ var ENDPOINT2 = `${BASE4}/api/trace`;
 // src/engine/memory.ts
 var BASE5 = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 var CHAT_TAIL_WINDOW_MS = 30 * 60 * 1e3;
+var ASK_WORDS = [
+  "forget",
+  "forgot",
+  "forgetting",
+  "delete",
+  "deleted",
+  "erase",
+  "erased",
+  "remove",
+  "wipe",
+  "clear",
+  "unsave",
+  "dont save",
+  "don't save",
+  "do not save",
+  "bhool",
+  "bhul",
+  "bhula",
+  "hata",
+  "hatao",
+  "hatado",
+  "hatana",
+  "mita",
+  "mitao",
+  "mitado",
+  "mitana",
+  "yaad mat",
+  "save mat",
+  "save na",
+  "mat rakh",
+  "mat save",
+  "bhoolja",
+  "bhooljao",
+  "delete kar",
+  "delete karo",
+  "delete kardo"
+];
+var ASK_RE = new RegExp(
+  `(^|[^\\p{L}])(${ASK_WORDS.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+")).join("|")})`,
+  "iu"
+);
 var ACTIVITY_BLOCK_SENTINEL = "GAMES AND THINGS YOU TWO ACTUALLY DID";
 var ACTIVITY_LEDGER_HEAD = `${ACTIVITY_BLOCK_SENTINEL}, newest first. This is the whole record of them: never add a move, an opening, a question or a score that is not written here \u2014 if they ask for one this list does not carry, say you do not remember it rather than filling it in. Being listed here is not a reason to bring it up.`;
 

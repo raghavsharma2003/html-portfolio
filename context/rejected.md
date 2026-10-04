@@ -2316,3 +2316,35 @@ failure are the EASY units — an INVALID-RUN agreement number is not a
 lower bound or a hint, it is upward-biased by the bench's difficulty
 gradient, and must never be quoted as evidence. Slot-A 46.0% (best on the
 bench — no position bias; accuracy, not bias, is what failed).
+
+
+---
+
+## `unrecoverable-delete` — the 3 Oct session could not be brought back (2026-10-04)
+
+What was tried, in order, and what stopped each: Neon point-in-time restore
+(`history_retention_seconds` 86400, the deletion was ~32h old; no snapshots
+exist; the MCP branch tool takes no timestamp); heap-level recovery of the dead
+tuples via `pageinspect` (permission denied for the connector role); derived
+stores (`vy_episode` 832/834 hold only the post-delete tail, no Oct-3 node or
+fact was written before the delete, `meera_turn` holds ids and counts but no
+text and only the two post-delete turns, `meera_tel` batches for the frozen
+page never arrived); `meera_forget` showed an unrelated user-driven forget of
+3 memory items at 03:54:32 UTC. The client's own copy is pruned by the same
+forget (`messagesAfterForget`). Lesson: a destructive path whose trigger is a
+model's output needs the human's ask verified in code, and some retention of
+what it can destroy needs deciding before it ships (`forget-retention-policy`).
+Remaining unchecked avenues are outside the repo: Google AI Studio request
+logs for the free-pool keys, if logging was ever enabled.
+
+---
+
+## `clock-leak-in-compiler` — a fixture that rotted on its own (2026-10-04)
+
+`evals/rupture-channel` pins NOW to 22 Aug and expects "repair: open (open)",
+but `compiler.ts` called `renderRelSnapshot` without passing its own `nowMs`, so
+the block used the wall clock. Forty-three days later the rupture read "settled
+6w" and the release gate went red with no code change. Fixed by passing the
+compiler's clock down (identical in production, deterministic in tests).
+Lesson: any renderer that takes a `now` must be handed the caller's, or its
+tests are timers.

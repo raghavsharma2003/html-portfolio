@@ -655,6 +655,58 @@ export function resolveForget(
   return name.length >= 3 ? { scope: "item", name } : null;
 }
 
+// ── DID THEY ACTUALLY ASK? (2026-10-03 incident) ─────────────────────────────
+//
+// The delete is triggered by a marker THE MODEL writes. FORGET_DECISION tells
+// her to write one only for "an actual ask to get rid of it", but that is a
+// sentence in a prompt, and a sentence in a prompt is a request. On 3 Oct a
+// caller read out the digits "998185" and her reply carried [forget: call]:
+// the engine resolved it to the whole call, deleted 44 rows of a seven-minute
+// conversation, and nobody had asked for anything. The deleted rows were not
+// recoverable (no snapshot, a one-day restore window), so the cost of that
+// one false positive was the entire session.
+//
+// So the ask is checked in code. A marker deletes only if the person's own
+// words, this turn or in the burst just before it, contain a request to get
+// rid of something. It is deliberately a WIDE net on intent and a hard AND with
+// the marker: a missed phrasing costs her a turn ("kaunsi wali?" and they say
+// it again), a false positive costs unrecoverable rows. The two errors are not
+// the same size, so the check leans toward not deleting.
+const ASK_WORDS = [
+  "forget", "forgot", "forgetting", "delete", "deleted", "erase", "erased",
+  "remove", "wipe", "clear", "unsave", "dont save", "don't save", "do not save",
+  "bhool", "bhul", "bhula", "hata", "hatao", "hatado", "hatana", "mita", "mitao",
+  "mitado", "mitana", "yaad mat", "save mat", "save na", "mat rakh", "mat save",
+  "bhoolja", "bhooljao", "delete kar", "delete karo", "delete kardo",
+];
+const ASK_RE = new RegExp(
+  `(^|[^\\p{L}])(${ASK_WORDS.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+")).join("|")})`,
+  "iu",
+);
+const ASK_DEVANAGARI = /(भूल|भुला|हटा|मिटा|डिलीट|डिलिट|हटाओ|मिटाओ)/;
+
+export function userAskedToForget(latest: string, history: Message[], now = Date.now()): boolean {
+  const said: string[] = [latest || ""];
+  // a burst is several messages: "bhool ja" can be the one before the one that
+  // arrived last. Ninety seconds is the span one thought can cover.
+  for (let i = history.length - 1; i >= 0 && said.length < 4; i--) {
+    const m = history[i];
+    if (m.from !== "me") break; // her reply ends the burst
+    if (now - (m.at || 0) > 90_000) break;
+    said.push(m.text || "");
+  }
+  return said.some((t) => ASK_RE.test(t) || ASK_DEVANAGARI.test(t));
+}
+
+/** Her words PROMISE a deletion or a non-save. Used only to avoid leaving such
+ *  a line standing after a refused delete: a claim about the strongest promise
+ *  in the product must not outlive the thing it claims. */
+export function claimsDeletion(bubbles: string[]): boolean {
+  return /(hata\s*di|hata\s*dun|hata\s*diya|delete|bhool\s*gay|bhula\s*di|mita\s*di|save\s*(nahi|nhi|nai)|forgot|forgotten|yaad\s*nahi\s*rakh)/i.test(
+    bubbles.join(" "),
+  );
+}
+
 /**
  * The other half of a forget, and the half that is easy to miss: the turns
  * still sitting in the local store are the context window she thinks with.

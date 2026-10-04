@@ -1816,6 +1816,36 @@
    "kind": "decision",
    "at": "2026-08-25",
    "title": "session close: gamefeel+cost+behave+consent+fence shipped; judge open; incidents logged; what the next product inherits from the OS"
+  },
+  {
+   "id": "password-gate",
+   "kind": "decision",
+   "at": "2026-10-04",
+   "title": "shared entry word: server-enforced 401 on ten endpoints, token from HMAC, once per device, rotation signs everyone out"
+  },
+  {
+   "id": "forget-requires-asking",
+   "kind": "decision",
+   "at": "2026-10-04",
+   "title": "a model's [forget] marker deletes only if the person's own words asked; closes the 3 Oct 44-row deletion"
+  },
+  {
+   "id": "forget-retention-policy",
+   "kind": "open",
+   "at": "2026-10-04",
+   "title": "OPEN: owner chose new-session-keep-everything for explicit forgets; not built, touches the cascade, manifests and consent copy"
+  },
+  {
+   "id": "unrecoverable-delete",
+   "kind": "rejection",
+   "at": "2026-10-04",
+   "title": "the 3 Oct session could not be recovered: 1-day restore window, no snapshots, dead-tuple recovery denied, derived stores hold only the tail"
+  },
+  {
+   "id": "clock-leak-in-compiler",
+   "kind": "rejection",
+   "at": "2026-10-04",
+   "title": "compiler did not pass its clock to the relationship block; a pinned fixture rotted into a red gate after 43 days"
   }
  ],
  "edges": [
@@ -3313,6 +3343,16 @@
    "src": "session-2026-08-25b-close",
    "rel": "part_of",
    "dst": "owned-product-first"
+  },
+  {
+   "src": "forget-requires-asking",
+   "rel": "caused_by",
+   "dst": "unrecoverable-delete"
+  },
+  {
+   "src": "forget-retention-policy",
+   "rel": "caused_by",
+   "dst": "unrecoverable-delete"
   }
  ]
 }

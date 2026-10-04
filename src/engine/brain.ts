@@ -22,6 +22,8 @@ import {
   recallMemories,
   forgetMemories,
   resolveForget,
+  userAskedToForget,
+  claimsDeletion,
   takeRelBundle,
   takeSelfBundle,
   callSelfBundle,
@@ -1922,6 +1924,28 @@ export async function think(
   // be true yet, which is the exact failure this whole feature exists to fix.
   // Awaited on both surfaces: a spoken "bhool ja" on a call must delete as
   // surely as a typed one.
+  // ── ...BUT ONLY IF THEY ASKED. The marker is the model's, and a model can
+  // write one for a person who said nothing of the kind (3 Oct: a caller read
+  // out digits, the reply carried [forget: call], 44 rows of the call went and
+  // could not be brought back). Intent is verified against THEIR words, in
+  // code. See userAskedToForget in memory.ts for why it leans toward not
+  // deleting.
+  if (parsed.forget && keys.deviceId && !userAskedToForget(latest, history)) {
+    diag("chat", "forget_rejected", {
+      // the class, never the marker text: an item name is their content
+      scope: /\b(call|phone|video)\b/i.test(parsed.forget) ? "call" : /^(today|aaj|yesterday|kal)\b/i.test(parsed.forget) ? "day" : "item",
+      claimed: claimsDeletion(parsed.bubbles),
+    });
+    // nothing was deleted, so nothing may be claimed as deleted; this line
+    // asserts nothing about the world, same rule as the unmatched-receipt line
+    if (claimsDeletion(parsed.bubbles)) {
+      parsed.bubbles = ["hm? phir se bolna"];
+      parsed.photo = undefined;
+      parsed.voice = undefined;
+      parsed.gif = undefined;
+    }
+    parsed.forget = undefined;
+  }
   if (parsed.forget && keys.deviceId) {
     const target = resolveForget(parsed.forget, history);
     // no target = refused (a whole-memory wipe) or unreadable. Nothing is

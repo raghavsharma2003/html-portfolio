@@ -70,11 +70,12 @@
 // screen before the next step, and losing it makes the flow quicker rather
 // than poorer. Reduced motion is handled in onboard.css, completely.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HER_NAME, type UserProfile } from "../engine/persona";
 import { seedDayOneConsolidation, seedCurrencyChips } from "../engine/memory";
 import { MEMORY_CONSENT_VERSION, type MemoryConsent } from "../state/store";
 import { MEMORY_COPY, MemoryConsentBody } from "./MemoryConsent";
+import { GateBody } from "./GateScreen";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import { AnimGlyph } from "./anim";
 import onboardNight from "../assets/onboard-window-night.jpg";
@@ -110,9 +111,15 @@ interface Props {
   // optional so any other caller/test constructing this component without a
   // real device identity yet doesn't have to fabricate one.
   deviceId?: string;
+  // The password gate (src/engine/gate.ts). When it is not "ok" the memory
+  // answer is HELD and a fifth step asks for the word; both memory seeds and
+  // onDone wait for it, because the seeds are API calls and the server would
+  // 401 them from a device that has not been let in yet.
+  gate?: "checking" | "ok" | "locked";
+  onGateOpen?: () => void;
 }
 
-export default function Onboarding({ onDone, deviceId }: Props) {
+export default function Onboarding({ onDone, deviceId, gate = "ok", onGateOpen }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [vibe, setVibe] = useState<string[]>([]);
@@ -132,7 +139,26 @@ export default function Onboarding({ onDone, deviceId }: Props) {
   // which is now the step BEFORE the question — firing them there would have
   // written her day-one memory of someone who was about to say "not now", and
   // a consent screen whose answer arrives after the write is theatre.
+  // The memory answer, held while the gate step is on screen. null = nothing
+  // pending. It is the person's real answer and is applied exactly as given.
+  const [held, setHeld] = useState<boolean | null>(null);
+  const finished = useRef(false);
+
+  const proceed = (granted: boolean) => {
+    if (gate === "ok") return finish(granted);
+    setHeld(granted);
+    setStep(4);
+  };
+
+  // The gate opens while step four is up: the answer they gave goes through.
+  useEffect(() => {
+    if (step === 4 && gate === "ok" && held !== null) finish(held);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, gate, held]);
+
   const finish = (granted: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
     if (deviceId && granted) {
       // GAP 2/3 (WS-FELT), fire-and-forget: never awaited, never allowed to
       // delay or fail this transition — the button must feel exactly as
@@ -309,20 +335,25 @@ export default function Onboarding({ onDone, deviceId }: Props) {
             <button
               className="onb-cta"
               data-tel="onboarding.consent_grant"
-              onClick={() => finish(true)}
+              onClick={() => proceed(true)}
             >
               {MEMORY_COPY.yes}
             </button>
             <button
               className="onb-quiet"
               data-tel="onboarding.consent_decline"
-              onClick={() => finish(false)}
+              onClick={() => proceed(false)}
             >
               {MEMORY_COPY.no}
             </button>
             <p className="onb-quiet-note">{MEMORY_COPY.noMeans}</p>
           </div>
         )}
+
+        {/* ── STEP FIVE: THE DOOR (only when the gate is up) ───────────────
+            After registration, before anything is written about them. Back
+            goes to the memory question without losing the answer. */}
+        {step === 4 && <GateBody onOpen={() => onGateOpen?.()} />}
       </div>
 
       {/* Onboarding used to move in one direction only: a typo in your name
@@ -339,7 +370,7 @@ export default function Onboarding({ onDone, deviceId }: Props) {
         </button>
         <div className="onb-dots" role="presentation">
           {[0, 1, 2, 3].map((i) => (
-            <i key={i} className={i === step ? "on" : ""} />
+            <i key={i} className={i === Math.min(step, 3) ? "on" : ""} />
           ))}
         </div>
         <span className="onb-back" aria-hidden="true" />

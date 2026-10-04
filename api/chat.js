@@ -2,6 +2,7 @@
 // public repo never contain it. POST { system, messages, model? } → reply text.
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { gateOk } from "./_gate.js";
 import { withGeminiKey, poolSize } from "./_gkeys.js";
 // ONE classifier and ONE ladder, shared by every lane — see api/_lanes.js's
 // header for the 2026-08-24 production trace this file's old folding produced.
@@ -137,11 +138,12 @@ export const config = { supportsResponseStreaming: true };
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Maya-Gate");
   // the native app is cross-origin: cache the preflight so every call turn
   // doesn't pay an extra RTT before the request even starts
   res.setHeader("Access-Control-Max-Age", "86400");
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (!gateOk(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "chat", 40)) return res.status(429).json({ error: "slow down" });
 

@@ -531,7 +531,13 @@ export function compile(input: CompileInput): CompiledPrompt {
         lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
         lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
         warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture,
-      });
+      },
+      // The compiler's own clock, not the wall's. Production passes the real
+      // time here so nothing changes for a person; a fixture that pins nowMs
+      // now gets a pinned render instead of one that quietly rots as the
+      // calendar moves ("settled 6w" appeared on its own 43 days after the
+      // fixture date and turned the release gate red with no code change).
+      typeof input.nowMs === "number" ? new Date(input.nowMs) : undefined);
       if (t2.text) tail += `\n\n${t2.text}`;
     }
     _track("T2");
