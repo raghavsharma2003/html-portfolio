@@ -120,6 +120,25 @@ create table if not exists meera_events (
 create index if not exists meera_events_at on meera_events (at desc);
 create index if not exists meera_events_event_at on meera_events (event, at desc);
 
+-- The memory-consent ledger (task #148, DPDP). See db/migrations/
+-- 016_memory_consent.sql for the full reasoning; the short version is that
+-- India's DPDP Act reaches full effect 2027-05-14, storing cross-session
+-- personal and emotional memory needs its own specific, informed, unbundled
+-- consent, and a fiduciary must be able to SHOW it was given. APPEND-ONLY: one
+-- row per answer, so the table can say what consent was in force on a date
+-- rather than only what it is now. NO CONTENT COLUMN, ever.
+create table if not exists meera_consent (
+  id        bigint generated always as identity primary key,
+  device_id uuid not null,
+  user_id   uuid,
+  kind      text not null default 'memory',
+  granted   boolean not null,
+  version   integer not null default 1,
+  at        timestamptz not null default now(),
+  filed_at  timestamptz not null default now()
+);
+create index if not exists meera_consent_device_at on meera_consent (device_id, at desc);
+
 -- Her recognition index, rebuilt daily by .github/workflows/culture.yml. Not
 -- user data — one row per day, shared by everyone.
 create table if not exists meera_culture (

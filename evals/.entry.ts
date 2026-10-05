@@ -74,11 +74,21 @@ export {
   MAX_TERMS,
   RAISED_BUDGET,
   SHORT_REPLY_WORDS,
+  // WS-GAMEFEEL: the her-side loop fence, a different repetition from the one
+  // above (a repeated LINE, not a repeated topic) living in the same file.
+  isLoopingLine,
+  loopWords,
+  jaccard,
+  LOOP_JACCARD,
+  LOOP_LOOKBACK,
+  LOOP_MIN_WORDS,
+  LOOP_MAX_RETRIES,
+  LOOP_NUDGE,
 } from "../src/engine/repeat";
 export { asksToHangUp } from "../src/engine/hangup";
-export { renderActivity, activityNote, ACTIVITY_BUDGET } from "../src/engine/activity";
-export { chessActivity, moveFact, exchangeFact, chessMoveNote } from "../src/engine/chessTalk";
-export { newGame, play, assessLast, assessMove } from "../src/engine/chess";
+export { renderActivity, activityNote, ACTIVITY_BUDGET, ACTIVITY_BLOCK_MAX, STATE_LAW } from "../src/engine/activity";
+export { chessActivity, moveFact, exchangeFact, chessMoveNote, chessGameState, chessIdea, chessPlanClause } from "../src/engine/chessTalk";
+export { newGame, play, assessLast, assessMove, chooseMove, userPlay, inGameLevel, nextSkill, observedLevel, outplaying, startingLevel, ADAPT } from "../src/engine/chess";
 export { activityOf, activityPickupLine, RECENT_END_MS, lastAssessment } from "../src/state/game";
 export { resolveTheme, isThemeChoice, THEMES, THEME_LABEL } from "../src/engine/theme";
 export {

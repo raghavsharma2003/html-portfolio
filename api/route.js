@@ -22,6 +22,7 @@
 // budget.mjs precedent) specifically so there is ALSO one code path that
 // exercises the real TS source, not just this twin.
 import { q } from "./_db.js";
+import { gateOk } from "./_gate.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import seed from "../config/models.json" with { type: "json" };
 
@@ -71,9 +72,10 @@ function stripNotes(row) {
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Maya-Gate");
   res.setHeader("Access-Control-Max-Age", "86400");
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (!gateOk(req, res)) return;
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "GET or POST only" });
   }

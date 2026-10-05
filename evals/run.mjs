@@ -302,6 +302,15 @@ const suites = {
   // read. It fails only if the battery itself breaks or the baseline moves
   // DOWN, which is the direction nobody intends. See its header.
   forgetlex: "forget/a4.mjs",
+  // 2026-10-03. A model-written [forget] marker deletes only if THEY asked: a
+  // caller read out digits, the reply carried [forget: call], and 44 rows of a
+  // seven-minute call went with no way back. A GATE, because the check is pure
+  // and decided, and because the failure is unrecoverable.
+  forgetintent: "forget/intent.mjs",
+  // The shared-password door (api/_gate.js + src/engine/gate.ts). A GATE: it
+  // calls every cost-bearing handler without a token and requires a 401, so a
+  // new route that forgets the gate fails here instead of on the bill.
+  gate: "gate.mjs",
   // WS-FORGET-A1 (survey §Q5). The mutation-time forget matcher. THIS half IS
   // a gate, unlike a4.mjs next door, because everything it asserts is offline
   // and decided: the shipped prompt's schema and its lack of a voice, the

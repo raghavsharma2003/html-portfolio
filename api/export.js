@@ -30,6 +30,7 @@
 // largest single table, not the whole account.
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { gateOk } from "./_gate.js";
 import { q } from "./_db.js";
 import { activePersonTables, keysOf, personIdFor } from "./memory.js";
 
@@ -100,8 +101,9 @@ const ORDER = {
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Maya-Gate");
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (!gateOk(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "export", 3)) return res.status(429).json({ error: "slow down" });
 

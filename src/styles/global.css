@@ -4509,3 +4509,55 @@ img.react-art {
   border-radius: 34px;
   background: rgba(var(--world-ink-rgb), 0.22);
 }
+
+/* ── THE MEMORY CONSENT CARD (task #148, DPDP) ────────────────────────────
+   The words that ask whether she may remember you. One block of styles,
+   two homes: this one dresses it in THEME tokens (the `.sheet` shell, both
+   in More and in the one-time card for people who onboarded before the
+   question existed), and onboard.css re-inks the same class names in WORLD
+   tokens for the first-run step, which sits on the painted sky.
+
+   Deliberately no motion of its own: the shells it lives in (`.sheet`,
+   `.onb-step`) already own their entrance, and a consent screen that
+   animates its own clauses in is a consent screen that is performing. */
+.mc-body {
+  margin-bottom: 20px;
+}
+.mc-lede {
+  font-size: var(--t-ui);
+  line-height: 1.5;
+  color: var(--ink);
+}
+.mc-keeps {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.mc-keeps li {
+  position: relative;
+  padding-left: 18px;
+  font-size: var(--t-ui);
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+/* a dot, not a bullet glyph: the platform bullet is drawn from the UI font
+   and sits at a different weight and optical size in every theme */
+.mc-keeps li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-solid);
+}
+.mc-fine {
+  margin-top: 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}

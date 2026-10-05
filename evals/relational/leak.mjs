@@ -66,6 +66,19 @@ const lanes = {
   watch: kabir.WATCH_MODE_NOTE,
   search: kabir.SEARCH_DECISION,
   forget: kabir.FORGET_DECISION,
+  // OS-constant call/watch directives: shipped verbatim on EVERY agent's
+  // call lane (useCallEngine imports them directly), so a Maya-ism inside
+  // any of them is a leak into every future personality. Added 2026-08-25.
+  callOpen: E.CALL_OPEN_DIRECTIVE(undefined, E.KABIR),
+  callOpenFollowup: E.CALL_OPEN_DIRECTIVE({ lastCallMinAgo: 4 }, E.KABIR),
+  wAlong: E.WATCH_ALONG_DIRECTIVE(),
+  wComment: E.WATCH_COMMENT_DIRECTIVE(),
+  wIdle: E.WATCH_IDLE_DIRECTIVE(),
+  wPoint: E.WATCH_POINT_DIRECTIVE(),
+  wReshow: E.WATCH_RESHOW_DIRECTIVE(),
+  wScene: E.WATCH_SCENE_DIRECTIVE(),
+  wShow: E.WATCH_SHOW_DIRECTIVE(),
+  wStart: E.WATCH_START_DIRECTIVE(),
 };
 
 console.log("── 1. GATING: no Maya sheet fragment in Kabir's compiled self ──");
@@ -113,7 +126,7 @@ for (const f of found.slice(0, 12)) console.log(`      [${f.lane}] …${f.ctx}�
 
 // The ratchet: today's measured count. It may FALL (extraction progress) but
 // a silent RISE fails — new Maya prose must go into her sheet, not the core.
-const RATCHET = 95; // 2026-08-24 measured; bump only with written rationale, like a ceiling
+const RATCHET = 0; // 2026-08-25: 95 -> 64 -> 27 -> 0. The extraction tail is DONE: every Maya-ism the markers can see now lives in her sheet, the watch note is parameterized, and this number may never rise again — new character prose goes in a sheet, full stop.
 ok(`residual count ${found.length} <= ratchet ${RATCHET} (falls with extraction, never silently rises)`, found.length <= RATCHET, String(found.length));
 
 console.log(`\n${fail === 0 ? "ALL PASS" : fail + " FAILED"} (${pass} assertions)`);

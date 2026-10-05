@@ -2854,3 +2854,152 @@ added with its date.
   d9d10b0 after owner updated GOOGLE_KEYS in Vercel + GitHub): speech 200
   free-lane with pool header 35/51, chat 200. Full stack now: 51 free
   keys + funded OpenRouter overflow (~$14) + Azure grant lane.
+
+## `cache-plateau` — what Google's caches actually pay (2026-08-25)
+
+Method: real compiled prompt (core 48,730 B + tail 5,511 B = 13,311–13,464
+tokens), gemini-3.6-flash on the paid key, direct Google API, sequential
+requests ~1.2 s apart. Pricing cited from ai.google.dev 2026-08-25 (input
+$0.75/1M, cached $0.075/1M, output $3.75/1M, explicit-cache storage
+$0.50/1M tok/hr; all rates double 2027-01-01). Total spend $0.22 of a $2 cap.
+
+- Prefix stability (compile() harness, fixed instant): same-session
+  consecutive turns byte-identical through the ENTIRE system prompt;
+  +10 min differs only at the her-now minute line (94% in); cross-user
+  diverges at byte 68 (the name). Clock sweep n=121: mean stable prefix
+  94.78%, every first-diff in the RIGHT NOW block (106/106 non-identical).
+- Implicit cache: plateaus at 8,165/13,400 tokens (60.7%) on EVERY hit,
+  n=20 production-shape (hit rate 16/19 follow-ups = 84.2%), unchanged by
+  cache_control{ephemeral} (n=4 — measured NO-OP on Google), unchanged by
+  the +10-min prompt (variance sits past the cached boundary).
+- Explicit cachedContents: full system 13,449/13,464 (99.9%, 4/4);
+  core-only 12,097 (90.0%, 4/4). Deterministic, no plateau.
+- Per-turn arithmetic at measured 26-token output: uncached $0.010148;
+  implicit EV −45.7%; explicit core-only incl. storage (ttl 10 min,
+  8 turns) −79.2%. −90–95% NOT reachable by caching alone.
+- reasoning_effort "low" bills zero hidden thinking tokens (4/4); the
+  native surface without it billed ~190/call (~7× the output bill).
+- Voice lanes (list-price sizing, no calls): live 10-min call ≈ $0.13,
+  cacheable share ~8% (noise); cascade 10-min call ≈ $0.39, ~69%
+  cacheable text — caching is a real lever on cascade only.
+
+## `explicit-cache-live` — the deterministic path, verified on the wire (2026-08-25)
+
+Method: n=9 billed turns on the real paid key through the shipped
+runGeminiPaidCached path (real compiler core 48,768 B / tail 9,055 B),
+plus a 6-arm thinking-config probe (1 call each). Spend ~$0.11 of $0.50.
+
+- Cache hit 9/9, cachedContentTokenCount 12,105 (prior measurement 12,097;
+  +8 tokens = the core grew 38 B between runs). Hidden thinking 0/9.
+- Per-turn saving 76.5-77.0% on this fixture (tail 9,055 B -> 86.2% of
+  input cached). The pre-registered mix (13,400 in / 12,097 cached / 26
+  out) reproduces -79.2% through the same arithmetic — the model holds;
+  the delta is prompt mix, not mechanism.
+- thinkingBudget:0 is REJECTED (400) by gemini-3.6-flash. Probe:
+  thinkingLevel minimal/low -> 0 thoughts; medium/high -> 188; off/none ->
+  400; NO config -> 193. The effort tier must pass through as
+  thinkingLevel; a fixed budget field is a full-lane outage.
+- Fallback proven live: injected bad cache name -> Google 403 "CachedContent
+  not found" -> classified miss -> re-created and served same turn.
+- Telemetry read back: 12 paid_turn rows out of meera_diag (the
+  obs-stream-dead-on-arrival fix holding in production).
+
+## `market-sweep-2026-08` — sourced GTM numbers (2026-08-25)
+
+Method: web sweep, 43 sources, compiled to
+docs/research/market-sweep-2026-08-25.md (full detail there). Headlines:
+Indian B2B voice-agent pricing runs ₹3–65/min by vertical vs our ₹1.3/min
+COGS; AstroTalk's ₹1,182 Cr FY25 at ₹5–200/min proves Indians pay
+per-minute for memoryless conversation; NRI children already pay
+₹799–5,000/mo for elder check-ins (Emoha +631% YoY); companion-category
+paid ad channels (Meta/Google) are policy-closed, monthly-plan 12-month
+retention 6.1%; TRAI outbound-AI rules fully in effect since 2026-03-10;
+DPDP full effect 2027-05-14 makes cross-session memory need its own
+unbundled consent screen.
+
+## `watchcost-measured` — screen-share ₹/min, probed on the wire (2026-08-25)
+
+Method: ~25 real gemini-3.1-flash-live-preview sessions on the paid key,
+production config byte-matched (Despina, hi-IN, thinkingBudget 0, sliding
+window), real usageMetadata; frames at the code's true cadence
+(FRAME_EVERY_MS 600ms active / IDLE_FRAME_MS 2500ms idle, 768px q0.68).
+Spend < $1. Supersedes the watch component of callcost-2026-08-23, whose
+own flagged "1.67fps vs 1fps ceiling, up to 14x billing ambiguity" this
+probe settles.
+
+- Video: ~30 tok/frame at real cadence (n=133 frames over 80s, 3
+  checkpoints: 29.1/31.3/30.7). Burst frames sent <1s apart COLLAPSE to
+  ~one frame's cost (63 tok flat for 1, 3, or 5 frames — n=4 sessions):
+  Google compresses near-simultaneous frames, which validates the
+  existing idle-frame/flush redundancy logic.
+- Audio in: ~9 tok/s room tone, ~23 tok/s speech-like (synthetic).
+- VOICE-CONFIG TAX (new, applies to EVERY live call, not just watch):
+  declaring speechConfig.voiceConfig bills +201 "AUDIO" prompt tokens per
+  turn with zero audio sent (n=3, reproducible; languageCode alone: 0).
+  ~₹0.06/turn — small, but it is a per-turn constant nobody chose.
+- Watch-mode total: ≈ ₹1.1–1.6/min (video is 5–20% of it, not the
+  dominant driver the estimate assumed — old video component 6–30x high).
+  10 min/day ≈ ₹320–465/month (was estimated ₹750–1,200).
+- Caveats: video linearity from one 80s run (sliding-window behavior over
+  a full 10-min call untested — largest remaining uncertainty); audio was
+  synthetic; persona text amortized, not live-probed.
+
+## `internals-harden-after` — hardening moved the severe class, not the lexicon (2026-08-25)
+
+Method: full behavioral battery re-run post-hardening, n=208, same corpus
+and grader as baseline, $0.93 (cached 61.8%). Baseline runs: 27 and 13
+total fails. After: 22 (internals 21, game 1, loop 0) — TOTAL fail count
+within baseline variance; the persona shapes did NOT reduce raw I-1 hits.
+BUT severity re-classification (vendor-regex vs the user's own words):
+- Volunteered fresh vendor names: baseline 5-10 → AFTER 1.
+- Confirmations ("wahi hu"): present at baseline → AFTER 1.
+- The remaining 18 are register echoes: machine-words ("backend") used
+  INSIDE correct refusals — a style tic, not a disclosure.
+- Game handed-win: 2/16 → 1/16. Truthful-win control still passes.
+Lesson: a lexicon grader without severity tiers reads "refused in his
+vocabulary" as equal to "confessed" — the battery needs a severity split
+as a first-class output, and the residual register class is mechanical
+(an output-side lexicon fence with one arm-retry, the repeat.ts pattern)
+rather than persuasive.
+
+## `internals-fence-verdict` — the fence catches exactly the severe class (2026-08-25)
+
+Method: internalsFence.ts predicate replayed over the recorded 208-turn
+post-hardening battery (offline, $0) + live internals-family battery
+(n=144, $0.65) for the new severity gate. Offline: 2/2 severe leaks
+caught (a "server pe hi hu" confirmation, a volunteered "OpenAI"), 0/19
+register echoes tripped, 0/186 clean passes tripped — precision and
+recall both perfect on this sample. Live: 0 severe / 16 register in 144
+(one sample; baseline severe rate 2/208 makes a zero draw unsurprising —
+the offline table is the fence's evidence, the live run proves the
+severity gate end to end). Production wiring: one unstreamed re-draft at
+brain.ts's reply convergence; streamed lanes arm the next turn (same law
+as the loop fence: a streamed line cannot be un-said). Layer: ENGINE.
+
+## `tail-role-differential` — judge-free comparison of the two wire shapes (2026-08-25)
+
+Method: all 150 pre-registered pairs generated through BOTH real paths
+(arm A compat/system-tail; arm B native cachedContents/user-role-tail),
+identical decoding, run by the main loop under the owner's direct spend
+authorization; $1.75 total (incl. a wasted arm-A-only first pass from a
+predicate-misuse bug in the driver — cacheableCore is a boolean, not a
+slicer). Deterministic metrics, 150/150 usable pairs:
+
+- length: median 17 words BOTH arms; p90 28 vs 27; sign test 57/79/14 —
+  no meaningful shift. Markers 23.3% vs 22.7%. Multi-bubble 92% vs 91%.
+  Vendor mentions 0/0. AI-mention 0.7% vs 0%.
+- FLAGGED: Hinglish-register proxy 90.0% vs 84.0% (6pp, just past the
+  pre-set 5pp flag line) — arm B drifts slightly more English.
+- Two n=1 qualitative flags, both in arm B: one stage-direction artifact
+  ("listener noise: baseline") in a crisis reply, and one crisis pair
+  where arm A gave the Tele-MANAS helpline and arm B did not (helpline
+  rates 3/13 vs 2/13 overall — sample far too small to be a rate claim,
+  but the safety-adjacent direction is what matters).
+
+VERDICT (pre-registered language): divergence on hindi-register at the
+flag threshold plus two n=1 safety-adjacent flags in arm B; no gross
+divergence on the other six metrics. Implication: the paid-flip-gate's
+caution is CORRECT — the user-role tail is not behaviorally free, and
+the judged equivalence run (or a crisis-focused targeted battery) stays
+required before PAID_CACHE serves real traffic. The emergency exception
+stands: the arms are close enough that an outage flip beats an outage.

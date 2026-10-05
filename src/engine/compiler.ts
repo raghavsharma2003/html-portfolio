@@ -531,7 +531,13 @@ export function compile(input: CompileInput): CompiledPrompt {
         lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
         lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
         warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture,
-      });
+      },
+      // The compiler's own clock, not the wall's. Production passes the real
+      // time here so nothing changes for a person; a fixture that pins nowMs
+      // now gets a pinned render instead of one that quietly rots as the
+      // calendar moves ("settled 6w" appeared on its own 43 days after the
+      // fixture date and turned the release gate red with no code change).
+      typeof input.nowMs === "number" ? new Date(input.nowMs) : undefined);
       if (t2.text) tail += `\n\n${t2.text}`;
     }
     _track("T2");
@@ -767,7 +773,15 @@ export const SYSTEM_MAX = 64_000;
 // SPEC §0.3 "Persona factoring charm risk"). check-prompt-budget.mjs asserts
 // these two numbers match the literal constants in api/chat.js, so guard and
 // guarded cannot drift even though they aren't (yet) the SPEC's target caps.
-export const OPERATIONAL_CORE_CAP = 64_000;
+// Raised 64_000 -> 72_000 on 2026-08-25: a 2,304-row corpus scan through
+// the real engine measured heavy-dyad cores at max 62,026 B — 3.1% under the
+// old guard, inside the silent-truncation cliff that once cost the crisis
+// helplines. The guard is a payload bound, not a budget (the whole core is
+// prompt-cached, so headroom costs nothing until text exists), and the END of
+// the core is where the newest safety text sits — the first thing truncation
+// eats. Mirrored in api/chat.js SYSTEM_MAX; check-prompt-budget.mjs asserts
+// the two never drift.
+export const OPERATIONAL_CORE_CAP = 72_000;
 export const OPERATIONAL_TAIL_CAP = 24_000;
 
 export const CORE_MANIFEST: readonly CoreBlock[] = [

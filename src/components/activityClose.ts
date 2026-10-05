@@ -34,7 +34,8 @@ import type { AppState } from "../state/store";
 import type { GameSession } from "../state/game";
 import { activityOf } from "../state/game";
 import { LABEL } from "../engine/activity";
-import { logFinishedActivity, withActivityRecord, type ActivityRecord } from "../engine/memory";
+import { latestSkill, logFinishedActivity, withActivityRecord, type ActivityRecord } from "../engine/memory";
+import { nextSkill } from "../engine/chess";
 
 /** A board that reached a natural end. wyr has no such state. */
 function boardOver(g: GameSession): boolean {
@@ -120,6 +121,11 @@ export function settleOccupant(
 export function emitClosedActivity(
   deviceId: string | undefined,
   g: GameSession | null,
+  /** The ledger as it stands, so the chess skill estimate can seed from the
+   *  last stored one. Optional: a caller that does not pass it emits exactly
+   *  the record this function emitted before WS-GAMEFEEL, which is what makes
+   *  the field additive rather than a second contract. */
+  ledger?: readonly ActivityRecord[],
 ): ActivityRecord | null {
   if (!g?.closedAt) return null;
   const a = activityOf(g, g.closedAt + 1);
@@ -138,6 +144,13 @@ export function emitClosedActivity(
       record: a.record,
       startedAt: g.startedAt,
       closedAt: g.closedAt,
+      // WS-GAMEFEEL: the same per-user strength estimate App.tsx's effect
+      // writes, on the same record, by the same rule. Both close paths, or
+      // the estimate silently stops updating for anyone who rematches through
+      // the takeover button — `dead-writers` with a live-looking writer.
+      ...(g.kind === "chess"
+        ? { skill: nextSkill(latestSkill(ledger, "chess"), g.game, g.herSide) }
+        : {}),
     },
     LABEL[a.kind],
   );
@@ -177,7 +190,7 @@ export function replaceOccupant(
   // is about to lose it — after the swap there is nothing left to derive it
   // from. Its local half rides the same updater as the swap, so a takeover
   // cannot leave the game recorded on the server and absent on the device.
-  const rec = emitClosedActivity(state.deviceId, closed);
+  const rec = emitClosedActivity(state.deviceId, closed, state.activities);
   setState((s) =>
     when(s)
       ? {

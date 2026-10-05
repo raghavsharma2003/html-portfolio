@@ -13,8 +13,9 @@ import ActivityShell, { type ActivityCall } from "./ActivityShell";
 import ChessBoard, { type LegalMove as BoardMove, type PromotionRole, type Role } from "./ChessBoard";
 import SidePick from "./SidePick";
 import { HER_NAME } from "../engine/persona";
-import { chooseMoveAsync, legalMoves, newGame, openingName, play } from "../engine/chess";
+import { chooseMoveAsync, inGameLevel, legalMoves, newGame, openingName, play, startingLevel, userPlay } from "../engine/chess";
 import type { Side } from "../engine/chess";
+import { latestSkill } from "../engine/memory";
 import { chessThinkMs } from "../state/game";
 import { useCallStatus } from "../state/callStatus";
 import { tap } from "../native/haptics";
@@ -166,11 +167,33 @@ export default function ChessActivity({
   // this move until it lands — see state/game.ts's choreography block for why
   // there is no pre-line — and the presence row reads "thinking" for exactly
   // this window, off `hers`, which is the existing idiom and not a new one.
+  //
+  // WS-GAMEFEEL replaced the hard-coded `strength: 2` with two things the
+  // engine now derives, and neither of them changes what a NEW player meets:
+  // `startingLevel(undefined)` is `ADAPT.BASE_LEVEL`, which is 2.
+  //
+  //  · ACROSS GAMES. The last finished chess game stored a skill estimate on
+  //    its ledger row (`ActivityRecord.skill`), so someone who has been
+  //    beating her opens against a stronger opponent than someone who has not.
+  //    Read here rather than in the engine because the ledger is app state and
+  //    `engine/chess/` may not reach it.
+  //  · INSIDE THE GAME. `inGameLevel` raises her ONE notch, once, when the
+  //    board says he is clearly outplaying her baseline. One-way and one notch
+  //    — see `adapt.ts` on why she may never get easier mid-fight.
+  //
+  // And `seed` is the SESSION's own start time, which is what stops every
+  // game opening with the same moves (`opponent.ts`'s VARIETY block). It is a
+  // seed, not randomness: the same game replays identically, two games differ.
+  const baseLevel = useMemo(
+    () => startingLevel(latestSkill(state.activities, "chess")),
+    [state.activities],
+  );
   useEffect(() => {
     if (!hers || !g) return;
     let liveEffect = true;
     let hold: ReturnType<typeof setTimeout> | null = null;
-    void chooseMoveAsync(g, { strength: 2 }).then((hm) => {
+    const level = inGameLevel(baseLevel, userPlay(g, herSide));
+    void chooseMoveAsync(g, { strength: { level, seed: session?.startedAt ?? 0 } }).then((hm) => {
       if (!liveEffect || !hm) return;
       const ply = g.played.length;
       const lastPlayed = ply ? g.played[ply - 1] : null;
@@ -202,7 +225,7 @@ export default function ChessActivity({
       liveEffect = false;
       if (hold) clearTimeout(hold);
     };
-  }, [hers, g, setState, session?.startedAt]);
+  }, [hers, g, setState, session?.startedAt, baseLevel, herSide]);
 
   const captured = useMemo(() => {
     const white: Role[] = [];

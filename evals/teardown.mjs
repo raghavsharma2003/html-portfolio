@@ -374,6 +374,21 @@ const FATE = {
     "HERE — reachability is torn down by src/notify/index.ts's " +
     "clearReachability, asserted in the REACHABILITY block below, because a " +
     "push token in synced AppState would be another device's reachability.",
+  memoryConsent:
+    "exempt: the answer to the DPDP memory question (task #148), and the " +
+    "exemption is the PROMISE rather than a convenience — the same shape as " +
+    "`notifyPrefs` above and for a sharper reason. `memoryWritesAllowed` " +
+    "treats an ABSENT record as permission (an install that predates the " +
+    "question was never asked, and the answer to never-asked is to ask), so " +
+    "a teardown that wiped this field would silently switch memory back ON " +
+    "for the one person who had just switched it off — and the door that " +
+    "withdraws consent is the forget door itself, so the wipe would undo the " +
+    "withdrawal it was carrying out. It is also not the relationship: it is " +
+    "a standing instruction about what may be stored NEXT, which outlives " +
+    "the conversation being deleted by design. The server half of the record " +
+    "is deleted by the whole wipe (meera_consent, evals/recall/run.mjs's " +
+    "FATE table), because that half is a record OF a person; this half is an " +
+    "instruction FROM one.",
   lastSeen:
     "exempt: HER presence clock, restamped on every mount and rendered as " +
     "'last seen 2m ago'. A fact about this app session, not a memory of him.",
