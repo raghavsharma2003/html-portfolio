@@ -41,32 +41,61 @@ const LABEL = "maya-gate:v1";
 // password is a word, not a secret key, so both are forgiven.
 const norm = (s) => String(s ?? "").trim().toLowerCase();
 
-const password = () => norm(process.env.ACCESS_PASSWORD || CFG.ACCESS_PASSWORD || "");
+// MORE THAN ONE WORD may open the door. ACCESS_PASSWORD is a comma- or
+// newline-separated list ("mayahumai,maimayahu"); each word mints its own token
+// and any of them passes. A single word (no separator) is the common case and
+// behaves exactly as one word always did. Duplicates and blanks are dropped.
+const passwords = () => [
+  ...new Set(
+    String(process.env.ACCESS_PASSWORD || CFG.ACCESS_PASSWORD || "")
+      .split(/[,\n]/)
+      .map(norm)
+      .filter(Boolean),
+  ),
+];
 
-export const gateEnabled = () => password().length > 0;
+export const gateEnabled = () => passwords().length > 0;
 
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
+const tokenFor = (pw) => crypto.createHmac("sha256", pw).update(LABEL).digest("hex");
 
-/** The token a correct password earns. Empty when the gate is off. */
-export function gateToken() {
-  const pw = password();
-  if (!pw) return "";
-  return crypto.createHmac("sha256", pw).update(LABEL).digest("hex");
+/**
+ * The token a given password earns. With no argument it returns the FIRST
+ * word's token — the one a probe script uses to reach a live deploy. With a
+ * candidate, it returns that word's own token, but only when the word is one of
+ * the allowed ones (so a wrong guess never earns a usable token). Empty when
+ * the gate is off.
+ */
+export function gateToken(candidate) {
+  const pws = passwords();
+  if (!pws.length) return "";
+  if (candidate === undefined) return tokenFor(pws[0]);
+  const c = norm(candidate);
+  return pws.includes(c) ? tokenFor(c) : "";
 }
 
-/** Constant-time password check. Always true when the gate is off. */
+/** Constant-time password check against every allowed word. Always true when
+ *  the gate is off. Every word is compared (no early return) so a match on the
+ *  first word is not timeable against a match on the last. */
 export function passwordOk(candidate) {
-  const pw = password();
-  if (!pw) return true;
-  return crypto.timingSafeEqual(sha(norm(candidate)), sha(pw));
+  const pws = passwords();
+  if (!pws.length) return true;
+  const c = sha(norm(candidate));
+  let ok = false;
+  for (const pw of pws) if (crypto.timingSafeEqual(c, sha(pw))) ok = true;
+  return ok;
 }
 
 function tokenOk(presented) {
-  const want = gateToken();
-  if (!want) return true;
-  const got = String(presented ?? "");
-  if (got.length !== want.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));
+  const pws = passwords();
+  if (!pws.length) return true;
+  const got = Buffer.from(String(presented ?? ""));
+  let ok = false;
+  for (const pw of pws) {
+    const want = Buffer.from(tokenFor(pw));
+    if (got.length === want.length && crypto.timingSafeEqual(got, want)) ok = true;
+  }
+  return ok;
 }
 
 /**

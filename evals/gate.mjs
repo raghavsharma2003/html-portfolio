@@ -87,6 +87,28 @@ try {
   ok("undefined does not throw", !G.passwordOk(undefined));
   ok("a prefix is not enough", !G.passwordOk("mayahum"));
 
+  // ── 2b. more than one word may open the door ─────────────────────────────
+  console.log("\n── two allowed words ──");
+  process.env.ACCESS_PASSWORD = "mayahumai,maimayahu";
+  ok("first word passes", G.passwordOk("mayahumai"));
+  ok("second word passes", G.passwordOk("maimayahu"));
+  ok("second word, mobile-capitalised", G.passwordOk("Maimayahu "));
+  ok("a word not in the list fails", !G.passwordOk("mayahumaii"));
+  const tok1 = G.gateToken("mayahumai");
+  const tok2 = G.gateToken("maimayahu");
+  ok("each word mints its own distinct token", tok1 !== tok2 && /^[0-9a-f]{64}$/.test(tok1) && /^[0-9a-f]{64}$/.test(tok2));
+  ok("first word's token is the one a probe derives", gateHeaders()["X-Maya-Gate"] === tok1);
+  ok("a wrong word earns no token", G.gateToken("nope") === "");
+  {
+    const a = mkRes();
+    ok("gateOk accepts the first word's token", G.gateOk(mkReq({ headers: { "x-maya-gate": tok1 } }), a) === true && !a.ended);
+    const b = mkRes();
+    ok("gateOk accepts the second word's token", G.gateOk(mkReq({ headers: { "x-maya-gate": tok2 } }), b) === true && !b.ended);
+    const c = mkRes();
+    ok("gateOk still rejects a bad token", G.gateOk(mkReq({ headers: { "x-maya-gate": "0".repeat(64) } }), c) === false && c.code === 401);
+  }
+  process.env.ACCESS_PASSWORD = WORD;
+
   // ── 3. the door, on the real handlers ───────────────────────────────────
   console.log("\n── every cost-bearing endpoint closes the door ──");
   const PROTECTED = ["chat", "speech", "live-token", "search", "gif", "memory", "route", "episodes", "life", "export"];

@@ -86,7 +86,9 @@ export default async function handler(req, res) {
       await new Promise((r) => setTimeout(r, 400));
       return res.status(401).json({ error: "wrong password" });
     }
-    return res.status(200).json({ ok: true, token: gateToken() });
+    // the token for the WORD they entered (more than one word may be allowed),
+    // so each word carries its own stable token
+    return res.status(200).json({ ok: true, token: gateToken(req.body?.password) });
   }
 
   if (!SB_URL || !SB_KEY) return res.status(500).json({ error: "no backend configured" });

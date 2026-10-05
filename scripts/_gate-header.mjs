@@ -11,7 +11,12 @@
 import crypto from "node:crypto";
 
 export function gateHeaders() {
-  const pw = String(process.env.ACCESS_PASSWORD ?? "").trim().toLowerCase();
+  // ACCESS_PASSWORD may list several words; any one's token opens the door, so a
+  // probe uses the first. Same split as api/_gate.js's passwords().
+  const pw = String(process.env.ACCESS_PASSWORD ?? "")
+    .split(/[,\n]/)
+    .map((w) => w.trim().toLowerCase())
+    .filter(Boolean)[0];
   if (!pw) return {};
   return { "X-Maya-Gate": crypto.createHmac("sha256", pw).update("maya-gate:v1").digest("hex") };
 }

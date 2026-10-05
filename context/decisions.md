@@ -2691,6 +2691,9 @@ env var `ACCESS_PASSWORD`; it is never in the repo.
   existing users with no token.
 - **Rotation is the revoke button:** the token is derived from the word, so
   changing `ACCESS_PASSWORD` signs everybody out.
+- **More than one word** can be allowed: `ACCESS_PASSWORD` is a comma-separated
+  list and any word opens the door, each with its own token (set to
+  `mayahumai,maimayahu` 2026-10-05).
 - **Forgiving of phones:** compared case-insensitively and trimmed.
 - **Open on purpose:** account (the exchange itself), telemetry, diag, trace,
   clock, culture, consolidate*, push-token, taste-queue, and the Telegram,
