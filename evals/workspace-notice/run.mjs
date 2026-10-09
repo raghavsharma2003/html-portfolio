@@ -46,6 +46,17 @@ try {
   await page.clock.install();
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   const click = name => page.getByRole('button',{name,exact:true}).click();
+  const timerStarts = () => page.evaluate(()=>window.noticeTimerStarts);
+  const timerAfter = previous => page.waitForFunction(previous=>window.noticeTimerStarts>previous,previous);
+  const notifyWithoutFocus = async () => {
+    // Keep a stationary mouse over the old Dismiss position from becoming a
+    // legitimate hover on the next notice; this case isolates stale focus.
+    await page.mouse.move(700,500);
+    const previous = await timerStarts();
+    await page.getByRole('button',{name:'Notify',exact:true}).evaluate(button=>button.click());
+    await page.getByRole('status').waitFor({state:'attached'});
+    await timerAfter(previous); // React must install its timer before fake time moves.
+  };
   const count = async (role,n) => {
     await page.getByRole(role).waitFor({ state: n ? 'attached' : 'detached', timeout: 3000 });
     assert.equal(await page.getByRole(role).count(),n); checks++;
@@ -57,19 +68,20 @@ try {
   await count('status',0); // wait for React/AnimatePresence to commit the actual dismissal
   await click('Notify'); await page.getByRole('button',{name:'Dismiss',exact:true}).focus();
   await page.clock.runFor(8000); await count('status',1);
-  await page.getByRole('button',{name:'Rerender',exact:true}).focus(); await page.clock.runFor(6100);
+  const pausedTimerStarts = await timerStarts();
+  await page.getByRole('button',{name:'Rerender',exact:true}).focus(); await timerAfter(pausedTimerStarts); await page.clock.runFor(6100);
   await count('status',0);
   await click('Notify'); await click('Navigate'); await count('status',0);
   await click('Notify'); await click('Drawer'); await count('status',0);
   await click('Drawer'); await count('status',0); // reopening must not revive stale feedback
   await click('Notify'); await click('Dismiss'); await count('status',0);
-  await page.getByRole('button',{name:'Notify',exact:true}).evaluate(button=>button.click());
+  await notifyWithoutFocus();
   await page.clock.runFor(6100); await count('status',0); // dismissed focus cannot pause the next async notice
   await click('Notify'); await page.getByRole('status').hover();
   await page.getByRole('button',{name:'Navigate',exact:true}).evaluate(button=>button.click());
   await count('status',0);
   await page.mouse.move(700,500);
-  await page.getByRole('button',{name:'Notify',exact:true}).evaluate(button=>button.click());
+  await notifyWithoutFocus();
   await page.clock.runFor(6100); await count('status',0); // removed hover cannot leak into the next scope
   await click('Error'); await page.clock.runFor(15000); await count('alert',1);
   await click('Dismiss'); await count('alert',0);

@@ -19305,3 +19305,11 @@ mounted and HTTP request recorded before React rendered the enabled setup button
 Waiting for that actual control fixes the asynchronous boundary without sleeps,
 retrying generation or changing runtime. Focused4/4passed. Androidab16passed;
 the new test-only commit still needs both complete web matrices before acceptance.
+
+Exact35ffaNode22 passed25/25andAndroidpassed. Node24failedonlyworkspace-notice:
+a programmatic click advancedfake time before React installed the new timer,
+and the stationary mouse could legitimately hover the reappearing notice at
+the old Dismiss position. The fixture now separates stale focus from real hover
+and awaits actual timer installation/resumption. All14mounted checks pass; no
+production timer, timeout budget or expected behavior changed. New-head release
+acceptance remains pending rather than treating an intermittent pass as proof.
