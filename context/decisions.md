@@ -25604,3 +25604,18 @@ model serving on Azure. The owner permits many agents and cheaper Sol for
 bounded work. Reverse priorities when a reproduced live failure or matched
 quality evaluation identifies a higher-impact defect. Do not replay old cloud
 mutation intents, expired recording authority, or the waived billing question.
+
+## creator-continuity-and-person-sharing-20261009
+
+Bind style through server-owned private_text_style_revision metadata, leaving
+shared private_text_epoch unchanged. Carry only allowlisted owned routes over
+full-page sign-in and discover retained private requests without dispatching.
+Support explicitly reviewed person sharing with its own release statements;
+teacher consent cannot authorize personal fields. Rank only the already-scoped
+expert Room pool; do not shrink owner Meet's existing30rows. Reverse each change
+if equivalent typed contracts or measured regression evidence supersedes it;
+never infer semantic memory or voice quality from these deterministic controls.
+
+The owner explicitly approved including the isolated Meera production repair
+onOctober9. Its small backport must be gated/deployed separately from Vyakti;
+then prepare a fresh incident-scoped repair. No old repair intent is reusable.

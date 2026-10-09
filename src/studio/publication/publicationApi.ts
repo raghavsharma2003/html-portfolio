@@ -11,7 +11,7 @@ export type PublicationTerms = {
 export type Publication = {
   public_id: string; replica_id?: string; version: 1 | 2;
   state: "active" | "revoked" | "expired" | "unavailable";
-  title: string; subject_domain: string; disclosure: string; disclosure_hash: string;
+  title: string; subject_domain: string | null; disclosure: string; disclosure_hash: string;
   terms: PublicationTerms; created_at: string; expires_at: string;
   can_text: boolean; can_voice: false;
 };
@@ -26,11 +26,16 @@ export type PublicationProjection = {
   notationConventions?: string; subjectStrands?: string[]; examTrack?: string[];
   doubtEscalationLadder?: string[]; rigorFloor?: string[];
   warmth?: number; strictness?: number; pacePreference?: "push" | "balanced" | "drill";
+} | {
+  sheetKind: "person"; name: string; identityWho: string;
+  identityLife?: string; lifeTexture?: string; tasteTopics?: string; curiosityTopics?: string;
+  personLine?: string; personValues?: string[]; personNeverSay?: string[];
+  personTalk?: { register: "formal" | "mixed" | "casual"; scriptBaseline: "roman-hinglish" | "devanagari" | "english"; codeSwitchNote?: string };
 };
 export type PublicationReadiness = {
   replica_id: string; state: "ready" | "needs_input" | "unavailable" | "stopped";
   blockers: { code: string; responsibility: "owner" | "platform" }[];
-  drafts: { sheet_id: string; name: string; updated_at: string; status: string }[];
+  drafts: { sheet_id: string; name: string; sheet_kind?: "teacher" | "person"; updated_at: string; status: string }[];
   context_items: { item_id: string; source_name: string; status: string; format: string;
     authorship: string; source_id: string | null; source_ready: boolean; eligible: boolean; reason: string | null }[];
   selected: null | { review_hash: string; source_name: string; projection: PublicationProjection;

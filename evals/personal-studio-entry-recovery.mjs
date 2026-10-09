@@ -23,7 +23,15 @@ try {
     let loads=0, retries=0, received=[];
     const Workspace = props => { received.push(props); return <main data-fixture-workspace="ready">workspace ready</main>; };
     const root = createRoot(document.getElementById("studio-root"));
-    if (new URLSearchParams(location.search).has("reload")) {
+    if (window.fixtureCallbackCase) {
+      window.fetch = async input => {
+        const path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
+        if (path === "/api/replica") return new Response(JSON.stringify({replicas:[{replica_id:window.fixtureOwnedReplica}]}), {status:200,headers:{"content-type":"application/json"}});
+        return new Response(JSON.stringify({error:"unexpected " + path}),{status:500,headers:{"content-type":"application/json"}});
+      };
+      const CallbackWorkspace = () => <main data-fixture-workspace="callback" data-search={location.search}>callback workspace</main>;
+      root.render(<PersonalStudioEntry restore={async()=>session} loadWorkspace={async()=>({default:CallbackWorkspace})} />);
+    } else if (new URLSearchParams(location.search).has("reload")) {
       const loadWorkspace = () => localStorage.getItem("fixture.workspace.reload.retry")
         ? Promise.resolve({default:Workspace})
         : (localStorage.setItem("fixture.workspace.reload.retry", "1"), Promise.reject(new Error("fixture deferred chunk unavailable")));
@@ -104,6 +112,33 @@ try {
   await page.waitForFunction(() => window.fixture.relogin.replicaReads === 2);
   assert.equal(await page.locator("#studio-email").count(), 0, "relogin returns to the internal workspace instead of the parent auth screen");
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("meera.state.v1")).auth.accessToken), "b".repeat(24));
+  const resumeReplica = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const resumeRequest = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const callbackEnvelope = {version:1,created_at:Date.now(),replica:resumeReplica,step:"meet",view:"rehearsal",rehearsal_request:resumeRequest};
+  const callbackContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await callbackContext.addInitScript(({envelope, ownedReplica}) => {
+    window.fixtureCallbackCase = "owned"; window.fixtureOwnedReplica = ownedReplica;
+    sessionStorage.setItem("vyakti.studio.full-page-auth-resume.v1", JSON.stringify(envelope));
+  }, {envelope:callbackEnvelope,ownedReplica:resumeReplica});
+  const callbackPage = await callbackContext.newPage();
+  await callbackPage.goto(`http://127.0.0.1:${server.address().port}/studio?mode=replica#access_token=fixture`);
+  await callbackPage.locator("[data-fixture-workspace=callback]").waitFor();
+  assert.equal(await callbackPage.locator("[data-fixture-workspace=callback]").getAttribute("data-search"),
+    `?mode=replica&replica=${resumeReplica}&step=meet&view=rehearsal&rehearsal_request=${resumeRequest}`,
+    "a full-page callback restores the allowlisted route after the owned replica read");
+  assert.equal(await callbackPage.evaluate(() => sessionStorage.getItem("vyakti.studio.full-page-auth-resume.v1")), null, "the callback consumes the route envelope once");
+  await callbackContext.close();
+  const foreignContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await foreignContext.addInitScript(({envelope}) => {
+    window.fixtureCallbackCase = "foreign"; window.fixtureOwnedReplica = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    sessionStorage.setItem("vyakti.studio.full-page-auth-resume.v1", JSON.stringify(envelope));
+  }, {envelope:callbackEnvelope});
+  const foreignPage = await foreignContext.newPage();
+  await foreignPage.goto(`http://127.0.0.1:${server.address().port}/studio?mode=replica#access_token=fixture`);
+  await foreignPage.locator("[data-fixture-workspace=callback]").waitFor();
+  assert.equal(await foreignPage.locator("[data-fixture-workspace=callback]").getAttribute("data-search"), "?mode=replica", "a foreign-account replica cannot restore any saved view");
+  assert.equal(await foreignPage.evaluate(() => sessionStorage.getItem("vyakti.studio.full-page-auth-resume.v1")), null, "foreign context is discarded rather than retained");
+  await foreignContext.close();
   const reloadContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const persisted = { userId: "reload-owner", email: "reload@example.com", accessToken: "c".repeat(24), refreshToken: "reload-refresh", expiresAt: Date.now() + 600_000 };
   await reloadContext.addInitScript(session => localStorage.setItem("meera.state.v1", JSON.stringify({ auth: session })), persisted);
@@ -114,7 +149,7 @@ try {
   await reloadPage.locator("[data-fixture-workspace=ready]").waitFor();
   assert.deepEqual(await reloadPage.evaluate(() => JSON.parse(localStorage.getItem("meera.state.v1")).auth), persisted, "the production reload retry keeps the stored authenticated session");
   await reloadContext.close();
-  console.log("personal-studio-entry-recovery: parent restore, lazy failure, retry, logout, and relogin passed");
+  console.log("personal-studio-entry-recovery: parent restore, lazy failure, retry, logout, relogin, and full-page auth resume passed");
 } finally {
   await browser?.close();
   if (server) { server.closeAllConnections(); await new Promise(done => server.close(done)); }

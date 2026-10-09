@@ -17,6 +17,12 @@
     "blocks": "this is blocked on that"
   },
   "nodes": [
+    { "id": "resume-product-evidence-20261009", "kind": "decision", "title": "Resume from verified runtime and concrete creator gaps", "at": "2026-10-09" },
+    { "id": "runtime-resume-20261009", "kind": "measurement", "title": "Healthy voice service, zero private runs and 36 external legacy orphans", "at": "2026-10-09" },
+    { "id": "old-integrity-receipt-is-not-current-20261009", "kind": "rejection", "title": "A historical zero-orphan receipt cannot establish current integrity", "at": "2026-10-09" },
+    { "id": "creator-continuity-and-person-sharing-20261009", "kind": "decision", "title": "Scoped style, recoverable creator flow and reviewed personal sharing", "at": "2026-10-09" },
+    { "id": "creator-candidate-proof-20261009", "kind": "measurement", "title": "Focused creator regressions and 17 actual SQL EXPLAINs", "at": "2026-10-09" },
+    { "id": "shared-epoch-style-and-stale-visuals-20261009", "kind": "rejection", "title": "Avoid unrelated voice invalidation and unsupported screenshot conclusions", "at": "2026-10-09" },
     {
       "id": "brain-model",
       "kind": "decision",
@@ -21066,6 +21072,10 @@
     }
   ],
   "edges": [
+    { "src": "resume-product-evidence-20261009", "rel": "measured_by", "dst": "runtime-resume-20261009" },
+    { "src": "old-integrity-receipt-is-not-current-20261009", "rel": "caused_by", "dst": "runtime-resume-20261009" },
+    { "src": "creator-continuity-and-person-sharing-20261009", "rel": "measured_by", "dst": "creator-candidate-proof-20261009" },
+    { "src": "shared-epoch-style-and-stale-visuals-20261009", "rel": "caused_by", "dst": "creator-candidate-proof-20261009" },
     {
       "src": "d2-on-credits",
       "rel": "part_of",

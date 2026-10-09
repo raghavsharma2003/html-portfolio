@@ -35,6 +35,7 @@ export function createPrivateTextRehearsalHandler({db,requireUser,store,resolveG
    if(!['GET','POST'].includes(req.method))fail('method_not_allowed',405);
    owner=(await requireUser(req)).id;let input=req.method==='GET'?req.query||{}:req.body||{};requestInput=input;
    const options={env};
+   if(req.method==='GET'&&input.op==='latest')return res.status(200).json({latest:await store.discoverLatestPrivateTextRehearsal(db,owner,input)});
    if(req.method==='GET'&&input.op==='readiness'){
     const readiness=await store.readPrivateTextReadiness(db,owner,input,options);
     if(readiness.can_ask)try{platformReady();const generator=adapterReady(await resolveGenerator());budget.foundryBudgetConfig(generator.billing.budget_env||env);}catch(error){return res.status(200).json({readiness:{...readiness,state:'unavailable',can_ask:false,blockers:[...readiness.blockers,{code:safeCode(error),responsibility:'platform'}]}});}

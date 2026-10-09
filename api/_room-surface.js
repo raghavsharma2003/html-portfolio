@@ -2115,7 +2115,7 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     publication: teacherSnapshot.publication,
     personId: payload.p,
     privateMemory: { enabled: remembers, agentId: resolved.agentId, personId: payload.p,
-      rows: engine.selectExpertPrivateMemoryRows(facts, remembers).map(f => ({ id: f.id, body: f.body, agentId: resolved.agentId,
+      rows: engine.selectExpertPrivateMemoryRows(facts, remembers, text).map(f => ({ id: f.id, body: f.body, agentId: resolved.agentId,
         personId: payload.p, consentStatus: "active", kind: f.kind, name: f.name,
         provenance: f.provenance, sourceContent: f.preference_source, communication:f.communication })) },
     publicKnowledge: knowledge.sources.map(({ id, question, answer }) => ({ id, question, answer })),

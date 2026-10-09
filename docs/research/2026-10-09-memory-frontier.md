@@ -4,7 +4,7 @@ Reviewed 9 October 2026. This is a source and code audit, not a benchmark result
 
 ## Decision
 
-Keep Vyakti's current memory store and authority model. The next code change should be one bounded experiment: **rank the already-authorized recall pool against the current question before filling the 20-row prompt budget**. Do it with a deterministic Unicode-aware selector, with no new model call, migration, service, vector store or third-party runtime.
+Keep Vyakti's current memory store and authority model. The next code change should be one bounded expert Room experiment: **rank the already-authorized recall pool against the current question before filling the expert compiler's 20-row prompt budget**. Do it with a deterministic Unicode-aware selector, with no new model call, migration, service, vector store or third-party runtime.
 
 This is narrower than the September 29 context-card proposal. It targets a failure the current code makes by construction: a relevant fact at position 21 to 30 is returned by SQL but dropped by the expert compiler if 20 newer, irrelevant facts fit first. It does not claim that this failure has occurred for a real owner, and it does not fix a relevant fact outside the newest-30 SQL pool. Those are explicit evaluation boundaries.
 
@@ -39,7 +39,9 @@ Across these systems, the useful common pattern is small: preserve source eviden
 
 ## Recommended next code change
 
-Extend `selectExpertPrivateMemoryRows` with an optional current-question argument and reuse it for owner and Room memory. With no question, preserve today's byte behavior.
+Extend `selectExpertPrivateMemoryRows` with an optional current-question argument and use it in the expert Room compiler path. With no question, preserve today's byte behavior.
+
+Do not apply the 20-row selector to owner Meet memory. `ownerMemoryTail` currently renders all 30 authorized rows, so inserting the expert selector there would discard 10 rows without relieving an existing owner prompt cap. Owner question ranking should be reconsidered only if a separately measured owner budget actually truncates that pool, and then with an owner-equivalent capacity.
 
 For a question-aware call:
 
@@ -52,14 +54,13 @@ For a question-aware call:
 
 This supports same-script English, Hindi and Hinglish without another inference call. It will not solve semantic paraphrases, Hindi-to-Latin transliteration or a relevant fact older than the newest 30. Those failures stay visible rather than being hidden behind an unmeasured “semantic” claim. If lexical selection earns value, the next experiment can compare an Azure-only embedding or reranker arm against it before widening storage or adding a service.
 
-Expected implementation files for that change are exact and small:
+The implemented source scope is expert Room only. The exact patch set is small:
 
+- `src/engine/privateMemorySelector.ts`: bounded Unicode token overlap, rare-token weighting and stable recency fallback over already-authorized rows only.
 - `src/engine/expertTextCompiler.ts`: optional query-aware membership ranking, still capped at 20 and the existing character budget.
 - `api/_engine.gen.js`: regenerated artifact from the engine build, never hand-maintained as a second implementation.
-- `api/_room-surface.js`: pass the current Room message to the selector for both expert and ordinary Room memory rendering.
-- `api/_replica-dialogue.js`: apply the same selector to `ownerFacts` before `ownerMemoryTail` in both text-ready and voice-ready owner paths.
-- `evals/expert-text-compiler.mjs`: pure English, Hindi and Hinglish ranking and budget controls.
-- `evals/text-ready/run.mjs` and `evals/room-memory-authority/run.mjs`: real caller wiring plus owner/Room scope, correction and forget negative controls.
+- `api/_room-surface.js`: pass the current Room message to the selector at the existing expert compiler call.
+- `evals/private-memory-selector.mjs`: source-only before/after retrieval, real compiled-prompt, caller wiring, fallback, support, boundary and scope controls.
 
 No SQL text, schema, migration, consent rule, correction path, forgetting path or relationship-state writer needs to change for this experiment.
 

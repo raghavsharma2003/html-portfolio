@@ -58,7 +58,10 @@ export function WorkspaceNavigation({ locale, name, active, disabled, onNavigate
       </div>)}</nav>
       {disabled && <p className="workbench-nav-note" role="status">{copy.pending}</p>}
     </aside>
-    <nav className="workbench-mobile-nav" aria-label={copy.navigation}>{mobileItems.map(item => <button key={item} type="button" disabled={disabled} aria-current={mobileActive === item ? "page" : undefined} onClick={() => onNavigate(item)}>{item === "overview" ? copy.build : item === "review" ? copy.improve : copy[item]}</button>)}</nav>
+    <nav className="workbench-mobile-nav" aria-label={copy.navigation}>{mobileItems.map(item => <button key={item} type="button" disabled={disabled} aria-current={mobileActive === item ? "page" : undefined} onClick={() => onNavigate(item)}>
+      {mobileActive === item && <motion.span className="workbench-selection" layoutId="workbench-mobile-selection" transition={{ duration: reduced ? 0 : 0.18, ease: "easeOut" }} aria-hidden="true" />}
+      <span>{item === "overview" ? copy.build : item === "review" ? copy.improve : copy[item]}</span>
+    </button>)}</nav>
   </>;
 }
 

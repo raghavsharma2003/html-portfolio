@@ -1,15 +1,27 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { createServer } from 'vite';
+import { createServer } from 'node:http';
+import { extname, join, resolve } from 'node:path';
+import { build } from 'vite';
 import { launchSuiteBrowser } from '../rehearsal/browser.mjs';
 
 const root=resolve(import.meta.dirname,'../..');
 const out=resolve(root,'scratchpad/workbench27');mkdirSync(out,{recursive:true});
-const server=process.env.VYAKTI_VISUAL_BASE ? null : await createServer({root,cacheDir:resolve(out,'vite-cache'),logLevel:'error',optimizeDeps:{entries:['evals/studio-workbench27/host.html']},server:{host:'127.0.0.1',port:0,open:false}});
+let server=null;
+if(!process.env.VYAKTI_VISUAL_BASE){
+ const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:false,rolldownOptions:{input:join(root,'evals/studio-workbench27/host.html')}}});
+ const outputs=new Map(built.output.map(file=>[`/${file.fileName}`,file.type==='chunk'?file.code:file.source]));
+ const contentType=path=>extname(path)==='.html'?'text/html':extname(path)==='.css'?'text/css':extname(path)==='.js'?'text/javascript':extname(path)==='.woff2'?'font/woff2':extname(path)==='.svg'?'image/svg+xml':'application/octet-stream';
+ server=createServer((request,response)=>{
+  const path=new URL(request.url,'http://fixture').pathname;
+  const asset=outputs.get(path);
+  if(asset===undefined){response.writeHead(404).end();return;}
+  response.writeHead(200,{'content-type':contentType(path),'cache-control':'no-store'});response.end(asset);
+ });
+}
 let browser;const results=[],errors=[];
 try {
- await server?.listen();const origin=process.env.VYAKTI_VISUAL_BASE || `http://127.0.0.1:${server.httpServer.address().port}`;console.log('workspace server ready');
+ if(server)await new Promise(resolveListen=>server.listen(0,'127.0.0.1',resolveListen));const origin=process.env.VYAKTI_VISUAL_BASE || `http://127.0.0.1:${server.address().port}`;console.log('workspace server ready');
  browser=await launchSuiteBrowser('studio-workbench27');console.log('workspace browser ready');
  for(const width of [390,1440]){
   const page=await browser.newPage({viewport:{width,height:900},reducedMotion:'reduce'});
@@ -46,4 +58,4 @@ try {
  assert.deepEqual(errors,[]);
  writeFileSync(resolve(out,'result.json'),JSON.stringify({results,errors,scope:'Mounted product components with synthetic API responses. No signed-in live account, provider call or quality proof.'},null,2));
  console.log(`Workspace: ${results.length} viewport journeys passed; no live account or model call.`);
-} catch(error) {console.error(error);throw error;} finally {await browser?.close();await server?.close();}
+} catch(error) {console.error(error);throw error;} finally {await browser?.close();server?.closeAllConnections();if(server)await new Promise(resolveClose=>server.close(resolveClose));}

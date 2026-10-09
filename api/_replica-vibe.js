@@ -25,26 +25,40 @@ import { randomUUID } from "node:crypto";
 
 const OWNERSHIP_SQL = "select replica_id from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid";
 
-const SET_SQL = `with superseded as (
+// This server-owned metadata key is a private-text style fence, not identity or
+// source authority. Preserve the self-test provenance already stored in metadata
+// and leave private_text_epoch unchanged: voice/comparison grants also bind it.
+// The marker and style commit together. A direct replica-row marker predicate
+// lets a waiting private text write recheck the latest tuple before committing.
+const SET_SQL = `with owned as materialized (
+  update vy_replica r set metadata=r.metadata||jsonb_build_object('private_text_style_revision',$3::uuid::text)
+   where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and jsonb_typeof(r.metadata)='object'
+   returning r.replica_id,r.owner_user_id
+), superseded as (
   update vy_replica_vibe v set superseded_at=now()
-   where v.replica_id=$1::uuid and v.owner_user_id=$2::uuid and v.superseded_at is null
+   from owned o where v.replica_id=o.replica_id and v.owner_user_id=o.owner_user_id and v.superseded_at is null
   returning v.version
 )
 insert into vy_replica_vibe (vibe_id,replica_id,owner_user_id,version,warmth,energy,humour,directness,formality,note)
-select $3::uuid,$1::uuid,$2::uuid,coalesce((select max(version)+1 from superseded),1),$4::int2,$5::int2,$6::int2,$7::int2,$8::int2,$9::text
+select $3::uuid,o.replica_id,o.owner_user_id,coalesce((select max(version)+1 from superseded),1),$4::int2,$5::int2,$6::int2,$7::int2,$8::int2,$9::text from owned o
 returning vibe_id,replica_id,owner_user_id,version,warmth,energy,humour,directness,formality,note,created_at`;
 
 const REVERT_SQL = `with target as (
   select * from vy_replica_vibe where replica_id=$1::uuid and owner_user_id=$2::uuid and version=$3::int4
+), owned as materialized (
+  update vy_replica r set metadata=r.metadata||jsonb_build_object('private_text_style_revision',$4::uuid::text)
+   where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and jsonb_typeof(r.metadata)='object'
+   and exists(select 1 from target)
+   returning r.replica_id,r.owner_user_id
 ), superseded as (
   update vy_replica_vibe v set superseded_at=now()
-   where v.replica_id=$1::uuid and v.owner_user_id=$2::uuid and v.superseded_at is null
+   from owned o where v.replica_id=o.replica_id and v.owner_user_id=o.owner_user_id and v.superseded_at is null
   returning v.version
 )
 insert into vy_replica_vibe (vibe_id,replica_id,owner_user_id,version,warmth,energy,humour,directness,formality,note)
 select $4::uuid,t.replica_id,t.owner_user_id,coalesce((select max(version)+1 from superseded),1),
        t.warmth,t.energy,t.humour,t.directness,t.formality,t.note
-  from target t
+  from target t join owned o on o.replica_id=t.replica_id and o.owner_user_id=t.owner_user_id
 returning vibe_id,replica_id,owner_user_id,version,warmth,energy,humour,directness,formality,note,created_at`;
 
 const LIVE_SQL = `select vibe_id,replica_id,owner_user_id,version,warmth,energy,humour,directness,formality,note,created_at

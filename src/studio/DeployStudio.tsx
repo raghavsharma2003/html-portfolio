@@ -18,14 +18,10 @@
 //    is deliberately the only new copy this file introduces
 //    (`deployStudioState.ts` carries the mapping and its own reversal
 //    condition).
-// 2. `onGoStep`, translated. `RoomStudio`'s blocker rows can ask to jump to
-//    step "meet" (`BLOCKER_STEP` in RoomStudio.tsx) — this screen has no
-//    "meet" step of its own, so the translation is simply "go back to the
-//    same review `onReview` already opens", the exact place the person's own
-//    voice/consent review already lives (`CloneExperience.tsx`'s
-//    `chooseRoom("evolve")`). Until R151 (HumanOS) ships its own screen, this
-//    IS "publish who you are first"'s fix, named honestly rather than
-//    pointing at a screen that does not exist yet.
+// 2. `onGoStep`, translated from the first server blocker already reported
+//    by `RoomStudio`. A disclosure blocker opens the real person-profile
+//    editor; readiness and unknown Meet blockers keep their existing review
+//    destination. The banner uses that same explicit profile route.
 // 3. "See it as a visitor" — opens the real `/r/<slug>` in a new tab. Nothing
 //    is simulated: `deployVisitorLink` returns `null` (no button at all)
 //    until the Room is actually published, `deployStudioState.ts`'s own
@@ -111,33 +107,39 @@ export default function DeployStudio({
   stopped,
   onAuthError,
   onReview,
+  onOpenProfile,
 }: {
   token: string;
   replicaId: string;
   stopped: boolean;
   onAuthError: (cause: unknown) => void;
   onReview: () => void;
+  onOpenProfile: () => void;
 }) {
   const locale = readDeployLocale(window.location.search);
   const t = DEPLOY_COPY[locale];
   const [room, setRoom] = useState<OwnedRoom | null>(null);
   const [roomChecked, setRoomChecked] = useState(false);
+  const [firstBlockerAnchor, setFirstBlockerAnchor] = useState<string | null>(null);
 
   // Fed by `RoomStudio`'s own `onRoomState` — `ShareKitCard.tsx`'s own "fed
   // up, never fetched twice" law restated: this screen never makes its own
   // `/api/room-publish` read.
-  const handleRoomState = useCallback((nextRoom: OwnedRoom | null) => {
+  const handleRoomState = useCallback((nextRoom: OwnedRoom | null, _stats: unknown, blocker: { anchor: string } | null) => {
     setRoom(nextRoom);
     setRoomChecked(true);
+    setFirstBlockerAnchor(blocker?.anchor || null);
   }, []);
 
-  // `RoomStudio`'s blocker rows can ask for step "meet" or "deploy"
-  // (`BLOCKER_STEP` in RoomStudio.tsx); "deploy" is this screen itself, so
-  // only "meet" ever needs a translation, into the review this screen's own
-  // "Publish who you are first" banner already points at.
+  // `RoomStudio` maps both readiness and disclosure blockers onto "meet".
+  // Its existing state callback carries the first blocker's exact anchor, so
+  // keep the two destinations separate instead of treating every blocker as
+  // profile work.
   const handleGoStep = useCallback((next: StepId) => {
-    if (shouldReviewForStep(next)) onReview();
-  }, [onReview]);
+    if (!shouldReviewForStep(next)) return;
+    if (firstBlockerAnchor === "#teacher-sheet-studio") onOpenProfile();
+    else onReview();
+  }, [firstBlockerAnchor, onOpenProfile, onReview]);
 
   const banner = deployBannerState({ stopped, publishedRoom: Boolean(room?.published) });
   const visitorLink = roomChecked ? deployVisitorLink(room, window.location.origin) : null;
@@ -175,7 +177,7 @@ export default function DeployStudio({
           <>
             <p className="vx-deploy-banner__headline">{t.publishLabel}</p>
             <p className="field-note">{t.publishBody}</p>
-            <button type="button" className="button secondary-button" onPointerDown={onReview}>
+            <button type="button" className="button secondary-button" onClick={onOpenProfile}>
               {t.publishAction}
             </button>
           </>

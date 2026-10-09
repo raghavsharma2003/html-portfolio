@@ -6,7 +6,17 @@ import "./publication.css";
 const hasCandidateBindingShareBlocker = (readiness: PublicationReadiness | null) =>
   readiness?.blockers.some(blocker => blocker.responsibility === "platform" && blocker.code === "candidate_binding_required") === true;
 
-export default function MaterialSharePanel({ token, replicaId, onReview }: { token: string; replicaId: string; onReview: () => void }) {
+const personalProfileLabels: Record<string, string> = {
+  name: "Name", identityWho: "Who you are", identityLife: "Your life", lifeTexture: "Everyday details",
+  tasteTopics: "What you enjoy", curiosityTopics: "What you are curious about", personLine: "Introduction",
+  personValues: "Values", personNeverSay: "Boundaries", personTalk: "How you talk",
+};
+const personalToneLabels: Record<string, string> = { formal: "Formal", mixed: "Mixed", casual: "Casual" };
+const personalLanguageLabels: Record<string, string> = {
+  english: "English", devanagari: "Hindi in Devanagari", "roman-hinglish": "Hinglish in Roman script",
+};
+
+export default function MaterialSharePanel({ token, replicaId, onReview, onOpenProfile }: { token: string; replicaId: string; onReview: () => void; onOpenProfile?: () => void }) {
   const [data, setData] = useState<PublicationReadiness | null>(null);
   const [sheet, setSheet] = useState("");
   const [item, setItem] = useState("");
@@ -89,6 +99,17 @@ export default function MaterialSharePanel({ token, replicaId, onReview }: { tok
   const availabilityState = availability?.token === token && availability.replicaId === replicaId && availability.publicId === published?.public_id ? availability.state : "checking";
   const url = published ? `${window.location.origin}/studio?publication=${encodeURIComponent(published.public_id)}` : "";
   const reviewParams = new URLSearchParams({ mode: "teacher", replica: replicaId, step: "meet", view: "review" });
+  const personProfile = data?.drafts.find(draft => draft.sheet_id === sheet)?.sheet_kind === "person"
+    || data?.selected?.projection && "sheetKind" in data.selected.projection && data.selected.projection.sheetKind === "person";
+  const profileParams = new URLSearchParams({ replica: replicaId, view: "enrich", enrichView: "humanos" });
+  const displayChoice = (name: string, value: unknown): string => {
+    if (personProfile && name === "personTalk" && value && typeof value === "object") {
+      const talk = value as { register: string; scriptBaseline: string; codeSwitchNote?: string };
+      return [`Tone: ${personalToneLabels[talk.register] || talk.register}`, `Language: ${personalLanguageLabels[talk.scriptBaseline] || talk.scriptBaseline}`,
+        ...(talk.codeSwitchNote ? [`Language habits: ${talk.codeSwitchNote}`] : [])].join("; ");
+    }
+    return Array.isArray(value) ? value.join(", ") : String(value);
+  };
   const ownerBlockers = data?.blockers.filter(b => b.responsibility === "owner") || [];
   const candidateBindingBlocked = hasCandidateBindingShareBlocker(data);
   const otherPlatformBlocked = data?.blockers.some(b => b.responsibility === "platform" && b.code !== "candidate_binding_required");
@@ -118,7 +139,7 @@ export default function MaterialSharePanel({ token, replicaId, onReview }: { tok
       <button disabled={busy} onClick={() => void act("unpublish")}>Unpublish</button>
     </div> : <>
       {!data ? <button disabled={busy} onClick={() => void reload()}>Load sharing</button> : <>
-        <label>Teaching profile<select value={sheet} disabled={busy || stopped} onChange={event => { setChecks({}); setSheet(event.target.value); }}>
+        <label>{data.drafts.some(draft => draft.sheet_kind === "person") ? "Profile" : "Teaching profile"}<select value={sheet} disabled={busy || stopped} onChange={event => { setChecks({}); setSheet(event.target.value); }}>
           <option value="">Choose a profile</option>{data.drafts.map(draft => <option key={draft.sheet_id} value={draft.sheet_id}>{draft.name}</option>)}
         </select></label>
         <label><input type="checkbox" checked={allowMemory} disabled={busy || stopped} onChange={event => { scope.current++; setChecks({}); setData(null); setAllowMemory(event.target.checked); }} />Let visitors choose conversation memory</label>
@@ -127,8 +148,10 @@ export default function MaterialSharePanel({ token, replicaId, onReview }: { tok
         </select></label>
         {ownerBlockers.length > 0 && <div role="status">
           {ownerBlockers.some(b => /saved_draft|draft_|projection_invalid/.test(b.code)) ? <>
-            <p>Your teaching profile needs a name, subject and saved teaching choices.</p>
-            <a href={`/studio?${reviewParams}`}>Review teaching profile</a>
+            <p>{personProfile ? "Your personal profile needs a name and a saved description of who you are." : "Your teaching profile needs a name, subject and saved teaching choices."}</p>
+            {personProfile ? onOpenProfile ? <button type="button" onClick={onOpenProfile}>Review personal profile</button>
+              : <a href={`/studio?${profileParams}`}>Review personal profile</a>
+              : <a href={`/studio?${reviewParams}`}>Review teaching profile</a>}
           </> : ownerBlockers.some(b => /owner_text_context|context_too_large/.test(b.code)) ? <p>Choose ready text you created. Your material must fit the publishing limit.</p>
             : ownerBlockers.some(b => /account_attestation/.test(b.code)) ? <p>Review your account permissions before publishing.</p>
             : ownerBlockers.every(b => b.code === "text_publication_selection_required") ? <p>Choose a profile and material to review.</p>
@@ -137,7 +160,9 @@ export default function MaterialSharePanel({ token, replicaId, onReview }: { tok
         {data.selected && <div className="vp-review">
           <h3>Review what you will share</h3>
           <details><summary>{data.selected.source_name}</summary><pre>{data.selected.material_text}</pre></details>
-          <details><summary>Teaching choices</summary><dl>{Object.entries(data.selected.projection).map(([name, value]) => <div key={name}><dt>{name.replace(/([A-Z])/g, " $1")}</dt><dd>{Array.isArray(value) ? value.join(", ") : String(value)}</dd></div>)}</dl></details>
+          <details><summary>{personProfile ? "Personal profile to share" : "Teaching choices"}</summary>
+            {personProfile && <p>Every field below will be available to visitors. Remove anything you want to keep private before publishing.</p>}
+            <dl>{Object.entries(data.selected.projection).filter(([name]) => name !== "sheetKind").map(([name, value]) => <div key={name}><dt>{personProfile ? personalProfileLabels[name] || name : name.replace(/([A-Z])/g, " $1")}</dt><dd>{displayChoice(name, value)}</dd></div>)}</dl></details>
           <details><summary>Access and limits</summary>
             <p>Signed-in adults. {data.selected.terms.visitor_question_limit} questions per person. This link expires in {data.selected.terms.publication_days} days.</p>
             <p>Questions are kept for up to {data.selected.terms.retention_days} days. Each submitted question uses one of the {data.selected.terms.total_question_limit} available questions, even if an answer cannot be delivered.</p>

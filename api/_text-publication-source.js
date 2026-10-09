@@ -35,7 +35,7 @@ export const PRIVATE_TEXT_SELECTION_SQL=`select r.replica_id,r.owner_user_id,r.l
 export const PRIVATE_TEXT_CHOICES_SQL=`select r.replica_id,r.lifecycle,
  ${ACTIVE_CANDIDATE} active_candidate_binding_required,
  coalesce((select jsonb_agg(d order by d.updated_at desc,d.sheet_id) from
- (select s.sheet_id,s.sheet->>'name' name,s.updated_at,s.status from vy_teacher_sheet s
+ (select s.sheet_id,s.sheet->>'name' name,coalesce(s.sheet->>'sheetKind','teacher') sheet_kind,s.updated_at,s.status from vy_teacher_sheet s
  where ${ownSheet} and s.status in ('draft','validated','published')) d),'[]'::jsonb) drafts,
  coalesce((select jsonb_agg(x order by x.created_at desc,x.item_id) from
  (select i.item_id,i.source_name,i.status,i.format,i.authorship,i.source_id,i.created_at,
@@ -49,8 +49,10 @@ export async function readPublicationSelection(db,owner,input,frozenProjection=n
  if(!row)fail('text_publication_authority_unavailable');
  if(!frozenProjection&&(!row.sheet_id||!['draft','validated','published'].includes(row.sheet_status)))fail('text_publication_saved_draft_required');
  const draft=frozenProjection||json(row.sheet);
- for(const field of ['name','subjectDomain'])if(typeof draft?.[field]!=='string'||!draft[field].trim())fail('text_publication_draft_'+field+'_required');
- if(!['physics','chemistry','maths'].includes(draft.subjectDomain))fail('text_publication_draft_domain_unsupported');
+ if(!draft||typeof draft!=='object'||Array.isArray(draft)||![undefined,'teacher','person'].includes(draft.sheetKind))fail('text_publication_draft_kind_invalid');
+ const person=draft.sheetKind==='person';
+ for(const field of person?['name','identityWho']:['name','subjectDomain'])if(typeof draft[field]!=='string'||!draft[field].trim())fail('text_publication_draft_'+field+'_required');
+ if(!person&&!['physics','chemistry','maths'].includes(draft.subjectDomain))fail('text_publication_draft_domain_unsupported');
  if(!row.item_id||!['extracted','mined'].includes(row.item_status)||row.authorship!=='mine'||!TEXT_FORMATS.includes(row.format))fail('text_publication_owner_text_context_required');
  if(row.source_state!=='ready'||row.source_hash!==row.content_sha256||!row.source_id)fail('text_publication_source_unavailable');
  if(typeof row.body!=='string'||!row.body.trim())fail('text_publication_canonical_text_unavailable');

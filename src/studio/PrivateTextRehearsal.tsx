@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import PrivateTeachingRefinement from "./PrivateTeachingRefinement";
 import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaLifecycle } from "./types";
-import { askPrivateText, isPrivateTextId, PRIVATE_TEXT_ATTESTATIONS, readPrivateRehearsalDraft, readPrivateTextReadiness, readPrivateTextResult, savePrivateRehearsalDraft, withdrawPrivateText,
+import { useStudioLocale } from "./localeContext";
+import { askPrivateText, isPrivateTextId, PRIVATE_TEXT_ATTESTATIONS, readLatestPrivateTextRequest, readPrivateRehearsalDraft, readPrivateTextReadiness, readPrivateTextResult, savePrivateRehearsalDraft, withdrawPrivateText,
   type PrivateDraftBody, type PrivateTextAttestation, type PrivateTextBillingState, type PrivateTextReadiness, type PrivateTextResult } from "./privateTextRehearsalApi";
 import "./private-text-rehearsal.css";
 
@@ -48,7 +49,7 @@ function useActionFocus() {
 
 export type PrivateTextReturnDraft = { question: string; sheetId: string; contextItemId: string };
 
-type Props = { onEditProfile?: () => void; initialDraft?: PrivateTextReturnDraft; token: string; replicaId: string; lifecycle: ReplicaLifecycle; onBack: () => void; onEditContext: (draft: PrivateTextReturnDraft) => void; onAuthError: (cause: unknown) => void };
+type Props = { onEditProfile?: (draft: PrivateTextReturnDraft) => void; initialDraft?: PrivateTextReturnDraft; token: string; replicaId: string; lifecycle: ReplicaLifecycle; onBack: () => void; onEditContext: (draft: PrivateTextReturnDraft) => void; onAuthError: (cause: unknown) => void };
 const REQUEST_PARAM = "rehearsal_request";
 function savedRequest(replicaId: string) {
   const query = new URLSearchParams(location.search);
@@ -91,6 +92,7 @@ function StoppedPrivateText({ token, replicaId, lifecycle, onBack, onAuthError }
   return <section className="ptr-panel"><div className="ptr-content"><button type="button" onClick={onBack}>Back to your workspace</button><h1>Private draft test is stopped.</h1><p>{lifecycle === "purging" ? "Erasure is already underway for this AI." : "This workspace must be available before a private answer can be requested or read."}</p>{error ? <p role="alert">{error}</p> : null}{removed && unresolvedUsage(billing) ? <p>Removing a test does not cancel incurred usage.</p> : null}{removed ? <p role="status">This saved test's private payload has been removed.</p> : id && lifecycle !== "purging" ? <button type="button" disabled={busy} onClick={() => void remove()}>{busy ? "Removing saved test" : "Remove saved test"}</button> : null}</div></section>;
 }
 function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditContext, onEditProfile, onAuthError }: Props) {
+  const { locale } = useStudioLocale();
   const [readiness, setReadiness] = useState<PrivateTextReadiness | null>(null);
   const [readinessError, setReadinessError] = useState(false);
   const [selection, setSelection] = useState(() => ({ sheetId: isPrivateTextId(initialDraft?.sheetId) ? initialDraft.sheetId : "", contextItemId: isPrivateTextId(initialDraft?.contextItemId) ? initialDraft.contextItemId : "" }));
@@ -106,6 +108,8 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   const [busy, setBusy] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [recoveryState, setRecoveryState] = useState<"checking" | "ready" | "error">(() => { const query = new URLSearchParams(location.search); return savedRequest(replicaId) ? "ready" : query.get("replica") === replicaId && query.has(REQUEST_PARAM) ? "error" : "checking"; });
+  const [recoveryRefresh, setRecoveryRefresh] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [editor, setEditor] = useState<PrivateDraftBody | null>(null);
   const [editorBase, setEditorBase] = useState<PrivateDraftBody | null>(null);
@@ -137,18 +141,60 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
     return () => abort.abort();
   }, [token, replicaId, selection.sheetId, selection.contextItemId, refresh, parentRequestId]);
   useEffect(() => {
-    const id = savedRequest(replicaId);
-    if (!id) return;
+    let id = savedRequest(replicaId);
+    const query = new URLSearchParams(location.search);
+    const urlHasHandle = query.get("replica") === replicaId && query.has(REQUEST_PARAM);
+    if (!id && urlHasHandle) { setRecoveryState("error"); return; }
     const abort = new AbortController(); const attempt = operation.current;
-    void readPrivateTextResult(token, replicaId, id, abort.signal).then(next => {
-      if (mounted.current && operation.current === attempt && !abort.signal.aborted) { setResult(next); setNotFound(false); }
-    }).catch(cause => {
-      if (mounted.current && operation.current === attempt && !abort.signal.aborted) { setNotFound(requestNotFound(cause)); handleError(cause, requestNotFound(cause) ? "No saved result was found. Cancel this request before starting a new question." : "The saved request could not be read. Check its result before asking another question."); }
-    });
+    let stage: "discover" | "result" = id ? "result" : "discover";
+    setRecoveryState(id ? "ready" : "checking");
+    void (async () => {
+      try {
+        if (!id) {
+          const latest = await readLatestPrivateTextRequest(token, replicaId, abort.signal);
+          if (!mounted.current || operation.current !== attempt || abort.signal.aborted) return;
+          if (!latest) { setRecoveryState("ready"); return; }
+          persistRequest(replicaId, latest.request_id); id = latest.request_id; setRequestId(id); setRecoveryState("ready"); stage = "result";
+        }
+        const next = await readPrivateTextResult(token, replicaId, id, abort.signal);
+        if (mounted.current && operation.current === attempt && !abort.signal.aborted) { setResult(next); setNotFound(false); }
+      } catch (cause) {
+        if (!mounted.current || operation.current !== attempt || abort.signal.aborted) return;
+        if (stage === "discover") {
+          if (cause instanceof ReplicaApiError && cause.status === 401) onAuthErrorRef.current(cause);
+          setRecoveryState("error");
+          return;
+        }
+        setNotFound(requestNotFound(cause));
+        handleError(cause, requestNotFound(cause) ? "No saved result was found. Cancel this request before starting a new question." : "The saved request could not be read. Check its result before asking another question.");
+      }
+    })();
     return () => abort.abort();
-  }, [token, replicaId]);
+  }, [token, replicaId, recoveryRefresh]);
   const selected = readiness?.selected;
-  const ready = Boolean(readiness?.can_ask && selected && !editor && !loading && !requestId);
+  const currentQuery = new URLSearchParams(location.search);
+  const hasScopedUrlHandle = currentQuery.get("replica") === replicaId && currentQuery.has(REQUEST_PARAM);
+  const profileStart = locale === "hi" ? {
+    back: "अपनी जगह पर लौटें",
+    pageTitle: "अपने निजी जवाब को आज़माएँ।",
+    pageBody: "अपनी सामग्री चुनें। फिर एक सवाल पूछें और जवाब सुधारें।",
+    title: "पहले बताएँ कि आप कौन हैं।",
+    body: "अपना नज़रिया, अंदाज़ और सीमाएँ जोड़ें। फिर यहाँ लौटकर जवाब आज़माएँ।",
+    action: "व्यक्तित्व जोड़ें",
+    opening: "व्यक्तित्व खुल रहा है",
+    sourceAction: "सामग्री जोड़ें",
+  } : {
+    back: "Back to your workspace",
+    pageTitle: "Test your private draft.",
+    pageBody: "Choose saved material, ask once, then review or correct the answer.",
+    title: "Start with who you are.",
+    body: "Add your perspective, style and boundaries. Then return here to try an answer.",
+    action: "Set up personality",
+    opening: "Opening personality",
+    sourceAction: "Add source material",
+  };
+  const needsPersonalProfile = Boolean(!loading && readiness && readiness.drafts.length === 0 && onEditProfile);
+  const ready = Boolean(recoveryState === "ready" && readiness?.can_ask && selected && !editor && !loading && !requestId);
   const canAsk = ready && !busy && question.trim().length > 0 && question.length <= 2000 && PRIVATE_TEXT_ATTESTATIONS.every(id => attested.includes(id));
   function changeSelection(next: typeof selection) {
     operation.current++; readOperation.current++; setSelection(next); setReadiness(null); setResult(null); setParentRequestId(null); setAttested([]); setError(""); setEditor(null);
@@ -207,12 +253,14 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   }
   async function editDraft() {
     if (requestId) return;
-    if (onEditProfile && selected?.material.draft.sheetKind === "person") { onEditProfile(); return; }
+    const returnDraft = { question, sheetId: selection.sheetId || selected?.sheet_id || "", contextItemId: selection.contextItemId || selected?.context_item_id || "" };
+    if (onEditProfile && selected?.material.draft.sheetKind === "person") { onEditProfile(returnDraft); return; }
     await act("edit", async (signal, current) => {
       const view = await readPrivateRehearsalDraft(token, replicaId, signal);
       if (!current()) return;
       if (selected && view.sheet_id !== selected.sheet_id) throw new Error("The current editable draft changed. Refresh availability and choose it before editing.");
       if (view.status && !["draft", "validated", "published"].includes(view.status)) throw new Error("This saved sheet is unavailable for a private draft. Refresh availability before editing.");
+      if (onEditProfile && (!view.draft || view.draft.sheetKind === "person")) { onEditProfile(returnDraft); return; }
       setEditorFromPublished(view.status === "published");
       setEditorBase(view.draft || {}); setEditor(view.draft || {}); setAttested([]);
     });
@@ -230,15 +278,15 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
   function newQuestion(parent: string | null = null) {
     if (busy) return;
     try { persistRequest(replicaId, null); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not clear the saved handle."); return; }
-    operation.current++; readOperation.current++; setReadiness(null); setRefinementOpen(false); setRequestId(null); setParentRequestId(parent); setResult(null); setErased(false); setWithdrawalBilling(null); setNotFound(false); setQuestion(""); setAttested(parent ? [...PRIVATE_TEXT_ATTESTATIONS] : []); setError(""); setRefresh(value => value + 1);
+    operation.current++; readOperation.current++; setReadiness(null); setRefinementOpen(false); setRequestId(null); setParentRequestId(parent); setResult(null); setErased(false); setWithdrawalBilling(null); setNotFound(false); setQuestion(""); setAttested(parent ? [...PRIVATE_TEXT_ATTESTATIONS] : []); setError(""); setRecoveryState("ready"); setRefresh(value => value + 1);
   }
   const canStartAnother = erased || result?.state === "withdrawn" || result && ["complete", "blocked"].includes(result.state) && ["settled", "not_started"].includes(result.billing_state);
   return <section className="ptr-panel" aria-labelledby="ptr-title">
     <div className="ptr-content">
-      <button className="vx-back" type="button" onClick={onBack}>Back to your workspace</button>
+      <button className="vx-back" type="button" onClick={onBack}>{profileStart.back}</button>
       <header className="ptr-heading">
-        <h1 id="ptr-title">Test your private draft.</h1>
-        <p>Choose saved material, ask once, then review or correct the answer.</p>
+        <h1 id="ptr-title">{profileStart.pageTitle}</h1>
+        <p>{profileStart.pageBody}</p>
       </header>
       {error && (!readinessError || requestId) ? <p className="ptr-message" role="alert">{error}</p> : null}
       {requestId ? <section className="ptr-result" aria-label="Saved private test">
@@ -251,14 +299,21 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
           readOperation.current++; setReadiness(null); setAttested([]);
           setSelection({sheetId: view.sheet_id, contextItemId: result.source.context_item_id}); setRefresh(value => value + 1);
         }} /> : null}
-        {!erased && result?.state === "complete" && result.source.sheet_kind === "person" && onEditProfile ? <button className="vx-button vx-button--quiet" type="button" onClick={onEditProfile}>Adjust personality</button> : null}
+        {!erased && result?.state === "complete" && result.source.sheet_kind === "person" && onEditProfile ? <button className="vx-button vx-button--quiet" type="button" onClick={() => onEditProfile({ question, sheetId: result.source.sheet_id, contextItemId: result.source.context_item_id })}>Adjust personality</button> : null}
         {unresolvedUsage(withdrawalBilling || result?.billing_state) ? <p role="status">Removing a test does not cancel incurred usage.</p> : null}
         {result?.failure_code ? <details className="ptr-request-details"><summary>Request details</summary><p>{result.failure_code.replaceAll("_", " ")}</p></details> : null}
         <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <>
           <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button>
           <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button>
         </> : null}{canStartAnother && !refinementOpen ? <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => newQuestion(result?.state === "complete" ? result.request_id : null)}>{result?.state === "complete" ? "Ask a follow-up" : "Prepare another question"}</button> : null}</div>
-      </section> : readinessError ? <section className="ptr-recovery" role="alert"><h2>We could not load your material.</h2><p>Your saved work has not changed.</p><button className="vx-button vx-button--primary" type="button" onClick={() => { setError(""); setRefresh(value => value + 1); }}>Try again</button></section> : <div className="ptr-compose">
+      </section> : recoveryState === "checking" ? <section className="ptr-recovery" aria-live="polite"><h2>Checking for your saved private test.</h2><p>No question will be sent while this check is running.</p></section> : recoveryState === "error" ? <section className="ptr-recovery" role="alert"><h2>We could not check for an earlier private test.</h2><p>No new question can be sent until the saved request check succeeds.</p>{!hasScopedUrlHandle ? <button className="vx-button vx-button--primary" type="button" onClick={() => setRecoveryRefresh(value => value + 1)}>Try again</button> : null}</section> : readinessError ? <section className="ptr-recovery" role="alert"><h2>We could not load your material.</h2><p>Your saved work has not changed.</p><button className="vx-button vx-button--primary" type="button" onClick={() => { setError(""); setRefresh(value => value + 1); }}>Try again</button></section> : needsPersonalProfile ? <section className="ptr-profile-first-use" aria-labelledby="ptr-profile-first-use-title">
+        <h2 id="ptr-profile-first-use-title">{profileStart.title}</h2>
+        <p>{profileStart.body}</p>
+        <div className="ptr-actions">
+          <button className="vx-button vx-button--primary" type="button" disabled={Boolean(busy)} onClick={() => void editDraft()}>{busy === "edit" ? profileStart.opening : profileStart.action}</button>
+          <button type="button" disabled={Boolean(busy)} onClick={() => onEditContext({ question, sheetId: selection.sheetId || selected?.sheet_id || "", contextItemId: selection.contextItemId || selected?.context_item_id || "" })}>{profileStart.sourceAction}</button>
+        </div>
+      </section> : <div className="ptr-compose">
         <section className="ptr-material" aria-label="Selected material">
           <div className="ptr-section-heading">
             <div><h2 ref={materialHeading} tabIndex={-1}>Choose what the answer uses.</h2><p>One draft and one source.</p></div>

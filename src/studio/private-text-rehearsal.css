@@ -192,6 +192,38 @@
     margin-top: 20px;
   }
 
+  .ptr-profile-first-use {
+    display: grid;
+    gap: 10px;
+    border: 1px solid var(--ptr-line);
+    border-radius: 14px;
+    padding: clamp(24px, 5vw, 42px);
+    background: var(--ptr-panel);
+  }
+
+  .ptr-profile-first-use h2 {
+    max-width: 18ch;
+    font-size: clamp(24px, 3.5vw, 32px);
+  }
+
+  .ptr-profile-first-use > p {
+    max-width: 52ch;
+    margin: 0;
+    color: var(--ptr-muted);
+    font-size: 14px;
+  }
+
+  .ptr-profile-first-use .ptr-actions {
+    margin-top: 14px;
+  }
+
+  .ptr-panel .ptr-profile-first-use .vx-button--primary {
+    width: fit-content;
+    min-width: min(100%, 160px);
+    margin-top: 0;
+    padding-inline: 18px;
+  }
+
   .ptr-actions {
     display: flex;
     flex-wrap: wrap;

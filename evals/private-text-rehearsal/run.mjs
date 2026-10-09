@@ -75,6 +75,7 @@ try{
    if(url.pathname==='/api/replica-activity'&&req.headers.authorization==='Bearer offline')return send(200,remap(base.ROUTES['/api/replica-activity'],RID));
    if(![`Bearer ${TOKEN}`,'Bearer replacement-fixture-token'].includes(req.headers.authorization)){surprises.push('unexpected auth');return send(401,{error:'fixture_auth_required'});}
    if(url.pathname==='/api/replica-text-rehearsal'){
+    if(op==='latest')return send(200,{latest:null});
     if(op==='readiness'){if(scenario==='read-failed')return send(503,{error:'synthetic_read_unavailable'});const value={readiness:readiness(rid)};if(!url.searchParams.get('sheet_id')||!url.searchParams.get('context_item_id')){value.readiness.selected=null;value.readiness.can_ask=false;value.readiness.state='needs_input';value.readiness.blockers.push({code:'rehearsal_selection_required',responsibility:'owner'});}if(scenario==='late-readiness'){pending.push(()=>send(200,value));return;}return send(200,value);}
     if(op==='ask'){
      assert.equal(new URL(req.headers.referer).searchParams.get('rehearsal_request'),body.request_id,'opaque handle persisted before actual POST');
@@ -128,7 +129,7 @@ try{
  const check=async(name,fn)=>{await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);};
  for(const width of [390,1440])await check(`actual modern entry ${width}: pre-identity draft, explicit ask, result and withdrawal`,async()=>{
   await page.setViewportSize({width,height:900});await open('ready',true);assert.equal(await page.locator('.vx-shell').count(),1);assert.equal(new URL(page.url()).searchParams.get('replica'),RID);assert.equal(new URL(page.url()).searchParams.get('lang'),'hi');
-  assert(await page.getByRole('heading',{name:'Test your private draft.'}).isVisible());assert(await page.locator('#ptr-question').isVisible());assert.equal(await page.locator('.ffm-rail').count(),0);
+  assert(await page.getByRole('heading',{name:/^(Test your private draft\.|अपने निजी जवाब को आज़माएँ।)$/}).isVisible());assert(await page.locator('#ptr-question').isVisible());assert.equal(await page.locator('.ffm-rail').count(),0);
   assert(await page.getByRole('button',{name:'Ask privately',exact:true}).isDisabled());assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);assert.equal(askCount(),0);
   await page.getByRole('button',{name:'Edit draft details'}).click();await page.getByLabel('Your name',{exact:true}).fill('Synthetic Physics Teacher Revised');await page.getByRole('button',{name:'Save private draft'}).click();await page.getByText('Review source: pendulum-notes.txt').waitFor();assert.equal(draft.teachingStyle,'short visual explanations');assert(!Object.hasOwn(draft,'consentArtifactId'));assert(!Object.hasOwn(draft,'agentId'));
   await fill();await page.screenshot({path:join(artifact,`ready-${width}.png`),fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

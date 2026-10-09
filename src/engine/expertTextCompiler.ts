@@ -6,6 +6,7 @@ import type { TeacherSheet } from "./agents/teacherTypes";
 import { consentGateBlockers, helplineNumbersIn } from "./agents/fromSheet";
 import { PUBLISHED_HELPLINES } from "./honesty";
 import { projectLearnerCommunication } from "./learnerCommunication";
+import { privateMemorySelectionOrder } from "./privateMemorySelector";
 import {
   MATERIAL_BLOCK_OPEN, MATERIAL_BLOCK_CLOSE, renderPublicKnowledge, PUBLIC_KNOWLEDGE_BLOCK_CAP,
   type CompiledPrompt, type PublicKnowledgeEntry,
@@ -165,11 +166,13 @@ export const expertMaterialBlock = material;
  * Input order is newest first; returned order remains unchanged. Scope checks
  * still belong to compileExpertText and are never bypassed by this selector. */
 export function selectExpertPrivateMemoryRows<T extends { body: string; communication_support?: unknown }>(
-  candidates: readonly T[], enabled = true,
+  candidates: readonly T[], enabled = true, question?: string,
 ): T[] {
   if (!Array.isArray(candidates) || candidates.length > 33
       || candidates.some(row => !object(row) || !text(row.body)
-        || (row.communication_support !== undefined && typeof row.communication_support !== "boolean"))) {
+        || (row.communication_support !== undefined && typeof row.communication_support !== "boolean"))
+      || (question !== undefined && (typeof question !== "string" || question.length > 4_000
+        || /[\u0000\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(question)))) {
     fail("expert_text_memory_scope_invalid");
   }
   const selected = new Set<number>();
@@ -179,7 +182,7 @@ export function selectExpertPrivateMemoryRows<T extends { body: string; communic
     }).length <= EXPERT_TEXT_LIMITS.privateMemory;
   candidates.forEach((row, index) => { if (row.communication_support === true) selected.add(index); });
   if (selected.size > 3 || !fits(selected)) fail("expert_text_private_memory_budget_exceeded");
-  candidates.forEach((_, index) => {
+  privateMemorySelectionOrder(candidates, question).forEach(index => {
     if (selected.has(index)) return;
     const next = new Set(selected); next.add(index);
     if (fits(next)) selected.add(index);

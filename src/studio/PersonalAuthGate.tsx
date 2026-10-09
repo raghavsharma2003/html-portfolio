@@ -7,6 +7,7 @@ import {
   verifyEmailOtp,
 } from "./studioAuth";
 import { restoreSession, writeStoredSession } from "./session";
+import { discardBrowserFullPageAuthResume, saveBrowserFullPageAuthResume } from "./fullPageAuthResume";
 import type { StudioSession } from "./types";
 import VyaktiMark from "./VyaktiMark";
 import { PersonalAuthLoading, usePersonalAuthLocale } from "./personalAuthLocale";
@@ -61,6 +62,7 @@ export default function PersonalAuthGate({
     try {
       const linked = await restoreSession({ reportTransientFailure: true });
       if (linked) {
+        discardBrowserFullPageAuthResume();
         onAuthed(linked);
         return;
       }
@@ -96,9 +98,11 @@ export default function PersonalAuthGate({
     setError("");
     setBusy(true);
     try {
+      saveBrowserFullPageAuthResume(window.location.search);
       await sendEmailOtp(email.trim(), "/studio");
       setStep("code");
     } catch (cause) {
+      discardBrowserFullPageAuthResume();
       setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : cause.status >= 500 ? "serviceUnavailableError" : "sendError" : "networkError");
     } finally {
       setBusy(false);
@@ -111,6 +115,7 @@ export default function PersonalAuthGate({
     try {
       const session = await verifyEmailOtp(email.trim(), code.trim());
       writeStoredSession(session);
+      discardBrowserFullPageAuthResume();
       onAuthed(session);
     } catch (cause) {
       // WS-R164: a wrong or expired code is 403 from the real door
@@ -205,7 +210,9 @@ export default function PersonalAuthGate({
               onClick={() => {
                 setError("");
                 setBusy(true);
+                saveBrowserFullPageAuthResume(window.location.search);
                 googleSignIn().catch(() => {
+                  discardBrowserFullPageAuthResume();
                   setError("googleError");
                   setBusy(false);
                 });

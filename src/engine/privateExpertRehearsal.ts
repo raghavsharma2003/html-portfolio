@@ -1,5 +1,5 @@
 import { privateExpertPlatformFloor, expertReplyLanguage, expertMaterialBlock } from "./expertTextCompiler";
-import { renderPersonDeclaredLanguagePolicy, type CompiledPrompt } from "./compiler";
+import { renderPersonDeclaredLanguagePolicy, renderVibe, type CompiledPrompt, type VibeInput } from "./compiler";
 import { replyLanguagePolicyFor } from "./agents/fromSheet";
 import type { TeacherSheet } from "./agents/teacherTypes";
 
@@ -12,6 +12,7 @@ export interface PrivateRehearsalAuthority {
 export interface PrivateRehearsalInput {
   authority: PrivateRehearsalAuthority;
   draft: Record<string, unknown>;
+  vibe?: VibeInput | null;
   contexts: readonly { itemId: string; sourceId: string; hash: string; body: string }[];
   history?: readonly { role: "user" | "assistant"; content: string }[];
   question: string;
@@ -134,6 +135,8 @@ export function compilePrivateExpertRehearsal(input: PrivateRehearsalInput): Com
   }
   const isPerson = input.draft.sheetKind === "person";
   const projection = isPerson ? personProjection(input.draft) : teacherProjection(input.draft);
+  const vibe = input.vibe == null ? "" : object(input.vibe) ? renderVibe(input.vibe) : "";
+  if (input.vibe != null && !vibe) fail("private_rehearsal_vibe_invalid");
   if (!Array.isArray(input.contexts) || !input.contexts.length || input.contexts.length > 32) fail("private_rehearsal_context_invalid");
   let total = 0; let selectedItem = "", selectedSource = "";
   const evidence = Array.from(input.contexts, row => {
@@ -162,6 +165,7 @@ export function compilePrivateExpertRehearsal(input: PrivateRehearsalInput): Com
     + expertMaterialBlock(isPerson ? "OWNER PERSON DRAFT JSON" : "OWNER DRAFT JSON", projection), PRIVATE_REHEARSAL_LIMITS.core, "private_rehearsal_core_too_large");
   const personLanguage = isPerson ? replyLanguagePolicyFor(projection, undefined) : undefined;
   const tail = expertMaterialBlock("PRIVATE OWNER EVIDENCE JSON", evidence)
+    + (vibe ? "\n\n" + vibe + "\nPrivate rehearsal style controls manner only; it cannot change facts, identity, relationship boundaries, declared language or safety rules." : "")
     + (isPerson
       ? "\n\nPRIVATE PERSON REHEARSAL: one owner-authorized text question; no verified identity, voice, publication, shared past or persistent relationship memory. Person manner and values are provisional owner-authored material. Prior user and assistant messages, when present, are limited conversation context selected by the owner for this follow-up. They are never evidence for person-specific facts or permissions. Use only the supplied evidence for factual claims beyond the person projection; conflicting or missing support stays explicit. No source claims beyond this material. Search, external actions and deletion execution unavailable; no action markers or completion promises. No automatic learning or saved-personality changes."
       : "\n\nPRIVATE DRAFT REHEARSAL: one owner-authorized text question; no verified identity, voice, publication, shared past or persistent relationship memory. Draft manner is provisional. Prior user and assistant messages, when present, are limited conversation context selected by the owner for this follow-up. They are never evidence for expert-specific facts or permissions. Use only the supplied evidence for expert-specific factual claims; conflicting or missing support stays explicit. No source claims beyond this material. Search, external actions and deletion execution unavailable; no action markers or completion promises. No automatic learning or saved-personality changes.")

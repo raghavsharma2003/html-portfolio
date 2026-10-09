@@ -1,9 +1,11 @@
-import { Component, lazy, Suspense, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import PersonalAuthGate from "./PersonalAuthGate";
 import { PersonalAuthLoading, readPersonalAuthLocale, usePersonalAuthLocale } from "./personalAuthLocale";
 import { hasStoredSessionCandidate, restoreSession } from "./session";
 import { studioSelfTestUiEnabled } from "./studioTestMode";
 import type { StudioSession } from "./types";
+import { listReplicas } from "./replicaApi";
+import { ownedFullPageAuthResumeUrl, takeBrowserFullPageAuthResume } from "./fullPageAuthResume";
 
 type StudioAppProps = { initialSession: StudioSession; sessionAlreadyRestored: true };
 type StudioAppModule = { default: ComponentType<StudioAppProps> };
@@ -59,10 +61,26 @@ export default function PersonalStudioEntry({
   const [authChecked, setAuthChecked] = useState(() => !hasStoredSessionCandidate());
   const [workspaceAttempt, setWorkspaceAttempt] = useState(0);
   const StudioApp = useMemo(() => lazy(loadWorkspace), [loadWorkspace, workspaceAttempt]);
+  const callbackAtEntry = useRef(typeof window !== "undefined" && window.location.hash.includes("access_token="));
+  const restoreAttempt = useRef<Promise<StudioSession | null> | null>(null);
 
   useEffect(() => {
     let live = true;
-    restore().then((restored) => {
+    if (!restoreAttempt.current) restoreAttempt.current = restore().then(async (restored) => {
+      if (!callbackAtEntry.current) return restored;
+      const resume = takeBrowserFullPageAuthResume();
+      if (!restored || !resume) return restored;
+      try {
+        const owned = await listReplicas(restored.accessToken);
+        const url = ownedFullPageAuthResumeUrl(resume, owned.map((replica) => replica.replica_id), window.location.search);
+        if (url) window.history.replaceState(null, "", url);
+      } catch {
+        // Authentication still succeeds. The consumed route is discarded when
+        // ownership cannot be confirmed, never applied on a guess.
+      }
+      return restored;
+    });
+    restoreAttempt.current.then((restored) => {
       if (!live) return;
       setSession(restored);
       setAuthChecked(true);

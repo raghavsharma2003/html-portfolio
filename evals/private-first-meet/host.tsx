@@ -72,7 +72,11 @@ window.fetch = async (input, init) => {
     if (url.searchParams.get("op") === "publication_review") return Response.json({ sheet: null, review: null, blockers: [] });
     return Response.json({ sheet: { draft: personSheet, sheet_id: "60000000-0000-4000-8000-000000000001", status: "draft", updated_at: "2026-09-14T00:00:00.000Z" } });
   }
-  if (url.pathname === "/api/replica-text-rehearsal") return Response.json({ readiness: { can_ask: false, selected: null, drafts: [], context_items: [] } });
+  if (url.pathname === "/api/replica-text-rehearsal") {
+    if (url.searchParams.get("op") === "latest") return Response.json({ latest: null });
+    if (url.searchParams.get("op") === "readiness") return Response.json({ readiness: { can_ask: false, selected: null, drafts: [], context_items: [] } });
+    return Response.json({ error: "fixture_operation_refused" }, { status: 409 });
+  }
   if (url.pathname === "/api/replica-activity") return Response.json(activity(ridA));
   return Response.json({});
 };

@@ -19224,3 +19224,27 @@ EXPLAIN(FORMAT JSON), never ANALYZE, including style-present/absent private
 selection/admit/claim/complete plus styleSET/REVERT. No DB writes. Receipt
 scratchpad/OCT09-STYLE-EXPLAIN.json. This is parser/planner proof, not concurrent
 transaction scheduling or model-quality proof.
+
+## creator-candidate-proof-20261009
+
+October9 focused candidate checks: personal first-use6mounted cases390/1440en/hi;
+profile routing6including click/Enter/Space; auth20source/pure controls plus
+mounted full callback/foreign-account refusal; saved-style13 plus store20,
+person7+foreign refusal, handler22, Roomdoors2733; recovery15 plus existing
+rehearsal22mounted, firstMeet4,cancellation10; expertRoomselector10 plus compiler30.
+English/Hindi/Hinglish synthetic displaced-fact membership changed from miss to
+prompt hit; 500bounded33row selections averaged5.019ms on this shared laptop,
+notp95requestlatency or semantic answer quality. Owner30rowtail unchanged.
+Personsharing10store/runtimefixture controls,16mounted UI cases390/1440; teacher
+compiler54full-output comparisons and continuity16passed; incumbentstore26 and
+continuitystore12passed. Root's final SQL parser proof:17actualEXPLAINs
+(style10,personpublication6,recovery1),0SQLwrites. Publishedschema constraints
+read directly. Engine regenerated; copy6scopes/21negativecontrols,graph/diffclean.
+Workspace confirmation2viewports/8checks each, no pageerrors; local fixtures only.
+Fullnewsource release still pending at this checkpoint.
+
+LivecanaryV1:0auth attempts,0model attempts, no product writes before a double
+Neonclient.end() caused unsettledtop-levelawait. Independent exact-ID reads
+found0replica/person/rehearsal/intentrows, unchanged970microusd textspend. V2
+prepared but currentSupabasehostnameDNSENOTFOUND; currentdeployedbinding/project
+status under investigation. This is not a failed product model answer.

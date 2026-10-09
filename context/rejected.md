@@ -19368,3 +19368,24 @@ data. Diagnose the new rows through bounded metadata and trace the real writer;
 preserve all message contents and forgetting records. A READY preview and healthy
 voice service likewise do not prove a single new account completed generation:
 the private voice run table is empty at this readback.
+
+## shared-epoch-style-and-stale-visuals-20261009
+
+Rejected the initial saved-style fix that incremented private_text_epoch:
+voice/comparison/liveness also bind that field, so style edits could withhold
+unrelated paid output. Final writes atomically merge a dedicated server-owned
+style revision marker; direct target-row equality catches waiting-writer changes.
+Older deployments lack this new CAS guarantee; detected marker/live-style
+mismatches refuse rather than invent current authority. Concurrent PostgreSQL
+race scheduling was not measured. Independent review and13focused groups passed.
+
+Rejected treating September27 screenshots as current capture evidence: the
+supposed detached Teach CTA has no caller in today's CloneExperience. Fresh
+workbench capture initially never received HTML: Vite optimizer delayed it,
+not application rendering. Build-once/static-fixture serving preserves all
+assertions and produced fresh390/1440evidence. Keep these separate from liveauth.
+
+Rejected copying teacher release consent to general person sharing, discarding
+10ownerfacts merely to reuse an expertRoom20rowselector, and replaying a consumed
+canary after its Neonclientdouble-close. Distinctpersonrelease, Room-onlyranking
+and fresh recoveryintent preserve the actual contracts with less churn.

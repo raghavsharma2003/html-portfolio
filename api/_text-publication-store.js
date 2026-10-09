@@ -15,7 +15,15 @@ export const TEXT_PUBLICATION_STATEMENTS=Object.freeze([
 export const TEXT_PUBLICATION_DISCLOSURE='AI text using material released by the publishing account. Real-world identity and voice are unverified.';
 export const TEXT_PUBLICATION_V2_STATEMENT_SET='account-material-publication/v2';
 export const TEXT_PUBLICATION_V2_STATEMENTS=Object.freeze(TEXT_PUBLICATION_STATEMENTS.map(s=>s.id==='accept_public_ai_disclosure'?{...s,text:'This publishes AI text from my account materials with optional private visitor continuity. It does not verify my identity or authorize voice, training or changes to my persona.'}:s));
-const publicationPolicy=v2=>({scope:v2?TEXT_PUBLICATION_V2_STATEMENT_SET:TEXT_PUBLICATION_STATEMENT_SET,statements:v2?TEXT_PUBLICATION_V2_STATEMENTS:TEXT_PUBLICATION_STATEMENTS});
+// A person profile needs its own explicit release, never a private-question or
+// teaching-choice grant. Storage version continues to describe visitor memory.
+export const PERSON_PUBLICATION_STATEMENT_SET='account-person-material-publication/v1';
+export const PERSON_PUBLICATION_V2_STATEMENT_SET='account-person-material-publication/v2';
+const personStatements=statements=>Object.freeze(statements.map(s=>s.id==='authorize_public_material'
+ ?{...s,text:'Let signed-in adults receive AI text answers using this reviewed personal profile and material. I approve sharing every profile field shown here.'}:s));
+export const PERSON_PUBLICATION_STATEMENTS=personStatements(TEXT_PUBLICATION_STATEMENTS);
+export const PERSON_PUBLICATION_V2_STATEMENTS=personStatements(TEXT_PUBLICATION_V2_STATEMENTS);
+const publicationPolicy=(v2,person=false)=>({person,memory:v2,scope:person?(v2?PERSON_PUBLICATION_V2_STATEMENT_SET:PERSON_PUBLICATION_STATEMENT_SET):(v2?TEXT_PUBLICATION_V2_STATEMENT_SET:TEXT_PUBLICATION_STATEMENT_SET),statements:person?(v2?PERSON_PUBLICATION_V2_STATEMENTS:PERSON_PUBLICATION_STATEMENTS):(v2?TEXT_PUBLICATION_V2_STATEMENTS:TEXT_PUBLICATION_STATEMENTS)});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HASH=/^[0-9a-f]{64}$/;
 const hash=v=>sha256Hex(canonicalJson(v));
@@ -26,7 +34,27 @@ const uuid=v=>{if(typeof v!=='string'||v.length!==36||!UUID.test(v))fail('text_p
 const validText=(v,max)=>typeof v==='string'&&v.trim()&&v.length<=max&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(v);
 const TEXT=['name','subjectDomain','syllabusScope','languageTextRule','technicalTermRule','explanationOrder','workedExamplePattern','firstMoveOnDoubt','notationConventions'];
 const LIST=['subjectStrands','examTrack','doubtEscalationLadder','rigorFloor'];
+const PERSON_TEXT=['name','identityWho','identityLife','lifeTexture','tasteTopics','curiosityTopics','personLine'];
+const PERSON_LIST=['personValues','personNeverSay'];
+function personPublicationProjection(draft){
+ const p={sheetKind:'person'};
+ for(const k of PERSON_TEXT)if(['name','identityWho'].includes(k)||draft[k]!==undefined&&draft[k]!==''){
+  if(!validText(draft[k],k==='name'?200:k==='personLine'?140:4000))fail('text_publication_projection_invalid',400);p[k]=draft[k];
+ }
+ for(const k of PERSON_LIST)if(draft[k]!==undefined){
+  if(!Array.isArray(draft[k])||draft[k].length>(k==='personValues'?7:24))fail('text_publication_projection_invalid',400);
+  p[k]=Array.from(draft[k],v=>{if(!validText(v,4000))fail('text_publication_projection_invalid',400);return v;});
+ }
+ if(draft.personTalk!==undefined){
+  const t=draft.personTalk;if(!t||typeof t!=='object'||Array.isArray(t)||!['formal','mixed','casual'].includes(t.register)||!['roman-hinglish','devanagari','english'].includes(t.scriptBaseline))fail('text_publication_projection_invalid',400);
+  if(t.codeSwitchNote!==undefined&&t.codeSwitchNote!==''&&!validText(t.codeSwitchNote,4000))fail('text_publication_projection_invalid',400);
+  p.personTalk={register:t.register,scriptBaseline:t.scriptBaseline,...(t.codeSwitchNote?{codeSwitchNote:t.codeSwitchNote}:{})};
+ }
+ if(JSON.stringify(p).length>7000)fail('text_publication_projection_invalid',400);return p;
+}
 export function publicationProjection(draft){
+ if(!draft||typeof draft!=='object'||Array.isArray(draft)||![undefined,'teacher','person'].includes(draft.sheetKind))fail('text_publication_projection_invalid',400);
+ if(draft.sheetKind==='person')return personPublicationProjection(draft);
  const p={};for(const k of TEXT)if(draft[k]!==undefined){if(!validText(draft[k],k==='name'?200:2000))fail('text_publication_projection_invalid',400);p[k]=draft[k];}
  for(const k of LIST)if(draft[k]!==undefined){if(!Array.isArray(draft[k])||draft[k].length>24||draft[k].some(v=>!validText(v,500)))fail('text_publication_projection_invalid',400);p[k]=[...draft[k]];}
  for(const k of ['warmth','strictness'])if(draft[k]!==undefined){if(!Number.isInteger(draft[k])||draft[k]<0||draft[k]>4)fail('text_publication_projection_invalid',400);p[k]=draft[k];}
@@ -37,7 +65,7 @@ export function textPublicationTerms(env=process.env,allowMemory=false){
  const usd=Number(env.TEXT_PUBLICATION_BUDGET_USD);if(!Number.isFinite(usd)||usd<=0||usd>10||Math.floor(usd*1e6)<1)fail('text_publication_budget_unavailable',503);
  return {audience:'signed_in_adult_attestation',publication_days:30,retention_days:30,visitor_question_limit:20,total_question_limit:200,budget_microusd:Math.floor(usd*1e6),quota_policy:'admission_counts',memory:allowMemory?PUBLICATION_MEMORY_MODE:false,voice:false,...(allowMemory?{memory_policy:PUBLICATION_MEMORY_POLICY,memory_policy_hash:PUBLICATION_MEMORY_POLICY_HASH,memory_max_exchanges:3,memory_max_units:3000}:{})};
 }
-const reviewHash=(owner,rid,s,p,terms)=>hash({scope:publicationPolicy(terms.memory===PUBLICATION_MEMORY_MODE).scope,owner_user_id:owner,replica_id:rid,snapshot:s.snapshot,projection:p,terms,disclosure:TEXT_PUBLICATION_DISCLOSURE});
+const reviewHash=(owner,rid,s,p,terms)=>hash({scope:publicationPolicy(terms.memory===PUBLICATION_MEMORY_MODE,p.sheetKind==='person').scope,owner_user_id:owner,replica_id:rid,snapshot:s.snapshot,projection:p,terms,disclosure:TEXT_PUBLICATION_DISCLOSURE});
 export const TEXT_PUBLICATION_READ_SQL=`select * from vy_text_publication where publication_id=$1::uuid`;
 async function publicationRow(db,id){const p=(await db(TEXT_PUBLICATION_READ_SQL,[uuid(id)]))[0];if(!p)fail('text_publication_not_found',404);return p;}
 function summary(p,owned=false){
@@ -48,7 +76,8 @@ function summary(p,owned=false){
 }
 async function currentPublication(db,p){
  if(p.state!=='active'||new Date(p.expires_at).getTime()<=Date.now())fail('text_publication_unavailable');
- const receipt=json(p.receipt),snapshot=json(p.snapshot),projection=json(p.projection),policy=publicationPolicy(Number(p.version)===2);
+ const receipt=json(p.receipt),snapshot=json(p.snapshot),projection=json(p.projection),policy=publicationPolicy(Number(p.version)===2,projection?.sheetKind==='person');
+ if(hash(publicationProjection(projection))!==hash(projection))fail('text_publication_unavailable');
  if(![1,2].includes(Number(p.version))||(Number(p.version)===2&&!publicationHasMemory(p))||(Number(p.version)===1&&json(p.terms).memory!==false))fail('text_publication_unavailable');
  if(!receipt||receipt.scope!==policy.scope||receipt.owner_user_id!==p.owner_user_id||receipt.replica_id!==p.replica_id||receipt.publication_id!==p.publication_id||receipt.review_hash!==p.review_hash||hash(receipt)!==p.receipt_hash||policy.statements.some(s=>receipt.attestations?.[s.id]!==true)||receipt.expires_at!==new Date(p.expires_at).toISOString()||hash(projection)!==receipt.projection_hash||hash(json(p.terms))!==receipt.terms_hash||sha256Hex(p.disclosure)!==p.disclosure_hash)fail('text_publication_unavailable');
  const s=await readPublicationSelection(db,p.owner_user_id,{replica_id:p.replica_id,sheet_id:p.sheet_id,context_item_id:p.context_item_id},projection);
@@ -88,12 +117,12 @@ export const TEXT_PUBLICATION_MEMORY_SCHEMA_SQL=`select count(*)=7 as available 
  or (a.attrelid=to_regclass('vy_text_publication_request') and a.attname in ('memory_epoch','memory_refs','memory_refs_hash')))`;
 export async function readTextPublicationReadiness(db,owner,input,options={}){
  const rid=uuid(input.replica_id),row=(await db(PRIVATE_TEXT_CHOICES_SQL,[rid,uuid(owner)]))[0];if(!row)fail('text_publication_not_found',404);
- const blockers=[];let selected=null,terms;const allowMemory=input.allow_memory===true||input.allow_memory==='true',policy=publicationPolicy(allowMemory);
+ const blockers=[];let selected=null,terms;const allowMemory=input.allow_memory===true||input.allow_memory==='true';let policy=publicationPolicy(allowMemory);
  if(row.active_candidate_binding_required===true)blockers.push({code:'candidate_binding_required',responsibility:'platform'});
  if(allowMemory)try{if((await db(TEXT_PUBLICATION_MEMORY_SCHEMA_SQL,[]))[0]?.available!==true)fail('text_publication_memory_schema_unavailable',503);}catch{blockers.push({code:'text_publication_memory_schema_unavailable',responsibility:'platform'});}
  try{textPublicationKey(envOf(options));terms=textPublicationTerms(envOf(options),allowMemory);if(String(envOf(options).CRON_SECRET||'').length<24)fail('text_publication_retention_unavailable',503);}catch(e){blockers.push({code:e.code,responsibility:'platform'});}
  if(input.sheet_id&&input.context_item_id){
-  if(!row.active_candidate_binding_required)try{const s=await readPublicationSelection(db,owner,input),p=publicationProjection(s.draft);if(terms)selected={review_hash:reviewHash(owner,rid,s,p,terms),source_name:s.row.source_name,projection:p,material_text:s.row.body,terms};}catch(e){blockers.push({code:e.code||'text_publication_read_unavailable',responsibility:/saved_draft|draft_|projection_invalid|owner_text_context|context_too_large|account_attestation/.test(e.code||'')?'owner':'platform'});}
+  if(!row.active_candidate_binding_required)try{const s=await readPublicationSelection(db,owner,input),p=publicationProjection(s.draft);policy=publicationPolicy(allowMemory,p.sheetKind==='person');if(terms)selected={review_hash:reviewHash(owner,rid,s,p,terms),source_name:s.row.source_name,projection:p,material_text:s.row.body,terms};}catch(e){blockers.push({code:e.code||'text_publication_read_unavailable',responsibility:/saved_draft|draft_|projection_invalid|owner_text_context|context_too_large|account_attestation/.test(e.code||'')?'owner':'platform'});}
  }else blockers.push({code:'text_publication_selection_required',responsibility:'owner'});
  const publications=(await db(`select * from vy_text_publication where replica_id=$1::uuid and owner_user_id=$2::uuid and review_hash is not null order by created_at desc limit 20`,[rid,owner])).filter(p=>p.review_hash!=null).map(p=>summary(p,true));
  if(publications.some(p=>p.state==='active'))blockers.push({code:'text_publication_already_active',responsibility:'owner'});
@@ -106,14 +135,15 @@ export const TEXT_PUBLICATION_PUBLISH_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE}
  on conflict do nothing returning id
 )
  insert into vy_text_publication(publication_id,replica_id,owner_user_id,source_id,context_item_id,sheet_id,review_hash,request_hash,snapshot,projection,receipt,receipt_hash,disclosure,disclosure_hash,terms,expires_at,version)
- select $8::uuid,$1::uuid,$2::uuid,$3::uuid,($4::jsonb->>'context_item_id')::uuid,($4::jsonb->>'sheet_id')::uuid,$10,$11,($4::jsonb-'fence_epoch'),$5::jsonb,$12::jsonb,$13,$14,$15,$16::jsonb,$17::timestamptz,case when $12::jsonb->>'scope'='account-material-publication/v2' then 2 else 1 end from claimed_id
+ select $8::uuid,$1::uuid,$2::uuid,$3::uuid,($4::jsonb->>'context_item_id')::uuid,($4::jsonb->>'sheet_id')::uuid,$10,$11,($4::jsonb-'fence_epoch'),$5::jsonb,$12::jsonb,$13,$14,$15,$16::jsonb,$17::timestamptz,case when $12::jsonb->>'scope' in ('account-material-publication/v2','account-person-material-publication/v2') then 2 else 1 end from claimed_id
  on conflict do nothing returning publication_id`;
 export async function publishTextPublication(db,owner,input,options={}){
- const rid=uuid(input.replica_id),id=uuid(input.publication_id);uuid(owner);const policy=publicationPolicy(input.statement_set===TEXT_PUBLICATION_V2_STATEMENT_SET);
+ const rid=uuid(input.replica_id),id=uuid(input.publication_id);uuid(owner);const policy=publicationPolicy([TEXT_PUBLICATION_V2_STATEMENT_SET,PERSON_PUBLICATION_V2_STATEMENT_SET].includes(input.statement_set),[PERSON_PUBLICATION_STATEMENT_SET,PERSON_PUBLICATION_V2_STATEMENT_SET].includes(input.statement_set));
  if(input.statement_set!==policy.scope||policy.statements.some(s=>input.attestations?.[s.id]!==true)||!HASH.test(input.expected_review_hash||''))fail('text_publication_attestation_required',400);
  const requestHash=hash({replica_id:rid,publication_id:id,sheet_id:uuid(input.sheet_id),context_item_id:uuid(input.context_item_id),review_hash:input.expected_review_hash,statement_set:input.statement_set,attestations:Object.fromEntries(policy.statements.map(s=>[s.id,true]))});
  const existing=(await db(TEXT_PUBLICATION_READ_SQL,[id]))[0];if(existing){if(existing.owner_user_id!==owner||existing.replica_id!==rid)fail('text_publication_not_found',404);if(existing.state==='revoked')return {created:false,publication:summary(existing,true)};if(existing.request_hash!==requestHash)fail('text_publication_request_conflict');return {created:false,publication:summary(existing,true)};}
- textPublicationKey(envOf(options));if(String(envOf(options).CRON_SECRET||'').length<24)fail('text_publication_retention_unavailable',503);const terms=textPublicationTerms(envOf(options),policy.scope===TEXT_PUBLICATION_V2_STATEMENT_SET),s=await readPublicationSelection(db,owner,input),projection=publicationProjection(s.draft),review=reviewHash(owner,rid,s,projection,terms);
+ textPublicationKey(envOf(options));if(String(envOf(options).CRON_SECRET||'').length<24)fail('text_publication_retention_unavailable',503);const terms=textPublicationTerms(envOf(options),policy.memory),s=await readPublicationSelection(db,owner,input),projection=publicationProjection(s.draft),review=reviewHash(owner,rid,s,projection,terms);
+ if(policy.person!==(projection.sheetKind==='person'))fail('text_publication_attestation_required',400);
  if(review!==input.expected_review_hash)fail('text_publication_review_changed');
  const now=new Date(),expires=new Date(now.getTime()+terms.publication_days*86400000).toISOString();
  const receipt={scope:policy.scope,owner_user_id:owner,replica_id:rid,publication_id:id,review_hash:review,projection_hash:hash(projection),terms_hash:hash(terms),granted_at:now.toISOString(),expires_at:expires,nonce:randomBytes(24).toString('hex'),attestations:Object.fromEntries(policy.statements.map(s=>[s.id,true]))};
@@ -259,7 +289,7 @@ export async function admitTextPublicationRequest(db,visitor,input,options={}){
  const row={publication_id:publicId,request_id:id,replica_id:p.replica_id,owner_user_id:p.owner_user_id,visitor_user_id:visitor};
  let rows;try{rows=await db(TEXT_PUBLICATION_ADMIT_SQL,[...authArgs(p,s,session,visitor),id,requestHash,qh,JSON.stringify(encryptPublicationText(input.question,binding(row,'question',qh),envOf(options))),remembers?String(v.memory_epoch):null,JSON.stringify(memory.refs),memory.refsHash]);}catch{fail('text_publication_admission_uncertain',503);}
  if(!rows.length){const replay=await requestRow(db,visitor,input);if(replay){if(replay.request_hash!==requestHash)fail('text_publication_request_conflict');return {created:false,request:await readTextPublicationRequest(db,visitor,input,options),compilerInput:null};}fail('text_publication_admission_blocked',Number(p.question_count)>=json(p.terms).total_question_limit||Number(v.question_count)>=json(p.terms).visitor_question_limit?429:409);}
- return {created:true,request:requestWire(rows[0]),owner_user_id:p.owner_user_id,replica_id:p.replica_id,...(memoryFailure?{failure_code:memoryFailure,compilerInput:null}:{compilerInput:{authority:{scope:'account_material_publication',basis:Number(p.version)===2?'account_material_publication/v2':'account_material_publication/v1',ownerId:p.owner_user_id,replicaId:p.replica_id,publicationId:publicId,requestId:id,visitorId:visitor,projectionHash:hash(json(p.projection)),receiptHash:p.receipt_hash,sourceHash:s.snapshot.source_hash},projection:json(p.projection),contexts:s.contexts,question:input.question,...(publicationHasMemory(p)?{privateContinuity:{enabled:remembers,memoryEpoch:String(v.memory_epoch),policyHash:PUBLICATION_MEMORY_POLICY_HASH,exchanges:memory.exchanges}}:{})}})};
+ return {created:true,request:requestWire(rows[0]),owner_user_id:p.owner_user_id,replica_id:p.replica_id,...(memoryFailure?{failure_code:memoryFailure,compilerInput:null}:{compilerInput:{authority:{scope:'account_material_publication',basis:(json(p.projection).sheetKind==='person'?'account_person_material_publication/v':'account_material_publication/v')+(Number(p.version)===2?'2':'1'),ownerId:p.owner_user_id,replicaId:p.replica_id,publicationId:publicId,requestId:id,visitorId:visitor,projectionHash:hash(json(p.projection)),receiptHash:p.receipt_hash,sourceHash:s.snapshot.source_hash},projection:json(p.projection),contexts:s.contexts,question:input.question,...(publicationHasMemory(p)?{privateContinuity:{enabled:remembers,memoryEpoch:String(v.memory_epoch),policyHash:PUBLICATION_MEMORY_POLICY_HASH,exchanges:memory.exchanges}}:{})}})};
 }
 export const TEXT_PUBLICATION_CLAIM_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE},${PUB_LOCK},${VISITOR_LOCK},claimed as (
  update vy_text_publication_request h set state='dispatched',dispatch_token_hash=$14,dispatch_authority_epoch=($4::jsonb->>'fence_epoch')::bigint,reservation_id=$15::uuid,budget_id=$16,spend_request_hash=$17,provider=$18::jsonb,billing_state='reserved'

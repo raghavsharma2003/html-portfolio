@@ -18,6 +18,9 @@ export interface PrivateTextReadiness {
   statement_set: typeof PRIVATE_TEXT_STATEMENT_SET; statements: Array<{ id: PrivateTextAttestation; text: string }>;
   grant_scope: "private_text_rehearsal"; can_ask: boolean;
 }
+export interface PrivateTextLatest {
+  replica_id: string; request_id: string; state: "pending" | "complete" | "uncertain" | "blocked"; created_at: string;
+}
 export type PrivateTextBillingState = "not_started" | "reserved" | "in_flight" | "settled" | "reconcile_required" | "unknown";
 interface PrivateTextBoundResult {
   replica_id: string; request_id: string; state: "complete" | "pending" | "uncertain" | "blocked" | "withdrawn";
@@ -45,6 +48,13 @@ export function isPrivateTextId(value: unknown): value is string {
 const hash = (value: unknown) => typeof value === "string" && /^[0-9a-f]{64}$/u.test(value) && value.length === 64;
 const text = (value: unknown, max = 8000) => typeof value === "string" && value.length <= max;
 const failure = () => new Error("Private text response was unavailable. Check the saved request before asking again.");
+export function validatePrivateTextLatest(value: PrivateTextLatest | null, replicaId: string): PrivateTextLatest | null {
+  if (value === null) return null;
+  if (!value || value.replica_id !== replicaId || !isPrivateTextId(value.request_id)
+    || !["pending", "complete", "uncertain", "blocked"].includes(value.state)
+    || !Number.isFinite(Date.parse(value.created_at))) throw failure();
+  return value;
+}
 export function validatePrivateTextReadiness(value: PrivateTextReadiness, replicaId: string): PrivateTextReadiness {
   if (!value || value.replica_id !== replicaId || !["ready", "needs_input", "unavailable", "stopped"].includes(value.state)
     || !Array.isArray(value.blockers) || value.blockers.some(row => !row || !text(row.code, 160) || !["owner", "platform"].includes(row.responsibility))
@@ -99,6 +109,11 @@ export async function readPrivateTextReadiness(token: string, replicaId: string,
   if (value.selected && (selection?.sheetId && value.selected.sheet_id !== selection.sheetId
     || selection?.contextItemId && value.selected.context_item_id !== selection.contextItemId)) throw failure();
   return value;
+}
+export async function readLatestPrivateTextRequest(token: string, replicaId: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ op: "latest", replica_id: replicaId });
+  const data = await replicaRequest<{ latest: PrivateTextLatest | null }>(token, `${ENDPOINT}?${query}`, { signal: requestSignal(signal) });
+  return validatePrivateTextLatest(data.latest, replicaId);
 }
 export async function askPrivateText(token: string, input: { replica_id: string; request_id: string; sheet_id: string; context_item_id: string; expected_snapshot_hash: string; question: string; parent_request_id?: string }, signal?: AbortSignal) {
   const data = await replicaRequest<{ rehearsal: PrivateTextResult }>(token, ENDPOINT, { method: "POST", signal: requestSignal(signal, 90000),

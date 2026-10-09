@@ -364,7 +364,7 @@ function doorsPatterns(state) {
       state.replicaVibes.push(row);
       return [{ ...row }];
     }
-    if (has("insert into vy_replica_vibe") && has("with superseded as")) {
+    if (has("insert into vy_replica_vibe") && has("superseded as") && !has("with target as")) {
       const [replica, owner, vibeId, warmth, energy, humour, directness, formality, note] = params;
       const live = state.replicaVibes.find(
         (v) => v.replica_id === String(replica) && v.owner_user_id === String(owner) && v.superseded_at == null,

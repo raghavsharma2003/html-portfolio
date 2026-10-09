@@ -23,6 +23,13 @@ const accountSql=`select distinct on(c.scope) c.consent_id,c.receipt_hash,c.scop
  and c.method='account_attestation' and c.policy_version=r.policy_version and c.revoked_at is null
  and (c.expires_at is null or c.expires_at>now()) order by c.scope,c.granted_at desc,c.consent_id desc`;
 const ownSheet=`(s.replica_id=r.replica_id and s.owner_user_id=r.owner_user_id and (s.agent_id is null or s.agent_id=r.agent_id))`;
+// Select only the five saved dials and their immutable revision. Notes are not
+// prompt instructions, and neither the request body nor another owner's style
+// can supply this snapshot. Reuse this projection at the mutation fence.
+const savedVibeSql=`(select jsonb_build_object('vibe_id',v.vibe_id,'version',v.version,
+ 'warmth',v.warmth,'energy',v.energy,'humour',v.humour,'directness',v.directness,'formality',v.formality)
+ from vy_replica_vibe v where v.replica_id=r.replica_id and v.owner_user_id=r.owner_user_id
+ and v.superseded_at is null)`;
 function fail(code,status=409,handle){throw Object.assign(new Error(code),{code,status,...(handle?{details:{replica_id:handle.replica_id,request_id:handle.request_id}}:{})});}
 function uuid(value,code='rehearsal_id_required'){const id=typeof value==='string'?value.toLowerCase():'';if(id.length!==36||!UUID.test(id))fail(code,400);return id;}
 const json=value=>typeof value==='string'?JSON.parse(value):value;
@@ -32,6 +39,8 @@ const binding=(row,role,content_hash)=>({owner_user_id:row.owner_user_id,replica
 const FOLLOWUP_ATTESTATION='authorize_private_text_followup';
 const HISTORY_EXCHANGES=4,HISTORY_CHARS=12000;
 export const PRIVATE_TEXT_SELECTION_SQL=`select r.replica_id,r.owner_user_id,r.lifecycle,r.subject_mode,r.policy_version,r.private_text_epoch,
+ r.metadata->>'private_text_style_revision' style_revision,
+ ${savedVibeSql} saved_vibe,
  s.sheet_id,s.sheet,s.status sheet_status,s.updated_at sheet_updated_at,
  i.item_id,i.source_id,i.format,i.status item_status,i.source_name,i.authorship,i.owner_speaker,i.consent_scope,i.content_sha256,
  t.body,src.sha256 source_hash,src.state source_state,
@@ -56,6 +65,16 @@ export const PRIVATE_TEXT_CHOICES_SQL=`select r.replica_id,r.lifecycle,
  from vy_context_item i where i.replica_id=r.replica_id and i.owner_user_id=r.owner_user_id) x),'[]'::jsonb) context_items
  from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid`;
 function reconstructEvidence(e){return {schema_version:PROCESSING_SCHEMA_VERSION,replica_id:e.replica_id,owner_user_id:e.owner_user_id,source_id:e.source_id,artifact_id:e.artifact_id,created_by_job_id:e.created_by_job_id,evidence_type:e.evidence_type,span:{start_ms:e.span_start_ms,end_ms:e.span_end_ms},confidence:e.confidence,value:json(e.value),input_sha256:e.input_sha256,adapter:{family:e.adapter_family,name:e.adapter_name,version:e.adapter_version},evidence_id:e.evidence_id,record_hash:e.record_hash};}
+function savedVibe(value){
+ const v=json(value);if(v==null)return null;
+ if(typeof v!=='object'||Array.isArray(v)||typeof v.vibe_id!=='string'||v.vibe_id.length!==36||!UUID.test(v.vibe_id)||!Number.isInteger(v.version)||v.version<1)fail('rehearsal_saved_style_unavailable',503);
+ const result={vibe_id:v.vibe_id,version:v.version};
+ for(const key of ['warmth','energy','humour','directness','formality']){
+  if(typeof v[key]!=='number'||!Number.isInteger(v[key])||v[key]<0||v[key]>4)fail('rehearsal_saved_style_unavailable',503);
+  result[key]=v[key];
+ }
+ return result;
+}
 async function selection(db,owner,input){
  const rid=uuid(input.replica_id),sheetId=uuid(input.sheet_id),itemId=uuid(input.context_item_id);
  const row=(await db(PRIVATE_TEXT_SELECTION_SQL,[rid,owner,sheetId,itemId,POLICY]))[0];
@@ -78,16 +97,23 @@ async function selection(db,owner,input){
  const evidence=(json(row.evidence)||[]).map(reconstructEvidence);if(!evidence.length)fail('rehearsal_canonical_evidence_required');
  let end=0;for(const e of evidence){verifyContextCanonicalEvidence(e);const locator=e.value.locator;if(locator.shape!=='contiguous'||locator.start_char!==end||row.body.slice(locator.start_char,locator.end_char)!==e.value.text||locator.canonical_text_sha256!==sha256Hex(row.body))fail('rehearsal_canonical_evidence_changed');end=locator.end_char;}
  if(end!==row.body.length)fail('rehearsal_canonical_evidence_incomplete');
- const snapshot={...(isPerson?{sheet_kind:"person"}:{}),sheet_id:sheetId,sheet_hash:hash(draft),context_item_id:itemId,context_hash:hash({body:row.body,format:row.format,authorship:row.authorship,owner_speaker:row.owner_speaker,consent_scope:row.consent_scope}),source_id:row.source_id,source_hash:row.source_hash,evidence_hash:hash(evidence.map(e=>({id:e.evidence_id,hash:e.record_hash}))),evidence_records:evidence.map(e=>({id:e.evidence_id,hash:e.record_hash})),authority_epoch:String(row.private_text_epoch),account_receipts:account.map(c=>({consent_id:c.consent_id,receipt_hash:c.receipt_hash,scope:c.scope})).sort((a,b)=>a.scope.localeCompare(b.scope))};
+ const vibe=savedVibe(row.saved_vibe);
+ const styleRevision=row.style_revision;
+ // Legacy style rows have no marker. Once a marker exists it must identify the
+ // live immutable row; an older deployment writing only vibe cannot silently
+ // bypass this lane's revision fence.
+ if(styleRevision!=null&&(typeof styleRevision!=='string'||styleRevision.length!==36||!UUID.test(styleRevision)||styleRevision!==vibe?.vibe_id))fail('rehearsal_saved_style_unavailable',503);
+ // Omit the absent style to preserve existing no-vibe snapshot hashes.
+ const snapshot={...(isPerson?{sheet_kind:"person"}:{}),...(vibe?{vibe}:{}),...(styleRevision?{style_revision:styleRevision}:{}),sheet_id:sheetId,sheet_hash:hash(draft),context_item_id:itemId,context_hash:hash({body:row.body,format:row.format,authorship:row.authorship,owner_speaker:row.owner_speaker,consent_scope:row.consent_scope}),source_id:row.source_id,source_hash:row.source_hash,evidence_hash:hash(evidence.map(e=>({id:e.evidence_id,hash:e.record_hash}))),evidence_records:evidence.map(e=>({id:e.evidence_id,hash:e.record_hash})),authority_epoch:String(row.private_text_epoch),account_receipts:account.map(c=>({consent_id:c.consent_id,receipt_hash:c.receipt_hash,scope:c.scope})).sort((a,b)=>a.scope.localeCompare(b.scope))};
  const snapshotHash=hash({owner_user_id:owner,replica_id:rid,policy_version:POLICY,...snapshot});
- return {row,draft,snapshot,snapshotHash,contexts:[{itemId,sourceId:row.source_id,hash:sha256Hex(row.body),body:row.body}]};
+ return {row,draft,vibe,snapshot,snapshotHash,contexts:[{itemId,sourceId:row.source_id,hash:sha256Hex(row.body),body:row.body}]};
 }
 export async function readPrivateTextReadiness(db,owner,input,options={}){
  const rid=uuid(input.replica_id),row=(await db(PRIVATE_TEXT_CHOICES_SQL,[rid,owner]))[0];if(!row)fail('replica_not_found',404);
  const blockers=[];let selected=null;
  if(['paused','revoked','purging'].includes(row.lifecycle))blockers.push({code:'rehearsal_stopped',responsibility:'owner'});
  try{privateTextKey(envOf(options));}catch{blockers.push({code:'rehearsal_encryption_unavailable',responsibility:'platform'});}
- if(input.sheet_id&&input.context_item_id){try{const s=await selection(db,owner,input);selected={...s.snapshot,snapshot_hash:s.snapshotHash,material:{draft:{name:s.draft.name,identityWho:s.draft.identityWho,...(s.draft.sheetKind==="person"?{sheetKind:"person"}:{subjectDomain:s.draft.subjectDomain})},context:{source_name:s.row.source_name,format:s.row.format,body:s.row.body}}};delete selected.evidence_records;delete selected.account_receipts;}catch(e){blockers.push({code:e.code||'rehearsal_read_unavailable',responsibility:OWNER_ERRORS.has(e.code)?'owner':'platform'});}}
+ if(input.sheet_id&&input.context_item_id){try{const s=await selection(db,owner,input);selected={...s.snapshot,snapshot_hash:s.snapshotHash,material:{draft:{name:s.draft.name,identityWho:s.draft.identityWho,...(s.draft.sheetKind==="person"?{sheetKind:"person"}:{subjectDomain:s.draft.subjectDomain})},context:{source_name:s.row.source_name,format:s.row.format,body:s.row.body}}};delete selected.evidence_records;delete selected.account_receipts;delete selected.vibe;delete selected.style_revision;}catch(e){blockers.push({code:e.code||'rehearsal_read_unavailable',responsibility:OWNER_ERRORS.has(e.code)?'owner':'platform'});}}
  else blockers.push({code:'rehearsal_select_draft_and_context',responsibility:'owner'});
  return {replica_id:rid,state:blockers.some(b=>b.code==='rehearsal_stopped')?'stopped':blockers.some(b=>b.responsibility==='platform')?'unavailable':blockers.length?'needs_input':'ready',blockers,drafts:json(row.drafts)||[],context_items:(json(row.context_items)||[]).map(i=>({...i,eligible:['extracted','mined'].includes(i.status)&&i.authorship==='mine'&&i.source_ready&&TEXT_FORMATS.includes(i.format),reason:i.authorship!=='mine'?'rehearsal_owner_text_context_required':!i.source_ready?'rehearsal_source_unavailable':null})),selected,statement_set:PRIVATE_TEXT_STATEMENT_SET,statements:PRIVATE_TEXT_STATEMENTS,grant_scope:PRIVATE_TEXT_SCOPE,can_ask:!blockers.length};
 }
@@ -97,6 +123,20 @@ export const PRIVATE_TEXT_REQUEST_READ_SQL=`select h.*,c.metadata receipt_metada
  left join vy_provider_spend s on s.reservation_id=h.reservation_id and s.budget_id=h.budget_id and s.request_hash=h.spend_request_hash
  where h.replica_id=$1::uuid and h.owner_user_id=$2::uuid and h.request_id=$3::uuid`;
 async function requestRow(db,owner,input){return (await db(PRIVATE_TEXT_REQUEST_READ_SQL,[uuid(input.replica_id),owner,uuid(input.request_id)]))[0]||null;}
+export const PRIVATE_TEXT_LATEST_SQL=`select h.replica_id,h.request_id,h.state,h.created_at
+ from vy_private_text_rehearsal h
+ where h.replica_id=$1::uuid and h.owner_user_id=$2::uuid and h.state<>'withdrawn'
+ order by h.created_at desc,h.request_id desc limit 1`;
+export function privateTextLatestParams(owner,input){return [uuid(input.replica_id),uuid(owner,'rehearsal_owner_required')];}
+export async function discoverLatestPrivateTextRehearsal(db,owner,input){
+ const params=privateTextLatestParams(owner,input);let rows;
+ try{rows=await db(PRIVATE_TEXT_LATEST_SQL,params);}catch{fail('rehearsal_discovery_unavailable',503);}
+ const row=rows[0];if(!row)return null;
+ if(row.replica_id!==params[0]||!UUID.test(row.request_id)||row.state==='withdrawn')fail('rehearsal_discovery_unavailable',503);
+ const state=row.state==='admitted'||row.state==='dispatched'?'pending':row.state;
+ if(!['pending','complete','uncertain','blocked'].includes(state))fail('rehearsal_discovery_unavailable',503);
+ return {replica_id:row.replica_id,request_id:row.request_id,state,created_at:row.created_at};
+}
 function wire(row,answer){
  if(row.state==='withdrawn'&&row.consent_id==null)return {replica_id:row.replica_id,request_id:row.request_id,state:'withdrawn',billing_state:'unknown',can_voice:false,created_at:row.created_at};
  const snapshot=json(row.snapshot),spend=row.spend_state==='released'?'not_started':row.spend_state;return {replica_id:row.replica_id,request_id:row.request_id,state:row.state==='admitted'||row.state==='dispatched'?'pending':row.state,consent:{consent_id:row.consent_id,receipt_hash:row.receipt_hash,statement_set:PRIVATE_TEXT_STATEMENT_SET,expires_at:row.expires_at},source:{...(snapshot.sheet_kind==="person"?{sheet_kind:"person"}:{}),sheet_id:row.sheet_id,sheet_hash:snapshot.sheet_hash,context_item_id:row.context_item_id,source_id:row.source_id,source_hash:snapshot.source_hash,evidence_hash:snapshot.evidence_hash},billing_state:spend||row.billing_state,failure_code:row.failure_code||undefined,can_voice:false,created_at:row.created_at,...(answer!==undefined?{answer}:{})};
@@ -126,6 +166,8 @@ const AUTHORITY_FENCE=`source_gate as materialized (
  update vy_replica r set private_text_epoch=r.private_text_epoch
  where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and ${LIVE}
  and r.private_text_epoch=$6::bigint and exists(select 1 from source_gate)
+ and (r.metadata->>'private_text_style_revision') is not distinct from ($7::jsonb->>'style_revision')
+ and ${savedVibeSql} is not distinct from ($7::jsonb->'vibe')
  and exists(select 1 from vy_teacher_sheet s where s.sheet_id=($7::jsonb->>'sheet_id')::uuid
    and ${ownSheet} and s.status in ('draft','validated','published') and s.sheet=$8::jsonb)
  and exists(select 1 from vy_context_item i join vy_context_item_text t on t.item_id=i.item_id
@@ -216,7 +258,7 @@ export async function admitPrivateTextRehearsal(db,owner,input,options={}){
  if(confirmed?.state==='withdrawn'&&confirmed.request_hash==null)return {created:false,request:wire(confirmed),compilerInput:null};
  if(!confirmed||confirmed.request_hash!==q.requestHash)fail('rehearsal_admission_uncertain',503,input);
  if(confirmed.state!=='admitted')return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};
- return {created:true,request:wire(confirmed),compilerInput:{authority:{scope:PRIVATE_TEXT_SCOPE,basis:'owner_question_attestation_v1',ownerId:owner,replicaId:q.payload.replica_id,requestId:q.payload.request_id,sheetId:s.snapshot.sheet_id,sheetHash:s.snapshot.sheet_hash,receiptId:consentId},draft:s.draft,contexts:s.contexts,history,question:q.question}};
+ return {created:true,request:wire(confirmed),compilerInput:{authority:{scope:PRIVATE_TEXT_SCOPE,basis:'owner_question_attestation_v1',ownerId:owner,replicaId:q.payload.replica_id,requestId:q.payload.request_id,sheetId:s.snapshot.sheet_id,sheetHash:s.snapshot.sheet_hash,receiptId:consentId},draft:s.draft,...(s.vibe?{vibe:s.vibe}:{}),contexts:s.contexts,history,question:q.question}};
 }
 export const PRIVATE_TEXT_CLAIM_SQL=`with ${AUTHORITY_FENCE}
  update vy_private_text_rehearsal h set state='dispatched',dispatch_token_hash=$10,dispatched_at=now(),
