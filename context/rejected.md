@@ -19358,3 +19358,13 @@ The owner now explicitly says to avoid the spending-limit step after reporting n
 ## interrupted-activation-closeout-lessons-20260930
 
 The interrupted final tool call had not created its VOICE-PILOT handoff or updated activation status. Recovered from actual receipts, never from the announced patch. Earlier activation recovered three concrete faults:33-characterJobname rejected400andGET404, corrected22-charactername withnewintent; APIredeploy lost source-product build metadata, correctedusingacceptedCLIexport; extra boundary probe reused a Vercel-only transport forAzure, correctlyrefused before transmission and fixedusingseparateunauthenticatedtransport. The deployment export's21EOL-only mirrors reproduced the acceptedbytefingerprint after normalized comparisons. Do not retry consumedintents, weaken source/origin guards, or mistake a healthy enabled endpoint for acoustic quality.
+
+## old-integrity-receipt-is-not-current-20261009
+
+The Sept29 repair independently reached zero orphan episode pointers. An Oct9
+read-only query now finds36again. Reusing that receipt or replaying the old two-row
+repair would hide a recurring or external writer defect and risk changing newer
+data. Diagnose the new rows through bounded metadata and trace the real writer;
+preserve all message contents and forgetting records. A READY preview and healthy
+voice service likewise do not prove a single new account completed generation:
+the private voice run table is empty at this readback.

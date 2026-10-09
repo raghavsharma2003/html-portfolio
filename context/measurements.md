@@ -19191,6 +19191,8 @@ Verceldeploymentdpl_H6X3z8pcW2rceJusbrH8bJdJk1bz READY atdudt3ubik. Actualmarker
 
 ## private-voice-activation-closeout-20260930
 
+<!-- New October evidence is appended below; this September receipt remains historical. -->
+
 September30 receipt recovery, events measuredSeptember29: applicationbudgetactiveUSD1/spent0/reserved0; CPUlatest/readyprivate29-enabled-5fe2fa25/health200; independentwatchdogmanualexecutionSucceeded and scheduledexecutionsRunning withfresh matchingheartbeat. GPU3inactive revisions/0replicas/min0max1. Deploymentdpl_ADhVvHMuTvaZ97oomTngjJzR9wps accepted5fe2/d7ddsource;60liveprobeszero findings,deploy6/6,CSP2/exactCORS,privatePreview+CPU401boundaries. Realaccountverified=false,modelcalls=0 in finalacceptance. Receipt REBUILD29-VOICE-ACCEPTANCE.json retains the initial failed extra-probe receipt hash and corrected boundary proof. No new September30 cloud mutation or voice-quality test.
 
 Honcho review recovered:7publicsource/configfiles at9d6fe8ca5dc666b99ef04bc00047fea4ca675017,version3.2.1/Python>=3.13. No code execution/inference/data export. Source inspection identifies ownerrecallnewest30 and compiler20row budget as evaluation candidates, not measured model failures. See datedreport for primarysources and limitations.
@@ -19202,3 +19204,23 @@ Later n1owner message: accepts avoiding spending-limit step and supplieshoncho.d
 Follow-up: n1owner reply says approximatelyfullUSD5000remains, onlysomeused. Fresh subscriptionGET200 and billingPropertyGET200 bothstillreportOff; StartupSponsorshipdetail remainsLimitRemoved,end2027-04-04. Receipt CREDIT-ONLY-OWNER-BALANCE-RECHECK-1790668397649181600.json. No resources/billing/budget/GPUstate were changed. Balance is approximateownerreported, not availablethroughAPI.
 
 September29, authorizedSPAPI/read-only: subscriptionGET200, billingPropertyGET200, subscription Consumptionbalances404/nonJSON, billingAccountsGET200/empty; exact returnedbillingprofileGET403/Forbidden and its creditlotsGET401. SubscriptionquotaSponsored_2016-01-01,stateEnabled,spendingLimitOff. BillingProperty shows MicrosoftCustomerAgreement/Benefit, profileSpendingLimitOff, StartupSponsorshipinitialamount5000USD,start2026-07-08T10:58:19Z,end2027-04-04T10:58:19Z,statusLimitRemoved. No remainingcredit amount returned. Receipts CREDIT-ONLY-VERIFY-1790667711923364100.json, PROFILE-1790667830376650500.json, LIMIT-DETAILS-1790667871317751400.json and BILLING-GUARD-1790667898019703300.json in ignoredexpert-tools. No cloud resource mutation, billing change, new budget, watchdog, GPUactivation or inference. Microsoft official sponsorship offer and spending-limit docs reviewed. Preliminary JSON-only transport stopped on the unsupported balance endpoint's nonJSON response; the bounded status-aware read preserved that failure instead of inventing an emptybalance.
+
+## runtime-resume-20261009
+
+October9, one bounded read-only Azure/Neon sweep plus Vercel deployment read:
+CPU health200 and accepted image/revision still match; scheduled watchdog has
+fresh matching heartbeat, latest execution Running and previous two Succeeded.
+GPUmin0/max1, all3revisions inactive/0replicas. Private voice run count0; GPU
+ledger limit1000000microusd/spent0/reserved0. Text pilot ledger spent970microusd,
+reserved0 under its unchanged1000000cap. These are application ledgers, not
+Azure credit balance or total recurring CPU spend. Preview14kf READY. No cloud
+writes, model calls, fresh voice or account-journey proof. The independent DB
+probe found36legacy meera_log pointers to absent episodes: investigate anew;
+September29's zero-orphan result is no longer current. Receipts scratchpad/
+OCT09-{VOICE-OBSERVE,CPU-OBSERVE,RUNTIME-READBACK}.json.
+
+October9 candidate saved-style SQL:10captured statements passed actual Neon
+EXPLAIN(FORMAT JSON), never ANALYZE, including style-present/absent private
+selection/admit/claim/complete plus styleSET/REVERT. No DB writes. Receipt
+scratchpad/OCT09-STYLE-EXPLAIN.json. This is parser/planner proof, not concurrent
+transaction scheduling or model-quality proof.

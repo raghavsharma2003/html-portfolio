@@ -1,5 +1,34 @@
 # STATE — read this first, then the graph
 
+## START HERE: OCTOBER 9 RESUMPTION IN PROGRESS
+
+Continue repo `raghavsharma2003/html-portfolio`, branch
+`claude/vyakti-cloning-platform-aq05n4`, development checkout `standalone25`.
+The accepted deployed application remains **5fe2fa25** at protected Preview
+`https://vyakti-replica-14kfokzor-raghav-carbonsettles-projects.vercel.app/studio`.
+New source work is in progress; no new release has been accepted or deployed.
+Read `docs/handoff/2026-09-30/START-HERE.md` for operational access and constraints.
+
+Fresh Oct9 API readback: Preview READY, CPU health200/matching accepted image,
+watchdog heartbeat fresh, GPU min0/max1 and all3revisions inactive/0replicas.
+Private voice table has **zero runs**, GPU planning ledger spent0/reserved0;
+text pilot spent970microusd/reserved0. No new inference or cloud write.
+No owner voice likeness, competitor win or real-account journey result exists.
+Recurring CPU cost is outside these application GPU/text ledger counters.
+
+New issue: **36 legacy Meera log episode pointers are orphaned**. The Sept29
+zero-orphan receipt is historical. A separate read-only diagnosis is underway;
+do not replay the old two-row repair or delete messages to turn the gate green.
+
+Current parallel work closes personal first-use, saved emotional style, memory
+selection, auth return, durable rehearsal discovery and personal sharing. Review
+all working-tree changes before continuing; original dirty `Vyakti-platform`
+checkout remains preserved. Research reports are under `docs/research/2026-10-09-*`.
+They distinguish vendor claims, code fixtures and live evidence. No model vendor
+switch or external inference is authorized by a report; Azure-only serving stays.
+The owner's waived spending-limit step must not be re-asked. No Microsoft browser
+login here. Logging/push checkpoints do not themselves establish a shipped feature.
+
 ## START HERE: SEPTEMBER30 HANDOFF; PRIVATE VOICE PILOT ENABLED
 
 Read docs/handoff/2026-09-30/START-HERE.md next. This closes a context update

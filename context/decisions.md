@@ -25594,3 +25594,13 @@ Preserve current owner/Room ownership, correction and communication rules. Evalu
 ## interrupted-closeout-recovery-20260930
 
 Recover the interrupted activation handoff from existing content-free receipts and commit it with the Honcho assessment. Do not repeat cloud mutations or all release tests for this documentation-only closeout. Reverse if source changes or live incidents require fresh verification. Cloud agents start from the latest required branch and authoritative STATE block, not an old local tracking ref.
+
+## resume-product-evidence-20261009
+
+Continue the required branch from ebe16cc0. Prioritize actual creator-flow gaps,
+saved emotional style and measured voice/memory experiments over another broad
+rewrite. Use bounded parallel source audits and first-party research; keep all
+model serving on Azure. The owner permits many agents and cheaper Sol for
+bounded work. Reverse priorities when a reproduced live failure or matched
+quality evaluation identifies a higher-impact defect. Do not replay old cloud
+mutation intents, expired recording authority, or the waived billing question.
