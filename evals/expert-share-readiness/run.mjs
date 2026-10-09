@@ -86,6 +86,9 @@ try {
   await readinessButton.click();
   await page.getByRole("heading", { name: "Deploy your AI." }).waitFor();
   await page.locator("#room-studio").waitFor();
+  // The panel mounts before its asynchronous readiness response is rendered.
+  // Wait for the actual usable control, not just the loading container.
+  await page.getByRole("button", { name: "Set up your Room", exact: true }).waitFor();
   assert.deepEqual(roomReads, [{ replicaId: first, authorization: "Bearer token-a" }]);
   assert.equal(await page.getByRole("button", { name: "Set up your Room", exact: true }).count(), 1);
   assert.equal(await page.locator('a[href*="mode=teacher"]').count(), 0);

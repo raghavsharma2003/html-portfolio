@@ -19299,3 +19299,9 @@ Repairs preserve actual owner calls, expression erasure, static import closure
 and named retry/caller accounting. Registry runs passed expression45, replica,
 private voice49 and incidents162. No runtime or SQL behavior changed in this
 follow-up; the full new-head release must still run before deployment.
+
+Exactab16Node24 passed24/25; only expert-share-readiness failed. Its panel was
+mounted and HTTP request recorded before React rendered the enabled setup button.
+Waiting for that actual control fixes the asynchronous boundary without sleeps,
+retrying generation or changing runtime. Focused4/4passed. Androidab16passed;
+the new test-only commit still needs both complete web matrices before acceptance.
