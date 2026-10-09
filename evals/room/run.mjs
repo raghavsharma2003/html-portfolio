@@ -209,15 +209,20 @@ const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra
 
 // ── 4. the cap, at message 21 ─────────────────────────────────────────────
 {
+  // One controlled UTC clock for the whole scenario. Without this, the join
+  // and first 21 turns spend against the wall-clock month while `nextMonth`
+  // below remains a 2026 fixture date; once the real clock reaches October,
+  // October 5 is no longer a rollover at all.
+  const capStart = Date.parse("2026-09-05T00:00:00.000Z");
   const state = freshState();
   const db = fakeDb(state);
   const joined = await joinRoom(
     db,
     { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true },
-    deps(),
+    deps({ now: capStart }),
   );
   const memlog = [];
-  const d = deps({ memory: fakeMemory(memlog) });
+  const d = deps({ memory: fakeMemory(memlog), now: capStart });
 
   let session = joined.session;
   let last = null;
@@ -239,7 +244,8 @@ const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra
   // A new month restores the allowance, through the same statement. The
   // session is re-opened rather than reused: a token minted a month ago is
   // past its TTL, which is itself the behaviour this suite wants.
-  const nextMonth = Date.parse("2026-10-05T00:00:00.000Z");
+  const capStartDate = new Date(capStart);
+  const nextMonth = Date.UTC(capStartDate.getUTCFullYear(), capStartDate.getUTCMonth() + 1, 5);
   const reopened = await openRoom(db, { slug: SLUG, authUserId: USER_A }, { ...d, now: nextMonth });
   // The allowance a follower is SHOWN is computed against the month they are
   // in, not against the month the row was last written in. A stale month key

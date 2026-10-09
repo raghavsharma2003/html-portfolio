@@ -18,7 +18,7 @@ import {
   requestOwnedReplicaErasure,
   setOwnedReplicaLocale,
 } from "./_replica.js";
-import { getReplicaErasureStatus } from "./_replica-full-erasure.js";
+import { progressOwnedReplicaErasure } from "./_replica-owned-erasure.js";
 import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
 import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
 import { markStep } from "./_funnel.js";
@@ -97,7 +97,8 @@ async function handler(req, res) {
         const broker = configuredFaceSessionErasureBroker();
         const deleted = broker
           ? await deleteOwnedFaceSessionNow(q, user.id, body.replica_id, null, broker, {
-            providerTimeoutMs: 12_000,
+            providerTimeoutMs: 10_000,
+            scope: { jobId: result.erasure_request_id, replicaId: body.replica_id, ownerUserId: user.id },
           })
           : null;
         providerSessionErasure = deleted ? "confirmed" : "pending";
@@ -111,7 +112,7 @@ async function handler(req, res) {
       });
     }
     if (body.op === "erasure_status") {
-      const status = await getReplicaErasureStatus(q, user.id, body.erasure_request_id);
+      const status = await progressOwnedReplicaErasure(q, user.id, body.erasure_request_id);
       return status
         ? res.status(200).json({ erasure: status })
         : res.status(404).json({ error: "erasure_request_not_found" });

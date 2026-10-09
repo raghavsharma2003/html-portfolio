@@ -2,6 +2,27 @@
 
 ## START HERE: OCTOBER 9 RESUMPTION IN PROGRESS
 
+**LATEST OWNER SCOPE: Vyakti only. Do not touch Meera, Maya or any other product.**
+This explicitly supersedes the earlier same-day permission to include Meera.
+The isolated Meera patch branch was pushed while authorized, but no production
+deployment or database mutation occurred. All Meera/incident work is stopped.
+Do not deploy that branch, replay a repair, or clear the shared legacy rows.
+Owner permits Neon instead of Supabase; Neon already stores application data.
+Supabase currently provides sign-in. Owner signed into the exact Vyakti project
+dashboard. Later readback confirms Auth health200 and deployed invalid-token
+401again. No auth migration or key rotation was needed; plugin remains unconnected.
+
+**New live proof:** the one-use synthetic person canary V2 passed real protected
+APIs: auth, workspace creation, text upload, person-profile save, grounded Azure
+answer, saved-result read and same-ID replay without additional spend. One model
+call:904input/58output tokens,2504microusd,2650ms ask HTTP. Text budget now spent
+3474microusd/reserved0. It used no real person's data, emails, voice or GPU.
+**Cleanup is pending:** private text/context removed and replica revoked, but
+the exact erasure job is pending/attempts0. Do not replay V1/V2 or delete the
+synthetic auth user before terminal erasure. Handles/receipts live in ignored
+expert-tools/OCT09-SYNTHETIC-CANARY-V2{,-MANIFEST}.json. A scoped product fix for
+owned erasure progress is being prepared; never invoke a broad global cron.
+
 Continue repo `raghavsharma2003/html-portfolio`, branch
 `claude/vyakti-cloning-platform-aq05n4`, development checkout `standalone25`.
 The accepted deployed application remains **5fe2fa25** at protected Preview
@@ -10,16 +31,19 @@ Candidate source is implemented and going through release checks; no new release
 has been accepted or deployed. Read `docs/handoff/2026-10-09/START-HERE.md` next,
 then the September30 handoff for operational access and non-replay constraints.
 
-Fresh Oct9 API readback: Preview READY, CPU health200/matching accepted image,
+Initial Oct9 API readback: Preview READY, CPU health200/matching accepted image,
 watchdog heartbeat fresh, GPU min0/max1 and all3revisions inactive/0replicas.
 Private voice table has **zero runs**, GPU planning ledger spent0/reserved0;
-text pilot spent970microusd/reserved0. No new inference or cloud write.
-No owner voice likeness, competitor win or real-account journey result exists.
+text pilot then spent970microusd/reserved0. The later canary above added2504microusd.
+No owner voice likeness, competitor win or real-human sign-in journey result exists.
+The later synthetic-account text proof above supersedes the earlier no-model-call
+readback; it does not prove Google/OTP delivery, voice or the new candidate release.
 Recurring CPU cost is outside these application GPU/text ledger counters.
 
 New issue: **36 legacy Meera log episode pointers are orphaned**. The Sept29
-zero-orphan receipt is historical. A separate read-only diagnosis is underway;
-do not replay the old two-row repair or delete messages to turn the gate green.
+zero-orphan receipt is historical. The read-only diagnosis identified old Meera
+production as the writer. That work is stopped under the owner's latest scope;
+do not replay repairs or delete messages to turn the gate green.
 
 Candidate changes close personal first-use, saved emotional style, memory
 selection, auth return, durable rehearsal discovery and personal sharing. Review
@@ -30,10 +54,11 @@ switch or external inference is authorized by a report; Azure-only serving stays
 The owner's waived spending-limit step must not be re-asked. No Microsoft browser
 login here. Logging/push checkpoints do not themselves establish a shipped feature.
 
-Owner explicitly approved the separate Meera repair; its isolated codex branch
-must be gated/deployed independently before a new guarded36-rowincident repair.
-The synthetic live text canary stopped before auth/inference from a test-client
-double-close. V2 is prepared, but current Supabase binding/DNS needs verification.
+Earlier Meera repair approval is superseded by the Vyakti-only scope above.
+The shared global integrity check still has36external legacy rows; report that
+honestly without touching another product or falsely claiming a global pass.
+The failed first canary was superseded by the successful one-use V2 above.
+Cleanup completion and release acceptance remain pending. Do not replay either.
 
 ## START HERE: SEPTEMBER30 HANDOFF; PRIVATE VOICE PILOT ENABLED
 

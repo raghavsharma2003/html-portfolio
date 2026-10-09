@@ -116,12 +116,14 @@ export function createAzureFaceSessionBroker(options = {}) {
     const attempts = Math.max(1, Math.min(2, Number(request.attempts || 2)));
     const timeoutMs = Math.max(5_000, Math.min(90_000, Number(request.timeoutMs || 90_000)));
     for (let attempt = 0; attempt < attempts; attempt++) {
+      request.signal?.throwIfAborted();
       const body = canonicalJson({
         ...payload,
         broker_nonce: randomBytes(16).toString("hex"),
         broker_issued_at: new Date().toISOString(),
       });
       try {
+        const timeout = AbortSignal.timeout(timeoutMs);
         const response = await fetchImpl(`${config.origin}${path}`, {
           method: "POST",
           redirect: "error",
@@ -131,7 +133,7 @@ export function createAzureFaceSessionBroker(options = {}) {
             "X-Vyakti-Signature": `sha256=${signature(config.hmacKey, body)}`,
           },
           body,
-          signal: AbortSignal.timeout(timeoutMs),
+          signal: request.signal ? AbortSignal.any([request.signal, timeout]) : timeout,
         });
         const raw = await boundedText(response);
         const expected = Buffer.from(signature(config.hmacKey, raw), "hex");
@@ -152,9 +154,12 @@ export function createAzureFaceSessionBroker(options = {}) {
         try { result = JSON.parse(raw); } catch { fail("azure_face_session_response_invalid"); }
         return result;
       } catch (error) {
-        if (error?.ambiguous === false || (error?.code || "").startsWith("azure_face_session_http_4")) throw error;
-        lastError = Object.assign(error instanceof Error ? error : new Error("azure_face_session_unreachable"), {
-          code: error?.code || "azure_face_session_unreachable",
+        // AbortSignal produces DOMException with a numeric, read-only code.
+        // Keep timeout failures in the same retry class without mutating it.
+        const errorCode = typeof error?.code === "string" ? error.code : "";
+        if (error?.ambiguous === false || errorCode.startsWith("azure_face_session_http_4")) throw error;
+        lastError = Object.assign(new Error(error instanceof Error ? error.message : "azure_face_session_unreachable"), {
+          code: errorCode || "azure_face_session_unreachable",
           status: 503,
           ambiguous: true,
         });
@@ -256,7 +261,7 @@ export function createAzureFaceSessionBroker(options = {}) {
       const result = await call(
         "/v1/liveness/delete",
         { ...base(claim), session_handle: claim.sessionHandle },
-        { attempts: 1, timeoutMs: request.timeoutMs || 45_000 },
+        { attempts: 1, timeoutMs: request.timeoutMs || 45_000, signal: request.signal },
       );
       if (result?.request_id !== `${claim.challengeId}:${claim.faceSessionAttempt}` ||
           String(result?.reference_sha256 || "").toLowerCase() !== claim.identityReference.sha256 ||

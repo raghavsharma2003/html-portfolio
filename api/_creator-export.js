@@ -1,14 +1,15 @@
 // WS-R70. The creator's export: everything the platform holds about a
-// creator's own replica(s), as one JSON document — the export half of the
-// pair api/_replica-full-erasure.js's deletion cascade is the other half of.
+// creator's own replica(s) and account, as one JSON document.
 // India's DPDP Act and plain fairness say a person who gave this platform
 // their archive, their voice and their money is entitled to take it with
-// them; api/_replica-full-erasure.js already gives them full erasure. This
-// file is the missing right, built to the SAME completeness discipline —
+// them. Per-replica erasure removes one AI, retaining shared account state
+// inventoried in api/_replica-erasure-retained.js. This export includes both,
+// built to the SAME completeness discipline —
 // evals/creator-export/run.mjs statically parses api/_replica-full-
 // erasure.js's own source text and asserts OWNER_LANE_TABLES below names
-// exactly the owner-lane subset of what it reaches, so a table added to
-// either file and not the other fails the gate.
+// exactly the owner-lane subset of erasure reach plus that exact retained
+// account inventory, so retaining account state cannot silently remove it
+// from the owner's export.
 //
 // ── THE BOUNDARY LAW (absolute, ws-common.md) ───────────────────────────────
 //

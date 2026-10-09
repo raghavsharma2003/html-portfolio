@@ -115,7 +115,17 @@ function mockReqRes(body) {
 
 async function recall(dyad, query) {
   const { req, res } = mockReqRes({ op: "recall", device: dyad.deviceId, query });
-  await handler(req, res);
+  // The fixture store ranks against `dyad.now`; the real renderer inside
+  // opRecall also needs that same authored turn clock for provenance and
+  // validity horizons. Leaving only Date.now() live makes this deterministic
+  // August benchmark gradually reinterpret its November plan as past.
+  const realNow = Date.now;
+  Date.now = () => dyad.now;
+  try {
+    await handler(req, res);
+  } finally {
+    Date.now = realNow;
+  }
   if (res.statusCode !== 200) throw new Error(`recall returned ${res.statusCode}: ${JSON.stringify(res.body)}`);
   return String(res.body?.memories ?? "");
 }

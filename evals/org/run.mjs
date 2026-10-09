@@ -1,8 +1,8 @@
 // WS-R28. Suites v0's offline suite: `api/_org.js` (createOrg, inviteMember,
 // acceptMembership, attachRoom, detachRoom, orgBoard, orgSubscriptionStatus,
 // listMyOrgs, listOrgMembers, roomSuiteStatus, seatCoversCreatorTier) plus
-// the erasure job's own membership-only delete (`api/_replica-full-
-// erasure.js`, migration 091).
+// the per-replica erasure boundary: shared account membership survives
+// deleting one AI (`api/_replica-erasure-retained.js`).
 //
 //   node evals/org/run.mjs
 //
@@ -751,18 +751,20 @@ console.log("\n── §7: seatCoversCreatorTier (law 4's predicate) ──");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// §8 - the last-admin rule under erasure (static: the erasure job deletes
-// the MEMBERSHIP row by name and never the Suite itself).
+// §8 - deleting one AI retains account membership and the Suite itself.
 // ═════════════════════════════════════════════════════════════════════════
-console.log("\n── §8: the erasure job removes membership, never the Suite ──");
+console.log("\n── §8: per-replica erasure retains account membership and the Suite ──");
 {
   const erasureSrc = fs.readFileSync(join(REPO, "api/_replica-full-erasure.js"), "utf8");
-  ok("the erasure job deletes vy_org_member by owner_user_id",
-    /delete from vy_org_member x using target t\s*\n\s*where x\.owner_user_id=t\.owner_user_id/.test(erasureSrc));
+  const { REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES } = await import("../../api/_replica-erasure-retained.js");
+  const executable = erasureSrc.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ").replace(/--[^\n]*/g, " ");
+  ok("per-replica erasure retains explicitly inventoried account organization membership",
+    Object.hasOwn(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES, "vy_org_member")
+      && !/delete\s+from\s+vy_org_member\b/i.test(executable));
   ok("the erasure job never deletes vy_org itself (an org with no admin is left standing, not removed)",
     !/delete from vy_org\b/.test(erasureSrc));
-  ok("the deletion receipt names the membership class",
-    erasureSrc.includes('"owner_org_membership"'));
+  ok("the deletion receipt does not claim retained account membership was removed",
+    !erasureSrc.includes('"owner_org_membership"'));
 
   // scripts/relcheck.mjs's own text-boundary rule, restated: "delete from
   // vy_org_member" must NOT satisfy a bare "delete from vy_org" search - the

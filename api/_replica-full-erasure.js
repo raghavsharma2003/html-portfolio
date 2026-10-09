@@ -3,6 +3,7 @@ import { sha256Hex } from "./_replica-processing/contracts.js";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
 import { cleanupReplicaChannelExtractionStorage } from "./_channel/extraction-storage.js";
 import {revokeDeletingPrivateVoice} from './_private-voice-erasure.js';
+import { erasureScope, erasureScopeParams, erasureScopePredicate, assertErasureScope } from './_replica-erasure-scope.js';
 
 export const REPLICA_ERASURE_RECEIPT_VERSION = "replica-erasure-receipt/v1";
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
@@ -81,10 +82,8 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // into anything above: a price, a subscription reference and a ledger
       // of what moved are a different kind of record than a memory or a
       // consent grant, and a receipt that did not name them would understate
-      // what was held. Additive; the eval asserts membership, never the exact
-      // list. 098 (WS-R36) folded the provider's own fund account reference
-      // into this SAME class rather than a new one - it is a detail of the
-      // Room's money, not a different kind of record.
+      // what was held. This class covers replica-bound Room payment records.
+      // Shared account payout history and provider account references remain.
       "owner_room_payments",
       // 079 (WS-R16). Check-in designs, follower schedules and the delivery
       // ledger are their own class rather than folded into `agent_relational_memory`:
@@ -109,14 +108,6 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // receipt that did not name it would understate what was held.
       // Additive; the eval asserts membership, never the exact list.
       "owner_room_handoff",
-      // 091 (WS-R28). A Suite membership is its own class rather than folded
-      // into anything above: it names an organisation this owner belonged to
-      // and the role they held in it, a different kind of record than a
-      // memory, a payment or a schedule, and a receipt that did not name it
-      // would understate what was held. The Suite row itself (`vy_org`)
-      // deliberately outlives this erasure - see migration 091's header -
-      // so this class names only the MEMBERSHIP, never the organisation.
-      "owner_org_membership",
       // 095 (WS-R33). A creator's own tier subscription is its own class
       // rather than folded into `owner_room_payments`: it is a record of
       // what the OWNER pays the platform for capacity, distinct in kind
@@ -166,6 +157,7 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
 }
 
 export async function prepareReplicaErasures(db, options = {}) {
+  const scope = erasureScope(options.scope);
   const limit = Math.max(1, Math.min(20, Number(options.limit || 8)));
   return db(
     `with candidates as (
@@ -173,7 +165,9 @@ export async function prepareReplicaErasures(db, options = {}) {
          from vy_replica_erasure_job j where (
           j.state in ('pending','blocked') or
           (j.state='running' and (j.lease_expires_at is null or j.lease_expires_at<=now()))
-         ) order by j.next_attempt_at,j.requested_at limit $1
+         ) ${erasureScopePredicate(scope, 'j', 1)}
+         ${scope ? "and j.job_id=$2::uuid and j.next_attempt_at<=now()" : ""}
+         order by j.next_attempt_at,j.requested_at for update of j skip locked limit $1
      ), expired as (
        update vy_replica_erasure_attempt a set outcome='retry',failure_code='lease_expired',finished_at=now()
          from vy_replica_erasure_job j join candidates c on c.job_id=j.job_id
@@ -181,7 +175,7 @@ export async function prepareReplicaErasures(db, options = {}) {
      ), replicas as (
        update vy_replica r set lifecycle='purging',revoked_at=coalesce(revoked_at,now()),updated_at=now()
          from candidates c where r.replica_id=c.replica_id and r.owner_user_id=c.owner_user_id
-       returning r.replica_id,r.owner_user_id
+       returning r.replica_id,r.owner_user_id,c.job_id
      ), consents as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
          from replicas r where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
@@ -239,10 +233,10 @@ export async function prepareReplicaErasures(db, options = {}) {
                 'source','pending','count',(select count(*) from sources),
                 'channel','pending','watch_count',(select count(*) from channel_watches)
               ),updated_at=now()
-         from replicas r where j.replica_id=r.replica_id and j.owner_user_id=r.owner_user_id
+         from replicas r where j.job_id=r.job_id and j.replica_id=r.replica_id and j.owner_user_id=r.owner_user_id
        returning j.job_id,j.replica_id
      ) select * from jobs`,
-    [limit],
+    [limit, ...erasureScopeParams(scope)],
   );
 }
 
@@ -257,7 +251,8 @@ function validReplicaAgent(row) {
 export async function leaseNextReplicaErasure(db, options = {}) {
   // Source erasure drains private leases/windows and sweeps their reserved
   // output paths before its source/artifact FK cascade can remove the ledger.
-  await revokeDeletingPrivateVoice(db);
+  const scope = erasureScope(options.scope);
+  await revokeDeletingPrivateVoice(db, scope ? { scope } : {});
   const token = options.token || randomBytes(32).toString("base64url");
   const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 180_000)));
   const rows = await db(
@@ -268,7 +263,9 @@ export async function leaseNextReplicaErasure(db, options = {}) {
         where r.lifecycle='purging' and j.next_attempt_at<=now() and (
           j.state in ('pending','blocked') or
           (j.state='running' and (j.lease_expires_at is null or j.lease_expires_at<=now()))
-         ) and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=j.replica_id)
+         ) ${erasureScopePredicate(scope, 'j', 2)}
+           ${scope ? "and j.job_id=$3::uuid" : ""}
+           and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=j.replica_id)
            and not exists (select 1 from vy_replica_source s where s.replica_id=j.replica_id)
            and not exists (
              select 1 from vy_replica_source_storage_writer sw
@@ -283,6 +280,7 @@ export async function leaseNextReplicaErasure(db, options = {}) {
            and not exists (
              select 1 from vy_ingest_run x
               where x.replica_id=j.replica_id and x.owner_user_id=j.owner_user_id
+                and x.transcript_source is distinct from 'context_item'
                 and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
            )
            and not exists (
@@ -313,14 +311,16 @@ export async function leaseNextReplicaErasure(db, options = {}) {
      ) select l.*,r.agent_id,a.slug agent_slug,a.register agent_register
          from leased l join vy_replica r on r.replica_id=l.replica_id and r.owner_user_id=l.owner_user_id
          left join vy_agent a on a.agent_id=r.agent_id`,
-    [replicaErasureLeaseTokenHash(token), leaseMs],
+    [replicaErasureLeaseTokenHash(token), leaseMs, ...erasureScopeParams(scope)],
   );
   if (!rows[0]) return null;
   const row = rows[0];
   const claimed = Object.freeze({
+    ...(scope ? { erasureScope: scope } : {}),
     jobId: row.job_id, replicaId: row.replica_id, ownerUserId: row.owner_user_id,
     agentId: row.agent_id || null, attempt: Number(row.attempts), leaseToken: token,
   });
+  assertErasureScope(scope, claimed);
   if (!validReplicaAgent(row)) {
     await retryReplicaErasure(db, claimed, { error: { code: "agent_binding_unsafe" }, retryAfterMs: MAX_RETRY_MS });
     return null;
@@ -334,6 +334,7 @@ function requireSettlement(rows, code) {
 }
 
 export async function renewReplicaErasureLease(db, lease, options = {}) {
+  assertErasureScope(erasureScope(lease.erasureScope), lease);
   const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 240_000)));
   const rows = await db(
     `update vy_replica_erasure_job j
@@ -374,7 +375,10 @@ async function withReplicaErasureLeaseHeartbeat(db, lease, renew, task, options 
     }
   })();
   try {
-    const result = await task(aborter.signal);
+    const signal = options.signal ? AbortSignal.any([options.signal, aborter.signal]) : aborter.signal;
+    signal.throwIfAborted();
+    const result = await task(signal);
+    signal.throwIfAborted();
     if (leaseError) throw leaseError;
     return result;
   } finally {
@@ -385,6 +389,7 @@ async function withReplicaErasureLeaseHeartbeat(db, lease, renew, task, options 
 }
 
 export async function confirmReplicaChannelStorageErasure(db, lease) {
+  assertErasureScope(erasureScope(lease.erasureScope), lease);
   const rows = await db(
     `update vy_replica_erasure_job j
         set storage_status=coalesce(j.storage_status,'{}'::jsonb)||jsonb_build_object('channel','confirmed'),
@@ -399,6 +404,7 @@ export async function confirmReplicaChannelStorageErasure(db, lease) {
         and not exists (
           select 1 from vy_ingest_run x
            where x.replica_id=j.replica_id and x.owner_user_id=j.owner_user_id
+             and x.transcript_source is distinct from 'context_item'
              and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
         )
         and not exists (
@@ -413,6 +419,7 @@ export async function confirmReplicaChannelStorageErasure(db, lease) {
 }
 
 export async function retryReplicaErasure(db, lease, input = {}) {
+  assertErasureScope(erasureScope(lease.erasureScope), lease);
   const delayMs = Math.max(30_000, Math.min(MAX_RETRY_MS, Number(input.retryAfterMs || 30_000)));
   const failureCode = normalizeReplicaErasureFailure(input.error || input.failureCode);
   const rows = await db(
@@ -420,12 +427,13 @@ export async function retryReplicaErasure(db, lease, input = {}) {
        update vy_replica_erasure_job j set state='pending',next_attempt_at=now()+($3::integer*interval '1 millisecond'),
               lease_token_hash='',leased_at=null,lease_expires_at=null,last_error_code=$4,updated_at=now()
         where j.job_id=$1::uuid and j.state='running' and j.lease_token_hash=$2 and j.lease_expires_at>now()
+          and j.replica_id=$5::uuid and j.owner_user_id=$6::uuid
        returning j.job_id,j.attempts
      ), attempted as (
        update vy_replica_erasure_attempt a set outcome='retry',failure_code=$4,finished_at=now()
          from retried r where a.job_id=r.job_id and a.attempt=r.attempts and a.outcome='running'
      ) select job_id from retried`,
-    [lease.jobId, replicaErasureLeaseTokenHash(lease.leaseToken), delayMs, failureCode],
+    [lease.jobId, replicaErasureLeaseTokenHash(lease.leaseToken), delayMs, failureCode, lease.replicaId, lease.ownerUserId],
   );
   requireSettlement(rows, "lost_replica_erasure_lease");
   return failureCode;
@@ -440,6 +448,7 @@ export function normalizeReplicaErasureFailure(error) {
 }
 
 export async function completeReplicaErasure(db, lease, receipt) {
+  assertErasureScope(erasureScope(lease.erasureScope), lease);
   const processor = JSON.stringify({
     provider: "confirmed", storage: "confirmed", database: "confirmed",
     relational: lease.agentId ? "confirmed" : "not_created",
@@ -844,10 +853,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- mechanism - "relying on a cascade means relying on an FK nobody
      -- re-checks" (071's own words, one migration over).
      --
-     -- vy_creator_payout is the one exception: it has no room_id (a payout is
-     -- a roll-up across every room an owner has), so it is scoped by
-     -- owner_user_id alone - the imprecision migration 078's own header names
-     -- and context/decisions.md logs with its reversal condition.
+     -- Account-level payout and membership records survive replica deletion.
+     -- The explicit retained-account inventory is checked by relcheck.
      --
      -- 126 (WS-R100), the follower's receipt. Child of BOTH vy_payment_event
      -- (payment_event_id) and vy_room (room_id), so deleted FIRST, ahead of
@@ -878,32 +885,20 @@ export async function completeReplicaErasure(db, lease, receipt) {
        where x.owner_user_id=t.owner_user_id
          and x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
-     creator_payouts as (delete from vy_creator_payout x using target t
-       where x.owner_user_id=t.owner_user_id),
-     -- 098 (WS-R36). The provider's own fund account reference - never a
-     -- bank detail, see that migration's own header. Same owner-wide scope
-     -- as vy_creator_payout immediately above and the same reasoning: no
-     -- column on this table can express a narrower one without changing
-     -- what it means (one row per owner+provider, not per replica).
-     creator_payout_accounts as (delete from vy_creator_payout_account x using target t
-       where x.owner_user_id=t.owner_user_id),
      -- 095 (WS-R33), the creator's own tier subscription. Owner lane, NOT
      -- person lane (this migration's own header restates the argument):
      -- it is a record of what the OWNER pays the platform for capacity, not
      -- a relationship with any person, so it is deleted BY NAME here rather
      -- than through api/memory.js's PERSON_TABLES manifest. Scoped by BOTH
-     -- replica_id and owner_user_id directly - unlike vy_creator_payout two
-     -- lines up, this table carries its own replica_id column, so it is
-     -- exact rather than the owner-wide imprecision that table's own header
-     -- names: erasing one replica erases only that replica's own tier
-     -- subscription, never a sibling replica's.
+     -- replica_id and owner_user_id directly: erasing one replica erases
+     -- only that replica's own tier subscription.
      -- 104 (WS-R42). The creator-tier charge ledger. Deleted CHILD-BEFORE-
      -- PARENT, ahead of creator_subscriptions immediately below, even though
      -- the FK on subscription_id would cascade it anyway - "relying on a
      -- cascade means relying on an FK nobody re-checks" (071's own words,
      -- restated for the Nth time). Scoped by BOTH replica_id and
      -- owner_user_id directly, creator_subscriptions' own precedent one line
-     -- down: exact, not the owner-wide imprecision vy_creator_payout carries.
+     -- down: shared account records remain outside this deletion.
      creator_charge_events as (delete from vy_creator_charge_event x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      creator_subscriptions as (delete from vy_creator_subscription x using target t
@@ -926,21 +921,6 @@ export async function completeReplicaErasure(db, lease, receipt) {
        where (x.subject_kind='follower' and x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id))
           or (x.subject_kind='creator' and x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id)),
-     -- 086 (WS-R23), creator invites. vy_creator_invite has no room_id and no
-     -- replica_id of its own - an invite is redeemed once, before any room
-     -- exists, so it is scoped by owner_user_id alone, creator_payouts' own
-     -- reasoning one line up. redeemed_by_user_id IS the owner's id once a
-     -- code is spent, which is what makes this table OWNER lane rather than
-     -- person lane (086's own migration header, restated in
-     -- scripts/relcheck.mjs's widened PERSON_COLUMNS): the row is reached
-     -- HERE, by name, never through api/memory.js's PERSON_TABLES manifest,
-     -- and never through vy_creator_application's operator-only
-     -- eraseApplicationsByContact, which is a different table on a different
-     -- (pre-signup) lane entirely. An invite this owner never redeemed is
-     -- untouched, on purpose: it still belongs to whoever issued it and may
-     -- yet be redeemed by someone else.
-     creator_invites as (delete from vy_creator_invite x using target t
-       where x.redeemed_by_user_id=t.owner_user_id),
      -- 079 (WS-R16), check-ins. All three are reached from THIS side by
      -- room_id, payment_events's own reasoning three lines up: none of them
      -- carries an agent binding, and a room has exactly one agent
@@ -1134,48 +1114,6 @@ export async function completeReplicaErasure(db, lease, receipt) {
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
-     -- 091 (WS-R28), Suites v0. Reached by owner_user_id ALONE, creator_
-     -- payouts' own reasoning three blocks up restated a second time: a
-     -- Suite membership is not this ONE replica's, it is this OWNER's, so it
-     -- is out of scope for the replica-keyed joins every block above uses
-     -- and is scoped the same imprecise way vy_creator_payout already is
-     -- (migration 078's own header, migration 091's own header, both log the
-     -- same tradeoff in context/decisions.md: an owner erasing ONE of
-     -- several replicas also clears their Suite memberships everywhere).
-     -- vy_org itself is deliberately NOT deleted here and carries no
-     -- owner_user_id column for exactly that reason - see migration 091's
-     -- header: an org survives its last admin's own erasure, on purpose, so
-     -- a roster's shared address is never taken down by one person's wipe.
-     org_memberships as (delete from vy_org_member x using target t
-       where x.owner_user_id=t.owner_user_id),
-     -- 114 (WS-R62). An operator's own push subscription is not this ONE
-     -- replica's either - it is out of scope for the replica-keyed joins
-     -- above and reached by owner_user_id ALONE, org_memberships' own
-     -- precedent one block up restated a third time (an owner erasing ONE
-     -- of several replicas also clears every browser they ever subscribed
-     -- for platform ops alerts on). scripts/relcheck.mjs's owner-lane reach
-     -- walk finds this table by its own owner_user_id column and requires
-     -- it be named here or reached by cascade from vy_replica - it is
-     -- neither reached by cascade (no replica_id on this table at all) nor
-     -- exempt, so it is named here. No new entry in the deletedClasses list
-     -- above: room_arrivals'/room_org_attachments' own reasoning two blocks
-     -- up restated - a browser endpoint and its two encryption keys, no
-     -- memory, no follower words, no payment, not a different KIND of
-     -- record from anything a receipt already names.
-     operator_push_subscriptions as (delete from vy_operator_push_subscription x using target t
-       where x.owner_user_id=t.owner_user_id),
-     -- 118 (WS-R74). A creator's own push subscription, operator_push_
-     -- subscriptions' own reasoning one migration later restated for the
-     -- creator lane: not this ONE replica's, no replica_id column on this
-     -- table at all, reached by owner_user_id ALONE. scripts/relcheck.mjs's
-     -- owner-lane reach walk finds it by its own owner_user_id column and
-     -- requires it be named here or reached by cascade from vy_replica - it
-     -- is neither, so it is named here. No new entry in the deletedClasses
-     -- list above: a browser endpoint and its two encryption keys, no
-     -- memory, no follower words, operator_push_subscriptions' own
-     -- reasoning restated.
-     creator_push_subscriptions as (delete from vy_creator_push_subscription x using target t
-       where x.owner_user_id=t.owner_user_id),
      -- TeacherSheet is intentionally agent-shaped without an FK. It contains
      -- the persona fields that drive the clone, so deleting the replica/agent
      -- without naming this table would leave the person's sheet orphaned.
@@ -1216,6 +1154,7 @@ export async function completeReplicaErasure(db, lease, receipt) {
 export async function runReplicaErasureFinalizer(options) {
   const db = options?.db;
   if (typeof db !== "function") throw new Error("replica erasure database required");
+  const scope = erasureScope(options.scope);
   const lease = options.lease || leaseNextReplicaErasure;
   const complete = options.complete || completeReplicaErasure;
   const retry = options.retry || retryReplicaErasure;
@@ -1223,22 +1162,28 @@ export async function runReplicaErasureFinalizer(options) {
   const confirmChannelStorage = options.confirmChannelStorage || confirmReplicaChannelStorageErasure;
   const renew = options.renew || renewReplicaErasureLease;
   const receiptFactory = options.receiptFactory || ((claimed) =>
-    createReplicaErasureReceipt(claimed.replicaId, claimed.ownerUserId, process.env, {
+    createReplicaErasureReceipt(claimed.replicaId, claimed.ownerUserId, options.env || process.env, {
       erasureRequestId: claimed.jobId,
     }));
   const maxJobs = Math.max(1, Math.min(4, Number(options.maxJobs || 2)));
   const summary = { leased: 0, completed: 0, retried: 0 };
   while (summary.leased < maxJobs) {
-    const claimed = await lease(db);
+    options.signal?.throwIfAborted();
+    const claimed = await lease(db, scope ? { scope } : {});
     if (!claimed) break;
+    assertErasureScope(scope, claimed);
+    if (scope && claimed.erasureScope?.jobId !== scope.jobId) throw Error("erasure_scope_mismatch");
     summary.leased += 1;
     try {
+      // Validate receipt configuration before any physical cleanup. A missing
+      // signing key cannot leave storage erased with an unissuable receipt.
+      const receipt = receiptFactory(claimed);
+      if (scope) await renew(db, claimed, { leaseMs: 240_000 });
       await withReplicaErasureLeaseHeartbeat(db, claimed, renew, async (signal) => {
         await cleanupChannelStorage(db, claimed, { signal });
         signal.throwIfAborted();
         await confirmChannelStorage(db, claimed);
-      }, { heartbeatMs: options.heartbeatMs });
-      const receipt = receiptFactory(claimed);
+      }, { heartbeatMs: options.heartbeatMs, signal: options.signal });
       await complete(db, claimed, receipt);
       summary.completed += 1;
     } catch (error) {
@@ -1249,7 +1194,7 @@ export async function runReplicaErasureFinalizer(options) {
   return Object.freeze(summary);
 }
 
-export async function getReplicaErasureStatus(db, ownerUserId, requestId) {
+export async function getReplicaErasureStatus(db, ownerUserId, requestId, env = process.env) {
   const id = String(requestId || "").trim().toLowerCase();
   const requestHash = replicaErasureRequestHash(id);
   const rows = await db(
@@ -1270,18 +1215,25 @@ export async function getReplicaErasureStatus(db, ownerUserId, requestId) {
                where s.replica_id=j.replica_id and s.owner_user_id=j.owner_user_id
             ) or coalesce(j.storage_status->>'channel','pending')<>'confirmed'
               then 'pending' else 'confirmed' end storage_state,
-            '{}'::text[] deleted_classes
+            '{}'::text[] deleted_classes,null::text owner_user_hash,null::text nonce
        from vy_replica_erasure_job j where j.job_id=$1::uuid and j.owner_user_id=$2::uuid
      union all
      select 'complete' state,r.completed_at requested_at,r.completed_at updated_at,r.completed_at,
             r.backup_expires_at,0 attempts,'confirmed' provider_state,
-            'confirmed' storage_state,r.deleted_classes
+            'confirmed' storage_state,r.deleted_classes,r.owner_user_hash,r.receipt_nonce nonce
        from vy_replica_deletion_receipt r where r.erasure_request_hash=$3
      limit 1`,
     [id, ownerUserId, requestHash],
   );
   const row = rows[0];
   if (!row) return null;
+  if (row.state === "complete") {
+    const key = Buffer.from(String(env.REPLICA_ERASURE_RECEIPT_KEY_B64 || ""), "base64");
+    if (key.length !== 32 || !/^[0-9a-f]{64}$/.test(String(row.nonce || ""))) return null;
+    const expectedOwner = createHmac("sha256", key)
+      .update(`${REPLICA_ERASURE_RECEIPT_VERSION}:owner:${row.nonce}:${ownerUserId}`).digest("hex");
+    if (row.owner_user_hash !== expectedOwner) return null;
+  }
   return Object.freeze({
     state: row.state,
     requested_at: row.requested_at,

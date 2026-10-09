@@ -19248,3 +19248,46 @@ Neonclient.end() caused unsettledtop-levelawait. Independent exact-ID reads
 found0replica/person/rehearsal/intentrows, unchanged970microusd textspend. V2
 prepared but currentSupabasehostnameDNSENOTFOUND; currentdeployedbinding/project
 status under investigation. This is not a failed product model answer.
+
+## release-fixture-repairs-20261009
+
+Exacte7092Android run37915478294/job113770483093failed in evals: movingHEAD
+personcompiler baseline, missing extracted auth fixture dependency, and two
+September/Octoberclock assumptions. Replacedbaselinewithchecksum-pinned5fe2
+fixture, preservedold-personrejection andteacherbytecomparisons; person10,
+historyscan7, continuitycompiler16pass. Explicitauthresumehelpersinfakecallback
+scope restoredpersonal-auth52andactualdiscard-before-authordering. Frozenclock
+injectionfixedRoom67andRelationOS31, withnochangedruntime/expectedoutcomes.
+Fullnewcommitacceptance stillrequired. SupabaseauthunreachablefromPreviewaswell
+aslocalhost; correctdashboardnowaccessible/Comingupfollowingownersignin.
+
+Later October 9 live proof: Supabase Auth health/settings returned 200, and the
+accepted Preview rejected a fake bearer with 401 invalid_session. The consumed
+V1 test account was independently absent (admin404, zero exact Neon rows).
+One-use V2 then passed the actual synthetic person path: account, owned workspace,
+text upload, person profile, grounded answer, durable result, replay without
+additional spend. Usage904input/58output,2504microusd; ask HTTP2650ms. Text ledger
+spent3474microusd/reserved0 afterwards. No email, real owner data, voice or GPU.
+Private text/context removal and source-consent/replica revocation passed. Full
+cleanup remains pending: exact erasure job attempts0, source deleting, context
+rows0, no sweep heartbeat. Temporary synthetic auth retained for that exact job.
+No other product/data mutations. V2 manifest/receipt stay in ignored expert-tools.
+A scoped product progress fix is in development; broad global cron is forbidden.
+
+## owned-erasure-proof-20261009
+
+October9: new local owned-progress17, provider19 and account-retention112 checks
+passed. Existing full-erasure35, source62, face26, voice18, order23, creator-export68,
+org71, Roomdoors2733 and leak372 passed. Actual Neon parser proof:27EXPLAINs, then
+one changed final-completion statement re-explained after final inventory edits;
+all passed, never ANALYZE or persistent data writes. The final capture has27SQL
+shapes covered by those receipts. No real storage/provider deletion was run by
+agents. The live synthetic V2 cleanup remains pending until the new endpoint is
+accepted and deployed. No global cron or other-product change is authorized.
+
+Release fixture repairs additionally passed: integrated personal first-use18,
+verification/knowledge14, action-focus58, Feed/Meetreturn13plus source controls,
+responsive earlyShare18, recallbench139assertions/50questions/3dyads. Known recall
+gaps remain visible. Minimal dependency lock patches remove all critical/high
+npm audit findings;3existingmoderates remain. Fresh CI must verify installed
+patches; local node_modules was not replaced during concurrent browser tests.

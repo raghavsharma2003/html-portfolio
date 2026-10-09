@@ -17,6 +17,7 @@
 import { readFile } from "node:fs/promises";
 import { q } from "../api/_db.js";
 import { PERSON_TABLES } from "../api/memory.js";
+import { REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES } from "../api/_replica-erasure-retained.js";
 
 const checks = [];
 const check = (name, sql, params = []) => checks.push({ name, sql, params });
@@ -353,7 +354,7 @@ const EXEMPT = {
 // own history is written to prevent (`issued_by_user_id`, the OPERATOR who
 // issued the code, deliberately stays OUT: they are platform staff acting in
 // that capacity, not a consumer of this table's own erasure obligation, and
-// the row is fully reached either way once it is deleted by name).
+// account admission is retained under the exact inventory below).
 const PERSON_COLUMNS = [
   "person_id",
   "device_id",
@@ -377,22 +378,18 @@ const PERSON_COLUMNS = [
 // gone. The lane is erased by docs/REPLICA-ERASURE.md's chain instead.
 //
 // That verdict is worth nothing unsupported, so it is CHECKED rather than
-// asserted: every owner-keyed table must be reachable when the erasure job
+// asserted: every replica-owned table must be reachable when the erasure job
 // deletes vy_replica — by ON DELETE CASCADE in the live FK graph, or by being
 // named outright in api/_replica-full-erasure.js. The walk below found three
 // tables that were reachable by neither (053/055 declare replica_id and
 // owner_user_id FK-shaped but not FK), which is the whole reason it exists.
 //
-// WS-R23 (086): `redeemed_by_user_id` joins `owner_user_id` here, not just in
-// PERSON_COLUMNS above — vy_creator_invite has no `owner_user_id` column of
-// its own, so without this it would be `keyed` (via PERSON_COLUMNS) but never
-// `ownerOnly`, which would make it FAIL manifest coverage for not being in
-// PERSON_TABLES (correctly excluded, on OWNER_LANE's own verdict) with no
-// escape hatch except a written EXEMPT entry duplicating an argument this
-// file already makes. Folding it into the SAME owner-lane machinery instead
-// means it gets the STRONGER, CHECKED guarantee every other owner-keyed table
-// gets: reachable by cascade or named in api/_replica-full-erasure.js, walked
-// below rather than merely asserted.
+// Six shared account tables are retained by per-replica erasure, each with a
+// written ownership reason in the imported inventory. Account erasure needs
+// separate authority; creator export must still cover these records. This is
+// an exact-name partition, never an owner-column or prefix-wide exemption.
+// Retained tables are checked below for the inverse guarantee: no explicit
+// DELETE and no erasure cascade may reach them.
 const OWNER_KEYS = ["owner_user_id", "redeemed_by_user_id"];
 // Public text carries both owner and visitor identity. Owner reach below is
 // insufficient for visitor forgetting: inspect both explicit live callers.
@@ -413,7 +410,7 @@ const keyed = await q(
       and column_name = any($1::text[])`,
   [PERSON_COLUMNS],
 );
-const ownerOnly = new Set(
+const ownerKeyed = new Set(
   (
     await q(
       `select distinct table_name from information_schema.columns
@@ -422,10 +419,14 @@ const ownerOnly = new Set(
     )
   ).map((r) => r.table_name),
 );
+const retainedAccountTables = Object.keys(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES);
+const ownerOnly = new Set([...ownerKeyed].filter((table) =>
+  !Object.hasOwn(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES, table)));
 const listed = new Set(PERSON_TABLES.map((t) => t.table));
 const missing = keyed
   .map((r) => r.table_name)
-  .filter((t) => !listed.has(t) && !EXEMPT[t] && !ownerOnly.has(t));
+  .filter((t) => !listed.has(t) && !EXEMPT[t] && !ownerOnly.has(t)
+    && !(ownerKeyed.has(t) && Object.hasOwn(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES, t)));
 if (missing.length) {
   failed++;
   console.log(
@@ -437,7 +438,8 @@ if (missing.length) {
   const ex = Object.keys(EXEMPT).length;
   console.log(
     `  ok  manifest coverage (${keyed.length} owned tables across vy_ and meera_, ` +
-      `${ex} exempted in writing, ${ownerOnly.size} on the owner lane, the rest all listed)`,
+      `${ex} exempted in writing, ${ownerOnly.size} on the replica owner lane, ` +
+      `${retainedAccountTables.length} retained account tables, the rest all listed)`,
   );
 }
 
@@ -471,6 +473,37 @@ const erasureSrc = await readFile(new URL("../api/_replica-full-erasure.js", imp
 // a helper definition alone is not erasure reach.
 const sourceErasureSrc = await readFile(new URL("../api/_replica-source-erasure.js", import.meta.url), "utf8");
 const privateErasureSrc = await readFile(new URL("../api/_private-voice-erasure.js", import.meta.url), "utf8");
+const voiceErasureSrc = await readFile(new URL("../api/_replica-voice-erasure.js", import.meta.url), "utf8");
+// Match actual SQL DELETE targets, not SELECTs or explanatory comments. The
+// optional schema/quotes/ONLY forms must not provide a spelling bypass.
+const namedDeletes = (source) => new Set([...source
+  .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ").replace(/--[^\n]*/g, " ")
+  .matchAll(/\bdelete\s+from\s+(?:only\s+)?(?:(?:"?public"?)\s*\.\s*)?"?((?:vy_|meera_)[a-z0-9_]+)"?\b/gi)]
+  .map((match) => match[1].toLowerCase()));
+const fullDeletes = namedDeletes(erasureSrc);
+const pipelineDeletes = new Set([erasureSrc, sourceErasureSrc, privateErasureSrc, voiceErasureSrc]
+  .flatMap((source) => [...namedDeletes(source)]));
+// Check cascades from every explicitly deleted parent too, not only replica.
+const pipelineReached = new Set([...reached, ...pipelineDeletes]);
+for (const stack = [...pipelineReached]; stack.length;) {
+  for (const child of cascades.get(stack.pop()) || []) {
+    if (pipelineReached.has(child)) continue;
+    pipelineReached.add(child);
+    stack.push(child);
+  }
+}
+const unsafeRetained = retainedAccountTables.filter((table) =>
+  !ownerKeyed.has(table)
+  || typeof REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES[table] !== "string"
+  || REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES[table].trim().length < 60
+  || reached.has(table) || pipelineDeletes.has(table) || pipelineReached.has(table));
+if (unsafeRetained.length) {
+  failed++;
+  console.log(`FAIL  retained account erasure boundary: ${unsafeRetained.join(", ")} ` +
+    `must exist on the account owner lane, have a written reason, and survive every per-replica erasure DELETE/cascade`);
+} else {
+  console.log(`  ok  retained account erasure boundary (${retainedAccountTables.length} exact documented tables; no named DELETE or cascade)`);
+}
 const sourcePrivateCleanupReach = erasureSrc.includes("not exists (select 1 from vy_replica_source s where s.replica_id=r.replica_id)")
   && sourceErasureSrc.includes('privateVoicePresent?privateVoiceSourceRemoval:')
   && sourceErasureSrc.includes('(select count(*) from private_voice_removed)>=0')
@@ -493,7 +526,7 @@ const unreachable = [...ownerOnly]
   // cascades and an explicit full-erasure delete. This catalog walk checks it.
   .filter((t) => !reached.has(t))
   .filter((t) => !(t === 'vy_private_voice_run' && sourcePrivateCleanupReach))
-  .filter((t) => !new RegExp(`delete from ${t}\\b`).test(erasureSrc));
+  .filter((t) => !fullDeletes.has(t));
 if (unreachable.length) {
   failed++;
   console.log(
@@ -570,7 +603,9 @@ if (!mpOn) {
   );
 }
 
-const ran = checks.length + 1 + (mpOn ? mpChecks.length : 0);
+// Four non-query gates above: publication-account caller, manifest coverage,
+// retained-account boundary, and replica owner-lane erasure reach.
+const ran = checks.length + 4 + (mpOn ? mpChecks.length : 0);
 console.log(
   failed
     ? `\n${failed} integrity check(s) FAILED in ${Date.now() - t0}ms — the store is not trustworthy`

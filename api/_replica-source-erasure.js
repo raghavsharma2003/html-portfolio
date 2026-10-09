@@ -4,6 +4,7 @@ import { sha256Hex } from "./_replica-processing/contracts.js";
 import { deleteReplicaSourceObjects, replicaStorageBucketDescriptor } from "./_replica-storage.js";
 import { primarySelectionQuery } from "./_replica-primary-selection.js";
 import {revokeDeletingPrivateVoice,privateVoiceSchemaPresent,privateVoiceSourceFence,privateVoiceSourcePaths,privateVoiceSourceRemoval} from './_private-voice-erasure.js';
+import { erasureScope, erasureScopeParams, erasureScopePredicate, assertErasureScope } from './_replica-erasure-scope.js';
 
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_PENDING_UPLOAD_STALE_MS = 24 * 60 * 60 * 1000;
@@ -92,7 +93,8 @@ export async function markAbandonedPendingSourceUploads(db, options = {}) {
 }
 
 export async function leaseNextSourceErasure(db, options = {}) {
-  const privateVoicePresent=await revokeDeletingPrivateVoice(db);
+  const scope = erasureScope(options.scope);
+  const privateVoicePresent=await revokeDeletingPrivateVoice(db, scope ? { scope } : {});
   const token = options.token || randomBytes(32).toString("base64url");
   const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 240_000)));
   const rows = await db(
@@ -102,6 +104,7 @@ export async function leaseNextSourceErasure(db, options = {}) {
           (s.erasure_lease_token_hash='' and s.erasure_next_attempt_at<=now()) or
           (s.erasure_lease_token_hash<>'' and s.erasure_lease_expires_at<=now())
           )
+          ${erasureScopePredicate(scope, 's', 2)}
           ${privateVoicePresent?privateVoiceSourceFence():''}
           -- A direct browser capability can recreate the exact original even
           -- after it was observed absent. It is not revocable at either
@@ -181,11 +184,13 @@ export async function leaseNextSourceErasure(db, options = {}) {
               1+jsonb_array_length(artifacts),'running' from leased
        on conflict (source_id,attempt) do nothing
      ) select * from leased`,
-    [sourceErasureLeaseTokenHash(token), leaseMs],
+    [sourceErasureLeaseTokenHash(token), leaseMs, ...erasureScopeParams(scope)],
   );
   if (!rows[0]) return null;
   const row = rows[0];
+  assertErasureScope(scope, { replicaId: row.replica_id, ownerUserId: row.owner_user_id });
   const claimed = Object.freeze({
+    ...(scope ? { erasureScope: scope } : {}),
     source: Object.freeze({
       sourceId: row.source_id,
       replicaId: row.replica_id,
@@ -207,6 +212,8 @@ export async function leaseNextSourceErasure(db, options = {}) {
 }
 
 export async function renewSourceErasureLease(db, lease, options = {}) {
+  const scope = erasureScope(lease.erasureScope);
+  assertErasureScope(scope, lease.source);
   const privateVoicePresent=await privateVoiceSchemaPresent(db);
   const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 240_000)));
   const rows = await db(
@@ -214,6 +221,7 @@ export async function renewSourceErasureLease(db, lease, options = {}) {
         set erasure_lease_expires_at=now()+($5::integer*interval '1 millisecond'),updated_at=now()
       where s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
         and s.state='deleting' and s.erasure_lease_token_hash=$4
+           ${erasureScopePredicate(scope, 's', 5)}
            ${privateVoicePresent?privateVoiceSourceFence():''}
            and s.erasure_lease_expires_at>now()
            and not exists (
@@ -224,7 +232,7 @@ export async function renewSourceErasureLease(db, lease, options = {}) {
            )
       returning s.source_id`,
     [lease.source.sourceId, lease.source.replicaId, lease.source.ownerUserId,
-      sourceErasureLeaseTokenHash(lease.leaseToken), leaseMs],
+      sourceErasureLeaseTokenHash(lease.leaseToken), leaseMs, ...erasureScopeParams(scope)],
   );
   return requireSettlement(rows, "lost_source_erasure_lease");
 }
@@ -235,6 +243,8 @@ function requireSettlement(rows, code) {
 }
 
 export async function completeSourceErasure(db, lease) {
+  const scope = erasureScope(lease.erasureScope);
+  assertErasureScope(scope, lease.source);
   const privateVoicePresent=await privateVoiceSchemaPresent(db);
   const rows = await primarySelectionQuery(db,
     `with selection_snapshot as materialized (
@@ -256,6 +266,7 @@ export async function completeSourceErasure(db, lease) {
          from vy_replica_source s cross join review_lock
         where review_lock.acquired and s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
           and s.state='deleting' and s.erasure_lease_token_hash=$4
+          ${erasureScopePredicate(scope, 's', 5)}
           ${privateVoicePresent?privateVoiceSourceFence():''}
           and s.erasure_lease_expires_at>now()
           -- Recheck every provider authority under the completion row lock.
@@ -738,7 +749,7 @@ export async function completeSourceErasure(db, lease) {
      ) select coalesce((select jsonb_agg(x) from (select source_id from removed) x),'[]'::jsonb) primary_selection_rows,
               exists (select 1 from primary_owner where not snapshot_current) primary_selection_snapshot_stale`,
     [lease.source.sourceId, lease.source.replicaId, lease.source.ownerUserId,
-      sourceErasureLeaseTokenHash(lease.leaseToken), REPLICA_POLICY_VERSION],
+      sourceErasureLeaseTokenHash(lease.leaseToken), REPLICA_POLICY_VERSION, ...erasureScopeParams(scope)],
   );
   return requireSettlement(rows, "source_erasure_waiting_for_provider");
 }
@@ -753,6 +764,8 @@ export function normalizeSourceErasureFailure(error) {
 }
 
 export async function retrySourceErasure(db, lease, input = {}) {
+  const scope = erasureScope(lease.erasureScope);
+  assertErasureScope(scope, lease.source);
   const retryAfterMs = Math.max(30_000, Math.min(MAX_RETRY_MS, Number(input.retryAfterMs || 30_000)));
   const failureCode = normalizeSourceErasureFailure(input.error || input.failureCode);
   const rows = await db(
@@ -762,13 +775,14 @@ export async function retrySourceErasure(db, lease, input = {}) {
               erasure_last_error_code=$6,updated_at=now()
         where s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.state='deleting'
           and s.erasure_lease_token_hash=$4 and s.erasure_lease_expires_at>now()
+          ${erasureScopePredicate(scope, 's', 6)}
        returning s.source_id,s.erasure_attempts
      ), attempted as (
        update vy_replica_source_erasure_attempt a set outcome='retry',failure_code=$6,finished_at=now()
          from retried r where a.source_id=r.source_id and a.attempt=r.erasure_attempts and a.outcome='running'
      ) select source_id from retried`,
     [lease.source.sourceId, lease.source.replicaId, lease.source.ownerUserId,
-      sourceErasureLeaseTokenHash(lease.leaseToken), retryAfterMs, failureCode],
+      sourceErasureLeaseTokenHash(lease.leaseToken), retryAfterMs, failureCode, ...erasureScopeParams(scope)],
   );
   return requireSettlement(rows, "lost_source_erasure_lease");
 }
@@ -808,7 +822,10 @@ async function withSourceErasureLeaseHeartbeat(db, lease, renew, task, options =
     }
   })();
   try {
-    const result = await task(heartbeatAborter.signal);
+    const signal = options.signal ? AbortSignal.any([options.signal, heartbeatAborter.signal]) : heartbeatAborter.signal;
+    signal.throwIfAborted();
+    const result = await task(signal);
+    signal.throwIfAborted();
     if (leaseError) throw leaseError;
     return result;
   } finally {
@@ -821,7 +838,8 @@ async function withSourceErasureLeaseHeartbeat(db, lease, renew, task, options =
 export async function runSourceErasureSweep(options) {
   const db = options?.db;
   if (typeof db !== "function") throw new Error("source erasure database required");
-  const cleanup = options.cleanup || markAbandonedPendingSourceUploads;
+  const scope = erasureScope(options.scope);
+  const cleanup = scope ? async () => [] : (options.cleanup || markAbandonedPendingSourceUploads);
   const lease = options.lease || leaseNextSourceErasure;
   const removeObjects = options.removeObjects || ((paths, source, signal) =>
     deleteReplicaSourceObjects(source, paths, undefined, { signal }));
@@ -837,13 +855,17 @@ export async function runSourceErasureSweep(options) {
   });
   const summary = { abandoned: abandoned.length, leased: 0, completed: 0, retried: 0 };
   while (summary.leased < maxJobs && Date.now() - started < timeBudgetMs) {
-    const claimed = await lease(db, { leaseMs: 240_000 });
+    options.signal?.throwIfAborted();
+    const claimed = await lease(db, { leaseMs: 240_000, ...(scope ? { scope } : {}) });
     if (!claimed) break;
+    assertErasureScope(scope, claimed.source);
+    if (scope && claimed.erasureScope?.jobId !== scope.jobId) throw Error("erasure_scope_mismatch");
     summary.leased += 1;
     try {
+      if (scope) await renew(db, claimed, { leaseMs: 240_000 });
       await withSourceErasureLeaseHeartbeat(db, claimed, renew,
         (signal) => removeObjects(claimed.source.paths, claimed.source, signal),
-        { heartbeatMs: options.heartbeatMs });
+        { heartbeatMs: options.heartbeatMs, signal: options.signal });
       await complete(db, claimed);
       summary.completed += 1;
     } catch (error) {

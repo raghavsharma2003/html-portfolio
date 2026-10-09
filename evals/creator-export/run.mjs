@@ -6,7 +6,7 @@
 //
 //   1. COMPLETENESS. `api/_creator-export.js`'s `OWNER_LANE_TABLES` names
 //      exactly the owner-lane subset of what `api/_replica-full-erasure.js`
-//      reaches — every table that file deletes or updates BY NAME, minus
+//      reaches, plus the exact retained-account inventory — minus
 //      the follower-lane tables (`api/memory.js`'s `PERSON_TABLES`) and the
 //      four deliberate, named gaps (erasure-process bookkeeping and
 //      `vy_payment_event`, which carries no owning column at all). STATIC:
@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadSchema } from "../sqlcast/schema.mjs";
 import { PERSON_TABLES } from "../../api/memory.js";
+import { REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES } from "../../api/_replica-erasure-retained.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
@@ -127,17 +128,36 @@ const reach = erasureReach(erasureSrc);
 ok(`erasure reach found a non-trivial set of tables (not vacuously empty)`, reach.size >= 40, `got ${reach.size}`);
 
 const followerNames = followerLaneTableNames();
-const expected = ownerLaneSubset(reach, schema, followerNames, OWNER_LANE_DELIBERATE_GAPS, AGG_EXCEPTIONS, MIXED_LANE_TABLES);
+const retainedAccountNames = Object.keys(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES);
+const exactRetainedAccountNames = [
+  "vy_creator_payout", "vy_creator_payout_account", "vy_creator_invite",
+  "vy_org_member", "vy_operator_push_subscription", "vy_creator_push_subscription",
+];
+ok("retained account inventory is frozen and names exactly the six authorized account tables",
+  Object.isFrozen(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES)
+  && JSON.stringify([...retainedAccountNames].sort()) === JSON.stringify([...exactRetainedAccountNames].sort()));
+ok("every retained account table has a specific ownership reason",
+  retainedAccountNames.every((table) => typeof REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES[table] === "string"
+    && REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES[table].length >= 60));
+const exportReach = new Set([...reach, ...retainedAccountNames]);
+const expected = ownerLaneSubset(exportReach, schema, followerNames, OWNER_LANE_DELIBERATE_GAPS, AGG_EXCEPTIONS, MIXED_LANE_TABLES);
 const manifestSet = new Set(creatorExportTableNames());
 
 const missingFromManifest = [...expected].filter((t) => !manifestSet.has(t)).sort();
 const extraInManifest = [...manifestSet].filter((t) => !expected.has(t)).sort();
-ok("every owner-lane table the erasure file reaches is named by OWNER_LANE_TABLES",
+ok("every erased or retained account owner-lane table is named by OWNER_LANE_TABLES",
   missingFromManifest.length === 0, missingFromManifest.join(","));
-ok("OWNER_LANE_TABLES names nothing beyond what the erasure file's own owner-lane reach computes",
+ok("OWNER_LANE_TABLES names nothing beyond erasure reach and the exact retained account inventory",
   extraInManifest.length === 0, extraInManifest.join(","));
 ok("OWNER_LANE_TABLES carries no duplicate table name",
   manifestSet.size === OWNER_LANE_TABLES.length);
+ok("all six retained account tables remain available in the owner's export",
+  retainedAccountNames.every((table) => expected.has(table) && manifestSet.has(table)));
+for (const table of retainedAccountNames) {
+  const shrunkManifest = new Set([...manifestSet].filter((name) => name !== table));
+  ok(`NEGATIVE CONTROL: retaining ${table} never excuses dropping it from export`,
+    [...expected].some((name) => !shrunkManifest.has(name) && name === table));
+}
 
 // A sanity floor against "the count matched by accident" — a handful of the
 // workstream brief's own named examples, present by name.
@@ -489,6 +509,22 @@ console.log("\n── layer 3: an owner with nothing yet ──");
   ok("an owner with no replica gets replicas: []", Array.isArray(emptyDump.replicas) && emptyDump.replicas.length === 0);
   ok("an owner with no replica gets an empty tables object, never a crash", Object.keys(emptyDump.tables).length === 0);
   ok("an owner with no replica gets zero storage pointers", emptyDump.storage.length === 0);
+}
+{
+  // Removing the final AI must not make the shared account records that
+  // survived it disappear from export. Include another owner in every table
+  // so retaining records does not weaken the existing isolation boundary.
+  const accountOnly = { vy_replica: [], vy_room: [] };
+  for (const table of retainedAccountNames) {
+    const key = table === "vy_creator_invite" ? "redeemed_by_user_id" : "owner_user_id";
+    accountOnly[table] = [{ [key]: OWNER_A, marker: `own-${table}` }, { [key]: OWNER_B, marker: `other-${table}` }];
+  }
+  const accountDump = await creatorExport(fakeDb(accountOnly), OWNER_A, { tableApplied: async () => true });
+  ok("an owner with no remaining replica can still export every retained account table",
+    accountDump.replicas.length === 0 && retainedAccountNames.every((table) =>
+      accountDump.tables[table]?.length === 1 && accountDump.tables[table][0].marker === `own-${table}`));
+  ok("retained account exports include no other owner's rows after the final AI is removed",
+    !JSON.stringify(accountDump).includes("other-") && !JSON.stringify(accountDump).includes(OWNER_B));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

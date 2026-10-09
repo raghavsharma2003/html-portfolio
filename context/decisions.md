@@ -25619,3 +25619,28 @@ never infer semantic memory or voice quality from these deterministic controls.
 The owner explicitly approved including the isolated Meera production repair
 onOctober9. Its small backport must be gated/deployed separately from Vyakti;
 then prepare a fresh incident-scoped repair. No old repair intent is reusable.
+
+## vyakti-only-scope-20261009
+
+LATEST owner direction explicitly forbids touching Meera/Maya/otherproducts,
+superseding the earlier same-day include-Meera approval. Both isolated patch
+and incident agents stopped. No other production deployment or DBmutation
+occurred; only the previously authorized isolatedbranch32f15233was pushed with
+2non-deployingAPKchecks. Preserve it, do not merge/deploy/revertit. Incident
+classifier was SELECT-only and refused a suppressionmatch before repair/proof.
+Neon replacement for Supabase is permitted for Vyakti, but assess auth/account
+migration before changing working data bindings; actualdata already usesNeon.
+Reverse this scope only after explicit new owner direction, never from oldlogs.
+
+## owned-erasure-progress-20261009
+
+Authenticated POST status may advance only its exact owner, replica and erasure
+job. Work is awaited, bounded and resumable through existing leases; never invoke
+a global sweep from a user request. Preserve six explicitly inventoried shared
+account tables for all per-replica callers, including scheduled retries. Remove
+their DELETEs and receipt claims; the gate now proves retention rather than
+keeping dead DELETE text to fool coverage. Text-context ingestion has no media
+upload capability, so it must not wait forever on a null media expiry. Completed
+receipt reads require the authenticated owner's existing HMAC. Reverse only if
+a separate explicit account-erasure contract or equivalent scoped durable worker
+is introduced with the same boundary and interruption tests.

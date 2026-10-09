@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { erasureScope, erasureScopeParams, erasureScopePredicate, assertErasureScope } from '../_replica-erasure-scope.js';
+import { sha256Hex } from '../_replica-processing/contracts.js';
 import {
   REPLICA_STORAGE_WRITE_BUCKET,
   deleteReplicaPrefixObjects,
@@ -162,17 +164,28 @@ export async function issueChannelExtractionUpload(db, input, options = {}) {
 
 export async function cleanupReplicaChannelExtractionStorage(db, lease, options = {}) {
   if (typeof db !== "function") fail("channel_extraction_storage_db_required", 500);
+  const scope = erasureScope(lease?.erasureScope);
+  assertErasureScope(scope, lease);
   const ownerUserId = String(lease?.ownerUserId || "").toLowerCase();
   const replicaId = String(lease?.replicaId || "").toLowerCase();
   if (![ownerUserId, replicaId].every((value) => UUID.test(value))) {
     fail("channel_extraction_storage_scope_invalid", 400);
   }
+  if (scope) {
+    if (typeof lease.leaseToken !== 'string' || lease.leaseToken.length < 32) fail('lost_replica_erasure_lease');
+    const authority = await db(`select j.job_id from vy_replica_erasure_job j
+      where j.job_id=$1::uuid and j.replica_id=$2::uuid and j.owner_user_id=$3::uuid
+        and j.state='running' and j.lease_token_hash=$4 and j.lease_expires_at>now()`,
+    [scope.jobId, replicaId, ownerUserId, sha256Hex(`replica-full-erasure-lease:v1:${lease.leaseToken}`)]);
+    if (!authority[0]) fail('lost_replica_erasure_lease');
+  }
   const rows = await db(
     `select storage_bucket,object_path,upload_authorization_expires_at
-       from vy_channel_extraction_object
+       from vy_channel_extraction_object x
       where replica_id=$1::uuid and owner_user_id=$2::uuid
+        ${erasureScopePredicate(scope, 'x', 2)}
       order by created_at,extraction_object_id`,
-    [replicaId, ownerUserId],
+    [replicaId, ownerUserId, ...erasureScopeParams(scope)],
   );
   const nowMs = Number(options.nowMs ?? Date.now());
   if (rows.some((row) => {
@@ -185,11 +198,13 @@ export async function cleanupReplicaChannelExtractionStorage(db, lease, options 
     `select exists (
        select 1 from vy_ingest_run r
         where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          ${erasureScopePredicate(scope, 'r', 2)}
        union all
        select 1 from vy_video_enrollment e
         where e.replica_id=$1::uuid and e.owner_user_id=$2::uuid
+          ${erasureScopePredicate(scope, 'e', 2)}
      ) has_channel_storage_history`,
-    [replicaId, ownerUserId],
+    [replicaId, ownerUserId, ...erasureScopeParams(scope)],
   );
   const hasHistory = history[0]?.has_channel_storage_history === true ||
     String(history[0]?.has_channel_storage_history || "").toLowerCase() === "true";

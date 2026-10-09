@@ -176,10 +176,11 @@ try {
   findLinked(authTree); assert.ok(linkedInitializer);
   const linkedCode = await transform(`export async function run(status, show = true, linked = null) {
     class StudioAuthError extends Error { constructor(status) { super('PRIVATE_PROVIDER_PAYLOAD'); this.status = status; } }
-    const errors = []; const checking = []; const accepted = []; const calls = [];
+    const errors = []; const checking = []; const accepted = []; const calls = []; const discarded = [];
     const useCallback = fn => fn; const setError = value => errors.push(value); const setCheckingLink = value => checking.push(value); const onAuthed = value => accepted.push(value);
+    const discardBrowserFullPageAuthResume = () => discarded.push(accepted.length);
     const restoreSession = async options => { calls.push(options); if (status === 'network') throw new TypeError('PRIVATE_PROVIDER_PAYLOAD'); if (typeof status === 'number') throw new StudioAuthError(status); return linked; };
-    const acceptLinkedSession = ${linkedInitializer}; await acceptLinkedSession(show); return { errors, checking, accepted, calls };
+    const acceptLinkedSession = ${linkedInitializer}; await acceptLinkedSession(show); return { errors, checking, accepted, calls, discarded };
   }`, { loader: "ts", format: "esm" });
   const linkedFile = join(out, "linked.mjs"); await writeFile(linkedFile, linkedCode.code);
   const linkedModule = await import(pathToFileURL(linkedFile).href);
@@ -194,7 +195,7 @@ try {
   const notReady = await linkedModule.run(null);
   check("No linked session reports not-ready only", () => { assert.deepEqual(notReady.errors, ["linkNotReadyError"]); assert.deepEqual(notReady.accepted, []); });
   const accepted = await linkedModule.run(null, true, fresh);
-  check("Only an actual restored session reaches onAuthed", () => { assert.deepEqual(accepted.accepted, [fresh]); assert.deepEqual(accepted.errors, []); assert.deepEqual(accepted.checking, [true, false]); });
+  check("Only an actual restored session reaches onAuthed", () => { assert.deepEqual(accepted.accepted, [fresh]); assert.deepEqual(accepted.errors, []); assert.deepEqual(accepted.checking, [true, false]); assert.deepEqual(accepted.discarded, [0]); });
   // Execute the actual network callbacks with their dependencies injected.
   // This tests error classification, not SQL or live authentication.
   // WS-R164: verifyCode now calls the real isStudioAuthDead classifier
@@ -207,12 +208,13 @@ try {
     const body = functionText(auth, name);
     const text = `export async function run(status) {
       class StudioAuthError extends Error { constructor(status) { super('PRIVATE_PROVIDER_PAYLOAD'); this.status = status; } }
-      const errors = []; let cleared = false; const email = 'owner@example.com'; const code = '123456';
+      const errors = []; let cleared = false; const email = 'owner@example.com'; const code = '123456'; const window = { location: { search: '' } };
       const cause = status === null ? new TypeError('PRIVATE_PROVIDER_PAYLOAD') : new StudioAuthError(status);
       const sendEmailOtp = async () => { throw cause; }; const verifyEmailOtp = sendEmailOtp;
       const isStudioAuthDead = cause => [400, 401, 403].includes(cause?.status);
       const setError = v => errors.push(v); const setBusy = () => {}; const setStep = () => {}; const setCode = () => { cleared = true; };
       const writeStoredSession = () => {}; const onAuthed = () => {}; const codeRef = { current: null }; const requestAnimationFrame = fn => fn();
+      const saveBrowserFullPageAuthResume = () => {}; const discardBrowserFullPageAuthResume = () => {};
       ${body}
       await ${name}(); return { error: errors.at(-1), cleared };
     }`;

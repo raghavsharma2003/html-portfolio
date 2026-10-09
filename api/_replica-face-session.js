@@ -1,6 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { clientChallenge } from "./_replica-liveness.js";
 import { replicaId } from "./_replica.js";
+import {
+  erasureScope, erasureScopePredicate, erasureScopeParams, assertErasureScope,
+} from "./_replica-erasure-scope.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -426,6 +429,8 @@ async function releasePoll(db, claim, code) {
 }
 
 async function settleDeleted(db, claim) {
+  const scope = erasureScope(claim.erasureScope);
+  assertErasureScope(scope, claim);
   const passed = claim.faceSessionState === "passed_deleting";
   const failed = claim.faceSessionState === "failed_deleting";
   const finalState = passed ? "passed_deleted" : failed ? "failed_deleted" : "expired_deleted";
@@ -437,6 +442,8 @@ async function settleDeleted(db, claim) {
               updated_at=now()
         where ch.challenge_id=$1::uuid and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid and ch.face_session_attempt=$4::int4
           and ch.face_session_state=$7 and ch.face_session_lease_token_hash=$5
+          ${scope ? "and ch.face_session_lease_expires_at>now()" : ""}
+          ${erasureScopePredicate(scope, "ch", 7)}
         returning ch.*
      ), grant_done as (
        update vy_replica_biometric_verification_grant g
@@ -450,24 +457,32 @@ async function settleDeleted(db, claim) {
               face_session_model_version,'allowed',jsonb_build_object('terminal_state',$6) from settled
      ) select * from settled`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt,
-      leaseHash(claim.leaseToken), finalState, claim.faceSessionState],
+      leaseHash(claim.leaseToken), finalState, claim.faceSessionState, ...erasureScopeParams(scope)],
   );
   if (!rows[0]) fail("face_session_delete_settlement_lost");
   return clientChallenge(rows[0]);
 }
 
 async function releaseDelete(db, claim, code) {
-  await db(
-    `update vy_replica_liveness_challenge set face_session_lease_token_hash='',face_session_leased_at=null,
+  const scope = erasureScope(claim.erasureScope);
+  assertErasureScope(scope, claim);
+  const rows = await db(
+    `update vy_replica_liveness_challenge ch set face_session_lease_token_hash='',face_session_leased_at=null,
        face_session_lease_expires_at=null,failure_code=$6,updated_at=now()
       where challenge_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and face_session_attempt=$4::int4
-        and face_session_state=$7 and face_session_lease_token_hash=$5`,
+        and face_session_state=$7 and face_session_lease_token_hash=$5
+        ${scope ? "and ch.face_session_lease_expires_at>now()" : ""}
+        ${erasureScopePredicate(scope, "ch", 7)}
+      returning ch.challenge_id`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt,
-      leaseHash(claim.leaseToken), String(code || "face_session_delete_failed").slice(0, 80), claim.faceSessionState],
+      leaseHash(claim.leaseToken), String(code || "face_session_delete_failed").slice(0, 80), claim.faceSessionState,
+      ...erasureScopeParams(scope)],
   );
+  if (scope && !rows[0]) fail("face_session_delete_settlement_lost");
 }
 
 export async function leaseNextFaceSessionCleanup(db, broker, options = {}) {
+  const scope = erasureScope(options.scope);
   cleanupBrokerContract(broker);
   const leaseToken = options.leaseToken || randomBytes(32).toString("hex");
   const leaseMs = Math.max(30_000, Math.min(180_000, Number(options.leaseMs || 60_000)));
@@ -480,6 +495,7 @@ export async function leaseNextFaceSessionCleanup(db, broker, options = {}) {
           ch.face_session_state in ('passed_deleting','failed_deleting','expired_deleting') or
           (ch.face_session_state in ('ready','polling') and ch.face_session_expires_at<=now())
         ) and (ch.face_session_lease_token_hash='' or ch.face_session_lease_expires_at<=now())
+        ${erasureScopePredicate(scope, "ch", 2)}
         order by ch.updated_at limit 1 for update of ch skip locked
      ), leased as (
        update vy_replica_liveness_challenge ch set
@@ -488,41 +504,12 @@ export async function leaseNextFaceSessionCleanup(db, broker, options = {}) {
               face_session_lease_token_hash=$1,face_session_leased_at=now(),
               face_session_lease_expires_at=now()+($2::integer*interval '1 millisecond'),updated_at=now()
          from candidate c where ch.challenge_id=c.challenge_id
+          and ch.replica_id=c.replica_id and ch.owner_user_id=c.owner_user_id
+          ${erasureScopePredicate(scope, "ch", 2)}
        returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.face_session_attempt,
                  ch.face_session_state,ch.face_session_handle,ch.face_session_reference_sha256
      ) select * from leased`,
-    [leaseHash(leaseToken), leaseMs],
-  );
-  const row = rows[0];
-  if (!row) return null;
-  return Object.freeze({
-    leaseToken,
-    challengeId: row.challenge_id,
-    replicaId: row.replica_id,
-    ownerUserId: row.owner_user_id,
-    faceSessionAttempt: Number(row.face_session_attempt),
-    faceSessionState: row.face_session_state,
-    sessionHandle: row.face_session_handle,
-    identityReference: Object.freeze({ sha256: row.face_session_reference_sha256 }),
-  });
-}
-
-export async function deleteOwnedFaceSessionNow(db, ownerUserId, id, challenge, broker, options = {}) {
-  const activeBroker = cleanupBrokerContract(broker);
-  const cid = challenge ? replicaId(challenge) : null;
-  const leaseToken = options.leaseToken || randomBytes(32).toString("hex");
-  const leaseMs = Math.max(30_000, Math.min(90_000, Number(options.leaseMs || 60_000)));
-  const rows = await db(
-    `update vy_replica_liveness_challenge ch set face_session_lease_token_hash=$4,
-            face_session_leased_at=now(),face_session_lease_expires_at=now()+($5::integer*interval '1 millisecond'),
-            updated_at=now()
-      where ($1::uuid is null or ch.challenge_id=$1::uuid) and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
-        and ch.face_session_handle<>''
-        and ch.face_session_state in ('passed_deleting','failed_deleting','expired_deleting')
-        and (ch.face_session_lease_token_hash='' or ch.face_session_lease_expires_at<=now())
-      returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.face_session_attempt,
-                ch.face_session_state,ch.face_session_handle,ch.face_session_reference_sha256`,
-    [cid, replicaId(id), ownerUserId, leaseHash(leaseToken), leaseMs],
+    [leaseHash(leaseToken), leaseMs, ...erasureScopeParams(scope)],
   );
   const row = rows[0];
   if (!row) return null;
@@ -535,9 +522,63 @@ export async function deleteOwnedFaceSessionNow(db, ownerUserId, id, challenge, 
     faceSessionState: row.face_session_state,
     sessionHandle: row.face_session_handle,
     identityReference: Object.freeze({ sha256: row.face_session_reference_sha256 }),
+    ...(scope ? { erasureScope: scope } : {}),
   });
+  assertErasureScope(scope, claim);
+  return claim;
+}
+
+export async function deleteOwnedFaceSessionNow(db, ownerUserId, id, challenge, broker, options = {}) {
+  const scope = erasureScope(options.scope);
+  if (scope) options.signal?.throwIfAborted();
+  const providerTimeoutMs = scope ? ownedProviderTimeoutMs(options) : options.providerTimeoutMs || 45_000;
+  assertErasureScope(scope, { replicaId: replicaId(id), ownerUserId });
+  const activeBroker = cleanupBrokerContract(broker);
+  const cid = challenge ? replicaId(challenge) : null;
+  const leaseToken = options.leaseToken || randomBytes(32).toString("hex");
+  const leaseMs = Math.max(30_000, Math.min(90_000, Number(options.leaseMs || 60_000)));
+  const rows = await db(
+    `with candidate as (
+       select ch.challenge_id from vy_replica_liveness_challenge ch
+        where ($1::uuid is null or ch.challenge_id=$1::uuid) and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
+          and ch.face_session_handle<>''
+          and ch.face_session_state in ('passed_deleting','failed_deleting','expired_deleting')
+          and (ch.face_session_lease_token_hash='' or ch.face_session_lease_expires_at<=now())
+          ${erasureScopePredicate(scope, "ch", 5)}
+          ${scope ? "order by ch.updated_at limit 1 for update of ch skip locked" : ""}
+     ) update vy_replica_liveness_challenge ch set face_session_lease_token_hash=$4,
+            face_session_leased_at=now(),face_session_lease_expires_at=now()+($5::integer*interval '1 millisecond'),
+            updated_at=now()
+       from candidate c
+      where ch.challenge_id=c.challenge_id and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
+        and ch.face_session_handle<>''
+        and ch.face_session_state in ('passed_deleting','failed_deleting','expired_deleting')
+        and (ch.face_session_lease_token_hash='' or ch.face_session_lease_expires_at<=now())
+        ${erasureScopePredicate(scope, "ch", 5)}
+      returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.face_session_attempt,
+                ch.face_session_state,ch.face_session_handle,ch.face_session_reference_sha256`,
+    [cid, replicaId(id), ownerUserId, leaseHash(leaseToken), leaseMs, ...erasureScopeParams(scope)],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const claim = Object.freeze({
+    leaseToken,
+    challengeId: row.challenge_id,
+    replicaId: row.replica_id,
+    ownerUserId: row.owner_user_id,
+    faceSessionAttempt: Number(row.face_session_attempt),
+    faceSessionState: row.face_session_state,
+    sessionHandle: row.face_session_handle,
+    identityReference: Object.freeze({ sha256: row.face_session_reference_sha256 }),
+    ...(scope ? { erasureScope: scope } : {}),
+  });
+  assertErasureScope(scope, claim);
   try {
-    await activeBroker.delete(claim, { timeoutMs: options.providerTimeoutMs || 45_000 });
+    if (scope) options.signal?.throwIfAborted();
+    await activeBroker.delete(claim, {
+      timeoutMs: providerTimeoutMs,
+      ...(scope && options.signal ? { signal: options.signal } : {}),
+    });
     return settleDeleted(db, claim);
   } catch (error) {
     await releaseDelete(db, claim, error?.code || error?.message);
@@ -545,32 +586,56 @@ export async function deleteOwnedFaceSessionNow(db, ownerUserId, id, challenge, 
   }
 }
 
+function ownedProviderTimeoutMs(options) {
+  const value = options.providerTimeoutMs === undefined ? 10_000 : Number(options.providerTimeoutMs);
+  if (!Number.isFinite(value) || value <= 0) fail("erasure_provider_timeout_invalid", 400);
+  // The broker's transport has a five-second floor. Do not let it silently
+  // extend an owned request whose remaining budget is shorter than that.
+  if (value < 5_000) fail("erasure_provider_time_budget_exhausted", 409);
+  return Math.min(10_000, Math.ceil(value));
+}
+
 export async function runFaceSessionCleanupSweep(options = {}) {
+  const scope = erasureScope(options.scope);
+  if (scope) options.signal?.throwIfAborted();
   const db = options.db;
   const broker = cleanupBrokerContract(options.broker);
   if (typeof db !== "function") fail("face_session_database_required", 500);
   const lease = options.lease || leaseNextFaceSessionCleanup;
-  const maxJobs = Math.max(1, Math.min(8, Number(options.maxJobs || 2)));
+  const maxJobs = scope ? 1 : Math.max(1, Math.min(8, Number(options.maxJobs || 2)));
+  const providerTimeoutMs = scope ? ownedProviderTimeoutMs(options) : 45_000;
   const timeBudgetMs = Math.max(20_000, Math.min(120_000, Number(options.timeBudgetMs || 100_000)));
   const now = typeof options.now === "function" ? options.now : Date.now;
   const deadline = now() + timeBudgetMs;
-  const hasCallBudget = () => now() <= deadline - 48_000;
+  const hasCallBudget = () => now() <= deadline - (scope ? providerTimeoutMs + 1_000 : 48_000);
   const summary = {
     leased: 0, deleted: 0, retried: 0, providerScanned: 0,
     providerExpiredDeleted: 0, providerCleanupSkipped: false, ambiguousReconciled: 0,
   };
   while (summary.leased < maxJobs && hasCallBudget()) {
-    const claim = await lease(db, broker);
+    if (scope) options.signal?.throwIfAborted();
+    const claim = await lease(db, broker, scope ? { scope } : undefined);
     if (!claim) break;
+    if (scope) {
+      assertErasureScope(scope, erasureScope(claim.erasureScope));
+      assertErasureScope(scope, claim);
+    }
     summary.leased += 1;
     try {
-      await broker.delete(claim);
+      if (scope) options.signal?.throwIfAborted();
+      await broker.delete(claim, scope ? { timeoutMs: providerTimeoutMs, signal: options.signal } : undefined);
       await settleDeleted(db, claim);
       summary.deleted += 1;
     } catch (error) {
       await releaseDelete(db, claim, error?.code || error?.message);
       summary.retried += 1;
     }
+  }
+  // A provider-wide cleanup and its ambiguous-session reconciliation cannot
+  // be attributed to one owner's erasure job. Leave it to the existing cron.
+  if (scope) {
+    summary.providerCleanupSkipped = true;
+    return Object.freeze(summary);
   }
   let providerCleanupConfirmed = false;
   let providerCleanupCutoff = "";

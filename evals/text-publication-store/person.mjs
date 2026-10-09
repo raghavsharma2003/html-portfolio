@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {build} from 'esbuild';
-import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {mkdirSync,writeFileSync} from 'node:fs';
+import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import * as store from '../../api/_text-publication-store.js';
 import * as incumbentEngine from '../../api/_engine.gen.js';
 import {createTextPublicationVisitorHandler} from '../../api/_text-publication-runtime.js';
@@ -16,7 +15,11 @@ const root=fileURLToPath(new URL('../../',import.meta.url));
 const compileModule=async source=>{const built=await build({stdin:{contents:source,loader:'ts',resolveDir:root+'src/engine'},bundle:true,platform:'node',format:'esm',write:false});return import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].contents).toString('base64'));};
 const current=await build({entryPoints:[root+'src/engine/publishedMaterialAssistant.ts'],bundle:true,platform:'node',format:'esm',write:false});
 const {compilePublishedMaterialAssistant:compile}=await import('data:text/javascript;base64,'+Buffer.from(current.outputFiles[0].contents).toString('base64'));
-const prior=await compileModule(execFileSync('git',['show','HEAD:src/engine/publishedMaterialAssistant.ts'],{cwd:root,encoding:'utf8'}));
+// Immutable accepted compiler oracle, available in shallow CI checkouts too.
+// Normalize checkout line endings before checking the exact retained bytes.
+const priorSource=readFileSync(new URL('./fixtures/5fe2fa25/src__engine__publishedMaterialAssistant.ts',import.meta.url),'utf8').replace(/\r\n/g,'\n');
+assert.equal(sha256Hex(priorSource),'76124a3c3d20b31e19ec0aec12c2337413427567bd98a09d2a238ce45458c0f9','accepted compiler fixture changed');
+const prior=await compileModule(priorSource);
 globalThis.fetch=()=>{throw Error('external_network_forbidden');};
 let passed=0;const check=async(name,run)=>{await run();passed++;console.log('ok '+name);};
 const inputFor=async f=>{await f.publish();const j=await f.join();const input={public_id:pid,session_token:j.session_token,request_id:requestId,question:'What is the period, and where was this measured?'};return {input,admitted:await store.admitTextPublicationRequest(f.db,visitor,input,{env})};};

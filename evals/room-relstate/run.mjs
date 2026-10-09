@@ -232,18 +232,27 @@ try {
     // the former, `stageForDims` below computes the latter; the two are
     // deliberately different words for deliberately different questions.
     ok("the coarse trust band renders (0.75 => \"strong\"), never the raw number", compiled.tail.includes("trust: strong") && !compiled.tail.includes("0.75"));
-    const stage = stageForDims(state, { lastRuptureMoveAt: relBundle.lastRuptureMoveAt, warmEpisodesSinceRupture: 0 });
+    const fixtureNow = new Date(NOW);
+    const stage = stageForDims(state,
+      { lastRuptureMoveAt: relBundle.lastRuptureMoveAt, warmEpisodesSinceRupture: 0 }, fixtureNow);
     ok("stageForDims (the same function the account page imports) agrees this dyad reads as 'close'", stage === "close");
 
     // The rupture cap, the workstream brief's own opening citation
     // (`rejected.md#rupture-never-closes`): an OPEN rupture caps the stage
     // regardless of trust, on the LAPSING stance, not the raw flag.
     const openState = { ...state, rupture_open: true, repair_state: "open" };
-    const stanceStillOpen = ruptureStance({ ruptureOpen: true, repairState: "open", lastMoveAt: iso(NOW - 2 * 86_400_000), warmEpisodesSince: 0 });
-    const stanceLapsed = ruptureStance({ ruptureOpen: true, repairState: "open", lastMoveAt: iso(NOW - 30 * 86_400_000), warmEpisodesSince: 0 });
+    const stanceStillOpen = ruptureStance(
+      { ruptureOpen: true, repairState: "open", lastMoveAt: iso(NOW - 2 * 86_400_000), warmEpisodesSince: 0 },
+      fixtureNow,
+    );
+    const stanceLapsed = ruptureStance(
+      { ruptureOpen: true, repairState: "open", lastMoveAt: iso(NOW - 30 * 86_400_000), warmEpisodesSince: 0 },
+      fixtureNow,
+    );
     ok("a fresh open rupture reads as an OPEN stance", stanceStillOpen === "open");
     ok("the SAME raw rupture_open, 30 days later with no signal, reads as SETTLED (the automatic lapse this workstream's reset gives a follower an explicit alternative to)", stanceLapsed === "settled");
-    const stageOpen = stageForDims(openState, { lastRuptureMoveAt: iso(NOW - 2 * 86_400_000), warmEpisodesSinceRupture: 0 });
+    const stageOpen = stageForDims(openState,
+      { lastRuptureMoveAt: iso(NOW - 2 * 86_400_000), warmEpisodesSinceRupture: 0 }, fixtureNow);
     ok("an OPEN rupture caps the stage below what trust alone (0.75) would earn — never 'close' while it is held", stageOpen === "warming");
   }
 

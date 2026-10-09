@@ -159,12 +159,13 @@ const completedStatus = await getReplicaErasureStatus(async (sql, params) => {
   assert.deepEqual(params, [JOB, OWNER, replicaErasureRequestHash(JOB)]);
   return [{ state: "complete", requested_at: "2026-08-24T00:00:00.000Z", updated_at: "2026-08-24T00:00:00.000Z",
     completed_at: "2026-08-24T00:00:00.000Z", backup_expires_at: "2026-09-23T00:00:00.000Z", attempts: 0,
-    provider_state: "confirmed", storage_state: "confirmed", deleted_classes: receipt.deletedClasses }];
-}, OWNER, JOB);
+    provider_state: "confirmed", storage_state: "confirmed", deleted_classes: receipt.deletedClasses,
+    owner_user_hash: receipt.ownerUserHash, nonce: receipt.nonce }];
+}, OWNER, JOB, env);
 ok("the opaque request capability resolves completion after owner and replica links are gone",
   completedStatus.state === "complete" && completedStatus.provider === "confirmed" &&
   /erasure_request_hash=\$3/.test(statusSql));
-ok("owner identity scopes the live job while only the unguessable request capability scopes the blinded receipt",
+ok("owner identity scopes the live job and verifies the blinded receipt commitment",
   /j\.job_id=\$1(?:::uuid)? and j\.owner_user_id=\$2(?:::uuid)?/.test(statusSql) &&
   statusSql.includes("vy_replica_voice_profile") && statusSql.includes("vy_replica_source") &&
   statusSql.includes("vy_replica_liveness_challenge"));
@@ -217,6 +218,7 @@ const lostSummary = await runReplicaErasureFinalizer({
   db: async () => [],
   maxJobs: 1,
   heartbeatMs: 100,
+  receiptFactory: () => receipt,
   lease: (() => { let once = true; return async () => once ? (once = false, lease) : null; })(),
   cleanupChannelStorage: async (_db, _claimed, { signal }) => new Promise((resolve, reject) => {
     signal.addEventListener("abort", () => {

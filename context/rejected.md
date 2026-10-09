@@ -19389,3 +19389,25 @@ Rejected copying teacher release consent to general person sharing, discarding
 10ownerfacts merely to reuse an expertRoom20rowselector, and replaying a consumed
 canary after its Neonclientdouble-close. Distinctpersonrelease, Room-onlyranking
 and fresh recoveryintent preserve the actual contracts with less churn.
+
+## moving-head-and-calendar-fixtures-20261009
+
+A compatibility test loaded gitshowHEAD then assumed it was stilltheoldcompiler;
+aftercommitHEADcorrectlysupportedpersonsharing,soitsnegativecontrolfailed.
+Usecommittedchecksum-verifiedhistoricalfixture,noruntimeGithistoryread. Existing
+RoomtestsalsocomparedrealOctobertimewithfixedSeptemberdataandfixedOctoberreset:
+injecttheexistingclockparameterswithoutalteringrelationormonthlyallowancebehavior.
+Anextractedauthcallbackmustexplicitlyprovideitsnewdiscardhelper; otherwisea
+caughtReferenceErrorlookslikeproductnetworkfailure. Nonejustifiesweakeninggates.
+
+## idle-preview-erasure-and-account-overreach-20261009
+
+The real V2 canary answered correctly but stayed pending after18status polls:
+its source was deleting, job attempts0 and no erasure sweep heartbeat existed.
+A broad operator cron would touch unrelated jobs, so it was rejected. The new
+owned POST continuation follows exact job/replica/owner scope into every lease,
+provider and storage operation. Review also found null media expiry incorrectly
+blocking text-only ingest forever, and six account-global deletes inside
+per-replica erasure. Retain those shared rows explicitly; do not keep unreachable
+DELETE CTEs to make a source scanner pass. The receipt key cannot be substituted
+when a sensitive deployed binding is unavailable to an operator helper.

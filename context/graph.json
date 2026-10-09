@@ -17,6 +17,12 @@
     "blocks": "this is blocked on that"
   },
   "nodes": [
+    { "id": "owned-erasure-progress-20261009", "kind": "decision", "title": "Owned status advances only one scoped erasure and retains shared account state", "at": "2026-10-09" },
+    { "id": "owned-erasure-proof-20261009", "kind": "measurement", "title": "Scoped erasure regressions and actual PostgreSQL parser proof", "at": "2026-10-09" },
+    { "id": "idle-preview-erasure-and-account-overreach-20261009", "kind": "rejection", "title": "No broad sweep or account-global deletion to complete one AI removal", "at": "2026-10-09" },
+    { "id": "vyakti-only-scope-20261009", "kind": "decision", "title": "Latest owner scope excludes all other products and their data", "at": "2026-10-09" },
+    { "id": "release-fixture-repairs-20261009", "kind": "measurement", "title": "Pinned baseline, explicit auth fixture dependencies and frozen clocks", "at": "2026-10-09" },
+    { "id": "moving-head-and-calendar-fixtures-20261009", "kind": "rejection", "title": "Moving Git HEAD and real calendar time cannot be test oracles", "at": "2026-10-09" },
     { "id": "resume-product-evidence-20261009", "kind": "decision", "title": "Resume from verified runtime and concrete creator gaps", "at": "2026-10-09" },
     { "id": "runtime-resume-20261009", "kind": "measurement", "title": "Healthy voice service, zero private runs and 36 external legacy orphans", "at": "2026-10-09" },
     { "id": "old-integrity-receipt-is-not-current-20261009", "kind": "rejection", "title": "A historical zero-orphan receipt cannot establish current integrity", "at": "2026-10-09" },
@@ -21072,6 +21078,11 @@
     }
   ],
   "edges": [
+    { "src": "owned-erasure-progress-20261009", "rel": "measured_by", "dst": "owned-erasure-proof-20261009" },
+    { "src": "vyakti-only-scope-20261009", "rel": "constrains", "dst": "owned-erasure-progress-20261009" },
+    { "src": "idle-preview-erasure-and-account-overreach-20261009", "rel": "caused_by", "dst": "owned-erasure-proof-20261009" },
+    { "src": "vyakti-only-scope-20261009", "rel": "constrains", "dst": "creator-continuity-and-person-sharing-20261009" },
+    { "src": "moving-head-and-calendar-fixtures-20261009", "rel": "caused_by", "dst": "release-fixture-repairs-20261009" },
     { "src": "resume-product-evidence-20261009", "rel": "measured_by", "dst": "runtime-resume-20261009" },
     { "src": "old-integrity-receipt-is-not-current-20261009", "rel": "caused_by", "dst": "runtime-resume-20261009" },
     { "src": "creator-continuity-and-person-sharing-20261009", "rel": "measured_by", "dst": "creator-candidate-proof-20261009" },

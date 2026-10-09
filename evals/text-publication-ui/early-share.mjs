@@ -111,12 +111,12 @@ try{
   await check(`${width} actual default shell: Knowledge to Share and back without voice`,async()=>{
    await open('current',width);await page.locator('.workbench-overview').waitFor();await page.getByRole('button',{name:'Preview sharing',exact:true}).click();
    await page.getByRole('heading',{name:'Share your knowledge',exact:true}).waitFor();assert.equal(new URL(page.url()).searchParams.get('view'),'share');await page.waitForFunction(()=>document.activeElement===document.querySelector('.vx-expert-share h1'));await snap(`share-from-menu-${width}`);await noVoiceRooms();
-   await page.getByRole('button',{name:'Back to knowledge',exact:true}).click();await page.getByRole('heading',{name:'Build your AI.',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='knowledge-menu-title');await snap(`back-to-menu-${width}`);noMutation();
+   await (width<761?page.getByRole('button',{name:'Back to knowledge',exact:true}):page.locator('.workbench-sidebar').getByRole('button',{name:'Your AI',exact:true})).click();await page.getByRole('heading',{name:'Build your AI.',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='knowledge-menu-title');await snap(`back-to-menu-${width}`);noMutation();
   });
   await check(`${width} Files to Share retains source and returns to Files`,async()=>{
    await page.locator('.workbench-setup-list').getByRole('button',{name:/^Knowledge/}).click();await page.getByRole('heading',{name:'Bring your context',exact:true}).waitFor();
    await page.locator(width<761?'.workbench-mobile-nav':'.workbench-sidebar').getByRole('button',{name:'Share',exact:true}).click();await page.getByRole('heading',{name:'Share your knowledge',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement===document.querySelector('.vx-expert-share h1'));await snap(`share-from-files-${width}`);
-   await page.getByRole('button',{name:'Back to knowledge',exact:true}).click();await page.getByRole('heading',{name:'Bring your context',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='context-locker-title');await snap(`back-to-files-${width}`);
+   await (width<761?page.getByRole('button',{name:'Back to knowledge',exact:true}):page.locator('.workbench-sidebar').getByRole('button',{name:'Knowledge',exact:true})).click();await page.getByRole('heading',{name:'Bring your context',exact:true}).waitFor();await page.waitForFunction(()=>document.activeElement?.id==='context-locker-title');await snap(`back-to-files-${width}`);
    await page.getByText(item.source_name,{exact:true}).first().waitFor();noMutation();await noVoiceRooms();
   });
   await check(`${width} early lifecycle real four statement review grants no implicit publication`,async()=>{
@@ -128,10 +128,11 @@ try{
   await check(`${width} delayed readiness never steals focus after explicit navigation`,async()=>{
    await open('current',width);holdReadiness=true;await page.locator('.workbench-overview').waitFor();await page.getByRole('button',{name:'Preview sharing',exact:true}).click();
    await page.waitForFunction(()=>document.activeElement===document.querySelector('.vx-expert-share h1'));
-   await page.keyboard.press('Shift+Tab');assert.equal(await page.getByRole('button',{name:'Back to knowledge',exact:true}).evaluate(el=>el===document.activeElement),true);
+   const returnControl=width<761?page.getByRole('button',{name:'Back to knowledge',exact:true}):page.locator('.workbench-sidebar').getByRole('button',{name:'Share',exact:true});
+   await page.keyboard.press('Shift+Tab');assert.equal(await returnControl.evaluate(el=>el===document.activeElement),true);
    const deadline=Date.now()+5000;while(!heldReadiness.length&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10));assert(heldReadiness.length,'actual readiness HTTP held');
    holdReadiness=false;heldReadiness.splice(0).forEach(send=>send());await page.getByLabel('Teaching profile').waitFor();
-   assert.equal(await page.getByRole('button',{name:'Back to knowledge',exact:true}).evaluate(el=>el===document.activeElement),true);await snap(`readiness-does-not-steal-${width}`);noMutation();
+   assert.equal(await returnControl.evaluate(el=>el===document.activeElement),true);await snap(`readiness-does-not-steal-${width}`);noMutation();
   });
   await check(`${width} unverified voice and call routes remain behind recorder`,async()=>{
    for(const view of ['voice','call']){await open('current',width,{view});await page.getByRole('button',{name:'Add knowledge first',exact:true}).waitFor();await noVoiceRooms();noMutation();}

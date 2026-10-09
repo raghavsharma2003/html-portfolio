@@ -65,7 +65,32 @@ failed. Verify current deployed Supabase binding/project status before retrying.
 No owner recordings are authorized by this canary. It permits one text request
 with a USD0.05 reservation ceiling inside the existing USD1 ledger.
 
+Later October9: Supabase recovered after the owner signed into the correct
+dashboard. Exact Auth health/settings200 and deployed fake-bearer401 verified.
+V1 absence independently confirmed by exact admin404 plus zero Neon rows.
+**V2 was then executed once and is consumed.** Its real synthetic account path
+passed create/upload/person draft/grounded answer/result/replay. Actual usage was
+904input+58output tokens,2504microusd; ask HTTP2650ms. Budget970->3474microusd,
+reserved0. Same request replay added no spend. No email, owner data, voice or GPU.
+
+V2 private question/context were removed and source consent/replica revoked.
+Full cleanup remains pending: erasure attempts0, exact source deleting, no sweep
+heartbeat. Retain synthetic auth until terminal deletion. The owned-job progress
+product fix and an exact-target cleanup packet are in preparation. No broad cron
+is permitted because it could affect unrelated jobs. Never replay V1/V2 or reset
+the spend ledger. Exact handles stay in the ignored V2 manifest in expert-tools.
+
 ## Shared database and authorized Meera repair
+
+**Superseded later October9:** the owner explicitly says not to touch any other
+product, including Maya/Meera. Meera code/production/data work is STOPPED. Only
+the isolated branch `codex/meera-forget-integrity-oct09` was pushed while the
+earlier approval stood, at `32f15233fd760dafbb7b1aa7edeeeb2f98092bb8`. No Meera
+production deployment, alias/env change or database mutation occurred. Its two
+non-deploying APK checks passed. Preserve the branch; do not merge/deploy it.
+The read-only incident classifier also refused on a forgotten-term match before
+any plan, rollback mutation or commit. Do not relax that guard or delete data.
+The following paragraphs describe the earlier proposal, not current authority.
 
 The global integrity probe found36orphan legacy Meera log pointers,2episodes,
 1device; zero current Vyakti replica or Room rows. Separate Meera production
@@ -81,6 +106,15 @@ focused five-control regression. Meera production target is project
 and verify the minimal deployment before a new guarded incident repair. Do not
 deploy the Vyakti tree to Meera, overwrite its source branch, delete messages,
 or count the shared DB gate as passing while these36rows remain.
+
+Supabase auth was independently confirmed unreachable from both local DNS and
+the deployed Preview. All four app/config bindings match projectchvduaujdztgjcnoswhh;
+do not rotate keys or blame binding drift. The owner has now signed into that
+exact project in orgvyakti (swtjdygdkvisigdmlqgq). Dashboard shows Coming up.
+Existing API keys may be usable after restoration; no new management credential
+has been created. Supabase plugin is available and was suggested but is not yet
+connected. The owner allows a Vyakti-only Neon alternative, not a cross-product
+database or account migration.
 
 ## Read these reports
 
