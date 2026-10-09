@@ -25644,3 +25644,12 @@ upload capability, so it must not wait forever on a null media expiry. Completed
 receipt reads require the authenticated owner's existing HMAC. Reverse only if
 a separate explicit account-erasure contract or equivalent scoped durable worker
 is introduced with the same boundary and interruption tests.
+
+## `protected-preview-exception-20261009`
+
+The latest owner "continue" followed the pending question about the known36-row
+external legacy finding. Root interpreted and announced it as approval only for
+the protected Vyakti preview, refreshed all live DB gates, and bound the exception
+to the exact application commit and DB report. No other-product change or production
+alias was made. Global integrity remains failed. Reverse only on new owner scope,
+a changed DB failure set, or evidence the exact accepted source/protection differs.

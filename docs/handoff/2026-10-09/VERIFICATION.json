@@ -26,12 +26,11 @@
     "dialogue_sql_gate": "passed",
     "global_integrity": "failed",
     "finding": "36 legacy Meera message references to absent episodes",
-    "owner_exception": "not received",
+    "owner_exception": "One-time protected Vyakti preview; owner continue interpreted in direct response to pending deployment decision. Global integrity still failed.",
     "other_product_mutations": 0,
     "sql_validation": "17 initial EXPLAINs plus 27 cleanup EXPLAINs and 1 changed completion recheck; all passed; no ANALYZE or writes"
   },
   "live": {
-    "application_commit": "5fe2fa2590a355834bf61eea4e889103351af1f7",
     "supabase_auth": "healthy",
     "synthetic_person_journey": "passed",
     "model_calls": 1,
@@ -40,15 +39,45 @@
     "recorded_token_cost_microusd": 2504,
     "ask_http_ms": 2650,
     "replay_added_spend": false,
-    "cleanup": "pending exact owned erasure; synthetic auth retained",
+    "cleanup": "Verified terminal on October preview; 7 exact sample classes empty; synthetic auth GET404 after deletion; charge preserved",
     "human_otp_google_flow": "unverified",
     "voice_likeness": "unmeasured",
     "voice_calls": 0,
-    "gpu_activations": 0
+    "gpu_activations": 0,
+    "synthetic_person_journey_application_commit": "5fe2fa2590a355834bf61eea4e889103351af1f7",
+    "cleanup_status_posts": 1,
+    "cleanup_status_http_ms": 1121,
+    "cleanup_first_physical_deletion_attribution": "unproven; returned completion timestamp predates this call",
+    "signed_out_browser": "Actual deployed email/Google sign-in screen loaded; no human sign-in completed"
   },
   "deployment": {
-    "october_preview": "not deployed",
-    "approval": "protected-preview exception pending",
-    "production_alias_changes": 0
+    "october_preview": "READY",
+    "id": "dpl_2ugwCSpj3zCSe8bdsjSr9bFN33Mb",
+    "origin": "https://vyakti-replica-5ou2yxx5o-raghav-carbonsettles-projects.vercel.app",
+    "application_commit": "5216098286af61df8501ee7857402418cfb1ab23",
+    "approval": "One-time protected Vyakti preview; owner continue interpreted in direct response to pending deployment decision. Global integrity still failed.",
+    "production_alias_changes": 0,
+    "live_probes": {
+      "passed": 60,
+      "findings": 0
+    },
+    "deploy_checks": {
+      "passed": 6,
+      "total": 6
+    },
+    "studio_csp_routes_verified": 2,
+    "exact_upload_origin": "added and readback verified; other origins/properties unchanged",
+    "protection": "Vercel authentication retained; unauthenticated request redirects302"
+  },
+  "local_receipt_sha256": {
+    "OCT09-OFFLINE-CI-52160982.json": "0009e1a692adc11e4795efe6e10cd6fd2b17b6cc10933ea8cb4add499039389c",
+    "OCT09-PREVIEW-SCOPE-APPROVAL.json": "63c5924cb90a4c7fd54b304dd5b0dd0d420dd61baa5de7eb1fb615fbc8a63c08",
+    "OCT09-PREVIEW-DEPLOY-INTENT.json": "04e10b300908fb373286c916214ff6f9c974ae537ac2c26a846742602a05c774",
+    "OCT09-PREVIEW-PROBES.json": "3edc114ab97eda03aeb07d2608e47d4782e074e161f9f175a7c60c25973d87a8",
+    "OCT09-DEPLOYED-POLICY.json": "2829e04c91656b29ef669201e8774247a20e111e867675c4321fe9e41368218d",
+    "OCT09-PRIVATE-PREVIEW-BOUNDARY.json": "975df9d6681d6b79a36f6375e1bdc4d5149ffb05ae749ffa4b2b44274e863116",
+    "OCT09-V2-OWNED-CLEANUP.json": "65cb26702404e5aa8b577cad4d7084f9524f2571d36dfd3571c855246b40429f",
+    "OCT09-V2-OWNED-CLEANUP-MANIFEST.json": "7d6a3cb1d85031c156c9e9844b84a44d233acb1e2fe4bd7b358c6b9c279dab9a",
+    "standalone25-preview-cors-1791565118265106800.json": "93574e552bfdf5066ecb35cb21690cef62116fd2eebef6a7a9bec0b9865757a1"
   }
 }

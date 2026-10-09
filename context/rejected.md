@@ -19411,3 +19411,15 @@ blocking text-only ingest forever, and six account-global deletes inside
 per-replica erasure. Retain those shared rows explicitly; do not keep unreachable
 DELETE CTEs to make a source scanner pass. The receipt key cannot be substituted
 when a sensitive deployed binding is unavailable to an operator helper.
+
+## `shared-budget-equality-and-missing-preview-binding-20261009`
+
+Review found the one-use cleanup client gated auth deletion on shared budget
+spent3474/reserved0/stateactive. Legitimate unrelated activity could invalidate
+that equality while the exact V2 reservation remained correctly settled. Retain
+the exact reservation/token/cost checks; require finite nonnegative totals and
+spent>=3474, recording actual values without an active-state gate. Review also
+found deployment project/url/source binding lacked targetPreview; added explicit
+Preview target verification before intent creation. Syntax checks and the exact
+live cleanup passed. Do not replay consumed intents. A returned terminal receipt
+proves terminal status, not the timing/agent of prior physical deletion.

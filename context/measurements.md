@@ -19326,3 +19326,17 @@ has not yet answered the explicit protected-preview exception question. A prepar
 one-use deploy helper refuses absent that exception; exactV2cleanup waits on the
 new owned endpoint and must preserve settledspend. Documentation descendants are
 permitted only if the accepted app bytes and clean Git ancestry remain unchanged.
+
+## `protected-preview-and-terminal-cleanup-20261009`
+
+2026-10-09, n=1deployment52160982, source8ba8c281. Vercel API READY and Preview;
+60live probes0findings,6/6deployment checks,2studio CSPs match, release marker
+matches, voice APIs401without bearer. One exact Azure CORS update returned200
+and identical other-origin/unowned properties. Browser loaded real sign-in UI.
+One owner-authenticated erasure-status POST1121ms returned complete/provider+
+storage confirmed. Read-only Neon found0rows across7exact synthetic classes,
+preserved904input/58output/2504microusd settled charge and3474spent/0reserved.
+Exact labelled synthetic auth user deleted; GET404confirmed. No model/voice/GPU
+request or global sweep. Receipt completion time predates this call, so first
+physical deletion is not attributed to it. Human login, voice likeness and English/
+realtime acceptance remain unverified. Receipt hashes are in October VERIFICATION.json.

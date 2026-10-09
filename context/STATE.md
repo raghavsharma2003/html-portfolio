@@ -1,6 +1,42 @@
 # STATE — read this first, then the graph
 
-## START HERE: OCTOBER 9 OFFLINE GATES PASSED; PREVIEW DECISION PENDING
+## START HERE: OCTOBER 9 PREVIEW DEPLOYED AND VERIFIED
+
+Application **52160982** is now deployed to the protected Vyakti preview:
+https://vyakti-replica-5ou2yxx5o-raghav-carbonsettles-projects.vercel.app/studio
+Deployment `dpl_2ugwCSpj3zCSe8bdsjSr9bFN33Mb` is READY. Source commitment
+`sha256:8ba8c2814a3da768a8fd34b5b7609d3a96dd3d822be88e473764660f6dd40ce4`.
+Node22 and Node24 each passed25/25, Android passed, then60live probes had0findings
+and6/6deployment checks passed. Both studio CSPs, release marker, auth boundaries
+and exact Azure upload-origin configuration were verified. Browser opened the
+real sign-in screen; no human Google/OTP or owner recording test was performed.
+
+The owner's **"continue"** immediately followed the pending protected-preview
+decision and was interpreted as approval for that specific one-time action.
+The narrow exception is recorded; it is NOT a global database pass or approval
+for production aliases or other products. The fresh DB check still reports only
+36legacy Meera log pointers. **Do not touch Maya, Meera or any other product.**
+
+**V2 synthetic cleanup is COMPLETE.** One owner-authenticated status POST returned
+the signed complete receipt (1121ms); read-only Neon verification found0rows in
+all7exact sample classes and preserved the settled2504microusd model charge.
+The exact labelled synthetic auth account was deleted and absence confirmed404.
+The receipt's completed_at predates this call: this proves verified terminal
+cleanup, not that this call first performed the physical deletion. No new model,
+GPU, voice, email, broad sweep or other-product operation ran. V1/V2, deployment
+and cleanup intents are consumed; never replay them.
+
+Read `docs/handoff/2026-10-09/START-HERE.md` and `VERIFICATION.json` next.
+Same repository/branch and standalone25 checkout; original dirty checkout stays
+untouched. Remaining: actual human sign-in/phone journey, fresh own-voice sample
+and listening evaluation, English/realtime cloning, and measured voice/memory
+quality. No competitor-superiority claim exists. Azure-only serving and existing
+budget bounds remain; do not restart paused goals/automations or ask for the
+previously waived spending-limit step. No personal Microsoft login on this laptop.
+
+The earlier October9 block below is retained as superseded history.
+
+## HISTORICAL: OCTOBER 9 OFFLINE GATES PASSED; PREVIEW DECISION PENDING
 
 **Application candidate52160982 is verified: Node22/Node24 each25/25 and Android
 passed. It is pushed but NOT newly deployed.** The owner has a pending question
