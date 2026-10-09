@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canonicalJson, sha256Hex } from "../../api/_provenance/contracts.js";
 import { createSource, EXPRESSION_MAX_TTL_MS } from "../../api/_experience-compiler/contracts.js";
+import { REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES } from "../../api/_replica-erasure-retained.js";
 import {
   createExpressionObservation,
   verifyExpressionObservation,
@@ -215,6 +216,7 @@ console.log("\n-- schema, erasure and reach --");
 const migration = readReconciledMigration("db/migrations/068_replica_expression_observation.sql");
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
 const erasure = readFileSync(join(ROOT, "api/_replica-full-erasure.js"), "utf8");
+const sourceErasure = readFileSync(join(ROOT, "api/_replica-source-erasure.js"), "utf8");
 const relcheck = readFileSync(join(ROOT, "scripts/relcheck.mjs"), "utf8");
 
 for (const sql of [migration, schema]) {
@@ -226,9 +228,22 @@ for (const sql of [migration, schema]) {
   ok("schema binds the actual consent row", /source_consent_id\s+uuid not null/.test(sql) &&
     /source_consent_id, replica_id, owner_user_id[\s\S]*consent_id, replica_id, owner_user_id/.test(sql));
   ok("schema binds Mirror session, window and turn tuples", /vy_replica_expression_observation_session_fk/.test(sql) && /vy_replica_expression_observation_window_fk/.test(sql) && /vy_replica_expression_observation_turn_fk/.test(sql));
+  ok("observations cascade from their exact owner replica and source",
+    /constraint vy_replica_expression_observation_owner_fk\s+foreign key \(replica_id, owner_user_id\)\s+references vy_replica\(replica_id, owner_user_id\) on delete cascade/.test(sql)
+    && /constraint vy_replica_expression_observation_source_fk\s+foreign key \(source_id, replica_id, owner_user_id, source_content_sha256\)\s+references vy_replica_source\(source_id, replica_id, owner_user_id, sha256\) on delete cascade/.test(sql));
 }
-ok("full replica erasure explicitly deletes observations", /delete from vy_replica_expression_observation/.test(erasure));
+ok("full replica erasure explicitly deletes only the owner's replica observations",
+  /delete from vy_replica_expression_observation x using target t\s+where x\.replica_id=t\.replica_id and x\.owner_user_id=t\.owner_user_id/.test(erasure));
+ok("source erasure explicitly deletes only the owner's exact source observations",
+  /delete from vy_replica_expression_observation o using target t\s+where o\.source_id=t\.source_id and o\.replica_id=t\.replica_id\s+and o\.owner_user_id=t\.owner_user_id/.test(sourceErasure));
 ok("the deletion receipt names the observation class", /transient_expression_observations/.test(erasure));
-ok("relcheck discovers owner-keyed tables and walks cascade or explicit erasure", /column_name = any\(\$1::text\[\]\)/.test(relcheck) && relcheck.includes("new RegExp(`delete from ${t}\\\\b`)"));
+ok("relcheck discovers owner-keyed tables and partitions only the exact retained-account inventory",
+  /const ownerKeyed = new Set\([\s\S]*column_name = any\(\$1::text\[\]\)[\s\S]*\[OWNER_KEYS\]/.test(relcheck)
+  && /const ownerOnly = new Set\(\[\.\.\.ownerKeyed\]\.filter\(\(table\) =>\s*!Object\.hasOwn\(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES, table\)\)\)/.test(relcheck)
+  && relcheck.includes('const fullDeletes = namedDeletes(erasureSrc)')
+  && relcheck.includes('.filter((t) => !reached.has(t))')
+  && relcheck.includes('.filter((t) => !fullDeletes.has(t))'));
+ok("expression observations remain on the replica erasure lane, never the retained-account lane",
+  !Object.hasOwn(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES, "vy_replica_expression_observation"));
 
 console.log(`\nexpression-observations: ok (${checks} checks)`);

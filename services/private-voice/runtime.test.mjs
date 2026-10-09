@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {resolve,dirname,relative} from 'node:path';
+import {runInNewContext} from 'node:vm';
 import {fixture} from '../azure-voice-app/controller.test.mjs';
 import {commitment} from '../azure-voice-app/controller.mjs';
 import {wav,signedResponse,signedRuntimeStatus} from '../internal-voice/fixtures.mjs';
@@ -229,11 +230,40 @@ test('source erasure catalog guard preserves pre-migration SQL and fences every 
 });
 test('Docker positive file list includes every static runtime import and excludes secret config',()=>{
  const root=resolve(import.meta.dirname,'../..'),docker=readFileSync(resolve(root,'services/private-voice/Dockerfile'),'utf8');
- const bundled=new Set([...docker.matchAll(/COPY \["([^"]+)"/g)].map(m=>m[1]));const visited=new Set();
- const walk=path=>{if(visited.has(path))return;visited.add(path);const sourceText=readFileSync(resolve(root,path),'utf8');
-  for(const match of sourceText.matchAll(/(?:from\s*|import\s*)["'](\.[^"']+)["']/g)){const next=relative(root,resolve(root,dirname(path),match[1])).replaceAll('\\','/');
-   assert.ok(bundled.has(next),`missing packaged runtime dependency ${next}`);walk(next);}};
- walk('services/private-voice/server.mjs');assert.ok(!bundled.has('api/_config.js'));assert.ok(!docker.includes('COPY . '));
+ const bundled=new Set([...docker.matchAll(/COPY \["([^"]+)"/g)].map(m=>m[1]));
+ const checkImports=files=>{const visited=new Set();
+  const walk=path=>{if(visited.has(path))return;visited.add(path);const sourceText=readFileSync(resolve(root,path),'utf8');
+   for(const match of sourceText.matchAll(/(?:from\s*|import\s*)["'](\.[^"']+)["']/g)){const next=relative(root,resolve(root,dirname(path),match[1])).replaceAll('\\','/');
+    assert.ok(files.has(next),`missing packaged runtime dependency ${next}`);walk(next);}};
+  walk('services/private-voice/server.mjs');walk('scripts/azure-voice-supervisor53.mjs');};
+ checkImports(bundled);assert.ok(!bundled.has('api/_config.js'));assert.ok(!docker.includes('COPY . '));
+ const missingScope=new Set(bundled);missingScope.delete('api/_replica-erasure-scope.js');
+ assert.throws(()=>checkImports(missingScope),/missing packaged runtime dependency api\/_replica-erasure-scope\.js/);
+});
+
+test('build packet manifest and archive use the same exact Docker positive list including erasure scope',()=>{
+ const root=resolve(import.meta.dirname,'../..'),docker='services/private-voice/Dockerfile';
+ const expected=[docker,...[...readFileSync(resolve(root,docker),'utf8').matchAll(/COPY \["([^"]+)"/g)].map(m=>m[1])].sort();
+ const script=readFileSync(resolve(root,'scripts/private-voice-build-packet27.mjs'),'utf8').replace(/^import[^\n]+\r?\n/gm,'');
+ // Run the actual packet builder against an in-memory revision. No git write,
+ // archive, Docker, registry or cloud operation runs in this fixture.
+ const runPacket=program=>{const files=new Map();let archivedPaths;
+  runInNewContext(program,{Buffer,resolve,createHash,process:{argv:['node','build-packet','a'.repeat(40),resolve(root,'scratchpad/packet-fixture')]},console:{log(){}},
+   mkdirSync(){},writeFileSync:(path,bytes)=>files.set(path,bytes),readFileSync:path=>files.get(path),
+   execFileSync:(exe,args)=>{assert.equal(exe,'git');
+    if(args[0]==='show')return readFileSync(resolve(root,args[1].slice(41)));
+    if(args[0]==='rev-parse')return Buffer.from('b'.repeat(40));
+    assert.equal(args[0],'archive');archivedPaths=args.slice(4);files.set(args[2].slice('--output='.length),Buffer.from('synthetic archive'));return Buffer.alloc(0);
+   }});
+  const packet=JSON.parse([...files].find(([path])=>path.endsWith('build-packet.json'))[1]);
+  assert.deepEqual(Array.from(archivedPaths),expected);assert.deepEqual(packet.source_files.map(row=>row.path),expected);
+  const scope=packet.source_files.find(row=>row.path==='api/_replica-erasure-scope.js');
+  assert.equal(scope.sha256,sha(readFileSync(resolve(root,scope.path))));
+  assert.equal(packet.cloud_calls,0);assert.equal(packet.submission_enabled,false);
+ };
+ runPacket(script);
+ const missingScope=script.replace('].sort();',"].filter(path=>path!=='api/_replica-erasure-scope.js').sort();");
+ assert.notEqual(missingScope,script);assert.throws(()=>runPacket(missingScope));
 });
 test('near-expiry write renews run authority through upload verification without dropping its erasure horizon',async()=>{
  const t=await setup({nearLeaseExpiry:true});try{const a=await t.generate();await t.drain();const row=t.runs.get(a.body.run.run_id);

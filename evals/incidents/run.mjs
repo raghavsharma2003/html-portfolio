@@ -873,6 +873,7 @@ const INJECTED_PROVIDER_EXCLUSIONS = {
   "_liveness/providers/azure-composite.js": "Owner liveness verification evidence lifecycle, not follower delivery.",
   "_provenance/providers/azure-protection.js": "Protected artifact sealing/provenance lifecycle; not the Room incident provider taxonomy.",
   "_room-memory-consolidation.js": "Opt-in Room memory consolidation via consolidate-sweep.js; checked below for exact caller, lease/budget, bounded Azure transport and sweep-failure observation wiring.",
+  "_replica-voice-erasure.js": "Owned voice erasure response transport via replica.js -> _replica-owned-erasure.js; the worker is also called by replica-erasure-sweep.js. Checked below for exact callers, bounded deletion and durable profile/attempt retry or lease-expiry recovery. No per-provider recordIncident: owned failures remain pending, and only escaping cron failures reach its 503 withDoor path.",
   "_replica-processing/gpu-observer.js": "Read-only ARM metadata GETs that verify the shared GPU evidence app before processing admission; fails closed with its own processing_gpu_metadata_unverified code, never a Room delivery provider.",
   "_replica-processing/providers/azure-fast-transcription.js": "Enrollment processing job transcription lifecycle.",
   "_replica-processing/providers/azure-voice-evidence.js": "Enrollment processing voice-evidence job lifecycle.",
@@ -894,8 +895,125 @@ const INJECTED_PROVIDER_EXCLUSIONS = {
 const EXCLUDED_PROVIDER_CALLERS = {
   "_internal-voice-proxy.js": ["internal-voice.js"],
   "_private-voice-proxy.js": ["private-voice.js"],
+  "_replica-voice-erasure.js": ["_replica-owned-erasure.js", "replica-erasure-sweep.js"],
   "_voice/allocation-runtime.js": ["voice-preview.js", "voice-allocation-supervise.js"],
 };
+
+// This exception accounts for one response-draining fetch, not every future
+// transport someone might add to the worker. Normal provider refusals are
+// stored in the voice profile/attempt ledger, not vy_incident. If the shared
+// deadline or database prevents that retry write, the leased attempt survives
+// for expiry/reclamation. The owned POST returns saved pending status; cron
+// returns a nested voice summary which sanitizeCounts drops from its heartbeat.
+// Only an escaping cron failure reaches its best-effort failed heartbeat and
+// HTTP 503/withDoor path. None of this claims per-provider incident coverage.
+const voiceErasureInventorySources = Object.fromEntries(Object.entries({
+  route: "replica.js",
+  owned: "_replica-owned-erasure.js",
+  cron: "replica-erasure-sweep.js",
+  worker: "_replica-voice-erasure.js",
+  status: "_replica-full-erasure.js",
+  heartbeat: "_sweep-run.js",
+}).map(([name, file]) => [name, stripComments(fs.readFileSync(join(API, file), "utf8"))]));
+
+function inventoryFunction(source, name) {
+  const tree = ts.createSourceFile("inventory.js", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  return tree.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name)?.getText(tree) || "";
+}
+
+function voiceErasureLifecycleContract({ route, owned, cron, worker, status, heartbeat }) {
+  const transport = inventoryFunction(worker, "fetchErasureResponse");
+  const lease = inventoryFunction(worker, "leaseNextVoiceErasure");
+  const sweep = inventoryFunction(worker, "runVoiceErasureSweep");
+  const retry = inventoryFunction(worker, "retryVoiceErasure");
+  const statusRead = inventoryFunction(status, "getReplicaErasureStatus");
+  const heartbeatRun = inventoryFunction(heartbeat, "withSweepRun");
+  const authenticatedAt = route.indexOf("const user = await requireUser(req)");
+  const ownedCallAt = route.indexOf("progressOwnedReplicaErasure(q, user.id, body.erasure_request_id)");
+  return authenticatedAt >= 0 && ownedCallAt > authenticatedAt
+    && /if \(body\.op === "erasure_status"\)\s*\{\s*const status = await progressOwnedReplicaErasure/.test(route)
+    && route.includes('res.status(200).json({ erasure: status })')
+    && owned.includes("const read = options.readStatus || getReplicaErasureStatus")
+    && owned.includes("where j.job_id=$1::uuid and j.owner_user_id=$2::uuid")
+    && owned.includes("erasureScope({ jobId: row.job_id, replicaId: row.replica_id, ownerUserId })")
+    && /if \(row\.has_voice\) providers\.push\(\(options\.voice \|\| runVoiceErasureSweep\)\(\{\s*db: boundedDb, scope, maxJobs: 1, signal,/.test(owned)
+    && owned.includes("await Promise.allSettled(providers)")
+    && owned.includes("try { return await read(db, ownerUserId, requestId, env); }")
+    && owned.includes("catch { return before; }")
+    && /const response = await fetch\(url, init\)/.test(transport)
+    && transport.includes("if (response.body) await response.body.cancel()")
+    && !hasRemoteFetch(transport.replace("await fetch(url, init)", "undefined"))
+    && !hasRemoteFetch(worker.replace(transport, ""))
+    && sweep.includes("createVoiceEraser(name, scope ? { fetchImpl: fetchErasureResponse } : undefined)")
+    && sweep.includes("const lease = options.lease || leaseNextVoiceErasure")
+    && sweep.includes("const retry = options.retry || retryVoiceErasure")
+    && sweep.includes("await lease(db, { leaseMs: DEFAULT_LEASE_MS, ...(scope ? { scope } : {}) })")
+    && sweep.includes("assertErasureScope(scope, claimed.profile)")
+    && sweep.includes("Math.min(10_000, Math.ceil(requestedTimeout))")
+    && sweep.includes("AbortSignal.any([options.signal, timeout])")
+    && sweep.includes("await provider.deleteVoice(claimed.profile.providerRef")
+    && /catch \(error\)\s*\{\s*await retry\(db, claimed, \{\s*error,\s*retryAfterMs: voiceErasureRetryDelayMs\(claimed.profile.attempt\)/.test(sweep)
+    && lease.includes("insert into vy_replica_voice_erasure_attempt")
+    && lease.includes("erasure_lease_expires_at<=now()")
+    && lease.includes("outcome='retry',failure_code='lease_expired',finished_at=now()")
+    && retry.includes("const failureCode = normalizeVoiceErasureFailure(input.error || input.failureCode)")
+    && retry.includes("erasure_next_attempt_at=now()+($5::integer*interval '1 millisecond')")
+    && retry.includes("erasure_last_error_code=$6,failure_code=$6")
+    && retry.includes("vp.status='deleting'")
+    && retry.includes('erasureScopePredicate(scope, "vp", 6)')
+    && retry.includes("update vy_replica_voice_erasure_attempt a")
+    && retry.includes("set outcome='retry',failure_code=$6,finished_at=now()")
+    && retry.includes("retryAfterMs, failureCode, ...erasureScopeParams(scope)")
+    && /select 1 from vy_replica_voice_profile v\s*where v.replica_id=j.replica_id and v.owner_user_id=j.owner_user_id/.test(statusRead)
+    && statusRead.includes("then 'pending' else 'confirmed' end provider_state")
+    && cron.includes("if (!authorizedReplicaErasure(req))")
+    && cron.includes('withSweepRun(q, "replica-erasure", async () =>')
+    && cron.includes("runVoiceErasureSweep({ db: q, maxJobs: 3, timeBudgetMs: 90_000 })")
+    && cron.includes('if (voiceResult.status === "rejected") throw voiceResult.reason')
+    && cron.includes('res.status(503).json({ error: "replica_erasure_sweep_failed" })')
+    && cron.includes('export default withDoor(q, "replica-erasure-sweep.js", handler)')
+    && heartbeatRun.includes('await finish(db, runId, "failed", {}, errorCodeOf(err)).catch(() => {})')
+    && heartbeatRun.includes("throw err;");
+}
+
+ok("voice erasure inventory has actual owned/cron callers, bounded transport, durable retry/reclaim and pending status; escaping cron errors reach door_5xx",
+  voiceErasureLifecycleContract(voiceErasureInventorySources));
+for (const [name, file, needle] of [
+  ["owner authentication", "route", "const user = await requireUser(req)"],
+  ["owned status caller", "route", "progressOwnedReplicaErasure(q, user.id, body.erasure_request_id)"],
+  ["owned voice dispatch", "owned", "options.voice || runVoiceErasureSweep"],
+  ["owned exact scope and shared deadline", "owned", "db: boundedDb, scope, maxJobs: 1, signal,"],
+  ["saved status readback", "owned", "try { return await read(db, ownerUserId, requestId, env); }"],
+  ["scoped response transport injection", "worker", "createVoiceEraser(name, scope ? { fetchImpl: fetchErasureResponse } : undefined)"],
+  ["awaited response drain", "worker", "await response.body.cancel()"],
+  ["bounded shared abort", "worker", "AbortSignal.any([options.signal, timeout])"],
+  ["awaited provider deletion", "worker", "await provider.deleteVoice(claimed.profile.providerRef"],
+  ["awaited durable retry", "worker", "await retry(db, claimed, {"],
+  ["expired attempt recovery", "worker", "outcome='retry',failure_code='lease_expired',finished_at=now()"],
+  ["normalized retry class", "worker", "const failureCode = normalizeVoiceErasureFailure(input.error || input.failureCode)"],
+  ["profile retry reason", "worker", "erasure_last_error_code=$6,failure_code=$6"],
+  ["attempt retry reason", "worker", "set outcome='retry',failure_code=$6,finished_at=now()"],
+  ["provider pending predicate", "status", "select 1 from vy_replica_voice_profile v"],
+  ["cron voice caller", "cron", "runVoiceErasureSweep({ db: q, maxJobs: 3, timeBudgetMs: 90_000 })"],
+  ["cron heartbeat wrapper", "cron", 'withSweepRun(q, "replica-erasure", async () =>'],
+  ["cron failure response", "cron", 'res.status(503).json({ error: "replica_erasure_sweep_failed" })'],
+  ["cron incident wrapper", "cron", 'export default withDoor(q, "replica-erasure-sweep.js", handler)'],
+  ["failed heartbeat persistence", "heartbeat", 'await finish(db, runId, "failed", {}, errorCodeOf(err)).catch(() => {})'],
+]) {
+  const changed = voiceErasureInventorySources[file].replaceAll(needle, "REMOVED_CONTROL");
+  ok(`NEGATIVE CONTROL: voice erasure inventory refuses missing ${name}`,
+    changed !== voiceErasureInventorySources[file]
+      && !voiceErasureLifecycleContract({ ...voiceErasureInventorySources, [file]: changed }));
+}
+ok("NEGATIVE CONTROL: a second remote transport cannot borrow the voice erasure lifecycle exclusion",
+  !voiceErasureLifecycleContract({ ...voiceErasureInventorySources,
+    worker: voiceErasureInventorySources.worker + '\nasync function unrelatedTransport() { await fetch("https://other.example.test"); }',
+  }));
+ok("NEGATIVE CONTROL: a second fetch inside the response helper cannot borrow its lifecycle exclusion",
+  !voiceErasureLifecycleContract({ ...voiceErasureInventorySources,
+    worker: voiceErasureInventorySources.worker.replace("const response = await fetch(url, init);",
+      'await fetch("https://other.example.test"); const response = await fetch(url, init);'),
+  }));
 // A named private lifecycle is not evidence of Room incident recording.
 // Its actual admission, cost accounting and bounded transport must remain wired.
 const correctionRoute = fs.readFileSync(join(REPO, "api/replica-correction-candidate.js"), "utf8");

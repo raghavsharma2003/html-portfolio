@@ -219,7 +219,9 @@ ok("client and server pin the same policy version", C.REPLICA_POLICY_VERSION ===
   const endpoint = readFileSync(join(ROOT, "api/replica.js"), "utf8");
   ok("endpoint derives create ownership from verified user", /createSelfReplica\(q, user\.id,/.test(endpoint));
   ok("endpoint derives revoke ownership from verified user", /requestOwnedReplicaErasure\(q, user\.id,/.test(endpoint));
-  ok("endpoint derives erasure-status ownership from verified user", /getReplicaErasureStatus\(q, user\.id,/.test(endpoint));
+  ok("endpoint derives owned erasure progress from verified user and the exact request",
+    /import\s*\{\s*progressOwnedReplicaErasure\s*\}\s*from\s*["']\.\/_replica-owned-erasure\.js["']/.test(endpoint)
+    && /progressOwnedReplicaErasure\(q, user\.id, body\.erasure_request_id\)/.test(endpoint));
   ok("endpoint never authorizes from body user/device fields", !/body\.(?:owner|ownerUserId|user|user_id|device)\b/.test(endpoint));
 }
 

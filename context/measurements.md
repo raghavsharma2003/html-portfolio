@@ -19291,3 +19291,11 @@ responsive earlyShare18, recallbench139assertions/50questions/3dyads. Known reca
 gaps remain visible. Minimal dependency lock patches remove all critical/high
 npm audit findings;3existingmoderates remain. Fresh CI must verify installed
 patches; local node_modules was not replaced during concurrent browser tests.
+
+Final packaging follow-up: exact75f8Android CI found four integration failures:
+old source assertions for the status/retention contract, missing scope-helper
+Docker COPY, and a new bounded transport absent from the provider inventory.
+Repairs preserve actual owner calls, expression erasure, static import closure
+and named retry/caller accounting. Registry runs passed expression45, replica,
+private voice49 and incidents162. No runtime or SQL behavior changed in this
+follow-up; the full new-head release must still run before deployment.
