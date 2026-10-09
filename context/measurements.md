@@ -3021,3 +3021,12 @@ The canonical `scripts/verify-release.mjs` local attempt is not counted as a
 product result: on Windows its URL-path root became a `C:\C:\...` cwd, so all
 11 subprocess gates failed before executing and printed empty details. Linux
 CI is required for the full branch result.
+
+Linux workflow run `37915705076` on exact source commit
+`ade274cb6e2457a137026163e0038352e8e53e01` completed successfully in 165
+seconds. It passed dependency installation, TypeScript, prompt budget, the
+context graph, secrets-free config generation, the full eval suite containing
+the new gate, watch performance, multimodal offline checks, Vite, Capacitor
+sync, Android debug assembly and artifact upload. Signing steps were skipped
+because this non-release branch had no keystore scope. The workflow does not
+deploy web production and made no database or model call.

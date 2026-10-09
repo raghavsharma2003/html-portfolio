@@ -1857,7 +1857,7 @@
    "id": "meera-partial-forget-gate-oct09",
    "kind": "measurement",
    "at": "2026-10-09",
-   "title": "focused episode-integrity gate passed 5/5 directly and through the dispatcher; TypeScript plus Vite built 710 modules"
+   "title": "focused episode-integrity gate passed 5/5; Linux build workflow passed full eval, web build and Android assembly"
   },
   {
    "id": "meera-windows-gate-root-path",
