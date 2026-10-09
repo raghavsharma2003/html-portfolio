@@ -19313,3 +19313,16 @@ the old Dismiss position. The fixture now separates stale focus from real hover
 and awaits actual timer installation/resumption. All14mounted checks pass; no
 production timer, timeout budget or expected behavior changed. New-head release
 acceptance remains pending rather than treating an intermittent pass as proof.
+
+## offline-release-accepted-preview-pending-20261009
+
+Exact5216098286af61df8501ee7857402418cfb1ab23: release37924838339passed,
+Node22job113801183193andNode24job113801182754eachall25checks; Android37924838428
+passed. Source commitment8ba8c2814a3da768a8fd34b5b7609d3a96dd3d822be88e473764660f6dd40ce4,
+1125inputs/29263052bytes. Read-only actualDBgate passed citation/dialogueSQL and
+retained-account boundary; global relcheck still fails solely36legacy Meera log
+pointers. No new deployment, global repair or other-product mutation. The owner
+has not yet answered the explicit protected-preview exception question. A prepared
+one-use deploy helper refuses absent that exception; exactV2cleanup waits on the
+new owned endpoint and must preserve settledspend. Documentation descendants are
+permitted only if the accepted app bytes and clean Git ancestry remain unchanged.

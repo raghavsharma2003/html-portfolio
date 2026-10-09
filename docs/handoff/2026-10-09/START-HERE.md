@@ -1,130 +1,128 @@
-# Vyakti, October 9 work checkpoint
+# Vyakti handoff: October 9
 
-Continue `raghavsharma2003/html-portfolio`, branch
-`claude/vyakti-cloning-platform-aq05n4`, in `Vyakti-platform-standalone25`.
-Preserve the original dirty checkout. Read the latest STATE block first.
-Operational access and non-replay rules remain in the September 30 handoff.
+## Connect here
 
-## What this candidate changes
+Repository: `raghavsharma2003/html-portfolio`.
+Branch: `claude/vyakti-cloning-platform-aq05n4`, latest remote tip.
+Development checkout: `C:/Users/raghav.s/Desktop/build/Vyakti-platform-standalone25`.
+Preserve the original dirty `Vyakti-platform` checkout.
 
-- New personal creators enter Personality instead of an irrelevant teaching
-  subject form. Question and selected source survive the editor detour.
-- Profile publication blockers open Personality, including keyboard activation.
-  Readiness/correction blockers keep their own destinations.
-- Full-page authentication stores a short-lived, one-use allowlisted route and
-  restores it only after the signed-in account's owned replica list confirms it.
-- Private text rehearsal discovers the newest retained request after a lost URL.
-  Discovery is read-only; uncertainty prevents an accidental second dispatch.
-- Saved response style reaches private rehearsal. Its own server-only metadata
-  revision fences stale replies without invalidating voice/comparison authority.
-- Expert Room memory ranks the already-authorized pool against the question
-  before its existing 20-row budget. Owner Meet still retains its full 30 rows.
-- Personal text sharing supports reviewed identity, language, values and
-  boundaries without a teaching subject or completed voice enrollment. It has
-  explicit person release statements, frozen material, and existing visitor
-  isolation, limits, revocation and erasure behavior.
-- Workspace layout is steadier on phone/desktop, with mobile selection motion,
-  content-height profile cards and no redundant desktop back banner.
+**Latest owner scope: Vyakti only. Do not change Meera, Maya or any other product.**
+The earlier same-day approval to repair Meera was explicitly superseded. Only an
+isolated repair branch was pushed while authorized; no other production deployment
+or database mutation occurred. Do not deploy that branch or replay any repair.
 
-These are candidate code changes, not a new deployed release. Full release
-acceptance and a genuine account journey must be recorded separately.
+## Accepted application candidate; deployment awaits an owner decision
 
-## Evidence so far
+Application commit: `5216098286af61df8501ee7857402418cfb1ab23`.
+Source commitment: `sha256:8ba8c2814a3da768a8fd34b5b7609d3a96dd3d822be88e473764660f6dd40ce4`.
+Inputs: 1125 files, 29,263,052 bytes.
 
-Focused checks passed: first-use6, profile-routing6, auth20 plus mounted callback,
-style13, recovery15, memory10, person-publication10 plus16mounted UI cases.
-Related incumbent compiler/store/browser suites passed as recorded in context.
-Root regenerated the engine and ran copy/graph/diff checks. Actual Neon EXPLAIN,
-never ANALYZE: style10, publication6 and recovery1, all passed. Publication schema
-constraints were read live; new person receipt scopes need no migration.
+- Release run `37924838339`: Node22 job `113801183193` and Node24 job
+  `113801182754` each passed all25checks.
+- Android run `37924838428` passed.
+- Worktree was clean at candidate freeze. Later context-only commits do not
+  constitute new application gate results.
+- Actual PostgreSQL EXPLAINs passed for style10, person publication6, recovery1,
+  and owned erasure27; the final changed completion statement was re-explained.
+  No EXPLAIN used ANALYZE and no migration was needed.
+- Live citation and dialogue-SQL gates pass. The global integrity gate still
+  fails on36legacy Meera log pointers; all other checks, including the explicit
+  six-table account-retention boundary, passed. Do not relabel it globally green.
 
-Fresh workspace captures at390/1440 and its real component journey passed.
-The prior dev-server fixture timed out before serving HTML due to dependency
-optimization. It now builds once and serves an exact in-memory output map;
-timeouts and journey assertions were not weakened. Captures are synthetic API
-fixtures, not authenticated live account proof.
+A question is pending with the owner: allow a one-time exception for that known,
+unrelated database finding to deploy **only a protected Vyakti preview**, leaving
+other products and production aliases untouched. No exception receipt exists and
+no October preview has been deployed. Elapsed time is not approval.
 
-## Live baseline and remaining proof
-
-Accepted app remains `5fe2fa25`, protected Preview:
+The current live preview remains the September source `5fe2fa25`:
 https://vyakti-replica-14kfokzor-raghav-carbonsettles-projects.vercel.app/studio
 
-Oct9 readback: READY; private CPU health200 and accepted image match; independent
-watchdog heartbeat fresh; GPUmin0/max1,3inactive revisions,0replicas. Private
-voice table contains0runs. GPU ledger spent0/reserved0; text ledger970microusd
-spent/0reserved under its unchanged USD1 cap. These are not total Azure costs.
-There is still no fresh owner likeness or competitor win, and English/realtime
-cloning is unfinished. Keep the existing Chatterbox Hindi V3 baseline; research
-reports propose comparisons rather than a provider switch.
+## What the candidate implements
 
-The live synthetic person canary V1 stopped before auth/model operations because
-its diagnostic Neon client was closed twice. Independent exact-ID checks found
-zero replica/person/rehearsal/creation-intent rows. V1 is consumed, not replayable.
-The corrected V2 uses new intents and one close, but local Supabase host lookup
-failed. Verify current deployed Supabase binding/project status before retrying.
-No owner recordings are authorized by this canary. It permits one text request
-with a USD0.05 reservation ceiling inside the existing USD1 ledger.
+- Generic personal onboarding, real Personality editor, and preserved unsent
+  question/source when returning to the private test.
+- Correct profile-publication navigation, including keyboard activation.
+- One-use, allowlisted and ownership-checked return after full-page sign-in.
+- Owner/replica-scoped discovery of retained private text requests, without
+  dispatching or charging again automatically.
+- Saved response style in private rehearsal, with a dedicated immutable style
+  marker; changing style does not invalidate unrelated voice authority.
+- Question-aware, Unicode-aware selection inside the existing expert Room memory
+  pool. Owner Meet still keeps all30rows. This is lexical, not semantic retrieval.
+- Personal text sharing without a teaching subject or completed voice enrollment,
+  using explicitly reviewed fields, immutable publication and existing visitor
+  isolation, source, quota, memory, revocation and erasure controls.
+- Stable phone/desktop layouts, meaningful mobile selection motion and natural
+  labels. Fresh390/1440browser fixture journeys passed.
+- Bounded, awaited, owner-scoped POST erasure-status progress. It never invokes
+  the broad cron. Text-only ingestion no longer waits on a nonexistent media
+  upload expiry. Completed receipts require the authenticated owner HMAC.
+- All per-replica erasure callers retain six documented shared account tables;
+  the actual DELETEs were removed, and the gate proves retention/no cascade.
+- Minimal dependency patches remove high/critical audit findings. Three existing
+  CLI-only moderate findings remain; no forced downgrade was made.
 
-Later October9: Supabase recovered after the owner signed into the correct
-dashboard. Exact Auth health/settings200 and deployed fake-bearer401 verified.
-V1 absence independently confirmed by exact admin404 plus zero Neon rows.
-**V2 was then executed once and is consumed.** Its real synthetic account path
-passed create/upload/person draft/grounded answer/result/replay. Actual usage was
-904input+58output tokens,2504microusd; ask HTTP2650ms. Budget970->3474microusd,
-reserved0. Same request replay added no spend. No email, owner data, voice or GPU.
+## Real live evidence and cleanup
 
-V2 private question/context were removed and source consent/replica revoked.
-Full cleanup remains pending: erasure attempts0, exact source deleting, no sweep
-heartbeat. Retain synthetic auth until terminal deletion. The owned-job progress
-product fix and an exact-target cleanup packet are in preparation. No broad cron
-is permitted because it could affect unrelated jobs. Never replay V1/V2 or reset
-the spend ledger. Exact handles stay in the ignored V2 manifest in expert-tools.
+Supabase project `chvduaujdztgjcnoswhh` became reachable after the owner signed
+into its dashboard. Auth health/settings200 and deployed invalid-token401 were
+verified. No key rotation or auth migration was needed. Existing APIs work;
+Supabase MCP was inspected/suggested, not connected. No personal Microsoft browser
+login occurred. Neon already stores the application data; replacing Supabase Auth
+would require deliberate owner-ID/session migration, not a URL substitution.
 
-## Shared database and authorized Meera repair
+One actual synthetic-account creator path passed against the accepted September
+preview: auth, workspace, uploaded text, personal profile, grounded Azure answer,
+saved result and same-ID replay without another charge. One model call used904
+input/58output tokens; recorded token cost2504microusd ($0.002504); ask HTTP2650ms.
+The text budget is now spent3474microusd/reserved0 under the unchangedUSD1cap.
+This does not prove human Google/OTP delivery, voice likeness or competitive quality.
+No email, real person's material, voice generation or GPU operation was used.
 
-**Superseded later October9:** the owner explicitly says not to touch any other
-product, including Maya/Meera. Meera code/production/data work is STOPPED. Only
-the isolated branch `codex/meera-forget-integrity-oct09` was pushed while the
-earlier approval stood, at `32f15233fd760dafbb7b1aa7edeeeb2f98092bb8`. No Meera
-production deployment, alias/env change or database mutation occurred. Its two
-non-deploying APK checks passed. Preserve the branch; do not merge/deploy it.
-The read-only incident classifier also refused on a forgotten-term match before
-any plan, rollback mutation or commit. Do not relax that guard or delete data.
-The following paragraphs describe the earlier proposal, not current authority.
+**V2 cleanup remains pending.** Private text/context were removed, source consent
+and the replica revoked. Its exact erasure job has not completed. Retain the exact
+synthetic auth user until terminal physical cleanup. Do not replay V1/V2, ask
+another model question, reset spend, or invoke a global erasure sweep.
 
-The global integrity probe found36orphan legacy Meera log pointers,2episodes,
-1device; zero current Vyakti replica or Room rows. Separate Meera production
-still runs the old partial-forget delete. Its Oct3 forget explains recurrence
-after Sept29's zero-orphan receipt. Do not replay the old two-row repair.
+Ignored operator root:
+`C:/Users/raghav.s/Desktop/build/Vyakti-platform/scratchpad/expert-tools`.
 
-The owner explicitly answered **Include the Meera repair** on October9. An
-isolated backport is in `Vyakti-platform-meera-forget-integrity-oct09`, branch
-`codex/meera-forget-integrity-oct09`, base `11f213ae734e93527a5626a255e1b95cbc2064f9`.
-It ports only the existing unclaim/content-free wake CTEs from `ecc8b6a2` plus a
-focused five-control regression. Meera production target is project
-`prj_NZ4BT0Vr2BbkVrvWPcJNF68XCObp`, alias `meera-silk.vercel.app`. Finish its gates
-and verify the minimal deployment before a new guarded incident repair. Do not
-deploy the Vyakti tree to Meera, overwrite its source branch, delete messages,
-or count the shared DB gate as passing while these36rows remain.
+- `OCT09-SYNTHETIC-CANARY-V2.json`: real result/usage and pending cleanup.
+- `OCT09-SYNTHETIC-CANARY-V2-MANIFEST.json`: exact synthetic handles.
+- `OCT09-OFFLINE-CI-52160982.json`: exact release acceptance evidence.
+- `oct09-preview-cli.py`: preview-only deployment, exact application commitment,
+  offline gates and explicit database-exception receipt required.
+- `oct09-preview-probes.py`, `oct09-preview-policy.mjs`,
+  `oct09-private-boundary.mjs`: prepared read-only acceptance probes.
+- `oct09-v2-owned-cleanup.py` / `.mjs`: new one-use cleanup client for the NEW
+  preview. Review before execution. It verifies the exact synthetic user,
+  signs in with a temporary in-memory password, calls only its erasure-status
+  operation, verifies zero exact sample rows and preserved spend, then removes
+  that exact auth user. No new account, email, model, GPU or global cron.
+- Existing exact-origin Azure Blob CORS helper must add only the new preview
+  origin after deployment, preserving every other origin/property.
 
-Supabase auth was independently confirmed unreachable from both local DNS and
-the deployed Preview. All four app/config bindings match projectchvduaujdztgjcnoswhh;
-do not rotate keys or blame binding drift. The owner has now signed into that
-exact project in orgvyakti (swtjdygdkvisigdmlqgq). Dashboard shows Coming up.
-Existing API keys may be usable after restoration; no new management credential
-has been created. Supabase plugin is available and was suggested but is not yet
-connected. The owner allows a Vyakti-only Neon alternative, not a cross-product
-database or account migration.
+The deployment/cleanup launchers allow only clean documentation descendants of
+accepted52160982, never application changes; deployment also checks exact source
+bytes. No new deployment or cleanup intent has been consumed. All secrets remain
+in existing protected local/cloud stores; a cloud agent needs its own authorized
+connectors and must not expect Windows DPAPI access remotely.
 
-## Read these reports
+## Remaining work and boundaries
 
-`docs/research/2026-10-09-{voice-frontier,product-position,memory-frontier,
-journey-audit,design-audit,integrity-audit}.md` contain primary sources and
-implementation evidence. Historical audit findings are baseline observations;
-the candidate fixes several of them. The design report explicitly distinguishes
-historical screenshots from the fresh captures and the dormant Teach button.
+1. Await the explicit protected-preview exception decision. If granted, deploy
+   the accepted candidate to `vyakti-replica-lab` only, verify source/CSP/auth/CORS,
+   and finish the exact V2 cleanup through the new owned endpoint.
+2. Observe a real human phone/desktop sign-in, source, answer, correction and share
+   journey. Synthetic browser fixtures and admin-created auth are separate proof.
+3. Obtain a fresh own-voice recording and listening feedback. The current Azure
+   Hindi V3 Chatterbox path is a private fixed Hindi/Hinglish sample; no fresh
+   speaker-likeness/MOS score exists. English and real-time cloning remain unfinished.
+4. Keep research comparisons as hypotheses until matched tests support them.
+   No exact-human, PMF, profit or competitor-superiority claim is justified.
 
-No personal Microsoft browser login, no local Docker, no OpenRouter/hosted model
-fallbacks. Existing Azure service-principal and Vercel DPAPI/API access are
-available; never print or commit their secrets. Keep hourly checkpoints and the
-graph consistent. Do not restart the paused Codex goal/automation as a workaround.
+Research: `docs/research/2026-10-09-*` covers voice, competitors, memory, journey,
+design and the historical integrity diagnosis. Read context/rejected.md before
+repeating experiments. No OpenRouter fallback, no local Docker, no other-product
+mutation, and no restart of the paused goal/automation as a workaround.

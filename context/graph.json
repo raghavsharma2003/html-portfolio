@@ -17,6 +17,7 @@
     "blocks": "this is blocked on that"
   },
   "nodes": [
+    { "id": "offline-release-accepted-preview-pending-20261009", "kind": "measurement", "title": "Both full offline gates and Android pass; protected preview exception pending", "at": "2026-10-09" },
     { "id": "owned-erasure-progress-20261009", "kind": "decision", "title": "Owned status advances only one scoped erasure and retains shared account state", "at": "2026-10-09" },
     { "id": "owned-erasure-proof-20261009", "kind": "measurement", "title": "Scoped erasure regressions and actual PostgreSQL parser proof", "at": "2026-10-09" },
     { "id": "idle-preview-erasure-and-account-overreach-20261009", "kind": "rejection", "title": "No broad sweep or account-global deletion to complete one AI removal", "at": "2026-10-09" },
@@ -21078,6 +21079,7 @@
     }
   ],
   "edges": [
+    { "src": "creator-continuity-and-person-sharing-20261009", "rel": "measured_by", "dst": "offline-release-accepted-preview-pending-20261009" },
     { "src": "owned-erasure-progress-20261009", "rel": "measured_by", "dst": "owned-erasure-proof-20261009" },
     { "src": "vyakti-only-scope-20261009", "rel": "constrains", "dst": "owned-erasure-progress-20261009" },
     { "src": "idle-preview-erasure-and-account-overreach-20261009", "rel": "caused_by", "dst": "owned-erasure-proof-20261009" },

@@ -1,6 +1,11 @@
 # STATE — read this first, then the graph
 
-## START HERE: OCTOBER 9 RESUMPTION IN PROGRESS
+## START HERE: OCTOBER 9 OFFLINE GATES PASSED; PREVIEW DECISION PENDING
+
+**Application candidate52160982 is verified: Node22/Node24 each25/25 and Android
+passed. It is pushed but NOT newly deployed.** The owner has a pending question
+about a one-time protected-preview exception for the36unrelated legacy DB rows.
+No approval is inferred. Read the rewritten October9 handoff for exact next steps.
 
 **LATEST OWNER SCOPE: Vyakti only. Do not touch Meera, Maya or any other product.**
 This explicitly supersedes the earlier same-day permission to include Meera.
@@ -21,14 +26,16 @@ call:904input/58output tokens,2504microusd,2650ms ask HTTP. Text budget now spen
 the exact erasure job is pending/attempts0. Do not replay V1/V2 or delete the
 synthetic auth user before terminal erasure. Handles/receipts live in ignored
 expert-tools/OCT09-SYNTHETIC-CANARY-V2{,-MANIFEST}.json. A scoped product fix for
-owned erasure progress is being prepared; never invoke a broad global cron.
+owned erasure progress is implemented in the candidate; it awaits deployment.
+Never invoke a broad global cron to finish this test.
 
 Continue repo `raghavsharma2003/html-portfolio`, branch
 `claude/vyakti-cloning-platform-aq05n4`, development checkout `standalone25`.
 The accepted deployed application remains **5fe2fa25** at protected Preview
 `https://vyakti-replica-14kfokzor-raghav-carbonsettles-projects.vercel.app/studio`.
-Candidate source is implemented and going through release checks; no new release
-has been accepted or deployed. Read `docs/handoff/2026-10-09/START-HERE.md` next,
+Candidate52160982 passed the complete offline release checks; the global DB
+finding prevents unconditional acceptance. No new preview has been deployed.
+Read `docs/handoff/2026-10-09/START-HERE.md` next,
 then the September30 handoff for operational access and non-replay constraints.
 
 Initial Oct9 API readback: Preview READY, CPU health200/matching accepted image,

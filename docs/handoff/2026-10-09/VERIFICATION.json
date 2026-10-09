@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-09",
+  "repository": "raghavsharma2003/html-portfolio",
+  "branch": "claude/vyakti-cloning-platform-aq05n4",
+  "accepted_application_commit": "5216098286af61df8501ee7857402418cfb1ab23",
+  "source_commitment": "sha256:8ba8c2814a3da768a8fd34b5b7609d3a96dd3d822be88e473764660f6dd40ce4",
+  "input_files": 1125,
+  "input_bytes": 29263052,
+  "offline_release": {
+    "run": 37924838339,
+    "node22": {
+      "job": 113801183193,
+      "passed": 25,
+      "total": 25
+    },
+    "node24": {
+      "job": 113801182754,
+      "passed": 25,
+      "total": 25
+    },
+    "android_run": 37924838428,
+    "android": "success"
+  },
+  "database": {
+    "citation_gate": "passed",
+    "dialogue_sql_gate": "passed",
+    "global_integrity": "failed",
+    "finding": "36 legacy Meera message references to absent episodes",
+    "owner_exception": "not received",
+    "other_product_mutations": 0,
+    "sql_validation": "17 initial EXPLAINs plus 27 cleanup EXPLAINs and 1 changed completion recheck; all passed; no ANALYZE or writes"
+  },
+  "live": {
+    "application_commit": "5fe2fa2590a355834bf61eea4e889103351af1f7",
+    "supabase_auth": "healthy",
+    "synthetic_person_journey": "passed",
+    "model_calls": 1,
+    "input_tokens": 904,
+    "output_tokens": 58,
+    "recorded_token_cost_microusd": 2504,
+    "ask_http_ms": 2650,
+    "replay_added_spend": false,
+    "cleanup": "pending exact owned erasure; synthetic auth retained",
+    "human_otp_google_flow": "unverified",
+    "voice_likeness": "unmeasured",
+    "voice_calls": 0,
+    "gpu_activations": 0
+  },
+  "deployment": {
+    "october_preview": "not deployed",
+    "approval": "protected-preview exception pending",
+    "production_alias_changes": 0
+  }
+}
