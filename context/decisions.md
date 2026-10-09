@@ -2762,3 +2762,27 @@ is kept. Needs the owner to confirm scope (windows only, or items too).
 
 **Reverses if:** counsel or a DPDP erasure request says retained-after-forget
 is not allowed.
+
+---
+
+## `meera-partial-forget-survivor-repair` — unlink surviving raw rows before deleting their episode (2026-10-09)
+
+Meera's production partial-forget path may delete only some raw turns from an
+episode. The episode itself must still go because it derives from forgotten
+content, but any surviving `meera_log` rows must first have `episode_id` set to
+null in the same SQL statement. That statement also creates one empty
+provisional episode per surviving agent, device and chat/call channel so the
+hourly consolidator can discover and segment the survivors again. No summary is
+fabricated during the repair.
+
+This is a direct backport of Vyakti's measured `ecc8b6a2` repair into Meera's
+current production source line. It is intentionally limited to
+`purgeRelational()`: the mapped-device suppression change that shared the
+historical commit is a separate behavior and is not needed to close the
+dangling-cursor defect measured here.
+
+**Reverses if:** an actual PostgreSQL parse or rollback proof shows this single
+statement is invalid against Meera's live schema, or a focused fixture shows
+that it deletes a surviving raw row or invents a replacement summary. In that
+case deployment stops; the old unsafe delete is not restored as an acceptable
+fallback.

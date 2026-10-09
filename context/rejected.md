@@ -2348,3 +2348,22 @@ the block used the wall clock. Forty-three days later the rupture read "settled
 compiler's clock down (identical in production, deterministic in tests).
 Lesson: any renderer that takes a `now` must be handed the caller's, or its
 tests are timers.
+
+---
+
+## `meera-windows-gate-root-path` — the local full runner did not execute its gates (2026-10-09)
+
+`node scripts/verify-release.mjs` was tried in the isolated Windows worktree.
+Its `new URL("..", import.meta.url).pathname` root was passed through Windows
+path handling as `C:\C:\Users\...`; `scripts/context.mjs --check` showed the
+same doubled-drive failure directly. The full runner consequently reported all
+11 subprocess gates failed with empty details, and two adjacent evals that
+dynamically import an absolute bundle path failed with
+`ERR_UNSUPPORTED_ESM_URL_SCHEME` on protocol `c:`. Treating that output as 11
+product regressions was rejected because no gate body ran.
+
+The focused integrity suite, its real dispatcher registration, syntax checks,
+the existing `knows` suite and the product build did run locally. The missing
+full result must come from the repository's Linux CI. This entry does not waive
+the gate and does not authorize patching the shared runner inside this narrow
+integrity repair.

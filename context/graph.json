@@ -1846,6 +1846,24 @@
    "kind": "rejection",
    "at": "2026-10-04",
    "title": "compiler did not pass its clock to the relationship block; a pinned fixture rotted into a red gate after 43 days"
+  },
+  {
+   "id": "meera-partial-forget-survivor-repair",
+   "kind": "decision",
+   "at": "2026-10-09",
+   "title": "partial forget atomically unclaims surviving raw rows and leaves content-free wake episodes before deleting derived episodes"
+  },
+  {
+   "id": "meera-partial-forget-gate-oct09",
+   "kind": "measurement",
+   "at": "2026-10-09",
+   "title": "focused episode-integrity gate passed 5/5 directly and through the dispatcher; TypeScript plus Vite built 710 modules"
+  },
+  {
+   "id": "meera-windows-gate-root-path",
+   "kind": "rejection",
+   "at": "2026-10-09",
+   "title": "Windows URL pathname doubled the drive in local full-gate runners, so Linux CI is required for canonical release evidence"
   }
  ],
  "edges": [
@@ -3353,6 +3371,21 @@
    "src": "forget-retention-policy",
    "rel": "caused_by",
    "dst": "unrecoverable-delete"
+  },
+  {
+   "src": "meera-partial-forget-survivor-repair",
+   "rel": "measured_by",
+   "dst": "meera-partial-forget-gate-oct09"
+  },
+  {
+   "src": "meera-partial-forget-survivor-repair",
+   "rel": "caused_by",
+   "dst": "unrecoverable-delete"
+  },
+  {
+   "src": "meera-windows-gate-root-path",
+   "rel": "blocks",
+   "dst": "meera-partial-forget-gate-oct09"
   }
  ]
 }

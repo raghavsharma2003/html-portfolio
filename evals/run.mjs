@@ -307,6 +307,10 @@ const suites = {
   // seven-minute call went with no way back. A GATE, because the check is pure
   // and decided, and because the failure is unrecoverable.
   forgetintent: "forget/intent.mjs",
+  // A partial forget may delete an episode while retaining other raw turns.
+  // The delete must atomically unclaim those survivors and leave the hourly
+  // consolidator a content-free wake episode. Offline, deterministic, $0.
+  forgetepisode: "forget/episode-integrity.mjs",
   // The shared-password door (api/_gate.js + src/engine/gate.ts). A GATE: it
   // calls every cost-bearing handler without a token and requires a 401, so a
   // new route that forgets the gate fails here instead of on the bill.

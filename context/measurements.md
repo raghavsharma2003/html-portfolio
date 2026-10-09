@@ -3003,3 +3003,21 @@ caution is CORRECT — the user-role tail is not behaviorally free, and
 the judged equivalence run (or a crisis-focused targeted battery) stays
 required before PAID_CACHE serves real traffic. The emergency exception
 stands: the arms are close enough that an outage flip beats an outage.
+
+## `meera-partial-forget-gate-oct09` — source fix and focused gate (2026-10-09)
+
+n = 1 exact production-source branch at
+`11f213ae734e93527a5626a255e1b95cbc2064f9`; method = backport only the
+`unclaimed_logs` and content-free `wake_episodes` CTEs from `ecc8b6a2` into
+Meera's current `purgeRelational()` statement, then run a five-assertion
+source-level SQL-shape gate including four negative controls. The focused gate
+passed 5/5 directly and 5/5 through `evals/run.mjs forgetepisode`. `npm run
+build` passed TypeScript and Vite over 710 modules. Node syntax checks passed
+for all three changed files; scoped Oxlint returned zero errors and two
+pre-existing warnings outside the changed lines. No database query, model call,
+deployment or production mutation ran.
+
+The canonical `scripts/verify-release.mjs` local attempt is not counted as a
+product result: on Windows its URL-path root became a `C:\C:\...` cwd, so all
+11 subprocess gates failed before executing and printed empty details. Linux
+CI is required for the full branch result.
