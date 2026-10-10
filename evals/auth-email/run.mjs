@@ -14,7 +14,7 @@ import {
   admitAuthEmail, claimAuthEmailPreparation, forgetAuthEmailAccount, authEmailSqlCases,
 } from "../../api/_auth-email-store.js";
 import {
-  approvedAuthEmailRedirect, generateSupabaseAuthEmailLink, signAcsAuthEmailRequest,
+  authEmailAzureConfig, approvedAuthEmailRedirect, generateSupabaseAuthEmailLink, signAcsAuthEmailRequest,
   sendAzureAuthEmail, readAzureAuthEmail, validateAcsOperationLocation, validateAuthEmailPayload,
 } from "../../api/_auth-email-azure.js";
 import { requestVyaktiAuthEmail, runAuthEmailSweep } from "../../api/_auth-email.js";
@@ -30,6 +30,18 @@ const ENV = { VYAKTI_AUTH_EMAIL_KEK_ID: "auth-email-fixture", VYAKTI_AUTH_EMAIL_
 const CONFIG = { endpoint: "https://vyakti-auth.communication.azure.com", supabase: "https://fixture.supabase.co",
   sender: "donotreply@fixture.azurecomm.net", accessKey: Buffer.alloc(32, 19), serviceRole: "fixture-service-role-not-real-1234567890",
   allowedOrigins: ["https://vyakti-replica-lab.vercel.app"] };
+const CONFIG_ENV = {
+  VYAKTI_AUTH_EMAIL_PROVIDER: "azure_communication_email",
+  VYAKTI_AUTH_EMAIL_ENDPOINT: CONFIG.endpoint,
+  VYAKTI_AUTH_EMAIL_ACCESS_KEY_B64: CONFIG.accessKey.toString("base64"),
+  VYAKTI_AUTH_EMAIL_SENDER: CONFIG.sender,
+  VYAKTI_AUTH_EMAIL_ALLOWED_ORIGINS: CONFIG.allowedOrigins[0],
+  VYAKTI_AUTH_EMAIL_KEK_ID: ENV.VYAKTI_AUTH_EMAIL_KEK_ID,
+  VYAKTI_AUTH_EMAIL_KEK_B64: ENV.VYAKTI_AUTH_EMAIL_KEK_B64,
+  SUPABASE_URL: CONFIG.supabase,
+  SUPABASE_SERVICE_ROLE_KEY: CONFIG.serviceRole,
+  VERCEL_URL: "vyakti-preview-abc123.vercel.app",
+};
 
 let checks = 0;
 const ok = (name) => console.log(`ok ${++checks} - ${name}`);
@@ -94,6 +106,18 @@ for (const bad of ["https://evil.vercel.app/studio", "https://vyakti-replica-lab
   assert.equal(approvedAuthEmailRedirect(bad, CONFIG), null);
 ok("Azure lane accepts only an exact configured origin and approved Studio or Room path");
 
+const deploymentConfig = await authEmailAzureConfig(CONFIG_ENV);
+assert.deepEqual(deploymentConfig.allowedOrigins, [CONFIG.allowedOrigins[0], "https://vyakti-preview-abc123.vercel.app"]);
+const canonicalConfig = await authEmailAzureConfig({ ...CONFIG_ENV, VYAKTI_AUTH_EMAIL_ALLOWED_ORIGINS: `${CONFIG.allowedOrigins[0]}/` });
+assert.equal(canonicalConfig.allowedOrigins[0], CONFIG.allowedOrigins[0]);
+assert.equal(approvedAuthEmailRedirect("https://vyakti-preview-abc123.vercel.app/studio", deploymentConfig), "https://vyakti-preview-abc123.vercel.app/studio");
+assert.equal(approvedAuthEmailRedirect("https://unrelated-preview.vercel.app/studio", deploymentConfig), null);
+for (const bad of ["https://vyakti-preview-abc123.vercel.app", "vyakti-preview-abc123.vercel.app/path", "*.vercel.app",
+  "vyakti-preview-abc123.vercel.app.evil.test", "bad-.vercel.app", "user@vyakti-preview-abc123.vercel.app", "vyakti-preview-abc123.vercel.app:443"]) {
+  await assert.rejects(authEmailAzureConfig({ ...CONFIG_ENV, VERCEL_URL: bad }), /auth_email_provider_unavailable/);
+}
+ok("only the trusted path-free VERCEL_URL hostname adds the current exact Preview origin");
+
 const linkResponse = { action_link: `${CONFIG.supabase}/auth/v1/verify?token=${TOKEN}&type=signup&redirect_to=${encodeURIComponent(REDIRECT)}`,
   email_otp: "123456", hashed_token: TOKEN, verification_type: "signup", redirect_to: REDIRECT, id: OWNER, email: EMAIL };
 const generated = await generateSupabaseAuthEmailLink(CONFIG, { email: EMAIL, redirect_url: REDIRECT }, async () => new Response(JSON.stringify(linkResponse), { status: 200 }));
@@ -124,6 +148,7 @@ const options = { config: CONFIG, env: ENV, now: Date.parse("2026-10-10T00:00:00
   sendEmail: async (_config, input) => { providerSends += 1; assert.equal(input.operation_id, REQUEST); return { state: "pending", operation_location: `${CONFIG.endpoint}/emails/operations/${REQUEST}?api-version=2023-03-31` }; },
   readEmail: async () => ({ status }),
 };
+options.clock = () => options.now;
 const first = await requestVyaktiAuthEmail(fixture.db, requestInput(), options);
 assert.equal(first.state, "accepted"); assert.equal(linkCalls, 1); assert.equal(providerSends, 1); assert.equal(fixture.state().state, "pending");
 const replay = await requestVyaktiAuthEmail(fixture.db, requestInput(), options);
@@ -131,6 +156,46 @@ assert.equal(replay.state, "accepted"); assert.equal(linkCalls, 1); assert.equal
 status = "Succeeded"; const complete = await requestVyaktiAuthEmail(fixture.db, requestInput(), options);
 assert.equal(complete.state, "succeeded"); assert.equal(fixture.state().payload_envelope, null);
 ok("same request generates and sends once, polls safely, and scrubs payload at terminal success");
+
+let lateNow = options.now, lateSends = 0;
+const late = fakeDb();
+await assert.rejects(requestVyaktiAuthEmail(late.db, requestInput(), {
+  ...options, clock: () => lateNow,
+  generateLink: async () => { lateNow += 6 * 60 * 1000; return { ...generated }; },
+  sendEmail: async () => { lateSends += 1; throw new Error("must_not_send"); },
+  readEmail: async () => ({ status: "NotStarted" }),
+}), /auth_email_retry_horizon_elapsed/);
+assert.equal(lateSends, 0); assert.equal(late.state().state, "reconcile_required");
+ok("repeatability age is read from a fresh clock immediately before ACS dispatch");
+
+let initialRelease, initialStarted;
+const initialGate = new Promise(resolve => { initialRelease = resolve; });
+const initialStartedGate = new Promise(resolve => { initialStarted = resolve; });
+const initialRace = fakeDb(); let initialRaceSends = 0;
+const initialRaceOptions = { ...options, generateLink: async () => ({ ...generated }), readEmail: async () => ({ status: "NotStarted" }),
+  sendEmail: async () => { initialRaceSends += 1; initialStarted(); await initialGate; return { state: "pending", operation_location: `${CONFIG.endpoint}/emails/operations/${REQUEST}?api-version=2023-03-31` }; } };
+const initialWinner = requestVyaktiAuthEmail(initialRace.db, requestInput(), initialRaceOptions);
+await initialStartedGate;
+const initialLoser = await requestVyaktiAuthEmail(initialRace.db, requestInput(), initialRaceOptions);
+assert.equal(initialLoser.state, "accepted"); assert.equal(initialRaceSends, 1); assert.equal(initialRace.state().attempt_count, 1);
+await requestVyaktiAuthEmail(initialRace.db, requestInput(), initialRaceOptions);
+assert.equal(initialRaceSends, 1); assert.equal(initialRace.state().state, "dispatching");
+initialRelease(); await initialWinner;
+
+let retryPhase = "initial", retryRelease, retryStarted, retryNow = options.now;
+const retryGate = new Promise(resolve => { retryRelease = resolve; });
+const retryStartedGate = new Promise(resolve => { retryStarted = resolve; });
+const retryRace = fakeDb(); let retryRaceSends = 0;
+const retryRaceOptions = { ...options, clock: () => retryNow, generateLink: async () => ({ ...generated }), readEmail: async () => ({ status: "NotStarted" }),
+  sendEmail: async () => { retryRaceSends += 1; if (retryPhase === "initial") throw Object.assign(new Error("lost"), { ambiguous: true }); retryStarted(); await retryGate; return { state: "pending", operation_location: `${CONFIG.endpoint}/emails/operations/${REQUEST}?api-version=2023-03-31` }; } };
+await requestVyaktiAuthEmail(retryRace.db, requestInput(), retryRaceOptions);
+retryPhase = "retry"; retryNow += 31_000;
+const retryWinner = requestVyaktiAuthEmail(retryRace.db, requestInput(), retryRaceOptions);
+await retryStartedGate;
+const retryLoser = await requestVyaktiAuthEmail(retryRace.db, requestInput(), retryRaceOptions);
+assert.equal(retryLoser.state, "accepted"); assert.equal(retryRaceSends, 2); assert.equal(retryRace.state().attempt_count, 2);
+retryRelease(); await retryWinner;
+ok("only the initial or retry dispatch claim winner can call ACS");
 
 await assert.rejects(requestVyaktiAuthEmail(fixture.db, requestInput({ email: "other@example.test" }), options), /auth_email_request_conflict/);
 assert.equal(linkCalls, 1); assert.equal(providerSends, 1);
@@ -141,16 +206,19 @@ const ambiguous = fakeDb();
 const ambiguousOptions = { ...options, generateLink: async () => ({ ...generated }), readEmail: async () => ({ status: "NotStarted" }),
   sendEmail: async () => { ambiguousSends += 1; throw Object.assign(new Error("lost"), { code: "auth_email_delivery_ambiguous", ambiguous: true }); } };
 await requestVyaktiAuthEmail(ambiguous.db, requestInput(), ambiguousOptions);
-assert.equal(ambiguous.state().state, "pending");
-await requestVyaktiAuthEmail(ambiguous.db, requestInput(), { ...ambiguousOptions, now: ambiguousOptions.now + 4 * 60 * 1000 });
+assert.equal(ambiguous.state().state, "dispatching");
+const fourMinutes = ambiguousOptions.now + 4 * 60 * 1000;
+await requestVyaktiAuthEmail(ambiguous.db, requestInput(), { ...ambiguousOptions, now: fourMinutes, clock: () => fourMinutes });
 assert.equal(ambiguousSends, 2); assert.equal(ambiguous.state().attempt_count, 2);
-await assert.rejects(requestVyaktiAuthEmail(ambiguous.db, requestInput(), { ...ambiguousOptions, now: ambiguousOptions.now + 6 * 60 * 1000 }), /auth_email_retry_horizon_elapsed/);
+const sixMinutes = ambiguousOptions.now + 6 * 60 * 1000;
+await assert.rejects(requestVyaktiAuthEmail(ambiguous.db, requestInput(), { ...ambiguousOptions, now: sixMinutes, clock: () => sixMinutes }), /auth_email_retry_horizon_elapsed/);
 assert.equal(ambiguousSends, 2); assert.equal(ambiguous.state().state, "reconcile_required");
 ok("ambiguous retry reuses one token and operation inside five minutes, then refuses outside the horizon");
 
 const retryCapped = fakeDb({ capRetry: true });
 await requestVyaktiAuthEmail(retryCapped.db, requestInput(), ambiguousOptions);
-await assert.rejects(requestVyaktiAuthEmail(retryCapped.db, requestInput(), { ...ambiguousOptions, now: ambiguousOptions.now + 60_000 }), /auth_email_pilot_cap_reached/);
+const oneMinute = ambiguousOptions.now + 60_000;
+await assert.rejects(requestVyaktiAuthEmail(retryCapped.db, requestInput(), { ...ambiguousOptions, now: oneMinute, clock: () => oneMinute }), /auth_email_pilot_cap_reached/);
 assert.equal(retryCapped.state().attempt_count, 1);
 ok("the same 50-slot global cap covers resend attempts as well as initial recipients");
 

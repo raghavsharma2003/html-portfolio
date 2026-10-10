@@ -1219,6 +1219,15 @@
     "required": false
   },
   {
+    "name": "VERCEL_URL",
+    "section": "39",
+    "sectionTitle": "Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
     "name": "VITE_STUDIO_SHELL",
     "section": "26",
     "sectionTitle": "The studio collapsed to Feed/Meet/Share (`vercel-app`, WS-R31, 2026-09-04)",

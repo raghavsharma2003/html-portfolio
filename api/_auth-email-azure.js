@@ -20,6 +20,17 @@ function exactOrigin(value, suffix) {
   } catch { return null; }
 }
 
+function vercelDeploymentOrigin(value) {
+  const host = String(value || "").trim().toLowerCase();
+  const labels = host.split("."), deploymentLabels = labels.slice(0, -2);
+  if (!host || host.length > 253 || labels.slice(-2).join(".") !== "vercel.app" || deploymentLabels.length < 1
+      || deploymentLabels.some(label => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(label))) return null;
+  try {
+    const url = new URL(`https://${host}`);
+    return url.hostname === host && url.origin === `https://${host}` ? url.origin : null;
+  } catch { return null; }
+}
+
 export async function authEmailAzureConfig(env = process.env) {
   const baked = await configFile();
   const get = (name) => String(env[name] || baked[name] || "").trim();
@@ -31,11 +42,17 @@ export async function authEmailAzureConfig(env = process.env) {
   const accessEncoded = get("VYAKTI_AUTH_EMAIL_ACCESS_KEY_B64");
   const accessKey = Buffer.from(accessEncoded, "base64");
   const serviceRole = get("SUPABASE_SERVICE_ROLE_KEY");
-  const allowedOrigins = get("VYAKTI_AUTH_EMAIL_ALLOWED_ORIGINS").split(",").map(value => value.trim()).filter(Boolean);
+  const configuredOrigins = get("VYAKTI_AUTH_EMAIL_ALLOWED_ORIGINS").split(",").map(value => value.trim()).filter(Boolean);
+  const explicitOrigins = configuredOrigins.map(value => exactOrigin(value, ".vercel.app"));
+  const vercelUrl = String(env.VERCEL_URL || "").trim();
+  const deploymentOrigin = vercelDeploymentOrigin(vercelUrl);
+  const allowedOrigins = [...new Set([...explicitOrigins, ...(deploymentOrigin ? [deploymentOrigin] : [])])];
   if (!endpoint || !supabase || !EMAIL.test(sender) || accessKey.length !== 32
       || accessKey.toString("base64").replace(/=+$/u, "") !== accessEncoded.replace(/=+$/u, "")
-      || serviceRole.length < 20 || allowedOrigins.length < 1 || allowedOrigins.length > 10
-      || allowedOrigins.some(value => exactOrigin(value, ".vercel.app") !== value.replace(/\/$/u, ""))) {
+      || serviceRole.length < 20 || configuredOrigins.length < 1 || configuredOrigins.length > 10
+      || allowedOrigins.length > 11
+      || explicitOrigins.some(value => !value)
+      || (vercelUrl && !deploymentOrigin)) {
     fail("auth_email_provider_unavailable");
   }
   return { endpoint, supabase, sender, accessKey, serviceRole, allowedOrigins };

@@ -13,8 +13,13 @@ import {
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const REPEATABILITY_MS = 5 * 60 * 1000;
+const DISPATCH_RECOVERY_MS = 30 * 1000;
 const fail = (code, status = 503) => { throw Object.assign(new Error(code), { code, status }); };
 const publicState = (row) => ({ request_id: row.request_id, state: ["succeeded", "failed", "expired"].includes(row.state) ? row.state : "accepted" });
+const liveNow = (options) => {
+  const value = typeof options.clock === "function" ? Number(options.clock()) : Date.now();
+  return Number.isFinite(value) ? value : Date.now();
+};
 
 function binding(row) {
   return { request_id: row.request_id, email_hash: row.email_hash, redirect_hash: row.redirect_hash, payload_hash: row.payload_hash };
@@ -49,16 +54,19 @@ async function prepare(db, request, row, config, options) {
   }
 }
 
-async function dispatch(db, request, row, config, options, now) {
-  if (row.state === "prepared") row = await claimAuthEmailDispatch(db, request) || await readAuthEmail(db, request);
-  if (row.state !== "dispatching") return row;
-  const firstSent = new Date(row.repeatability_first_sent).getTime();
-  if (!Number.isFinite(firstSent) || now - firstSent > REPEATABILITY_MS) {
-    return await recordAuthEmailReconcile(db, request, "auth_email_retry_horizon_elapsed") || row;
-  }
+async function dispatch(db, request, row, config, options) {
+  let claimed = null;
+  if (row.state === "prepared") claimed = await claimAuthEmailDispatch(db, request);
+  else if (row.state === "pending" && row.provider_status === "NotStarted") claimed = await retryAuthEmailDispatch(db, request);
+  if (!claimed) return row.state === "prepared" || row.state === "pending" ? await readAuthEmail(db, request) : row;
+  row = claimed;
   const payload = decryptAuthEmailPayload(row.payload_envelope, binding(row), options.env);
   try {
     validateAuthEmailPayload(config, payload, request);
+    const firstSent = new Date(row.repeatability_first_sent).getTime();
+    if (!Number.isFinite(firstSent) || liveNow(options) - firstSent > REPEATABILITY_MS) {
+      return await recordAuthEmailReconcile(db, request, "auth_email_retry_horizon_elapsed") || row;
+    }
     const sent = await (options.sendEmail || sendAzureAuthEmail)(config, {
       ...payload, operation_id: row.acs_operation_id, repeatability_first_sent: row.repeatability_first_sent,
     }, options.fetchImpl);
@@ -80,7 +88,9 @@ async function poll(db, request, row, config, options) {
   try { result = await (options.readEmail || readAzureAuthEmail)(config,
     { operation_id: row.acs_operation_id, operation_location: location }, options.fetchImpl); }
   catch (cause) { if (cause?.ambiguous) return row; throw cause; }
-  const current = Number.isFinite(options.clockNow) ? options.clockNow : Date.now();
+  const current = liveNow(options);
+  if (row.state === "dispatching" && result.status === "NotStarted"
+      && current - new Date(row.updated_at).getTime() < DISPATCH_RECOVERY_MS) return row;
   if (result.status === "NotStarted" && current - new Date(row.repeatability_first_sent).getTime() > REPEATABILITY_MS) {
     return await recordAuthEmailReconcile(db, request, "auth_email_retry_horizon_elapsed") || row;
   }
@@ -106,18 +116,20 @@ export async function requestVyaktiAuthEmail(db, input, options = {}) {
     redirect_url,
     redirect_hash: sha256Hex(redirect_url),
   };
-  const now = Number.isFinite(options.now) ? options.now : Date.now();
+  const now = Number.isFinite(options.now) ? options.now : liveNow(options);
   await expireAuthEmailPayloads(db);
   let row = await admitAuthEmail(db, request, now);
   if (row.state === "admitted" || row.state === "preparing") row = await prepare(db, request, row, config, options);
-  if (row.state === "pending" && row.provider_status === "NotStarted") {
-    const age = now - new Date(row.repeatability_first_sent).getTime();
-    row = age <= REPEATABILITY_MS ? await retryAuthEmailDispatch(db, request) || row
-      : await recordAuthEmailReconcile(db, request, "auth_email_retry_horizon_elapsed") || row;
+  row = await dispatch(db, request, row, config, options);
+  if (Number(row.attempt_count) > 0) {
+    const polledFromDispatching = row.state === "dispatching";
+    row = await poll(db, request, row, config, options);
+    if (polledFromDispatching && row.state === "pending" && row.provider_status === "NotStarted") {
+      row = await dispatch(db, request, row, config, options);
+      row = await poll(db, request, row, config, options);
+    }
   }
-  row = await dispatch(db, request, row, config, options, now);
-  if (Number(row.attempt_count) > 0) row = await poll(db, request, row, config, { ...options, clockNow: now });
-  if (row.state === "preparing" && now >= new Date(row.preparation_lease_expires_at).getTime()) {
+  if (row.state === "preparing" && liveNow(options) >= new Date(row.preparation_lease_expires_at).getTime()) {
     fail("auth_email_link_generation_uncertain", 409);
   }
   if (row.state === "failed") fail("auth_email_delivery_failed");
