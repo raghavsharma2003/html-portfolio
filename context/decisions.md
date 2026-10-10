@@ -25653,3 +25653,13 @@ the protected Vyakti preview, refreshed all live DB gates, and bound the excepti
 to the exact application commit and DB report. No other-product change or production
 alias was made. Global integrity remains failed. Reverse only on new owner scope,
 a changed DB failure set, or evidence the exact accepted source/protection differs.
+
+## `sellable-core-iteration-20261010`
+
+Continue from accepted October9 preview and documentationad02edc8. Prioritize
+specific creator/answer defects, meaningful reviewed correction, Hindi usability,
+and chosen Hindi/Hinglish speech text over another wholesale rewrite or speculative
+feature breadth. Keep all serving on Azure, other products untouched and existing
+budgets unchanged. Factual synthetic probes and local tests are separate evidence
+from real-user value, voice likeness and competitor comparison. Reverse priority
+when a reproduced higher-impact failure or measured customer outcome warrants it.

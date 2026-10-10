@@ -2,13 +2,17 @@ import {createHash} from 'node:crypto';
 import {canonicalJson} from './_replica-processing/contracts.js';
 import {OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT} from './_voice/providers/open-chatterbox-preview.js';
 import {voiceLanguageConditioning,voiceScriptMode} from './_voice/language-conditioning.js';
+import {buildVoiceTextPlan,voiceTextPlanAudit} from './_voice/hindi-text-frontend.js';
 
 export const PRIVATE_VOICE_SCOPE='private_voice_test';
 export const PRIVATE_VOICE_STATEMENT_SET='private-own-voice/v1';
 export const PRIVATE_VOICE_STATEMENT='This recording is my own voice. Use it to make this private AI voice sample for me.';
 export const PRIVATE_VOICE_TEXT='आज हम इस सवाल को धीरे धीरे समझेंगे, फिर सही उत्तर निकालेंगे।';
+export const PRIVATE_VOICE_TEXT_MAX_CODE_POINTS=280;
+export const PRIVATE_VOICE_TEXT_VERSION='private-hindi-text/v1';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HASH=/^[a-f0-9]{64}$/;
+const DEVANAGARI=/[\u0900-\u097f]/u;
 export function privateVoiceError(code,status=409){return Object.assign(new Error(code),{code,status});}
 const fail=(code,status)=>{throw privateVoiceError(code,status);};
 const id=value=>{if(typeof value!=='string'||!UUID.test(value))fail('private_voice_identifier_invalid',400);return value.toLowerCase();};
@@ -26,6 +30,43 @@ export function privateVoiceSampleConfig(){
       textLanguageMode:voiceScriptMode(PRIVATE_VOICE_TEXT).mode,requestedCfgWeight:style.cfgWeight,disclosureLanguageId:'hi'}),
     text_provenance:'server_fixed_sample',reference_language_provenance:'unassessed',
     identity_scope:'account_self_attestation',identity_claim_allowed:false,release_eligible:false,training_allowed:false};
+}
+
+function privateVoiceTextPlan(value){
+  if(typeof value!=='string')fail('private_voice_text_invalid',400);
+  const text=value.trim(),size=Array.from(text).length;
+  if(size<1)fail('private_voice_text_required',400);
+  if(size>PRIVATE_VOICE_TEXT_MAX_CODE_POINTS)fail('private_voice_text_too_large',400);
+  let plan;
+  try{plan=buildVoiceTextPlan({text,languageId:'hi',supportedLanguages:['hi']});}
+  catch(error){fail(String(error?.code||'private_voice_text_invalid'),Number.isInteger(error?.status)?error.status:400);}
+  const romanHindi=plan.transformations.some(item=>item.kind==='reviewed_roman_hindi'||item.kind==='reviewed_roman_hindi_context');
+  if(!DEVANAGARI.test(text)&&!romanHindi){
+    if(/[A-Za-z]/.test(text))fail('private_voice_english_not_supported',400);
+    fail('private_voice_hindi_or_hinglish_required',400);
+  }
+  if(plan.synthesisSegments.length!==1||plan.synthesisSegments[0].languageId!=='hi'||plan.synthesisSegments[0].text.length>700)
+    fail('private_voice_text_plan_invalid',400);
+  return plan;
+}
+
+export function privateVoiceTextConfig(value){
+  const plan=privateVoiceTextPlan(value),text=plan.inputText;
+  const style={exaggeration:0.2,cfgWeight:0.78,temperature:0.6};
+  return {version:PRIVATE_VOICE_TEXT_VERSION,scope:PRIVATE_VOICE_SCOPE,text,
+    text_sha256:createHash('sha256').update(text).digest('hex'),language_id:'hi',
+    model_arm:'hindi_v3',model_commitment:OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT,seed:31001,style,
+    conditioning:voiceLanguageConditioning({languageId:'hi',referenceLanguageMode:'unknown',referenceLanguageEvidenceScope:'unverified',
+      textLanguageMode:voiceScriptMode(plan.synthesisSegments[0].text).mode,requestedCfgWeight:style.cfgWeight,disclosureLanguageId:'hi'}),
+    text_frontend:voiceTextPlanAudit(plan),text_provenance:'owner_entered_private_sample',reference_language_provenance:'unassessed',
+    identity_scope:'account_self_attestation',identity_claim_allowed:false,release_eligible:false,training_allowed:false};
+}
+
+export function privateVoiceExpectedConfig(value){
+  const config=json(value);
+  if(config?.version==='private-hindi-sample/v1')return privateVoiceSampleConfig();
+  if(config?.version===PRIVATE_VOICE_TEXT_VERSION)return privateVoiceTextConfig(config.text);
+  fail('private_voice_config_changed',503);
 }
 
 // All input IDs are selectors, never authority. Lock source before replica,
@@ -116,17 +157,21 @@ function wire(row,now){
    metrics:row.metrics||null,ratings:row.ratings||null,audio_available:!expired&&!row.revoked_at&&row.state==='ready'&&!!row.output_sha256};
 }
 function inputRequest(input){
- const allowed=['action','replica_id','source_id','artifact_id','run_id','expected_snapshot_hash','statement_set','attestations'];
+ const allowed=['action','replica_id','source_id','artifact_id','run_id','expected_snapshot_hash','statement_set','attestations','text'];
  if(Object.keys(input).some(k=>!allowed.includes(k)))fail('private_voice_unexpected_input',400);
  if(!HASH.test(input.expected_snapshot_hash||'')||input.statement_set!==PRIVATE_VOICE_STATEMENT_SET||
    !input.attestations||Object.keys(input.attestations).join(',')!=='own_voice_private_use'||input.attestations.own_voice_private_use!==true)
    fail('private_voice_self_use_required',400);
+ const suppliedText=Object.hasOwn(input,'text')?privateVoiceTextConfig(input.text).text:undefined;
  return {replica_id:id(input.replica_id),source_id:id(input.source_id),artifact_id:id(input.artifact_id),run_id:id(input.run_id),
-   expected_snapshot_hash:input.expected_snapshot_hash,statement_set:PRIVATE_VOICE_STATEMENT_SET,attestations:{own_voice_private_use:true}};
+   expected_snapshot_hash:input.expected_snapshot_hash,statement_set:PRIVATE_VOICE_STATEMENT_SET,attestations:{own_voice_private_use:true},
+   ...(suppliedText===undefined?{}:{text:suppliedText})};
 }
 export function assertPrivateVoiceReceipt(row){
  const receipt=json(row.receipt),snapshot=json(row.snapshot),config=json(row.config);
+ let expectedConfig;try{expectedConfig=privateVoiceExpectedConfig(config);}catch{fail('private_voice_receipt_invalid',503);}
  if(privateVoiceHash(receipt)!==row.receipt_hash||privateVoiceHash(snapshot)!==row.snapshot_hash||privateVoiceHash(config)!==row.config_hash||
+   privateVoiceHash(config)!==privateVoiceHash(expectedConfig)||
    receipt.scope!==PRIVATE_VOICE_SCOPE||receipt.statement_set!==PRIVATE_VOICE_STATEMENT_SET||receipt.method!=='account_attestation'||receipt.attestations?.own_voice_private_use!==true||
    receipt.owner_user_id!==row.owner_user_id||receipt.replica_id!==row.replica_id||receipt.run_id!==row.run_id||
    receipt.snapshot_hash!==row.snapshot_hash||receipt.config_hash!==row.config_hash||receipt.expires_at!==new Date(row.expires_at).toISOString()||
@@ -163,6 +208,7 @@ export function createPrivateVoiceStore({db,now=Date.now}={}){
      const rows=await query(db,PRIVATE_VOICE_CANDIDATES_SQL,tuple(owner,input,true));
      const recent=await query(db,PRIVATE_VOICE_RECENT_SQL,[id(input.replica_id),id(owner)]);
      return {resume_run_id:recent[0]?.run_id||null,scope:PRIVATE_VOICE_SCOPE,statement_set:PRIVATE_VOICE_STATEMENT_SET,statement:PRIVATE_VOICE_STATEMENT,config:privateVoiceSampleConfig(),
+       text_limits:{max_code_points:PRIVATE_VOICE_TEXT_MAX_CODE_POINTS,language_id:'hi',english_supported:false},
        candidates:rows.map(row=>{const s=json(row.snapshot);return {source_id:s.source_id,artifact_id:s.artifact_id,reference_sha256:s.artifact_sha256,
          duration_ms:Number(s.duration_ms),snapshot_hash:privateVoiceHash(s)};})};
    },
@@ -174,7 +220,7 @@ export function createPrivateVoiceStore({db,now=Date.now}={}){
      if(rows.length!==1)fail('private_voice_reference_unavailable');
      const snapshot=json(rows[0].snapshot),snapshotHash=privateVoiceHash(snapshot);
      if(snapshotHash!==normalized.expected_snapshot_hash)fail('private_voice_inputs_changed');
-     const config=privateVoiceSampleConfig(),configHash=privateVoiceHash(config),expires=new Date(now()+86400000).toISOString();
+     const config=normalized.text===undefined?privateVoiceSampleConfig():privateVoiceTextConfig(normalized.text),configHash=privateVoiceHash(config),expires=new Date(now()+86400000).toISOString();
      const receipt={scope:PRIVATE_VOICE_SCOPE,statement_set:PRIVATE_VOICE_STATEMENT_SET,method:'account_attestation',
        owner_user_id:args[1],replica_id:args[0],run_id:normalized.run_id,attestations:normalized.attestations,
        snapshot_hash:snapshotHash,config_hash:configHash,granted_at:new Date(now()).toISOString(),expires_at:expires,

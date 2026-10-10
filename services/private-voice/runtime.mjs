@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {createPrivateVoiceStore,privateVoiceError,privateVoiceSampleConfig,privateVoiceHash} from '../../api/_private-voice-store.js';
+import {createPrivateVoiceStore,privateVoiceError,privateVoiceExpectedConfig,privateVoiceHash} from '../../api/_private-voice-store.js';
 import {createOpenChatterboxPreviewProvider} from '../../api/_voice/providers/open-chatterbox-preview.js';
 import {probeEnrollmentWav} from '../../api/_audio/wav.js';
 import {readPrivateReplicaObject,writeImmutableReplicaArtifact,deleteReplicaObject} from '../../api/_replica-storage.js';
@@ -26,7 +26,8 @@ export function createPrivateVoiceRuntime({db,env=process.env,fetchImpl=fetch,no
   try{
    row=await execution.claim(owner,input);if(!row)return;
    row=await execution.start(row);const started=now();
-   if(privateVoiceHash(row.config)!==privateVoiceHash(privateVoiceSampleConfig()))fail('private_voice_config_changed');
+   let expectedConfig;try{expectedConfig=privateVoiceExpectedConfig(row.config);}catch{fail('private_voice_config_changed');}
+   if(privateVoiceHash(row.config)!==privateVoiceHash(expectedConfig))fail('private_voice_config_changed');
    await lifecycle.controller.assertSupervisorReady();
    let current=await execution.check(row);
    const ref=current.snapshot;
@@ -42,6 +43,7 @@ export function createPrivateVoiceRuntime({db,env=process.env,fetchImpl=fetch,no
     reference:{bytes:object.body,sha256:row.reference_sha256,durationMs:probe.durationMs,languageMode:'unknown',languageEvidenceScope:'unverified'},signal});
    if(synthesized.receipt?.modelArm!=='hindi_v3'||synthesized.receipt.modelCommitment!==row.config.model_commitment||synthesized.receipt.perthWatermarkVerified!==true||
     synthesized.receipt.referenceSha256!==row.reference_sha256||!synthesized.disclosureText)fail('private_voice_synthesis_binding_invalid');
+   if(row.config.text_frontend&&privateVoiceHash(synthesized.receipt.textFrontend)!==privateVoiceHash(row.config.text_frontend))fail('private_voice_text_plan_binding_invalid');
    await execution.renew(row);
    current=await execution.check(row);
    const ledger=createPrivateVoiceLedger(db,row);

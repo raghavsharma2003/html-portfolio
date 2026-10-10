@@ -19,7 +19,7 @@ import {PRIVATE_LEDGER_SQL} from '../../api/_provenance/private-voice-ledger.js'
 import {GPU_WINDOW_SQL} from '../../api/_gpu-allocation-budget.js';
 import {VOICE_APP_SQL} from '../../api/_voice/allocation-boundary.js';
 import {PRIVATE_VOICE_RECENT_SQL,PRIVATE_VOICE_CANDIDATES_SQL,PRIVATE_VOICE_READ_SQL,PRIVATE_VOICE_ADMIT_SQL,PRIVATE_VOICE_REVOKE_SQL,
- privateVoiceHash,PRIVATE_VOICE_STATEMENT_SET} from '../../api/_private-voice-store.js';
+ privateVoiceHash,PRIVATE_VOICE_STATEMENT_SET,PRIVATE_VOICE_TEXT_MAX_CODE_POINTS,PRIVATE_VOICE_TEXT_VERSION} from '../../api/_private-voice-store.js';
 const owner='11111111-1111-4111-8111-111111111111',replica='22222222-2222-4222-8222-222222222222';
 const source='33333333-3333-4333-8333-333333333333',artifact='44444444-4444-4444-8444-444444444444';
 const other='55555555-5555-4555-8555-555555555555',sha=x=>createHash('sha256').update(x).digest('hex');
@@ -239,6 +239,41 @@ test('Docker positive file list includes every static runtime import and exclude
  checkImports(bundled);assert.ok(!bundled.has('api/_config.js'));assert.ok(!docker.includes('COPY . '));
  const missingScope=new Set(bundled);missingScope.delete('api/_replica-erasure-scope.js');
  assert.throws(()=>checkImports(missingScope),/missing packaged runtime dependency api\/_replica-erasure-scope\.js/);
+});
+test('owner-entered Hindi and Hinglish text is content-bound while omitted text keeps the legacy sample',async()=>{
+ const t=await setup();try{
+  const text='आज AI concept को step by step समझेंगे।',runId=randomUUID();
+  const accepted=await t.generate(runId,{text});assert.equal(accepted.status,202,JSON.stringify(accepted));await t.drain();
+  const row=t.runs.get(runId),call=t.calls.find(item=>item.operation==='synthesize');
+  assert.equal(row.state,'ready');assert.equal(row.config.version,PRIVATE_VOICE_TEXT_VERSION);
+  assert.equal(row.config.text,text);assert.equal(row.config.text_provenance,'owner_entered_private_sample');
+  assert.equal(row.config.text_frontend.inputSha256,row.text_sha256);assert.equal(call.body.text_plan_sha256,row.config.text_frontend.planSha256);
+  assert.match(call.body.text,/आज/);assert.match(call.body.text,/एआई/);assert.equal(call.body.language_id,'hi');
+  const conflict=await t.generate(runId,{text:'आज दूसरा वाक्य बोलेंगे।'});assert.equal(conflict.status,409);
+  assert.equal(t.calls.filter(item=>item.operation==='synthesize').length,1);
+ }finally{await t.stop();}
+});
+test('unsupported or oversized owner text refuses before budget reservation or dispatch',async()=>{
+ const t=await setup();try{
+  const english=await t.generate(randomUUID(),{text:'Explain this concept in simple English.'});
+  assert.equal(english.status,400);assert.equal(english.body.error,'private_voice_english_not_supported');
+  const oversized=await t.generate(randomUUID(),{text:'अ'.repeat(PRIVATE_VOICE_TEXT_MAX_CODE_POINTS+1)});
+  assert.equal(oversized.status,400);assert.equal(oversized.body.error,'private_voice_text_too_large');
+  assert.equal(t.calls.length,0);assert.equal(t.windows.size,0);assert.equal(t.runs.size,0);
+ }finally{await t.stop();}
+});
+test('a coherently rehashed stored text plan still refuses before budget or dispatch',async()=>{
+ const t=await setup();try{
+  const run_id=randomUUID(),input={replica_id:replica,source_id:source,artifact_id:artifact,run_id,
+   expected_snapshot_hash:privateVoiceHash(t.snapshot),statement_set:PRIVATE_VOICE_STATEMENT_SET,
+   attestations:{own_voice_private_use:true},text:'kal हम AI समझेंगे।'};
+  await t.runtime.store.admit(owner,input);const row=t.runs.get(run_id);
+  row.config.text_frontend={...row.config.text_frontend,planSha256:'f'.repeat(64)};
+  row.config_hash=privateVoiceHash(row.config);row.receipt.config_hash=row.config_hash;row.receipt_hash=privateVoiceHash(row.receipt);
+  const status=await t.request({action:'status',replica_id:replica,run_id},'good','GET');
+  assert.equal(status.status,503);assert.equal(status.body.error,'private_voice_receipt_invalid');
+  assert.equal(t.calls.length,0);assert.equal(t.windows.size,0);
+ }finally{await t.stop();}
 });
 
 test('build packet manifest and archive use the same exact Docker positive list including erasure scope',()=>{

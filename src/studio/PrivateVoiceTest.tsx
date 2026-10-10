@@ -54,6 +54,10 @@ const COPY = {
     preparingRecordingHelp: "Check again after processing finishes.",
     addRecording: "Add a recording",
     language: "Hindi and Hinglish",
+    sampleText: "What should your voice say?",
+    sampleTextHelp: "Use Hindi or Hinglish. This Hindi model does not support English-only text.",
+    sampleTextCount: "{n} of {max} characters",
+    fixedSampleOnly: "This service currently supports the fixed sample below.",
     statementTitle: "Private test statement",
     statementHelp: "This exact line is used only for this test request.",
     confirm: "I confirm this is my own voice and I am using it for a private test.",
@@ -113,6 +117,10 @@ const COPY = {
     preparingRecordingHelp: "प्रोसेसिंग पूरी होने के बाद फिर जाँचें।",
     addRecording: "रिकॉर्डिंग जोड़ें",
     language: "हिंदी और हिंग्लिश",
+    sampleText: "आवाज़ क्या बोले?",
+    sampleTextHelp: "हिंदी या हिंग्लिश लिखें। यह हिंदी मॉडल केवल अंग्रेज़ी वाक्य नहीं बोलता।",
+    sampleTextCount: "{max} में से {n} अक्षर",
+    fixedSampleOnly: "यह सेवा अभी नीचे दिया गया तय नमूना बना सकती है।",
     statementTitle: "निजी जाँच का वाक्य",
     statementHelp: "यही पंक्ति केवल इस जाँच अनुरोध में इस्तेमाल होगी।",
     confirm: "मैं पुष्टि करता हूँ कि यह मेरी अपनी आवाज़ है और मैं इसे निजी जाँच के लिए इस्तेमाल कर रहा हूँ।",
@@ -232,6 +240,7 @@ export function PrivateVoiceTest({
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [availability, setAvailability] = useState<PrivateVoiceAvailability | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState("");
+  const [sampleText, setSampleText] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [run, setRun] = useState<DisplayRun | null>(null);
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
@@ -300,6 +309,7 @@ export function PrivateVoiceTest({
       if (controller.signal.aborted || scopeRef.current !== capturedScope || availabilityEpochRef.current !== availabilityEpoch) return;
       storageKeyRef.current = key;
       setAvailability(next);
+      if (!refreshOnly) setSampleText(next.config.text);
       setSelectedCandidate((current) => next.candidates.some((item) => candidateKey(item) === current)
         ? current
         : next.candidates[0] ? candidateKey(next.candidates[0]) : "");
@@ -359,6 +369,7 @@ export function PrivateVoiceTest({
     setAudioError(null);
     setAvailability(null);
     setSelectedCandidate("");
+    setSampleText("");
     setConfirmed(false);
     setRun(null);
     setRatings({});
@@ -441,7 +452,8 @@ export function PrivateVoiceTest({
     setErrorCode(null);
     const controller = trackedController();
     try {
-      const result = await generatePrivateVoice(token, replicaId, candidate, runId, availability.statement_set, controller.signal);
+      const result = await generatePrivateVoice(token, replicaId, candidate, runId, availability.statement_set,
+        availability.text_limits ? sampleText.trim() : undefined, controller.signal);
       if (!controller.signal.aborted && scopeRef.current === capturedScope) applyRun(result.run);
     } catch (cause) {
       if (isAbort(cause) || scopeRef.current !== capturedScope) return;
@@ -509,7 +521,10 @@ export function PrivateVoiceTest({
   </section>;
 
   const chosen = availability.candidates.find((item) => candidateKey(item) === selectedCandidate);
-  const canStart = Boolean(chosen && confirmed && !busyAction && (!run || run.state === "revoked" || run.state === "expired"));
+  const sampleTextLength = Array.from(sampleText.trim()).length;
+  const sampleTextValid = !availability.text_limits
+    || (sampleTextLength > 0 && sampleTextLength <= availability.text_limits.max_code_points);
+  const canStart = Boolean(chosen && confirmed && sampleTextValid && !busyAction && (!run || run.state === "revoked" || run.state === "expired"));
   const pending = Boolean(run && PENDING_STATES.has(run.state));
   const currentStatus = run ? statusCopy(run, copy) : null;
   const savedRatings = run?.ratings;
@@ -543,6 +558,18 @@ export function PrivateVoiceTest({
       </fieldset>
 
       {availability.candidates.length ? <div className="private-voice-test__statement">
+        {availability.text_limits ? <div className="private-voice-test__text-input">
+          <label htmlFor="private-voice-sample-text">{copy.sampleText}</label>
+          <textarea id="private-voice-sample-text" value={sampleText} rows={4}
+            aria-describedby="private-voice-sample-help private-voice-sample-count"
+            aria-invalid={sampleTextLength > availability.text_limits.max_code_points}
+            onChange={(event) => setSampleText(event.currentTarget.value)} />
+          <div className="private-voice-test__text-meta">
+            <small id="private-voice-sample-help">{copy.sampleTextHelp}</small>
+            <small id="private-voice-sample-count" aria-live="polite">{copy.sampleTextCount
+              .replace("{n}", String(sampleTextLength)).replace("{max}", String(availability.text_limits.max_code_points))}</small>
+          </div>
+        </div> : <p className="private-voice-test__fixed-sample" data-private-voice-fixed-sample>{copy.fixedSampleOnly}</p>}
         <div><h3>{copy.statementTitle}</h3><p>{copy.statementHelp}</p></div>
         <blockquote lang="hi">{availability.statement}</blockquote>
         <label className="private-voice-test__confirm">

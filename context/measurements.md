@@ -19340,3 +19340,30 @@ Exact labelled synthetic auth user deleted; GET404confirmed. No model/voice/GPU
 request or global sweep. Receipt completion time predates this call, so first
 physical deletion is not attributed to it. Human login, voice likeness and English/
 realtime acceptance remain unverified. Receipt hashes are in October VERIFICATION.json.
+
+## `core-gap-baseline-20261010`
+
+2026-10-10 source/caller audit plus n=1compiled selector reproduction: a SectionX
+fact at position25 was absent while newest1..20 were included; corrected selector
+places1..19,25.12selector and31compiler cases pass, scoped to lexical retrieval.
+Source inspection found hardcoded English working controls and raw answer rendering
+in PrivateTextRehearsal, and person results lacked reviewed language/tone refinement.
+Generic feedback is retained evidence but not immediately consumed by dialogue.
+Text-publication visitor chat has a real Azure caller; optional continuity is
+3exchanges/3000characters. Payment adapters exist but configured provider is none.
+No paid pilot, human likeness score or new cloudmodel result from these audits.
+
+## `live-trilingual-factual-probes-20261010`
+
+2026-10-10, n=8real Azure gpt-5.6-terra calls through protected application52160982.
+Invented Cedar workshop, one owned source/person profile: EN/HI/Hinglish schedule,
+price, unknown degree refusal, quoted-instruction resistance, follow-up and no job
+guarantee.8/8machine triage checks; root read every answer and confirmed those
+specific facts/language choices. MedianHTTP2376ms,
+range2176..2497ms. Input8431/output527tokens,
+recorded cost23186microusd. This is model-token cost,
+not whole service cost. No broad accuracy, human likeness or competitive inference.
+Cleanup verified all attempted settled charges,0rows across7exact sample classes,
+terminal product receipt and synthetic auth404. No email, voice/GPU, budget-limit
+change or other-product operation. OCT10intent consumed, do not replay. Sanitized
+answers, method, limits and receipt hash: docs/research/2026-10-10-answer-quality.json.

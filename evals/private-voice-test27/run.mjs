@@ -57,6 +57,7 @@ const config = (account) => ({
   statement_set: statementSet,
   statement: account === "B" ? "यह केवल खाता बी का निजी वाक्य है।" : "यह केवल खाता ए का निजी वाक्य है।",
   config: { text: "fixture", language_id: "hi", model_arm: "hindi_v3", seed: 27, public_release: false },
+  text_limits: { max_code_points: 280, language_id: "hi", english_supported: false },
   candidates: [{ source_id: `source-${account}`, artifact_id: `artifact-${account}`, reference_sha256: "a".repeat(64), duration_ms: 24000, snapshot_hash: `snapshot-${account}` }],
 });
 const run = (runId, state, account = "A") => ({
@@ -142,6 +143,7 @@ try {
           action: "generate", replica_id: replicaId, source_id: "source-A", artifact_id: "artifact-A",
           run_id: activeRun, expected_snapshot_hash: "snapshot-A", statement_set: statementSet,
           attestations: { own_voice_private_use: true },
+          text: "आज नया AI concept समझेंगे।",
         });
         return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "private_voice_dispatch_uncertain", blocker_class: "us" }) });
       }
@@ -151,6 +153,9 @@ try {
     assert.equal(postCount, 0);
     const generate = page.getByRole("button", { name: "Make private sample" });
     assert.equal(await generate.isDisabled(), true);
+    const sampleText = page.getByRole("textbox", { name: "What should your voice say?" });
+    assert.equal(await sampleText.inputValue(), "fixture");
+    await sampleText.fill("आज नया AI concept समझेंगे।");
     await page.getByRole("checkbox").check();
     assert.equal(await generate.isEnabled(), true);
     assert.ok((await generate.boundingBox()).height >= 44);
@@ -171,6 +176,45 @@ try {
     await page.getByRole("heading", { name: "Voice test closed" }).waitFor();
     await page.waitForFunction((url) => window.privateVoiceProbe.revoked.includes(url), source);
     pass("unmount revokes the authenticated WAV blob URL");
+    await context.close();
+  }
+
+  {
+    let posts = 0;
+    const { context, page } = await pageWithRoute((route) => {
+      if (route.request().method() === "POST") posts += 1;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(config("A")) });
+    });
+    await page.getByRole("heading", { name: "Test your voice privately" }).waitFor();
+    await page.getByRole("textbox", { name: "What should your voice say?" }).fill("अ".repeat(281));
+    await page.getByRole("checkbox").check();
+    assert.equal(await page.getByRole("button", { name: "Make private sample" }).isDisabled(), true);
+    assert.equal(await page.getByText("281 of 280 characters", { exact: true }).count(), 1);
+    assert.equal(await page.getByText("Use Hindi or Hinglish. This Hindi model does not support English-only text.", { exact: true }).count(), 1);
+    assert.equal(posts, 0);
+    pass("the owner text editor enforces its code-point bound before generation and names the English limit");
+    await context.close();
+  }
+
+  {
+    const legacy = { ...config("A") };
+    delete legacy.text_limits;
+    let posted;
+    const { context, page } = await pageWithRoute((route) => {
+      if (route.request().method() === "POST") {
+        posted = route.request().postDataJSON();
+        return route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ created: true, run: run(posted.run_id, "failed") }) });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(legacy) });
+    });
+    await page.getByRole("heading", { name: "Test your voice privately" }).waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "What should your voice say?" }).count(), 0);
+    assert.equal(await page.getByText("This service currently supports the fixed sample below.", { exact: true }).count(), 1);
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Make private sample" }).click();
+    await page.getByRole("heading", { name: "Sample failed" }).waitFor();
+    assert.equal(Object.hasOwn(posted, "text"), false);
+    pass("an older CPU keeps the fixed sample path and receives no unsupported text field");
     await context.close();
   }
 
@@ -228,6 +272,8 @@ try {
       status: 200, contentType: "application/json", body: JSON.stringify(config("A")),
     }), "?lang=hi");
     await page.getByRole("heading", { name: "अपनी आवाज़ निजी रूप से जाँचें" }).waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "आवाज़ क्या बोले?" }).count(), 1);
+    assert.equal(await page.getByText("हिंदी या हिंग्लिश लिखें। यह हिंदी मॉडल केवल अंग्रेज़ी वाक्य नहीं बोलता।", { exact: true }).count(), 1);
     assert.equal(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth), true);
     assert.ok((await page.getByRole("button", { name: "निजी नमूना बनाएँ" }).boundingBox()).height >= 44);
     pass("Hindi copy reflows at phone width with a 44px primary action");

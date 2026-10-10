@@ -19423,3 +19423,14 @@ found deployment project/url/source binding lacked targetPreview; added explicit
 Preview target verification before intent creation. Syntax checks and the exact
 live cleanup passed. Do not replay consumed intents. A returned terminal receipt
 proves terminal status, not the timing/agent of prior physical deletion.
+
+## `demo-and-test-pass-are-not-sellability-20261010`
+
+The private voice entry currently exposes a fixed Hindi sentence despite a provider
+that can synthesize bounded chosen text. Generic saved correction feedback does
+not immediately change the next generated answer. Treating either as complete
+would obscure core product gaps. Extend capability through actual callers and
+reviewed, typed changes, then test resulting behavior. A new voice UI must not
+invent text_limits when talking to an older CPU runtime; missing capability means
+the legacy fixed-sample path only. Synthetic factual regexes remain triage requiring
+human review, never an overall quality score or proof of competitor superiority.

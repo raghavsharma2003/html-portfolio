@@ -17,6 +17,11 @@
     "blocks": "this is blocked on that"
   },
   "nodes": [
+    {"id": "live-trilingual-factual-probes-20261010", "kind": "measurement", "title": "Eight live trilingual factual probes and exact synthetic cleanup", "at": "2026-10-10"},
+    {"id": "sellable-core-iteration-20261010", "kind": "decision", "title": "Prioritize usable corrections, chosen voice text and factual evidence", "at": "2026-10-10"},
+    {"id": "core-gap-baseline-20261010", "kind": "measurement", "title": "Concrete baseline misses in selection and correction callers", "at": "2026-10-10"},
+    {"id": "demo-and-test-pass-are-not-sellability-20261010", "kind": "rejection", "title": "A fixed sentence and saved feedback do not complete a clone", "at": "2026-10-10"},
+
     {"id": "protected-preview-exception-20261009", "kind": "decision", "title": "Narrow contextual approval deploys only protected Vyakti preview", "at": "2026-10-09"},
     {"id": "protected-preview-and-terminal-cleanup-20261009", "kind": "measurement", "title": "Verified October preview and exact synthetic account cleanup", "at": "2026-10-09"},
     {"id": "shared-budget-equality-and-missing-preview-binding-20261009", "kind": "rejection", "title": "Shared budget equality is not exact test identity", "at": "2026-10-09"},
@@ -21083,6 +21088,10 @@
     }
   ],
   "edges": [
+    {"src": "sellable-core-iteration-20261010", "rel": "measured_by", "dst": "live-trilingual-factual-probes-20261010"},
+    {"src": "sellable-core-iteration-20261010", "rel": "measured_by", "dst": "core-gap-baseline-20261010"},
+    {"src": "demo-and-test-pass-are-not-sellability-20261010", "rel": "measured_by", "dst": "core-gap-baseline-20261010"},
+
     {"src": "protected-preview-exception-20261009", "rel": "measured_by", "dst": "protected-preview-and-terminal-cleanup-20261009"},
     {"src": "protected-preview-and-terminal-cleanup-20261009", "rel": "supersedes", "dst": "offline-release-accepted-preview-pending-20261009"},
     {"src": "shared-budget-equality-and-missing-preview-binding-20261009", "rel": "measured_by", "dst": "protected-preview-and-terminal-cleanup-20261009"},

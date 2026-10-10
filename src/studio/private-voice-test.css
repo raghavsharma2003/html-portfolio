@@ -12,11 +12,11 @@
   overflow: hidden;
 }
 
-.private-voice-test :where(button, input, audio) {
+.private-voice-test :where(button, input, textarea, audio) {
   font: inherit;
 }
 
-.private-voice-test :where(button, input):focus-visible {
+.private-voice-test :where(button, input, textarea):focus-visible {
   outline: 3px solid color-mix(in srgb, var(--pvt-active) 28%, transparent);
   outline-offset: 2px;
 }
@@ -154,6 +154,57 @@
   margin: -7px 0 16px;
   color: var(--pvt-muted);
   line-height: 1.45;
+}
+
+.private-voice-test__text-input {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.private-voice-test__text-input label {
+  font-weight: 650;
+}
+
+.private-voice-test__text-input textarea {
+  width: 100%;
+  min-height: 116px;
+  resize: vertical;
+  padding: 12px 14px;
+  color: var(--pvt-ink);
+  background: var(--pvt-paper);
+  border: 1px solid #cbd1db;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.private-voice-test__text-input textarea[aria-invalid="true"] {
+  border-color: #a44924;
+}
+
+.private-voice-test__text-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--pvt-muted);
+  line-height: 1.4;
+}
+
+.private-voice-test__text-meta small:first-child {
+  max-width: 48ch;
+}
+
+.private-voice-test__text-meta small:last-child {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.private-voice-test__fixed-sample {
+  margin: 0 0 20px;
+  color: var(--pvt-muted);
+  line-height: 1.5;
 }
 
 .private-voice-test__statement blockquote {
@@ -396,6 +447,11 @@
   .private-voice-test__header {
     display: grid;
     gap: 14px;
+  }
+
+  .private-voice-test__text-meta {
+    display: grid;
+    gap: 6px;
   }
 
   .private-voice-test__badges {

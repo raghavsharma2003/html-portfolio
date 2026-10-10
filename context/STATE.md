@@ -1,5 +1,26 @@
 # STATE — read this first, then the graph
 
+## START HERE: OCTOBER 10 ITERATION IN PROGRESS
+
+The owner asked to keep improving Vyakti toward a sellable product. Work continues
+in standalone25 on the same branch; the October9 preview below is still the live
+release. Read `docs/handoff/2026-10-10/WORK-IN-PROGRESS.md` for the current batch.
+Custom Hindi/Hinglish sample text, Hindi rehearsal controls, reviewed person
+language/tone refinement and long-document private retrieval are being integrated.
+Do not deploy a partial working tree or replay any consumed operator intent.
+
+New live evidence: eight invented factual questions through the accepted Azure
+text path passed the specific checks and were read by root. Median HTTP2376ms,
+recorded model-token cost23186microusd total. The exact synthetic account and
+sample data were removed, with every attempted charge preserved. Sanitized
+answers and limits are in `docs/research/2026-10-10-answer-quality.json`.
+This does not establish voice likeness, real-human usability, PMF or superiority.
+
+Maya, Meera and other products remain out of scope. Azure-only serving, existing
+spend caps, no personal Microsoft login and no reuse of old voice recordings
+remain binding. Existing English Chatterbox/Qwen app metadata was read only;
+no GPU was activated. Paused goals/automations remain paused.
+
 ## START HERE: OCTOBER 9 PREVIEW DEPLOYED AND VERIFIED
 
 Application **52160982** is now deployed to the protected Vyakti preview:

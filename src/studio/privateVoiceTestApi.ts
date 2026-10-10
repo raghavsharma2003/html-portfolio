@@ -27,7 +27,7 @@ export interface PrivateVoiceCandidate {
 }
 
 export interface PrivateVoiceConfig {
-  version: "private-hindi-sample/v1";
+  version: "private-hindi-sample/v1" | "private-hindi-text/v1";
   scope: "private_voice_test";
   text: string;
   text_sha256: string;
@@ -49,7 +49,8 @@ export interface PrivateVoiceConfig {
     qualityState: string;
     qualityWarnings: string[];
   };
-  text_provenance: "server_fixed_sample";
+  text_frontend?: Record<string, unknown>;
+  text_provenance: "server_fixed_sample" | "owner_entered_private_sample";
   reference_language_provenance: "unassessed";
   identity_scope: "account_self_attestation";
   identity_claim_allowed: false;
@@ -87,6 +88,11 @@ export interface PrivateVoiceAvailability {
   statement_set: "private-own-voice/v1";
   statement: string;
   config: PrivateVoiceConfig;
+  text_limits: {
+    max_code_points: number;
+    language_id: "hi";
+    english_supported: false;
+  } | null;
   candidates: PrivateVoiceCandidate[];
   run?: PrivateVoiceRun | null;
 }
@@ -131,6 +137,12 @@ function validateAvailability(value: unknown): PrivateVoiceAvailability {
       || !isObject(value.config) || !Array.isArray(value.candidates)) {
     throw new PrivateVoiceApiError("private_voice_response_invalid", 502, value);
   }
+  const textLimits = value.text_limits === undefined ? null : value.text_limits;
+  const textLimitMax = isObject(textLimits) ? Number(textLimits.max_code_points) : Number.NaN;
+  if (textLimits !== null && (!isObject(textLimits) || typeof textLimits.max_code_points !== "number" || !Number.isInteger(textLimitMax)
+      || textLimitMax < 1 || textLimitMax > 280 || textLimits.language_id !== "hi" || textLimits.english_supported !== false)) {
+    throw new PrivateVoiceApiError("private_voice_response_invalid", 502, value);
+  }
   for (const item of value.candidates) {
     if (!isObject(item) || typeof item.source_id !== "string" || typeof item.artifact_id !== "string"
         || typeof item.reference_sha256 !== "string" || typeof item.duration_ms !== "number"
@@ -142,7 +154,7 @@ function validateAvailability(value: unknown): PrivateVoiceAvailability {
   if (value.run != null && !validRun(value.run)) {
     throw new PrivateVoiceApiError("private_voice_response_invalid", 502, value);
   }
-  return value as unknown as PrivateVoiceAvailability;
+  return { ...value, text_limits: textLimits } as unknown as PrivateVoiceAvailability;
 }
 
 function validateRunResult(value: unknown): { run: PrivateVoiceRun } {
@@ -200,6 +212,7 @@ export async function generatePrivateVoice(
   candidate: PrivateVoiceCandidate,
   runId: string,
   statementSet: PrivateVoiceAvailability["statement_set"],
+  text: string | undefined,
   signal?: AbortSignal,
 ): Promise<PrivateVoiceGenerateResult> {
   const value = await jsonRequest("/api/private-voice", token, {
@@ -214,6 +227,7 @@ export async function generatePrivateVoice(
       expected_snapshot_hash: candidate.snapshot_hash,
       statement_set: statementSet,
       attestations: { own_voice_private_use: true },
+      ...(text === undefined ? {} : { text }),
     }),
   });
   if (!isObject(value) || typeof value.created !== "boolean" || !validRun(value.run)) {
