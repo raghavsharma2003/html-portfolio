@@ -19434,3 +19434,18 @@ reviewed, typed changes, then test resulting behavior. A new voice UI must not
 invent text_limits when talking to an older CPU runtime; missing capability means
 the legacy fixed-sample path only. Synthetic factual regexes remain triage requiring
 human review, never an overall quality score or proof of competitor superiority.
+
+## `transient-results-and-confounded-language-tests-20261010`
+
+The final CI browser test awaited any result paragraph, then immediately asserted
+the settled blocked-answer message. Faster CI saw the real transient checking
+paragraph first. Preserve the exact final semantic expectation and synchronize
+to the response state; do not widen the assertion to accept either outcome.
+Voice review separately caught the permission sentence labelled as spoken text,
+and an unvalidated config.text dereference. The corrected legacy view shows the
+actual spoken text and rejects malformed configuration before rendering.
+The prepared live refinement probe originally asked explicitly for Hindi after
+saving a Hindi preference; that cannot isolate the setting's effect. It now asks
+the same English root question before/after, without parent context or retries.
+The probe is prepared, not yet run. An available Azure embedding resource also
+does not imply a configured app caller or authorize unbudgeted older callers.

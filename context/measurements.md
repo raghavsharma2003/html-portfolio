@@ -19367,3 +19367,19 @@ Cleanup verified all attempted settled charges,0rows across7exact sample classes
 terminal product receipt and synthetic auth404. No email, voice/GPU, budget-limit
 change or other-product operation. OCT10intent consumed, do not replay. Sanitized
 answers, method, limits and receipt hash: docs/research/2026-10-10-answer-quality.json.
+
+## `candidate-contract-checks-20261010`
+
+2026-10-10, n=6 real PostgreSQL EXPLAIN cases passed for refinement review/save
+(teacher and person) and publication admit/complete, in a read-only transaction
+with rollback and no ANALYZE. Candidate a95589f8: Android38029305923 passed;
+release38029305864 Node22job114146749177 and Node24job114146749230 each24/25.
+Only private-text-rehearsal-ui failed; both performance/layout/accessibility
+checks passed. Focused voice UI14/14, runtime52, Hindi frontend34 and open-voice78
+passed offline. No new voice output or likeness result follows from these tests.
+Fresh DB readback at1791612114 reports the same36external legacy pointers only;
+citation and all3dialogue SQL checks pass. Receipt SHA
+d72d3fccc34be0c25eaa6fd56966a91e4066b81437868016903e7a3b75fb686d.
+Two targeted Azure metadata GETs confirm an available embedding deployment;
+Vyakti-only Vercel metadata confirms missing runtime endpoint/key names. This
+proves neither an embedding response nor a past deployment's exact environment.

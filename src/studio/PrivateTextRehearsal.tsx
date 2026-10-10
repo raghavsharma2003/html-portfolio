@@ -279,11 +279,11 @@ function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditCont
       </header>
       {error && (!readinessError || requestId) ? <p className="ptr-message" role="alert">{error}</p> : null}
       {requestId ? <section className="ptr-result" aria-label={copy.result.aria}>
-        <h2 ref={resultHeading} tabIndex={-1}>{erased || result?.state === "withdrawn" ? copy.result.removedTitle : result?.state === "complete" ? copy.result.answerTitle : copy.result.pendingTitle}</h2>
+        <h2 ref={resultHeading} tabIndex={-1}>{erased || result?.state === "withdrawn" ? copy.result.removedTitle : result?.state === "complete" ? copy.result.answerTitle : busy === "ask" && !result ? copy.result.askingTitle : copy.result.pendingTitle}</h2>
         {!erased && result?.state === "complete" ? <>
           <div className="ptr-answer"><ExpertAnswer text={result.answer!} /></div>
           <p className="ptr-source">{copy.result.source}: {readiness?.context_items.find(item => item.item_id === result.source.context_item_id)?.source_name || copy.result.selectedSource}. {copy.result.profile}: {readiness?.drafts.find(item => item.sheet_id === result.source.sheet_id)?.name || copy.result.selectedDraft}.</p>
-        </> : erased || result?.state === "withdrawn" ? <p>{copy.result.closed}</p> : <p>{result?.state === "blocked" ? privateTextFailureMessage(result.failure_code, locale) : copy.result.pending}</p>}
+        </> : erased || result?.state === "withdrawn" ? <p>{copy.result.closed}</p> : <p>{busy === "ask" && !result ? copy.result.asking : result?.state === "blocked" ? privateTextFailureMessage(result.failure_code, locale) : copy.result.pending}</p>}
         {!erased && (result?.state === "complete" || result?.state === "blocked" && result.can_review_teaching === true) && result.billing_state === "settled" ? <PrivateTeachingRefinement recoveryOnly={result.state !== "complete"} sheetKind={result.source.sheet_kind} token={token} replicaId={replicaId} requestId={result.request_id} sheetId={result.source.sheet_id} disabled={Boolean(busy)} onOpenChange={setRefinementOpen} onAuthError={onAuthErrorRef.current} onNextQuestion={newQuestion} onRetryQuestion={question.trim() ? () => newQuestion(null, question) : undefined} onEditKnowledge={() => onEditContext({ question, sheetId: result.source.sheet_id, contextItemId: result.source.context_item_id })} onEditProfile={onEditProfile ? () => onEditProfile({ question, sheetId: result.source.sheet_id, contextItemId: result.source.context_item_id }) : undefined} onDraftChanged={view => {
           readOperation.current++; setReadiness(null); setAttested([]);
           setSelection({sheetId: view.sheet_id, contextItemId: result.source.context_item_id}); setRefresh(value => value + 1);

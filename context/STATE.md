@@ -9,6 +9,24 @@ Custom Hindi/Hinglish sample text, Hindi rehearsal controls, reviewed person
 language/tone refinement and long-document private retrieval are being integrated.
 Do not deploy a partial working tree or replay any consumed operator intent.
 
+Candidate a95589f8 is pushed but NOT deployed. Android passed; both Node gates
+finished24/25, with only private-text-rehearsal-ui failing on an assertion that
+read the transient checking message before the final blocked result. A held-response
+test now verifies the honest in-flight state and waits for the final recovery;
+all26focused mounted groups pass. A new full gate is still required. The fresh live DB
+check still reports only36external Meera pointers; other DB checks pass.
+
+Next iteration is isolated in `Vyakti-platform-accesspass-oct10`, branch
+`codex/vyakti-access-passes-oct10`, based on a95589f8. It implements owner-issued
+single-use publication access, not payments. Migration173 is reserved there.
+Do not deploy or merge this unfinished work into the current release.
+
+Embedding prerequisite: the existing Azure text-embedding-3-small deployment
+reports Succeeded, but the Vyakti project's current Preview environment lacks
+AZURE_ENDPOINT and AZURE_API_KEY required by the azure_only embedding caller.
+No environment write or model call occurred. Do not enable its older callers
+without tracing ownership and durable budget admission first.
+
 New live evidence: eight invented factual questions through the accepted Azure
 text path passed the specific checks and were read by root. Median HTTP2376ms,
 recorded model-token cost23186microusd total. The exact synthetic account and

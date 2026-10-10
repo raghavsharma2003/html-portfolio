@@ -25663,3 +25663,14 @@ feature breadth. Keep all serving on Azure, other products untouched and existin
 budgets unchanged. Factual synthetic probes and local tests are separate evidence
 from real-user value, voice likeness and competitor comparison. Reverse priority
 when a reproduced higher-impact failure or measured customer outcome warrants it.
+
+## `bounded-source-and-voice-extension-20261010`
+
+Select whole canonical passages from one fully authorized source under the
+existing8000-character prompt budget. Bind the question and exact evidence to
+the durable private or public request; retain legacy short-source identities.
+Expose chosen Hindi/Hinglish speech only when the CPU advertises that capability,
+and preserve a visible fixed spoken sample on an older CPU. Keep profile changes
+explicit and typed, with a fresh question after applying them. Reverse the lexical
+selection when a scoped, budgeted multilingual retrieval implementation beats it
+on matched evidence tests; reverse the voice arm only after fresh listening proof.

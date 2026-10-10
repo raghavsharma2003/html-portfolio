@@ -12,8 +12,8 @@ type Copy = {
     draftUnavailable: string;
   };
   result: {
-    aria: string; removedTitle: string; answerTitle: string; pendingTitle: string; closed: string;
-    blocked: string; pending: string; source: string; profile: string; selectedSource: string;
+    aria: string; removedTitle: string; answerTitle: string; askingTitle: string; pendingTitle: string; closed: string;
+    blocked: string; asking: string; pending: string; source: string; profile: string; selectedSource: string;
     selectedDraft: string; adjustPersonality: string; usage: string; requestDetails: string;
     recoveryDetail: string; technicalDetail: string; checking: string; check: string; closing: string;
     cancel: string; remove: string; followUp: string; retrySameQuestion: string; another: string;
@@ -78,9 +78,11 @@ const EN: Copy = {
     aria: "Saved private test",
     removedTitle: "Private test removed.",
     answerTitle: "Your private text answer",
+    askingTitle: "Making your private answer",
     pendingTitle: "Check your private request.",
     closed: "This request is closed. Any saved question and answer have been removed.",
     blocked: "This answer is unavailable under the current draft or source permissions.",
+    asking: "Your question was sent once. We are preparing the answer.",
     pending: "An answer is not confirmed yet. Checking the saved result does not send another question.",
     source: "Source",
     profile: "Profile",
@@ -202,9 +204,11 @@ const HI: Copy = {
     aria: "सेव किया गया निजी टेस्ट",
     removedTitle: "निजी टेस्ट हटा दिया गया।",
     answerTitle: "आपका निजी टेक्स्ट जवाब",
+    askingTitle: "आपका निजी जवाब बन रहा है",
     pendingTitle: "अपना निजी अनुरोध जाँचें।",
     closed: "यह अनुरोध बंद है। सेव किया गया सवाल और जवाब हटा दिए गए हैं।",
     blocked: "मौजूदा ड्राफ़्ट या स्रोत की अनुमति के साथ यह जवाब उपलब्ध नहीं है।",
+    asking: "आपका सवाल एक बार भेजा गया है। जवाब तैयार हो रहा है।",
     pending: "अभी जवाब की पुष्टि नहीं हुई है। सेव किया गया नतीजा जाँचने से सवाल दोबारा नहीं भेजा जाता।",
     source: "स्रोत",
     profile: "प्रोफ़ाइल",

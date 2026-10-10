@@ -92,6 +92,20 @@ record it as a local failure, not an application regression established by a
 baseline comparison. The obsolete Windows run and only its own process tree
 were stopped after these CI results; it is not a completed acceptance run.
 
+Candidate a95589f8 release38029305864 finished24/25 on both Node versions.
+Only private-text-rehearsal-ui failed: an immediate assertion read a transient
+paragraph before the blocked response. The focused repair holds that response,
+checks a proper in-flight generation state, waits for the exact final recovery
+copy, and retains the no-auto-retry/fresh-root checks. All26mounted groups and
+11response/2navigation/14cancellation controls pass. This repair needs a new
+full CI run. Android38029305923 passed for a955; no cloud build/deploy occurred.
+
+Access passes are being implemented separately in the isolated checkout
+`Vyakti-platform-accesspass-oct10`, branch`codex/vyakti-access-passes-oct10`,
+based on a95589f8, with migration173 reserved. It is not merged or deployed.
+Current Vyakti Preview embedding runtime endpoint/key names are absent despite
+an existing Azure model deployment. No env change or embedding call was made.
+
 Final voice presentation review caught another mismatch: the permission sentence
 was labelled as the spoken sample. Legacy service responses now show the actual
 fixed `config.text` separately, with the unchanged permission statement correctly
