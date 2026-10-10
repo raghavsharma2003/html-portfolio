@@ -5,7 +5,7 @@ import {createTextPublicationOwnerHandler,createTextPublicationVisitorHandler} f
 import {sha256Hex} from '../../api/_provenance/contracts.js';
 import {fixture,id,owner,rid,pid,visitor,other,env,h} from '../text-publication-store/fixtures.mjs';
 import {personFixture} from '../text-publication-store/person-fixture.mjs';
-import {runTextPublicationAccessPassRace} from './live-race.mjs';
+import {beginPinnedAccessPassRaceSession,runTextPublicationAccessPassRace} from './live-race.mjs';
 
 let passed=0;
 const check=async(name,fn)=>{await fn();passed++;console.log('ok '+name);};
@@ -143,6 +143,13 @@ await check('live-race cleanup covers a partial seed but never an unverified pre
   cleanup:async()=>{cleanupCalls++;return{private_rows_remaining:0};},
  }});
  assert.equal(absent.failure?.code,'ABSENCE_UNKNOWN');assert.equal(cleanupCalls,1);assert.deepEqual(absent.cleanup,[]);
+});
+
+await check('live-race captures the backend PID only after BEGIN and transaction limits',async()=>{
+ const calls=[],session={db:async sql=>{calls.push(sql);return sql.startsWith('select current_database()')?[{name:'vyakti_expert_integration_20260906',pid:'4312'}]:[];}};
+ await beginPinnedAccessPassRaceSession(session);
+ assert.deepEqual(calls,['BEGIN',"set local statement_timeout='10s'","set local lock_timeout='7s'",'select current_database() name,pg_backend_pid() pid']);
+ assert.equal(session.pid,4312);
 });
 
 console.log(JSON.stringify({passed,scope:'Actual publication store with an in-memory SQL semantic fixture. No PostgreSQL parser, provider, model, network or cloud calls.'}));
