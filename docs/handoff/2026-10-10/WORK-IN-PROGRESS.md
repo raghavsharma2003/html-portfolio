@@ -55,3 +55,51 @@ three exchanges/3000characters, not established durable learner memory. Room
 payment code exists, but payments are not configured and personal text shares
 have no payment gate. No real paid pilot/renewal/voice-likeness proof exists.
 Prioritize verified usefulness and explicit correction over more feature breadth.
+
+## Integration checkpoint
+
+Voice and live benchmark checkpoint `c0e22210` is pushed. Application candidate
+`39cc26676e479cb177082bfafd3202afaf7337da` is also pushed; it is NOT deployed.
+Its source commitment is
+`sha256:a947542544050055874bbca60235af317a684c300b1ed95e6bd9a11c67783a20`
+(1,127 files, 29,336,643 bytes).
+
+The long-source change now covers private rehearsal AND shared visitor chat.
+It remains lexical retrieval over one source, with an 8,000-character selected
+passage budget. It does not establish semantic, cross-source or corpus search.
+Private pronoun follow-ups can reuse the parent's passage; public pronoun-only
+questions fall back deterministically. All selected passages are bound to the
+full source and exact canonical evidence. No schema migration was introduced.
+
+Actual PostgreSQL EXPLAIN passed six parameter sets for the changed refinement
+and publication statements, in a read-only transaction with no ANALYZE/writes.
+The separate October 10 database gates still fail only on the same 36 external
+legacy Meera pointers; other integrity, citation and dialogue checks pass.
+Do not alter another product to remove that finding or call the DB globally green.
+
+CI on candidate39cc: Android run38025692755 passed. Release run38025692817
+failed on both Node22(job114135946645) and Node24(job114135946536):24/25 checks.
+Only the eval-suite gate failed, in `verification-knowledge` and
+`feed-meet-return-ui`: old copy/punctuation and diagnostic-visibility assertions
+no longer matched the localized interface. Exact bilingual responsibility,
+source-name and action checks now pass; hidden technical codes are checked as
+attached rather than visible. Feed/Meet passed13/13 with exit0. Verification
+passed14/14 and wrote its artifact, then its local server teardown hung and was
+stopped; do not call that process exit0. Do not deploy until the new head passes
+the full matrix. Both CI performance gates
+passed. The separate Windows full run exceeded Studio/Hindi performance budgets;
+record it as a local failure, not an application regression established by a
+baseline comparison. The obsolete Windows run and only its own process tree
+were stopped after these CI results; it is not a completed acceptance run.
+
+One additional real UI bug was fixed before the retry: a definite custom-voice
+text rejection followed by exact run-not-found previously stranded the editor
+in an unknown state. The editor now recovers only on that confirmed combination,
+retaining the text and recording choice. Ambiguous failures still retain the
+handle and block duplicate submission. The mounted voice suite passes13/13.
+
+Ignored operator receipts/helpers use fresh OCT10 names. The eight-call answer
+benchmark and six-case SQL EXPLAIN intents are consumed. No CPU build, CPU update
+or new Vercel deployment has happened. Prepared ACR/CPU helpers require exact
+future gate and source hashes; CPU update preserves configuration and checks
+for active private voice work immediately before an image-only rollout.

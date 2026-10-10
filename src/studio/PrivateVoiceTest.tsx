@@ -35,6 +35,14 @@ const RATING_KEYS: PrivateVoiceRatingKey[] = [
   "owner_likeness", "naturalness", "indian_accent", "pronunciation",
 ];
 const PENDING_STATES = new Set(["queued", "claimed", "running"]);
+const TEXT_VALIDATION_CODES = new Set([
+  "private_voice_english_not_supported",
+  "private_voice_hindi_or_hinglish_required",
+  "private_voice_text_invalid",
+  "private_voice_text_plan_invalid",
+  "private_voice_text_required",
+  "private_voice_text_too_large",
+]);
 
 const COPY = {
   en: {
@@ -58,6 +66,12 @@ const COPY = {
     sampleTextHelp: "Use Hindi or Hinglish. This Hindi model does not support English-only text.",
     sampleTextCount: "{n} of {max} characters",
     fixedSampleOnly: "This service currently supports the fixed sample below.",
+    textErrors: {
+      english: "Use Hindi or Hinglish, then try again.",
+      required: "Enter a Hindi or Hinglish line, then try again.",
+      tooLarge: "Shorten this to {max} characters or fewer, then try again.",
+      plan: "Rewrite this line in Hindi or Hinglish, then try again.",
+    },
     statementTitle: "Private test statement",
     statementHelp: "This exact line is used only to make this sample.",
     confirm: "I confirm this is my own voice and I am using it for a private test.",
@@ -121,6 +135,12 @@ const COPY = {
     sampleTextHelp: "हिंदी या हिंग्लिश लिखें। यह हिंदी मॉडल केवल अंग्रेज़ी वाक्य नहीं बोलता।",
     sampleTextCount: "{max} में से {n} अक्षर",
     fixedSampleOnly: "यह सेवा अभी नीचे दिया गया तय नमूना बना सकती है।",
+    textErrors: {
+      english: "हिंदी या हिंग्लिश लिखकर फिर कोशिश करें।",
+      required: "हिंदी या हिंग्लिश की एक पंक्ति लिखकर फिर कोशिश करें।",
+      tooLarge: "इसे {max} अक्षर या उससे कम करके फिर कोशिश करें।",
+      plan: "इस पंक्ति को हिंदी या हिंग्लिश में दोबारा लिखकर फिर कोशिश करें।",
+    },
     statementTitle: "निजी जाँच का वाक्य",
     statementHelp: "यही पंक्ति केवल इस नमूने को बनाने के लिए इस्तेमाल होगी।",
     confirm: "मैं पुष्टि करता हूँ कि यह मेरी अपनी आवाज़ है और मैं इसे निजी जाँच के लिए इस्तेमाल कर रहा हूँ।",
@@ -209,6 +229,14 @@ function statusCopy(run: DisplayRun, copy: typeof COPY.en | typeof COPY.hi): { t
   if (run.state === "revoked") return { title: copy.revoked, body: copy.revokedBody };
   if (run.state === "expired") return { title: copy.expired, body: copy.expiredBody };
   return { title: copy.unknown, body: copy.unknownBody };
+}
+
+function textValidationCopy(code: string | null, copy: typeof COPY.en | typeof COPY.hi, max: number): string | null {
+  if (!code || !TEXT_VALIDATION_CODES.has(code)) return null;
+  if (code === "private_voice_english_not_supported") return copy.textErrors.english;
+  if (code === "private_voice_text_too_large") return copy.textErrors.tooLarge.replace("{max}", String(max));
+  if (code === "private_voice_text_plan_invalid") return copy.textErrors.plan;
+  return copy.textErrors.required;
 }
 
 export function PrivateVoiceTest({
@@ -461,11 +489,20 @@ export function PrivateVoiceTest({
         onAuthErrorRef.current?.(cause);
         setErrorCode(cause.code);
       } else {
+        const rejectedText = cause instanceof PrivateVoiceApiError
+          && cause.status === 400 && TEXT_VALIDATION_CODES.has(cause.code);
         try {
           const reconciled = await readPrivateVoiceRun(token, replicaId, runId, controller.signal);
           if (!controller.signal.aborted && scopeRef.current === capturedScope) applyRun(reconciled);
         } catch (reconcileCause) {
           if (!isAbort(reconcileCause) && scopeRef.current === capturedScope) {
+            if (rejectedText && reconcileCause instanceof PrivateVoiceApiError
+                && reconcileCause.status === 404 && reconcileCause.code === "private_voice_request_unavailable") {
+              persistRunId(null);
+              setRun(null);
+              setErrorCode(cause.code);
+              return;
+            }
             setRun({ run_id: runId, state: "unknown", source_id: candidate.source_id, artifact_id: candidate.artifact_id });
             handleFailure(reconcileCause, capturedScope);
           }
@@ -524,6 +561,9 @@ export function PrivateVoiceTest({
   const sampleTextLength = Array.from(sampleText.trim()).length;
   const sampleTextValid = !availability.text_limits
     || (sampleTextLength > 0 && sampleTextLength <= availability.text_limits.max_code_points);
+  const textValidationError = availability.text_limits
+    ? textValidationCopy(errorCode, copy, availability.text_limits.max_code_points)
+    : null;
   const canStart = Boolean(chosen && confirmed && sampleTextValid && !busyAction && (!run || run.state === "revoked" || run.state === "expired"));
   const pending = Boolean(run && PENDING_STATES.has(run.state));
   const currentStatus = run ? statusCopy(run, copy) : null;
@@ -562,13 +602,17 @@ export function PrivateVoiceTest({
           <label htmlFor="private-voice-sample-text">{copy.sampleText}</label>
           <textarea id="private-voice-sample-text" value={sampleText} rows={4}
             aria-describedby="private-voice-sample-help private-voice-sample-count"
-            aria-invalid={sampleTextLength > availability.text_limits.max_code_points}
-            onChange={(event) => setSampleText(event.currentTarget.value)} />
+            aria-invalid={sampleTextLength > availability.text_limits.max_code_points || Boolean(textValidationError)}
+            onChange={(event) => {
+              setSampleText(event.currentTarget.value);
+              if (errorCode && TEXT_VALIDATION_CODES.has(errorCode)) setErrorCode(null);
+            }} />
           <div className="private-voice-test__text-meta">
             <small id="private-voice-sample-help">{copy.sampleTextHelp}</small>
             <small id="private-voice-sample-count" aria-live="polite">{copy.sampleTextCount
               .replace("{n}", String(sampleTextLength)).replace("{max}", String(availability.text_limits.max_code_points))}</small>
           </div>
+          {textValidationError ? <small className="private-voice-test__code" role="alert">{textValidationError}</small> : null}
         </div> : <p className="private-voice-test__fixed-sample" data-private-voice-fixed-sample>{copy.fixedSampleOnly}</p>}
         <div><h3>{copy.statementTitle}</h3><p>{copy.statementHelp}</p></div>
         <blockquote lang="hi">{availability.statement}</blockquote>

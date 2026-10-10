@@ -197,6 +197,67 @@ try {
   }
 
   {
+    const postBodies = [];
+    let statusReads = 0;
+    const { context, page } = await pageWithRoute((route) => {
+      const request = route.request(), url = new URL(request.url());
+      if (request.method() === "POST") {
+        const body = request.postDataJSON(); postBodies.push(body);
+        if (postBodies.length === 1) return route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "private_voice_english_not_supported", blocker_class: "you" }) });
+        return route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ created: true, run: run(body.run_id, "failed") }) });
+      }
+      if (url.searchParams.get("action") === "status") {
+        statusReads += 1;
+        return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "private_voice_request_unavailable" }) });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(config("A")) });
+    });
+    await page.getByRole("heading", { name: "Test your voice privately" }).waitFor();
+    const editor = page.getByRole("textbox", { name: "What should your voice say?" });
+    await editor.fill("Explain this concept in English.");
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Make private sample" }).click();
+    await page.getByText("Use Hindi or Hinglish, then try again.", { exact: true }).waitFor();
+    assert.equal(await editor.inputValue(), "Explain this concept in English.");
+    assert.equal(await page.getByRole("radio", { name: /Recording 1/ }).isChecked(), true);
+    await editor.fill("आज यह concept समझेंगे।");
+    await page.getByRole("button", { name: "Make private sample" }).click();
+    await page.getByRole("heading", { name: "Sample failed" }).waitFor();
+    assert.equal(statusReads, 1);assert.equal(postBodies.length, 2);
+    assert.notEqual(postBodies[0].run_id, postBodies[1].run_id);
+    assert.equal(postBodies[0].text, "Explain this concept in English.");
+    assert.equal(postBodies[1].text, "आज यह concept समझेंगे।");
+    pass("a confirmed text refusal reopens the same setup and correction uses a new request ID");
+    await context.close();
+  }
+
+  {
+    let posts = 0, statusReads = 0;
+    const { context, page } = await pageWithRoute((route) => {
+      const request = route.request(), url = new URL(request.url());
+      if (request.method() === "POST") {
+        posts += 1;
+        return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "private_voice_dispatch_uncertain", blocker_class: "us" }) });
+      }
+      if (url.searchParams.get("action") === "status") {
+        statusReads += 1;
+        return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "private_voice_request_unavailable" }) });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(config("A")) });
+    });
+    await page.getByRole("heading", { name: "Test your voice privately" }).waitFor();
+    await page.getByRole("textbox", { name: "What should your voice say?" }).fill("आज यह concept समझेंगे।");
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Make private sample" }).click();
+    await page.getByRole("heading", { name: "Status needs checking" }).waitFor();
+    assert.equal(posts, 1);assert.equal(statusReads, 1);
+    assert.equal(await page.getByRole("textbox", { name: "What should your voice say?" }).count(), 0);
+    assert.equal(await page.getByText("Use Hindi or Hinglish, then try again.", { exact: true }).count(), 0);
+    pass("an ambiguous dispatch followed by not-found preserves the unknown request and blocks a second submission");
+    await context.close();
+  }
+
+  {
     const legacy = { ...config("A") };
     delete legacy.text_limits;
     let posted;
