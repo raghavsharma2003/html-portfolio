@@ -16,6 +16,18 @@ test now verifies the honest in-flight state and waits for the final recovery;
 all26focused mounted groups pass. A new full gate is still required. The fresh live DB
 check still reports only36external Meera pointers; other DB checks pass.
 
+c9f12d24's next matrix also finished24/25: Node24 voice status-read counting
+and Node22 text retry checkbox enumeration each raced a real pending response.
+Both test-only repairs now force that delay and pass14voice/26text groups.
+Still no October10 deployment. See WIP for exact evidence and current branch work.
+
+Real sign-in gap found by root in the signed-in Supabase dashboard: Preview
+redirect wildcard is configured, but custom SMTP is OFF and the default email
+contains only a sign-in link, no numeric code. Default SMTP serves team addresses
+only. Admin-created test accounts did not exercise that delivery restriction.
+Auth copy/error repair is in the isolated next iteration; general email delivery
+still requires configuration. Google is enabled but no human login is claimed.
+
 Next iteration is isolated in `Vyakti-platform-accesspass-oct10`, branch
 `codex/vyakti-access-passes-oct10`, based on a95589f8. It implements owner-issued
 single-use publication access, not payments. Migration173 is reserved there.

@@ -106,6 +106,25 @@ based on a95589f8, with migration173 reserved. It is not merged or deployed.
 Current Vyakti Preview embedding runtime endpoint/key names are absent despite
 an existing Azure model deployment. No env change or embedding call was made.
 
+Candidate c9f12d24 also finished24/25 on both matrices. Node24 had one voice
+test that counted its reconciliation GET before that GET arrived. Node22 had
+one text retry test that snapshotted checkbox locators before refreshed readiness.
+Both fixtures now deliberately hold those responses and verify before/after
+states, exact request counts and explicitly enabled retries. Focused voice14/14
+and text26/26 pass. These last fixes change test code only. No October10 image,
+deployment, provider activation or mutation claim has occurred.
+
+Root read the signed-in Supabase dashboard on October10 without changes:
+the exact Vyakti project's redirect list already includes
+`https://*.vercel.app/**`, so new Preview callback origins match. Custom SMTP
+is OFF and the default sign-in email is link-only, without a numeric code.
+Supabase's official SMTP documentation says default delivery is restricted to
+project-team recipients. The earlier synthetic admin-created accounts bypassed
+email delivery and do not prove arbitrary-account sign-in. Google is enabled;
+actual human Google completion remains untested. Auth link/code copy and clear
+platform-setup errors are being repaired in the isolated access-pass worktree.
+Source: https://supabase.com/docs/guides/auth/auth-smtp . No Microsoft login.
+
 Final voice presentation review caught another mismatch: the permission sentence
 was labelled as the spoken sample. Legacy service responses now show the actual
 fixed `config.text` separately, with the unchanged permission statement correctly

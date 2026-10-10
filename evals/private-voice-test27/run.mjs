@@ -255,6 +255,8 @@ try {
 
   {
     let posts = 0, statusReads = 0;
+    let holdStatus;
+    const statusArrived = new Promise((resolve) => { holdStatus = resolve; });
     const { context, page } = await pageWithRoute((route) => {
       const request = route.request(), url = new URL(request.url());
       if (request.method() === "POST") {
@@ -263,7 +265,8 @@ try {
       }
       if (url.searchParams.get("action") === "status") {
         statusReads += 1;
-        return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "private_voice_request_unavailable" }) });
+        holdStatus(route);
+        return;
       }
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(config("A")) });
     });
@@ -271,7 +274,13 @@ try {
     await page.getByRole("textbox", { name: "What should your voice say?" }).fill("आज यह concept समझेंगे।");
     await page.getByRole("checkbox").check();
     await page.getByRole("button", { name: "Make private sample" }).click();
+    const heldStatus = await statusArrived;
     await page.getByRole("heading", { name: "Status needs checking" }).waitFor();
+    assert.equal(posts, 1);assert.equal(statusReads, 1);
+    await heldStatus.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "private_voice_request_unavailable" }) });
+    const settledCode = page.locator(".private-voice-test__run .private-voice-test__code code").filter({ hasText: "private_voice_request_unavailable" });
+    await settledCode.waitFor({ state: "attached" });
+    assert.equal(await settledCode.textContent(), "private_voice_request_unavailable");
     assert.equal(posts, 1);assert.equal(statusReads, 1);
     assert.equal(await page.getByRole("textbox", { name: "What should your voice say?" }).count(), 0);
     assert.equal(await page.getByText("Use Hindi or Hinglish, then try again.", { exact: true }).count(), 0);

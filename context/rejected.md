@@ -19449,3 +19449,11 @@ saving a Hindi preference; that cannot isolate the setting's effect. It now asks
 the same English root question before/after, without parent context or retries.
 The probe is prepared, not yet run. An available Azure embedding resource also
 does not imply a configured app caller or authorize unbudgeted older callers.
+
+The next full matrix exposed two more instances of the same asynchronous test
+mistake: counting the voice status GET before arrival and enumerating text retry
+attestations before readiness. Both now use deliberately held responses with
+exact pending/settled assertions; no forced clicks or broader success condition.
+Root also found that admin-created synthetic accounts had bypassed a real email
+delivery restriction: custom SMTP is off, so arbitrary addresses cannot receive
+the default sign-in message. A healthy Auth settings endpoint cannot prove delivery.
