@@ -1,0 +1,82 @@
+{
+  "status": "source_only_not_parsed",
+  "queries": [
+    {
+      "name": "lease",
+      "sql": "with candidate as (\n       select j.job_id, j.state as previous_state, j.attempt as previous_attempt\n       from vy_replica_processing_job j\n       join vy_replica_source s\n         on s.source_id = j.source_id and s.replica_id = j.replica_id\n        and s.owner_user_id = j.owner_user_id\n        where s.state in ('quarantined','processing') and ((s.purpose<>'comparison_reference' or exists (select 1 from vy_replica_comparison_preparation cp\n join vy_replica cr on cr.replica_id=cp.replica_id and cr.owner_user_id=cp.owner_user_id\n join vy_replica_consent cc on cc.consent_id=(cp.receipt->>'capture_consent_id')::uuid\n join vy_replica_consent cs on cs.consent_id=(cp.receipt->>'storage_consent_id')::uuid\n where cp.source_id=s.source_id and cp.replica_id=s.replica_id and cp.owner_user_id=s.owner_user_id\n and cp.state in ('authorized','queued','running') and cp.expires_at>now()\n and cr.subject_mode='self' and cr.lifecycle not in ('revoked','purging') and cr.policy_version=cp.policy_version\n and cr.private_text_epoch=(cp.receipt->>'authority_epoch')::bigint\n and s.purpose='comparison_reference' and s.sha256=cp.receipt->>'source_sha256'\n and s.byte_size=(cp.receipt->>'byte_size')::bigint and s.mime=cp.receipt->>'mime'\n and s.contains_third_parties=false and s.state not in ('deleting','rejected')\n and cc.replica_id=cp.replica_id and cc.owner_user_id=cp.owner_user_id and cc.scope='capture'\n and cs.replica_id=cp.replica_id and cs.owner_user_id=cp.owner_user_id and cs.scope='storage'\n and cc.policy_version=cp.policy_version and cs.policy_version=cp.policy_version\n and cc.revoked_at is null and cs.revoked_at is null\n and (cc.expires_at is null or cc.expires_at>now()) and (cs.expires_at is null or cs.expires_at>now())\n and j.comparison_preparation_id=cp.preparation_id and j.revision=1\n and j.step in ('integrity','malware_scan','media_probe','diarize','separate','enhance','voice_quality')\n and (j.step in ('integrity','malware_scan','media_probe') or s.duration_ms between 1 and cp.max_duration_ms))) and (s.capture_mode <> 'live_challenge' or (\n    s.state='quarantined' and s.kind='video'\n    and j.step in ('integrity','malware_scan')\n    and exists (\n      select 1 from vy_replica_liveness_challenge intake_ch\n      join vy_replica intake_r on intake_r.replica_id=intake_ch.replica_id and intake_r.owner_user_id=intake_ch.owner_user_id\n      join vy_replica_biometric_verification_grant intake_g on intake_g.challenge_id=intake_ch.challenge_id\n        and intake_g.replica_id=intake_ch.replica_id and intake_g.owner_user_id=intake_ch.owner_user_id\n      join vy_replica_consent intake_c on intake_c.consent_id=s.consent_id\n        and intake_c.replica_id=s.replica_id and intake_c.owner_user_id=s.owner_user_id\n      where intake_ch.source_id=s.source_id and intake_ch.replica_id=s.replica_id\n        and intake_ch.owner_user_id=s.owner_user_id and intake_ch.state='uploaded'\n        and intake_ch.expires_at>now()\n        and intake_r.subject_mode='self' and intake_r.lifecycle not in ('revoked','purging')\n        and intake_ch.policy_version=intake_r.policy_version\n        and intake_r.policy_version='replica-self-v1'\n        and intake_g.state='active' and intake_g.expires_at>now()\n        and intake_c.scope='capture' and intake_c.policy_version=intake_r.policy_version\n        and intake_c.revoked_at is null and (intake_c.expires_at is null or intake_c.expires_at>now())\n        and exists (select 1 from vy_replica_consent intake_storage\n          where intake_storage.replica_id=s.replica_id and intake_storage.owner_user_id=s.owner_user_id\n            and intake_storage.scope='storage' and intake_storage.policy_version=intake_r.policy_version\n            and intake_storage.revoked_at is null and (intake_storage.expires_at is null or intake_storage.expires_at>now()))\n    )\n  )))\n          and ($4::uuid is null or (j.owner_user_id=$4::uuid and j.replica_id=$5::uuid and j.source_id=$6::uuid)) and (\n              (j.state in ('queued','retry') and j.next_attempt_at <= now())\n           or (j.state = 'leased' and j.lease_expires_at <= now())\n        )\n        -- Once a run has started one source, keep walking that source's\n        -- sequential DAG before opening another one. This is only a priority,\n        -- never an eligibility bypass: if the preferred source has no due\n        -- work the oldest global candidate still wins. Without this, a four\n        -- job run could touch four different uploads and leave all four at\n        -- the same shallow percentage even though one could have reached\n        -- ready in the same bounded run.\n        order by (j.source_id = $3::uuid) desc, j.next_attempt_at, j.created_at\n        for update skip locked limit 1\n     ), expired as (\n       update vy_replica_processing_attempt a\n          set outcome = 'retry', failure_code = 'lease_expired', finished_at = now()\n         from candidate c\n        where c.previous_state = 'leased' and a.job_id = c.job_id\n          and a.attempt = c.previous_attempt and a.outcome = 'running'\n       returning a.job_id\n     ), leased as (\n       update vy_replica_processing_job j\n          set state = 'leased', attempt = attempt + 1,\n              lease_token_hash = $1, leased_at = now(),\n              lease_expires_at = now() + ($2::integer * interval '1 millisecond'),\n              failure_code = '', updated_at = now()\n         from candidate c where j.job_id = c.job_id\n       returning j.*\n     ), attempted as (\n       insert into vy_replica_processing_attempt\n         (job_id, attempt, outcome, started_at)\n       select job_id, attempt, 'running', now() from leased\n       on conflict (job_id, attempt) do nothing\n     )\n     select * from leased",
+      "params": [
+        "5bf9fb4a84f26d45ea745b0d5b3ae76f4f9063911734cb44d701cd1103979512",
+        120000,
+        null,
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333"
+      ],
+      "sha256": "dd06be915b1ce47fdb19b051e3e55d120443e31d82601689b7c373f3aa7cc278"
+    },
+    {
+      "name": "requeue",
+      "sql": "with recovered as (\n       select job_id from vy_replica_processing_job\n        where state = 'failed'\n          and step = any($1::text[])\n          and failure_code = any($2::text[])\n          and ($4::uuid is null or (owner_user_id=$4::uuid and replica_id=$5::uuid and source_id=$6::uuid))\n        order by updated_at\n        limit $3::int4\n     )\n     update vy_replica_processing_job j\n        set state = 'queued', failure_code = '', result = '{}'::jsonb,\n            next_attempt_at = now(), lease_token_hash = '', leased_at = null,\n            lease_expires_at = null, updated_at = now()\n       from recovered r\n      where j.job_id = r.job_id\n      returning j.step",
+      "params": [
+        [
+          "integrity"
+        ],
+        [
+          "private_storage_not_configured",
+          "malware_scanner_unavailable",
+          "media_probe_tool_unavailable",
+          "reference_window_tool_unavailable",
+          "voice_evidence_unconfigured",
+          "voice_evidence_unreachable",
+          "voice_evidence_not_ready",
+          "azure_asr_input_unavailable",
+          "asr_unconfigured"
+        ],
+        50,
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333"
+      ],
+      "sha256": "eb52874381dbd3b889ff562dfdbe7c5b4710759e9d677f2c276488585387764b"
+    },
+    {
+      "name": "model_build",
+      "sql": "with candidate as (\n       select b.build_id,\n               case when b.state in ('leased','building') then 'lease_expired' else b.failure_code end prior_failure,\n                (select i.candidate_source_id\n                   from vy_replica_voice_build_intent i\n                  where i.build_id=b.build_id and i.replica_id=b.replica_id\n                    and i.owner_user_id=b.owner_user_id and i.state='queued'\n                    and ($4::uuid is null or (i.owner_user_id=$4::uuid and i.replica_id=$5::uuid and i.candidate_source_id=$6::uuid))\n                  order by i.created_at,i.intent_id limit 1) candidate_source_id\n         from vy_replica_model_build b\n         join vy_replica r on r.replica_id=b.replica_id and r.owner_user_id=b.owner_user_id\n        where b.build_kind='voice_genome' and b.attempt<$3::int4\n          and ((b.state in ('queued','retry') and b.next_attempt_at<=now())\n            or (b.state in ('leased','building') and b.lease_expires_at<=now()))\n          and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')\n          and r.age_verified_at is not null and r.identity_verified_at is not null\n          and r.liveness_verified_at is not null and r.identity_expires_at>now()\n          and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id\n            and c.owner_user_id=r.owner_user_id and c.scope='biometric' and c.policy_version=r.policy_version and c.revoked_at is null\n            and (c.expires_at is null or c.expires_at>now()))\n          and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id\n            and c.owner_user_id=r.owner_user_id and c.scope='training' and c.policy_version=r.policy_version and c.revoked_at is null\n            and (c.expires_at is null or c.expires_at>now()))\n           and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id\n            and c.owner_user_id=r.owner_user_id and c.scope='inference' and c.policy_version=r.policy_version and c.revoked_at is null\n            and (c.expires_at is null or c.expires_at>now()))\n           and ($4::uuid is null or exists (\n             select 1 from vy_replica_voice_build_intent scoped_intent\n              where scoped_intent.build_id=b.build_id and scoped_intent.state='queued'\n                and scoped_intent.replica_id=b.replica_id and scoped_intent.owner_user_id=b.owner_user_id\n                and scoped_intent.replica_id=$5::uuid\n                and scoped_intent.owner_user_id=$4::uuid and scoped_intent.candidate_source_id=$6::uuid\n           ))\n        order by b.next_attempt_at,b.created_at for update of b skip locked limit 1\n     ), leased as (\n       update vy_replica_model_build b set state='leased',attempt=b.attempt+1,\n              lease_token_hash=$1,leased_at=now(),lease_expires_at=now()+($2::integer*interval '1 second'),\n              failure_code=candidate.prior_failure,updated_at=now()\n         from candidate where b.build_id=candidate.build_id\n       returning b.*\n      ) select leased.*,candidate.candidate_source_id\n          from leased join candidate on candidate.build_id=leased.build_id",
+      "params": [
+        "6dd5990133bb5d22764e94564045ade32debcd644560d3ee1dd6b76e999dddfe",
+        300,
+        5,
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333"
+      ],
+      "sha256": "7293bc9d7139d0173a5f81739cc88571ebb3b72205e06a2033351f47e63dff23"
+    },
+    {
+      "name": "build_intent",
+      "sql": "select i.intent_id,i.replica_id,i.owner_user_id\n       from vy_replica_voice_build_intent i\n       join vy_replica r on r.replica_id=i.replica_id and r.owner_user_id=i.owner_user_id\n       where i.state in ('waiting','queued') and i.next_check_at<=now()\n         and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')\n         and ($2::uuid is null or (i.owner_user_id=$2::uuid and i.replica_id=$3::uuid and i.candidate_source_id=$4::uuid))\n       order by i.next_check_at,i.created_at limit $1::int4",
+      "params": [
+        12,
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333"
+      ],
+      "sha256": "464f0e3805248f9a5874218d8a7ef28bccfd076550afc50b126dabb72cd4e4e3"
+    },
+    {
+      "name": "pending_work",
+      "sql": "select distinct step from vy_replica_processing_job j\r\n      where j.step = any($1::text[])\r\n        and ( (j.state in ('queued','retry') and j.next_attempt_at <= now())\r\n              or (j.state = 'leased' and j.lease_expires_at <= now())\r\n              or (j.state = 'failed' and j.failure_code = any($2::text[])) )\r\n        and exists (\r\n          select 1 from vy_replica_source s\r\n           where s.source_id = j.source_id and s.replica_id = j.replica_id\r\n              and s.owner_user_id = j.owner_user_id\r\n              and s.state in ('quarantined','processing')\r\n              and ($3::uuid is null or (j.owner_user_id=$3::uuid and j.replica_id=$4::uuid and j.source_id=$5::uuid)))\r\n      limit 20",
+      "params": [
+        [
+          "diarize"
+        ],
+        [],
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333"
+      ],
+      "capture": "literal source extraction; main not imported",
+      "sha256": "09601b94296f2ecec87ad077f9bc923646c0fc957cb12f6ab151f1d96dd859de"
+    }
+  ]
+}

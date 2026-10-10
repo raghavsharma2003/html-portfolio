@@ -1,0 +1,173 @@
+{
+  "purpose": "Human-authored held-out semantic expectations, not model results; no fixture sentence is inserted into the prompt.",
+  "cases": [
+    {
+      "id": "hi-depth",
+      "locale": "hi",
+      "source": "मुझे हमेशा बात पूरी गहराई से समझाया करें।",
+      "expected": {
+        "language": null,
+        "script": null,
+        "brevity": "detailed"
+      }
+    },
+    {
+      "id": "hi-multi",
+      "locale": "hi",
+      "source": "मेरे लिए हर जवाब हिंदी में हो और समझाते समय पूरी व्याख्या दीजिए।",
+      "expected": {
+        "language": "hindi",
+        "script": null,
+        "brevity": "detailed"
+      }
+    },
+    {
+      "id": "hi-short",
+      "locale": "hi",
+      "source": "आगे की बातचीत में उत्तर संक्षिप्त रखें।",
+      "expected": {
+        "language": null,
+        "script": null,
+        "brevity": "short"
+      }
+    },
+    {
+      "id": "hi-negation",
+      "locale": "hi",
+      "source": "यह मत मानिए कि मुझे हमेशा लंबे उत्तर पसंद हैं।",
+      "expected": null
+    },
+    {
+      "id": "hi-exercise",
+      "locale": "hi",
+      "source": "इस वाक्य का अनुवाद करो: मुझे हमेशा विस्तार से समझाओ।",
+      "expected": null
+    },
+    {
+      "id": "hi-temporary",
+      "locale": "hi",
+      "source": "केवल इस प्रश्न का विस्तृत उत्तर चाहिए।",
+      "expected": null
+    },
+    {
+      "id": "hi-replacement",
+      "locale": "hi",
+      "source": "मेरी रोज की पसंद बदल गई है: छोटे उत्तर नहीं, अब पूरी व्याख्या चाहिए।",
+      "expected": {
+        "language": null,
+        "script": null,
+        "brevity": "detailed"
+      }
+    },
+    {
+      "id": "hinglish-depth",
+      "locale": "hinglish",
+      "source": "Meri har baat ka jawab aage se khul kar samjhana, reasoning poori chahiye.",
+      "expected": {
+        "language": null,
+        "script": null,
+        "brevity": "detailed"
+      }
+    },
+    {
+      "id": "hinglish-multi",
+      "locale": "hinglish",
+      "source": "Aage ki chats mein Hindi English mix karo, Latin letters use karo aur har explanation gehrai se do.",
+      "expected": {
+        "language": "hinglish",
+        "script": "roman",
+        "brevity": "detailed"
+      }
+    },
+    {
+      "id": "hinglish-short",
+      "locale": "hinglish",
+      "source": "Mere liye hamesha seedha chhota jawab rakho.",
+      "expected": {
+        "language": null,
+        "script": null,
+        "brevity": "short"
+      }
+    },
+    {
+      "id": "hinglish-reported",
+      "locale": "hinglish",
+      "source": "Meri behen kehti hai ki use hamesha detail mein jawab chahiye.",
+      "expected": null
+    },
+    {
+      "id": "hinglish-hypothetical",
+      "locale": "hinglish",
+      "source": "Agar main kabhi bolun ki har jawab detail mein do, tab kya hoga?",
+      "expected": null
+    },
+    {
+      "id": "hinglish-independent",
+      "locale": "hinglish",
+      "source": "Mujhe lambe jawab pasand nahi. Lekin language ke liye meri permanent choice English hai.",
+      "expected": {
+        "language": "english",
+        "script": null,
+        "brevity": null
+      }
+    },
+    {
+      "id": "en-depth",
+      "locale": "en",
+      "source": "For our ongoing chats, unpack the reasoning thoroughly rather than compressing it.",
+      "expected": {
+        "language": null,
+        "script": null,
+        "brevity": "detailed"
+      }
+    },
+    {
+      "id": "en-multi",
+      "locale": "en",
+      "source": "From now on use Hindi in Devanagari and develop the explanation fully.",
+      "expected": {
+        "language": "hindi",
+        "script": "devanagari",
+        "brevity": "detailed"
+      }
+    },
+    {
+      "id": "en-short",
+      "locale": "en",
+      "source": "I prefer condensed responses as our usual style.",
+      "expected": {
+        "language": null,
+        "script": null,
+        "brevity": "short"
+      }
+    },
+    {
+      "id": "en-example-only",
+      "locale": "en",
+      "source": "Use an example before each formula in future explanations.",
+      "expected": null
+    },
+    {
+      "id": "en-negation",
+      "locale": "en",
+      "source": "Do not assume I prefer brief explanations.",
+      "expected": null
+    },
+    {
+      "id": "en-reported",
+      "locale": "en",
+      "source": "My tutor wrote: I always want detailed explanations.",
+      "expected": null
+    },
+    {
+      "id": "en-independent",
+      "locale": "en",
+      "source": "I have no standing length preference; please always write in English.",
+      "expected": {
+        "language": "english",
+        "script": null,
+        "brevity": null
+      }
+    }
+  ]
+}

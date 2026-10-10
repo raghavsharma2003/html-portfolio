@@ -1,0 +1,52 @@
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
+import assert from 'node:assert/strict';
+import {createServer} from 'node:http';
+import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {resolve,join,extname,relative,isAbsolute} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import ts from 'typescript';
+import {chromium} from 'playwright';
+import axe from 'axe-core';
+import {observeBrowser,recordBrowserFailure} from '../browser-action-diagnostics.mjs';
+import {boundedWaitMs} from '../lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
+const opsOnly=process.argv.includes('--ops-only');
+// The browser first: without one this suite has nothing to prove and skips by name (evals/rehearsal/browser.mjs), BEFORE it reads dist/, which the browserless build workflow never writes (the pre-pool rehearsals that build it skip there too).
+const browser=await launchSuiteBrowser("creator-cascade-order");
+const root=fileURLToPath(new URL('../../',import.meta.url)),dist=join(root,'dist');
+const source=readFileSync(join(root,'creator-layout-fixture.html'),'utf8'),html=readFileSync(join(dist,'creator-layout-fixture.html'),'utf8');
+const declaration='<style>@layer reset, tokens, base, components, responsive;</style>';
+const cssOrderPattern=/@layer\s+(?:reset|tokens|base|components|responsive)(?:\s*,\s*(?:reset|tokens|base|components|responsive))*\s*;/g;
+assert(source.includes(declaration)&&html.includes(declaration),'actual source and built fixture must establish inline layer order');
+assert(html.indexOf(declaration)<html.indexOf('<link rel="stylesheet"'),'order must precede extracted CSS');
+const hash=b=>createHash('sha256').update(b).digest('hex');
+const gateSource=readFileSync(join(root,'scripts/check-layout.mjs'),'utf8');
+const ast=ts.createSourceFile('check-layout.mjs',gateSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+const auditNode=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='audit');assert(auditNode);
+// Extract the real pure browser audit only; importing the gate would run it.
+const audit=Function('return ('+auditNode.getText(ast)+')')();
+const links=[...html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*>/g)].map(m=>m[0]);
+assert(links.length>=2,'real extracted stylesheet graph required');
+const href=l=>l.match(/href="([^"]+)"/)[1];
+const tokens=links.filter(l=>{const text=readFileSync(join(dist,href(l)),'utf8');return text.includes('--text-micro:')&&!text.includes('.primary-button');});assert.equal(tokens.length,1,'actual dedicated token stylesheet required');
+const stripLayerOrder=text=>text.replace(cssOrderPattern,'');
+const declaredStyles=links.filter(l=>{const text=readFileSync(join(dist,href(l)),'utf8');return stripLayerOrder(text)!==text;});
+assert(declaredStyles.length>=1,'actual extracted stylesheets must retain their layer-order contract');
+const tail=[...links.filter(l=>!tokens.includes(l)),...tokens];
+function renderedHtml(mode){let text=html;for(const link of links)text=text.replace(link,'');const order=mode==='tokens-first'?[...tokens,...links.filter(l=>!tokens.includes(l))]:tail;text=text.replace('</head>',order.join('\n')+'\n</head>');if(mode==='old')text=text.replace(declaration,'');return text;}
+let mode='current',activePage;const network=[],pageErrors=[],targetTrace=[],resourceTrace=[];
+const server=createServer((req,res)=>{try{const p=new URL(req.url,'http://localhost').pathname,file=resolve(dist,'.'+p),rel=relative(dist,file);assert(rel&&!rel.startsWith('..')&&!isAbsolute(rel));const extension=extname(file);res.setHeader('content-type',({'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.woff2':'font/woff2'})[extension]||'application/octet-stream');const body=p==='/creator-layout-fixture.html'?renderedHtml(mode):readFileSync(file);res.end(mode==='old'&&extension==='.css'?stripLayerOrder(body.toString('utf8')):body);}catch{res.writeHead(404);res.end();}});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
+const results=[];
+const limits={chars:60,minCpl:20,minCplDisplay:12,displayFrom:19,maxCpl:115,minFont:10.5,minContrast:4.5,minTap:44,roomChecks:false,mountedSelector:'.studio-shell, .studio-layout',panelSelector:'.wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice'};
+const out=join(root,'scratchpad/creator-cascade-order',String(Date.now()));mkdirSync(out,{recursive:true});
+try{for(const width of [390,1440]){const context=await browser.newContext({viewport:{width,height:900}});await observeBrowser(context);const page=await context.newPage();activePage=page;for(const event of ['request','requestfinished','requestfailed'])page.on(event,request=>resourceTrace.push({event,at:Date.now(),url:request.url(),type:request.resourceType(),...(event==='requestfailed'?{failure:request.failure()?.errorText}: {})}));page.setDefaultTimeout(boundedWaitMs(15000));page.on('pageerror',e=>pageErrors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).origin!==origin){network.push(new URL(r.request().url()).origin);return r.abort();}return r.continue();});
+const check=async(query,label,negative=false)=>{const trace={width,label,query,mode,negative,started_at:new Date().toISOString(),phase:'navigation'};targetTrace.push(trace);const ops=query.startsWith('mode=ops');const control=ops?'.ops-board__lang-btn[aria-pressed=true]':'button.primary-button';const scopedLimits=ops?{...limits,mountedSelector:'.ops-board',panelSelector:'.ops-board__panel, .ops-board__room'}:limits;await page.goto(origin+'/creator-layout-fixture.html?'+(ops?'':'mode=teacher&')+query,{waitUntil:'domcontentloaded'});await page.locator(scopedLimits.mountedSelector).first().waitFor();trace.phase='target-ready';await page.locator(control).first().waitFor({state:'visible'});await page.evaluate(()=>document.fonts.ready);if(query.includes('showcase-picker'))await page.locator('[data-picker-open="1"]').click();trace.phase='audit';const measured=await page.evaluate(audit,scopedLimits);assert(measured.mounted&&measured.panels>=2,'actual creator panels must render');const contrast=measured.findings.filter(f=>f.kind==='contrast');const colors=await page.locator(control).first().evaluate(e=>{const s=getComputedStyle(e);return{label:e.textContent,color:s.color,background:s.backgroundColor,opacity:s.opacity};});if(negative){assert(contrast.some(f=>f.el.includes(ops?'ops-board__lang-btn':'primary-button')&&Number(f.n)<scopedLimits.minContrast),'removed layer order must recreate a primary-label contrast failure: '+JSON.stringify({contrast,colors}));}else assert.deepEqual(contrast,[],'current inline declaration must preserve readable controls');let axeContrast=null;if(ops){await page.addScriptTag({content:axe.source});axeContrast=await page.evaluate(async()=>{const result=await window.axe.run(document,{runOnly:{type:'rule',values:['color-contrast']}});return result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>({target:n.target,failureSummary:n.failureSummary}))}));});if(negative)assert(axeContrast.some(v=>v.nodes.some(n=>n.target.some(t=>t.includes('ops-board__lang-btn')))),'actual axe must detect the retained ops language contrast failure');else assert.deepEqual(axeContrast,[],'actual axe must accept repaired ops contrast');}trace.phase='complete';trace.finished_at=new Date().toISOString();results.push({width,label,mode,negative,contrast,colors,axeContrast});console.log('ok '+results.length+' '+width+'/'+label);};
+if(!opsOnly){mode='old';await check('step=feed','removed declaration, actual observed tokens-last order',true);
+mode='tokens-first';await check('step=feed','current declaration, former tokens-first order');
+mode='current';for(const lang of ['en','hi'])for(const [step,query]of [['feed','step=feed'],['feed-mid','step=feed&scenario=processing'],['meet','step=meet'],['deploy','step=deploy'],['deploy-picker','step=deploy&scenario=showcase-picker']])await check(query+(lang==='hi'?'&lang=hi':''),lang+'/'+step);
+}
+for(const lang of ['en','hi']){mode='old';await check('mode=ops&lang='+lang,lang+'/ops removed declaration',true);mode='current';await check('mode=ops&lang='+lang,lang+'/ops current declaration');}
+await context.close();}
+assert.deepEqual(network,[]);assert.deepEqual(pageErrors,[]);writeFileSync(join(out,'result.json'),JSON.stringify({at:new Date().toISOString(),groups:results.length,opsOnly,sourceSha256:hash(Buffer.from(source)),builtHtmlSha256:hash(Buffer.from(html)),actualAuditSha256:hash(Buffer.from(auditNode.getText(ast))),builtStylesheetOrder:links.map(href),exercisedTokensLast:tail.map(href),results,pageErrors,network,targetTrace,limits:'Actual built creator fixture and unchanged real layout contrast audit, explicit old/current stylesheet-order schedule. No product CSS/auth/SQL/provider or timing proof.'},null,2));console.log('PASS '+results.length+' '+out);
+}catch(error){await recordBrowserFailure(browser,out);let dom=null;try{let deadline;dom=await Promise.race([activePage.evaluate(()=>({url:location.href,readyState:document.readyState,title:document.title,body:document.body.innerText.slice(0,6000),buttons:[...document.querySelectorAll('button')].map(e=>({text:e.textContent,className:e.className,disabled:e.disabled,rect:e.getBoundingClientRect().toJSON()})),resources:performance.getEntriesByType('resource').map(e=>({name:e.name,startTime:e.startTime,duration:e.duration,responseEnd:e.responseEnd}))})),new Promise((_,reject)=>{deadline=setTimeout(()=>reject(Error('failure_dom_deadline')),3000);})]).finally(()=>clearTimeout(deadline));}catch{dom={unavailable:true};}writeFileSync(join(out,'failure.json'),JSON.stringify({at:new Date().toISOString(),message:error.message,results,pageErrors,network,targetTrace,resourceTrace,dom},null,2));throw error;}finally{await browser.close();await new Promise(r=>server.close(r));}

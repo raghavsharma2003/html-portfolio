@@ -30,7 +30,7 @@
 //
 // The model is stubbed at /api/chat, so it is deterministic and costs $0.
 // Runtime ~50s.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -46,7 +46,7 @@ const ok = (n, c, e = "") => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("feel-browser");
 
 const BASE_STATE = {
   onboarded: true,

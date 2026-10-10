@@ -1,12 +1,10 @@
 // Packs the built web app into an OTA bundle the Android app can fetch.
 //
-// Runs from scripts/vercel-build.sh straight after `vite build` and BEFORE the
-// landing-page shuffle, because the shuffle renames dist/index.html to
-// chat.html — and the phone's WebView loads "/" from the bundle root, so the
-// app's own index.html has to still be sitting there when we zip.
+// Runs after scripts/select-native-start-page.mjs has copied the built Studio
+// entry to dist/index.html. The phone's WebView loads "/" from the bundle root.
 //
 // Emits, into the deployed site:
-//   ota/meera-<version>.zip   the web root, exactly as assets/public looks
+//   ota/vyakti-<version>.zip  the web root, exactly as assets/public looks
 //   ota/latest.json           { version, sha256, url, min_native }
 //
 // The manifest is deliberately NOT inside the zip. It describes the zip — a
@@ -18,9 +16,14 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
 
-const ROOT = path.resolve(new URL("..", import.meta.url).pathname);
+// URL.pathname leaves a Windows drive URL as `/C:/...`; feeding that back to
+// path.resolve produces `C:\\C:\\...`. fileURLToPath is the cross-platform
+// conversion and keeps this exact build contract runnable both locally and on
+// Vercel's Linux builder.
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
@@ -29,7 +32,7 @@ const arg = (name, fallback) => {
 const WEB = path.resolve(ROOT, arg("web", "dist"));
 const OUT = path.resolve(ROOT, arg("out", path.join(WEB, "ota")));
 const BASE_URL = (
-  arg("base-url", process.env.OTA_BASE_URL || "https://meera-silk.vercel.app")
+  arg("base-url", process.env.OTA_BASE_URL || "https://vyakti-replica-lab.vercel.app")
 ).replace(/\/$/, "");
 
 // Already-compressed bytes: deflating them costs time and gains nothing, and
@@ -202,8 +205,7 @@ function walk(dir, prefix, out, skip) {
 function main() {
   if (!fs.existsSync(path.join(WEB, "index.html"))) {
     throw new Error(
-      `${WEB}/index.html is missing — run this straight after vite build, before ` +
-        `index.html is renamed to chat.html for the website.`,
+      `${WEB}/index.html is missing — build the web entries and select the Studio start page first.`,
     );
   }
   const minNative = nativeContract();
@@ -227,13 +229,13 @@ function main() {
   const zip = buildZip(entries);
   const sha256 = createHash("sha256").update(zip).digest("hex");
   const version = `${stamp()}-${sha256.slice(0, 7)}`;
-  const file = `meera-${version}.zip`;
+  const file = `vyakti-${version}.zip`;
 
   fs.mkdirSync(OUT, { recursive: true });
   // Only one bundle per deploy is reachable anyway — each Vercel deployment has
   // its own files — so stale zips from a local run are just litter.
   for (const old of fs.readdirSync(OUT)) {
-    if (/^meera-.*\.zip$/.test(old) && old !== file) fs.rmSync(path.join(OUT, old));
+    if (/^vyakti-.*\.zip$/.test(old) && old !== file) fs.rmSync(path.join(OUT, old));
   }
   fs.writeFileSync(path.join(OUT, file), zip);
 

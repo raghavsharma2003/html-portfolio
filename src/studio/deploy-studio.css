@@ -1,0 +1,58 @@
+/* deploy-studio.css — WS-R152. Scoped to `.vx-deploy` only: `RoomStudio.tsx`
+ * brings its own `roomStudio.css` (creatorStudio/design/tokens.css — "the
+ * same tokens", `AGENTS.md`'s own map), so this file styles nothing inside
+ * it, only the banner this screen adds above it. */
+@layer components {
+  .vx-deploy {
+    max-width: 860px;
+    width: 100%;
+    margin-inline: auto;
+    padding-bottom: var(--space-section, 48px);
+  }
+
+  .vx-deploy-banner {
+    margin-block: var(--space-block, 24px);
+    padding: var(--space-item, 16px) var(--space-block, 24px);
+    border-radius: var(--radius, 20px);
+    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
+    background: var(--panel-solid, #fffef9);
+  }
+
+  .vx-deploy-banner--voice,
+  .vx-deploy-banner--publish {
+    background: var(--signal-soft, #fce9df);
+    border-color: transparent;
+  }
+
+  .vx-deploy-banner--ready {
+    background: var(--forest-soft, #e1eee7);
+    border-color: transparent;
+  }
+
+  .vx-deploy-banner__headline {
+    font-size: var(--text-lead, 16px);
+    font-weight: var(--weight-medium, 600);
+    line-height: var(--leading-snug, 1.45);
+    margin: 0 0 var(--space-hair, 4px);
+    color: var(--ink, #171915);
+  }
+
+  /* `.field-note` elsewhere in the studio sits on the plain paper background,
+   * where `--ink-faint` clears AA. This banner's own tinted backgrounds
+   * (`--signal-soft`/`--forest-soft`) measure only 3.52:1 against
+   * `--ink-faint` (axe, `color-contrast`, WCAG AA floor 4.5:1) -- `--ink-soft`
+   * clears both tints (6.3:1 / 6.28:1, checked against both banner colors
+   * above) without a color this file has to invent. */
+  .vx-deploy-banner .field-note {
+    margin: 0 0 var(--space-item, 16px);
+    color: var(--ink-soft, #52564e);
+  }
+
+  .vx-deploy-banner :last-child {
+    margin-bottom: 0;
+  }
+
+  .vx-deploy-visitor {
+    margin-top: var(--space-block, 24px);
+  }
+}

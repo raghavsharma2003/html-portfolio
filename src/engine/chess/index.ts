@@ -63,4 +63,15 @@ export {
 } from "./opponent";
 export type { ChooseOptions } from "./opponent";
 
-export { openingName } from "./openings";
+export {
+  ADAPT,
+  inGameLevel,
+  nextSkill,
+  observedLevel,
+  outplaying,
+  startingLevel,
+  userPlay,
+} from "./adapt";
+export type { PlayQuality } from "./adapt";
+
+export { SCHOLARS_NAME, openingName } from "./openings";

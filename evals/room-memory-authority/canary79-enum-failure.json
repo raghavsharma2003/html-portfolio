@@ -1,0 +1,6 @@
+{
+  "evidence_origin": "authored_synthetic_no_human_rating",
+  "receipt": "room-memory79-v2-d369d87f8a6d708956351d36-model-output.json",
+  "actual_response_model": "gpt-4.1-mini-2025-04-14",
+  "raw_output": "{\"memories\":[{\"source_id\":\"8504\",\"kind\":\"preference\",\"name\":\"study_time\",\"quote\":\"Main roz subah 6:30 baje padhna prefer karta hoon.\"},{\"source_id\":\"8504\",\"kind\":\"preference\",\"name\":\"study_method_chemistry\",\"quote\":\"Chemistry ke liye main flashcards use karta hoon.\"},{\"source_id\":\"8504\",\"kind\":\"preference\",\"name\":\"language_preference\",\"quote\":\"Mujhe Hindi-English mix mein dheere samjhana; sirf English mein fast explanation mujhe bilkul pasand nahi hai.\"}]}"
+}

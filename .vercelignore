@@ -4,7 +4,25 @@ release
 context
 docs
 scratchpad
+first-clone-out
+.impeccable
 .git
+.vercel-release-preinstall.json
+
+# Vercel currently has built-in exclusions for local dotenv variants, but the
+# credential boundary must not depend on a CLI default that can change. Project
+# environment variables are injected by Vercel and are unaffected by this.
+.env*
+
+# Local credential material is intentionally gitignored, but Vercel CLI does
+# not read .gitignore when it assembles a deployment. The build recreates
+# api/_config.js from the target project's environment. Shipping the local
+# copy would bake a workstation credential into a cloud function and can also
+# make a revoked key look like a provider outage.
+api/_config.js
+api/_config.env
+api/keyring.json
+api/google-keys.env
 
 # NOT all of android/. scripts/ota-bundle.mjs reads OTA_NATIVE_CONTRACT from
 # android/app/build.gradle to stamp min_native into the OTA manifest, and it

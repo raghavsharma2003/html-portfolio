@@ -61,7 +61,7 @@
 
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { activityBreaks } from "./detect.mjs";
@@ -128,7 +128,7 @@ const {
   TAIL_MANIFEST,
   lintLine,
   inspect,
-} = await import(BUNDLE);
+} = await import(pathToFileURL(BUNDLE).href);
 
 let pass = 0;
 let fail = 0;
@@ -1025,7 +1025,28 @@ console.log("\n── 11. her commitments (the ledger's other half) ──");
   // is a comment with better syntax, so both halves are asserted.
   const t16 = TAIL_MANIFEST.find((b) => b.id === "T16");
   report("T16 is declared in the tail manifest", Boolean(t16), t16 ? `budget ${t16.budget}, dropPriority ${t16.dropPriority}` : "MISSING");
-  report("T16 is ordered last before T10 (the strongest position left)", TAIL_ORDER[TAIL_ORDER.length - 2] === "T16" && TAIL_ORDER[TAIL_ORDER.length - 1] === "T10", TAIL_ORDER.slice(-3).join(" → "));
+  // The claim being protected is POSITIONAL and it is about the SESSION-FACT
+  // cluster at the end of the tail, not about T16 being the literal
+  // second-to-last id: `prompt-position` says the appended-last set is closed
+  // at two (T10), so everything else competes for the space immediately before
+  // it. WS-Q's T19 `clone.initiative` joined that cluster and sits between —
+  // legitimately, for the same reason and stated in its own manifest row.
+  //
+  // So the assertion is written as what it actually defends: T10 is last, and
+  // NOTHING sits between T16 and T10 except blocks of the same honesty class.
+  // Written this way rather than pinned to an index, because an index pin is a
+  // test that fails on the next honest addition and passes on a T16 quietly
+  // moved to the front of the tail.
+  {
+    const after = TAIL_ORDER.slice(TAIL_ORDER.indexOf("T16") + 1);
+    report(
+      "T16 sits in the last cluster before T10, with only same-class blocks after it",
+      TAIL_ORDER[TAIL_ORDER.length - 1] === "T10" &&
+        after.length > 0 &&
+        after.slice(0, -1).every((id) => id === "T19"),
+      TAIL_ORDER.slice(-4).join(" → "),
+    );
+  }
   report("T16's declared budget covers what it renders", (t16?.budget ?? 0) >= HER_COMMITMENTS_BUDGET, `${t16?.budget} vs ${HER_COMMITMENTS_BUDGET}`);
 }
 

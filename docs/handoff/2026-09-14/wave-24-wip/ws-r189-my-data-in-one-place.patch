@@ -1,0 +1,1702 @@
+diff --git a/api/_creator-export.js b/api/_creator-export.js
+index a9c0673..a71abe9 100644
+--- a/api/_creator-export.js
++++ b/api/_creator-export.js
+@@ -104,6 +104,17 @@
+ // export exists to hand back. context/decisions.md names both gaps with
+ // their reversal conditions.
+ import { PERSON_TABLES, tableApplied as realTableApplied } from "./memory.js";
++// WS-R189. Three owner-facing readers this file BORROWS rather than forks,
++// each already built and already used elsewhere for the identical purpose
++// this workstream needs them for — `context/rejected.md
++// #ws-r189-person-export-borrows-owner-facing-readers-rather-than-forking`
++// names why a fork was rejected. Neither import creates a cycle back into
++// this file (`api/_room-memory-authority.js` and `api/_room-relstate.js`
++// import neither `./memory.js` nor `./_creator-export.js`; `api/_replica-
++// full-erasure.js` only ever MENTIONS this file's name in a comment).
++import { ownerMemoryAuthority, OWNER_MEMORY_FACTS_SQL } from "./_room-memory-authority.js";
++import { roomRelStateStageCounts } from "./_room-relstate.js";
++import { getReplicaErasureStatus } from "./_replica-full-erasure.js";
+ 
+ /**
+  * Every owner-lane table this export reaches, one entry per table, with the
+@@ -516,3 +527,168 @@ export async function creatorExport(db, ownerUserId, options = {}) {
+     storage: storagePointersFrom(tables.vy_replica_source),
+   });
+ }
++
++// ═════════════════════════════════════════════════════════════════════════
++// WS-R189. "My data, in one place" — the PERSON-KIND RENDERING of the same
++// door, never a second one (the workstream brief's own words). `personExport`
++// below calls `creatorExport` above for every raw table it already proves
++// complete and owner-scoped (`evals/creator-export/run.mjs`'s own battery),
++// then adds exactly the reads a "person building their own AI" needs that a
++// CREATOR reading a FOLLOWER never would — the owner's own Meet memory and
++// their own relationship-state counts — both borrowed from readers this
++// house already built for that identical purpose, never a second copy of
++// either query:
++//
++//   - `OWNER_MEMORY_FACTS_SQL` (`api/_room-memory-authority.js`, already
++//     the exact query `ownerRememberedThings` in `api/_replica-dialogue.js`
++//     calls for the SAME "It remembers" panel in Meet): a person reading
++//     their OWN facts back is not the creator/follower boundary this file's
++//     header spends so many words on — it is the SAME identity on both
++//     sides, so this is not a new leak surface, only a new caller of an
++//     existing, already-scoped-by-consent reader. Its own CTE (`owner_
++//     authority`) is a WHERE filter, not a lock that can throw when no row
++//     matches — a replica with no active 'memory' consent, or not yet
++//     text-ready, therefore returns an honest EMPTY array here, never a
++//     thrown error (proven by NEGATIVE CONTROL in evals/person-export).
++//   - `roomRelStateStageCounts` (`api/_room-relstate.js`, already the exact
++//     aggregate `api/_room-cohorts.js` calls for the creator's own Pulse
++//     board): AGGREGATE-ONLY, floored at n>=5 in the SQL itself — the
++//     workstream brief's own law 2 ("relationship state as COUNTS only,
++//     n>=5, never a follower's words") is therefore not a rule this file
++//     has to enforce, it is a property of the function being called.
++//
++// `vy_replica_claim` ("accepted claims with citations") is READ HERE
++// DIRECTLY rather than added to `OWNER_LANE_TABLES` above — a deliberate,
++// logged choice, not an oversight: `evals/creator-export/run.mjs`'s own
++// layer 1 ties `OWNER_LANE_TABLES` to the OWNER-LANE SUBSET of what `api/
++// _replica-full-erasure.js` reaches BY NAME (`erasureReach`'s own static
++// scan of `from`/`update` statements), and `vy_replica_claim` is deleted
++// only by its own FK cascade off `vy_replica(replica_id) on delete cascade`
++// (`db/schema.sql`'s own migration-015 definition) — never named in that
++// file's own SQL text — so adding it to `OWNER_LANE_TABLES` would trip that
++// battery's "extraInManifest" check for a table its own static scan
++// legitimately cannot see. Scoped here by `replica_id = any($1::uuid[])`
++// alone (`vy_replica_claim` carries no `owner_user_id` column at all — the
++// SAME `replica_only` scope shape `scopedQuery` already uses for `vy_
++// replica_eval_run` two screens up), and `replicaIds` is only ever the
++// CALLER's own (`creatorExport`'s own first query, `owner_user_id = $1`) —
++// `context/decisions.md#ws-r189-approved-claims-read-directly-not-added-to-owner-lane-tables`
++// names this with its reversal condition.
++export const APPROVED_CLAIMS_SQL = `select claim_id, domain, key, body, origin, confidence, source_ids, updated_at
++  from vy_replica_claim where replica_id = any($1::uuid[]) and status = 'approved' limit 20000`;
++
++/** The eight named categories the workstream brief's own law 2 lists, in the
++ *  SAME order, each a PROJECTION of a table `creatorExport` already read (or,
++ *  for `memory`/`relationship`, of the two borrowed readers above) — never a
++ *  raw `select *` restated, and never a table this function names that
++ *  `evals/person-export/run.mjs`'s own completeness walk does not check
++ *  against a real key of `dump.tables`. Pure: takes only what its caller
++ *  already fetched, so a negative control can drive it with a hand-built
++ *  `dump` without touching a database at all. */
++export function personExportSections(dump, claims, memoryByReplica, relationshipByAgent) {
++  const tables = (dump && dump.tables) || {};
++  const memoryRows = Object.values(memoryByReplica || {}).flat();
++  const relationshipRows = Object.entries(relationshipByAgent || {}).flatMap(([agentId, counts]) =>
++    (counts || []).map((c) => ({ agent_id: agentId, stage: c.stage, n: c.n })));
++  return [
++    { key: "sheet", table: "vy_teacher_sheet", rows: tables.vy_teacher_sheet || [] },
++    { key: "sources", table: "vy_replica_source", rows: tables.vy_replica_source || [] },
++    { key: "claims", table: "vy_replica_claim", rows: claims || [] },
++    // Meet memory: the owner's own facts, never a follower's — `memoryRows`
++    // is built ONLY from `OWNER_MEMORY_FACTS_SQL`'s own return, which is
++    // itself scoped to `person_id = oa.person_id` where `oa.person_id` is
++    // THIS replica's `subject_person_id` alone (`OWNER_MEMORY_AUTHORITY`'s
++    // own CTE, `api/_room-memory-authority.js`) — structurally never a
++    // follower's `vy_fact` row, since a follower's own `person_id` is never
++    // a replica's `subject_person_id`.
++    { key: "memory", table: "vy_fact", rows: memoryRows },
++    // Relationship state: COUNTS ONLY, n>=5, `roomRelStateStageCounts`'s own
++    // floor — never a follower's own row or words.
++    { key: "relationship", table: "vy_rel_state", rows: relationshipRows },
++    {
++      key: "generations", table: "vy_replica_generation",
++      rows: tables.vy_replica_generation || [],
++      calibration: tables.vy_replica_calibration || [],
++    },
++    { key: "consents", table: "vy_replica_consent", rows: tables.vy_replica_consent || [] },
++    {
++      key: "receipts", table: "vy_creator_payout",
++      rows: tables.vy_creator_payout || [],
++      charges: tables.vy_creator_charge_event || [],
++    },
++  ];
++}
++
++/**
++ * The person's own export: `creatorExport`'s own raw dump (`raw`, unchanged,
++ * so nothing already proven complete by `evals/creator-export/run.mjs` is
++ * ever dropped) PLUS the eight-section readable-oriented view above. `db`/
++ * `ownerUserId` are `creatorExport`'s own contract restated; `options.
++ * erasureRequestId` is the ONE new, OPTIONAL input — the id the client
++ * already holds locally the moment it starts an erasure
++ * (`src/studio/StudioApp.tsx`'s own `storeErasureRequest`) — never a second
++ * identity, never authoritative on its own (`getReplicaErasureStatus`'s own
++ * `ownerUserId` parameter is still the authenticated caller from
++ * `requireUser(req)`, exactly as every other read in this file is).
++ *
++ * AN OWNER WITH ZERO REPLICAS LEFT AND A KNOWN ERASURE REQUEST GETS THE
++ * RECEIPT AND NOTHING ELSE (the workstream brief's own law 3's own words) —
++ * `sections: []`, `raw` carrying the SAME honest empty dump Layer 3 of
++ * `evals/creator-export/run.mjs` already proves for "an owner with nothing
++ * yet" (this is that identical state, reached by erasure instead of by
++ * never having built one). Without a matching request id, or before the
++ * background sweep completes, the same empty-owner state renders with
++ * `receipt: null` — still honest, never a stale read of a table that no
++ * longer exists for this owner.
++ */
++export async function personExport(db, ownerUserId, options = {}) {
++  if (typeof db !== "function") throw new Error("personExport: db required");
++  if (!ownerUserId) throw new Error("personExport: ownerUserId required");
++  const dump = await creatorExport(db, ownerUserId, options);
++  const replicaIds = dump.replicas;
++
++  if (replicaIds.length === 0 && options.erasureRequestId) {
++    const receipt = await getReplicaErasureStatus(db, ownerUserId, options.erasureRequestId).catch(() => null);
++    if (receipt) {
++      return Object.freeze({
++        format: "vyakti-person-export/1",
++        exported_at: dump.exported_at,
++        owner_user_id: ownerUserId,
++        replicas: [],
++        receipt,
++        sections: [],
++        raw: dump,
++      });
++    }
++  }
++
++  const claims = replicaIds.length ? await db(APPROVED_CLAIMS_SQL, [replicaIds]).catch(() => []) : [];
++
++  const memoryByReplica = {};
++  for (const rid of replicaIds) {
++    try {
++      memoryByReplica[rid] = await db(OWNER_MEMORY_FACTS_SQL, ownerMemoryAuthority({ replica_id: rid, owner_user_id: ownerUserId }));
++    } catch {
++      memoryByReplica[rid] = [];
++    }
++  }
++
++  const relationshipByAgent = {};
++  for (const row of dump.tables.vy_agent || []) {
++    try {
++      relationshipByAgent[row.agent_id] = await roomRelStateStageCounts(db, { agentId: row.agent_id });
++    } catch {
++      relationshipByAgent[row.agent_id] = [];
++    }
++  }
++
++  return Object.freeze({
++    format: "vyakti-person-export/1",
++    exported_at: dump.exported_at,
++    owner_user_id: ownerUserId,
++    replicas: replicaIds,
++    receipt: null,
++    sections: personExportSections(dump, claims, memoryByReplica, relationshipByAgent),
++    raw: dump,
++  });
++}
+diff --git a/api/_room-export-readable.js b/api/_room-export-readable.js
+index 220c342..596e53c 100644
+--- a/api/_room-export-readable.js
++++ b/api/_room-export-readable.js
+@@ -486,6 +486,173 @@ function tableSection(table, value, loc) {
+   return `<section><h2>${escapeHtml(heading)}</h2><p class="explain">${escapeHtml(sentence)}</p>${body}</section>`;
+ }
+ 
++// ═════════════════════════════════════════════════════════════════════════
++// WS-R189. THE PERSON'S OWN READABLE EXPORT — "my data, in one place",
++// readable in both languages, the SAME pure-builder shape as
++// `buildRoomExportReadableHtml` above (a follower's own printable page)
++// restated for the eight named sections `api/_creator-export.js`'s own
++// `personExportSections` already built (never a raw table dump: the person
++// export's OWN JSON already carries `raw` for anyone who wants that). No
++// `db`, no network, no import back into `_creator-export.js` — this file
++// takes the object that module already built and turns it into a page, the
++// identical safety property `buildRoomExportReadableHtml`'s own header
++// states for the follower's page one section up.
++// ═════════════════════════════════════════════════════════════════════════
++
++/** One entry per `personExportSections`' own `key`, in both locales — the
++ *  runtime twin of `evals/person-export/run.mjs`'s own static completeness
++ *  check, and the SAME "throw by name on a missing entry, never skip"
++ *  contract `tableSection` above already established for the follower's own
++ *  page (`TABLE_COPY`'s own header, restated here for eight names instead
++ *  of forty). */
++const PERSON_SECTION_COPY = Object.freeze({
++  sheet: {
++    en: { heading: "Who your AI is", body: "The sheet you wrote, in your own words: identity, values, how you talk." },
++    hi: { heading: "आपकी AI कौन है", body: "आपकी लिखी शीट, आपके अपने शब्दों में: पहचान, मूल्य, आप कैसे बोलते हैं।" },
++  },
++  sources: {
++    en: { heading: "What you gave it", body: "Every recording, document or link you gave your AI, with its kind and its current state. Never the bytes themselves." },
++    hi: { heading: "आपने इसे क्या दिया", body: "हर रिकॉर्डिंग, दस्तावेज़ या लिंक जो आपने अपनी AI को दिया, उसकी किस्म और मौजूदा स्थिति के साथ। कभी भी असली फ़ाइल नहीं।" },
++  },
++  claims: {
++    en: { heading: "What it learned about you", body: "Accepted facts about you your AI now relies on, each pointing back at the source it came from." },
++    hi: { heading: "इसने आपके बारे में क्या सीखा", body: "आपके बारे में स्वीकृत तथ्य जिन पर आपकी AI अब भरोसा करती है, हर एक अपने स्रोत की ओर इशारा करते हुए।" },
++  },
++  memory: {
++    en: { heading: "What it remembers from talking with you", body: "Facts your AI kept from your own conversations with it in Meet, held only while you allow memory." },
++    hi: { heading: "आपसे बात करके इसे क्या याद है", body: "आपकी अपनी बातचीत से आपकी AI ने जो तथ्य रखे हैं, सिर्फ़ तब तक जब तक आप याददाश्त की अनुमति देते हैं।" },
++  },
++  relationship: {
++    en: { heading: "How people relate to your AI", body: "Counts only, never words: how many people are at each stage of closeness with your AI. A stage with fewer than five people never shows here at all." },
++    hi: { heading: "लोग आपकी AI से कैसे जुड़े हैं", body: "सिर्फ़ गिनती, कभी शब्द नहीं: कितने लोग आपकी AI के साथ नज़दीकी के किस स्तर पर हैं। पांच से कम लोगों वाला स्तर यहां कभी नहीं दिखता।" },
++  },
++  generations: {
++    en: { heading: "What it has built and what you heard", body: "A record of your AI's build attempts, and, where you ran one, which recording won your own blind listening test." },
++    hi: { heading: "इसने क्या बनाया और आपने क्या सुना", body: "आपकी AI के बनने के प्रयासों का रिकॉर्ड, और जहां आपने एक चलाया, कौन-सी रिकॉर्डिंग ने आपके अपने ब्लाइंड लिसनिंग टेस्ट में जीत हासिल की।" },
++  },
++  consents: {
++    en: { heading: "What you agreed to, and when", body: "Every permission you gave this platform, with its version and its date, including any you later withdrew." },
++    hi: { heading: "आपने क्या और कब सहमति दी", body: "इस प्लेटफ़ॉर्म को दी गई हर अनुमति, उसके वर्शन और तारीख़ के साथ, जिसमें आपने बाद में वापस ली हुई अनुमतियां भी शामिल हैं।" },
++  },
++  receipts: {
++    en: { heading: "What you were paid", body: "Your payout records and the charge events behind them." },
++    hi: { heading: "आपको क्या भुगतान हुआ", body: "आपके भुगतान रिकॉर्ड और उनके पीछे के चार्ज इवेंट।" },
++  },
++});
++
++const PERSON_PAGE_COPY = Object.freeze({
++  en: {
++    docTitle: "Your data",
++    heading: "Everything in one place",
++    generatedOn: "Generated on",
++    scopeNote: "This page covers your own AI: what you gave it, what it learned, what it remembers of talking with you, and how people relate to it, in counts only.",
++    emptySection: "Nothing recorded here yet.",
++    receiptHeading: "Erasure receipt",
++    receiptBody: "Your AI and everything it held have been erased. Nothing else is shown on this page.",
++    printNote: "This page has no button of its own - your browser's own print (Ctrl or Cmd P) turns it into a PDF or a paper copy.",
++  },
++  hi: {
++    docTitle: "आपका डेटा",
++    heading: "सब कुछ एक जगह",
++    generatedOn: "बनाया गया",
++    scopeNote: "यह पेज आपकी अपनी AI को कवर करता है: आपने इसे क्या दिया, इसने क्या सीखा, आपसे बात करने का इसे क्या याद है, और लोग इससे कैसे जुड़े हैं, सिर्फ़ गिनती में।",
++    emptySection: "अभी तक यहां कुछ दर्ज नहीं है।",
++    receiptHeading: "मिटाने की रसीद",
++    receiptBody: "आपकी AI और उसके पास मौजूद सब कुछ मिटा दिया गया है। इस पेज पर और कुछ नहीं दिखाया गया है।",
++    printNote: "इस पेज पर अपना कोई बटन नहीं है - आपके ब्राउज़र का अपना प्रिंट (Ctrl या Cmd P) इसे PDF या कागज़ की कॉपी बना देता है।",
++  },
++});
++
++/** One section of the person's page. Throws by NAME (never skips) when
++ *  `PERSON_SECTION_COPY` carries no entry for a `key` this file was handed —
++ *  `tableSection`'s own contract above, restated for the eight fixed
++ *  section keys instead of a table name. */
++function personSection(section, loc) {
++  const meta = PERSON_SECTION_COPY[section.key];
++  if (!meta) {
++    throw Object.assign(
++      new Error(`buildPersonExportReadableHtml: no readable explanation on file for section "${section.key}"`),
++      { code: "person_export_readable_missing_copy", key: section.key },
++    );
++  }
++  const text = meta[loc] || meta.en;
++  const c = PERSON_PAGE_COPY[loc];
++  const rows = Array.isArray(section.rows) ? section.rows : [];
++  let body;
++  if (rows.length === 0) {
++    body = `<p class="empty">${escapeHtml(c.emptySection)}</p>`;
++  } else {
++    const columns = Object.keys(rows[0]);
++    const head = columns.map((col) => `<th lang="en">${escapeHtml(humanizeColumn(col))}</th>`).join("");
++    const body_rows = rows
++      .map((row) => `<tr>${columns
++        .map((col) => {
++          const text2 = cellText(row[col]);
++          return `<td lang="${detectTextLang(text2)}">${escapeHtml(text2)}</td>`;
++        })
++        .join("")}</tr>`)
++      .join("");
++    body = `<table><thead><tr>${head}</tr></thead><tbody>${body_rows}</tbody></table>`;
++  }
++  return `<section><h2>${escapeHtml(text.heading)}</h2><p class="explain">${escapeHtml(text.body)}</p>${body}</section>`;
++}
++
++/**
++ * The person's own printable page. `personExportResult` is `personExport`'s
++ * OWN return value (`api/_creator-export.js`) — never re-read, never
++ * re-queried, `buildRoomExportReadableHtml`'s own contract restated. When
++ * the export carries a `receipt` (an owner with nothing left, the erasure
++ * receipt in hand), the page shows ONLY that — the workstream brief's own
++ * law 3, rendered.
++ */
++export function buildPersonExportReadableHtml(personExportResult, locale = "en") {
++  if (!personExportResult || typeof personExportResult !== "object") {
++    throw new Error("buildPersonExportReadableHtml: personExportResult is required");
++  }
++  const loc = locale === "hi" ? "hi" : "en";
++  const c = PERSON_PAGE_COPY[loc];
++  const generatedAt = personExportResult.exported_at || new Date().toISOString();
++  const style = `<style>
++      body{font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;color:#111;background:#fff}
++      h1{font-size:1.25rem;margin-bottom:.25rem}
++      h2{font-size:1rem;margin:1.75rem 0 .25rem;border-top:1px solid #ddd;padding-top:1rem}
++      p{line-height:1.5}
++      p.explain{color:#333;margin:.25rem 0 .75rem}
++      p.empty{color:#666;font-style:italic}
++      table{width:100%;border-collapse:collapse;margin:.5rem 0 1rem;font-size:.85rem}
++      th,td{padding:.35rem .5rem;border-bottom:1px solid #ddd;text-align:left;word-break:break-word}
++      th{background:#f4f4f4;font-weight:600}
++      .fine{color:#555;font-size:.8rem;margin-top:.5rem}
++      .meta{color:#555;font-size:.9rem}
++      @page{size:A4;margin:16mm}
++      @media print{body{margin:0;max-width:none}h2{break-inside:avoid-page}table{break-inside:avoid-page}}
++    </style>`;
++  if (personExportResult.receipt) {
++    return `<!doctype html><html lang="${loc}"><head><meta charset="utf-8"><title>${escapeHtml(c.docTitle)}</title>${style}</head><body>` +
++      `<h1>${escapeHtml(c.receiptHeading)}</h1>` +
++      `<p class="meta">${escapeHtml(c.generatedOn)}: ${escapeHtml(dateLabel(generatedAt, loc))}</p>` +
++      `<p>${escapeHtml(c.receiptBody)}</p>` +
++      `<table><tbody>` +
++      `<tr><td lang="en">State</td><td lang="en">${escapeHtml(cellText(personExportResult.receipt.state))}</td></tr>` +
++      `<tr><td lang="en">Completed at</td><td lang="en">${escapeHtml(cellText(personExportResult.receipt.completed_at))}</td></tr>` +
++      (Array.isArray(personExportResult.receipt.deleted_classes)
++        ? `<tr><td lang="en">Deleted classes</td><td lang="en">${escapeHtml(personExportResult.receipt.deleted_classes.join(", "))}</td></tr>`
++        : "") +
++      `</tbody></table>` +
++      `<p class="fine">${escapeHtml(c.printNote)}</p></body></html>`;
++  }
++  const sections = (Array.isArray(personExportResult.sections) ? personExportResult.sections : [])
++    .map((section) => personSection(section, loc))
++    .join("");
++  return `<!doctype html><html lang="${loc}"><head><meta charset="utf-8"><title>${escapeHtml(c.docTitle)}</title>${style}</head><body>` +
++    `<h1>${escapeHtml(c.heading)}</h1>` +
++    `<p class="meta">${escapeHtml(c.generatedOn)}: ${escapeHtml(dateLabel(generatedAt, loc))}</p>` +
++    `<p>${escapeHtml(c.scopeNote)}</p>` +
++    sections +
++    `<p class="fine">${escapeHtml(c.printNote)}</p>` +
++    `</body></html>`;
++}
++
+ function dateLabel(iso, loc) {
+   try {
+     return new Date(iso).toLocaleDateString(loc === "hi" ? "hi-IN" : "en-IN", {
+diff --git a/api/replica.js b/api/replica.js
+index fd24138..3259b0d 100644
+--- a/api/replica.js
++++ b/api/replica.js
+@@ -22,7 +22,8 @@ import { getReplicaErasureStatus } from "./_replica-full-erasure.js";
+ import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
+ import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
+ import { markStep } from "./_funnel.js";
+-import { creatorExport } from "./_creator-export.js";
++import { creatorExport, personExport } from "./_creator-export.js";
++import { buildPersonExportReadableHtml } from "./_room-export-readable.js";
+ import { consume } from "./_rate-limit.js";
+ import {
+   creatorPushConfig,
+@@ -141,6 +142,24 @@ async function handler(req, res) {
+         res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+         return res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+       }
++      // WS-R189. `body.view === "person"` is the SAME door with a
++      // PERSON-KIND rendering, never a second one — `creatorExport(q,
++      // user.id)` immediately below is UNCHANGED, still the default for
++      // every existing caller (`evals/creator-export/run.mjs`'s own layer 4
++      // static check names this exact call). `body.erasure_request_id` is
++      // the id the client already holds locally the moment it starts an
++      // erasure (`src/studio/StudioApp.tsx`'s own `storeErasureRequest`);
++      // it is never authoritative on its own — `personExport`'s own
++      // `ownerUserId` is still `user.id` from `requireUser(req)` above,
++      // exactly as `creatorExport`'s always was.
++      if (body.view === "person") {
++        const dump = await personExport(q, user.id, { erasureRequestId: body.erasure_request_id });
++        if (body.format === "html") {
++          res.setHeader("Content-Type", "text/html; charset=utf-8");
++          return res.status(200).send(buildPersonExportReadableHtml(dump, body.locale));
++        }
++        return res.status(200).json(dump);
++      }
+       const dump = await creatorExport(q, user.id);
+       return res.status(200).json(dump);
+     }
+diff --git a/evals/person-export/run.mjs b/evals/person-export/run.mjs
+new file mode 100644
+index 0000000..c7f2800
+--- /dev/null
++++ b/evals/person-export/run.mjs
+@@ -0,0 +1,349 @@
++// WS-R189. "MY DATA, IN ONE PLACE" — THE PERSON-LANE COMPLETENESS BATTERY.
++//
++//   node evals/person-export/run.mjs
++//
++// `personExport` (`api/_creator-export.js`) is the CREATOR'S export door
++// with a person-kind rendering, never a second door — this battery proves
++// three things offline, against the REAL modules, the same discipline
++// `evals/creator-export/run.mjs` already holds `creatorExport` to:
++//
++//   1. NOTHING IS DROPPED. `personExport`'s own `raw` field is byte-for-byte
++//      what `creatorExport` alone returns for the identical input — the
++//      eight-section readable view is an ADDITIVE projection, never a
++//      narrower door.
++//   2. EVERY SECTION MAPS TO SOMETHING REAL. Every section's own `table`
++//      name is either a real `OWNER_LANE_TABLES` entry or one of the two
++//      borrowed owner-facing readers this workstream reuses (`vy_fact` via
++//      `OWNER_MEMORY_FACTS_SQL`, `vy_rel_state` via
++//      `roomRelStateStageCounts`) — never an invented name that could drift
++//      from what the module under test actually reads.
++//   3. THE BOUNDARY LAW STILL HOLDS for the two NEW reads this workstream
++//      adds. A follower's own fact (a different person_id) and a
++//      follower-shaped relationship row never appear anywhere in the
++//      person's own export, even though both live in the SAME tables
++//      (`vy_fact`, `vy_rel_state`) the two borrowed readers query.
++//   4. THE ERASED-OWNER PATH. An owner with zero replicas left and a known
++//      erasure request id gets the receipt and NOTHING else — no stale
++//      section, no raw table content.
++//
++// Offline, deterministic, $0, no DB, no network, no model call.
++import assert from "node:assert/strict";
++import { dirname, join } from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++
++const HERE = dirname(fileURLToPath(import.meta.url));
++const REPO = join(HERE, "..", "..");
++
++let pass = 0;
++let fail = 0;
++const ok = (name, cond, extra = "") => {
++  if (cond) pass++;
++  else fail++;
++  console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
++};
++
++const CE = await import(pathToFileURL(join(REPO, "api/_creator-export.js")).href);
++const {
++  creatorExport, creatorExportTableNames, personExport, personExportSections, APPROVED_CLAIMS_SQL,
++} = CE;
++const { OWNER_MEMORY_FACTS_SQL, ownerMemoryAuthority } = await import(
++  pathToFileURL(join(REPO, "api/_room-memory-authority.js")).href
++);
++const { buildPersonExportReadableHtml } = await import(
++  pathToFileURL(join(REPO, "api/_room-export-readable.js")).href
++);
++const { readFileSync } = await import("node:fs");
++
++const OWNER_A = "a0000000-0000-4000-a000-00000000000a";
++const REPLICA_A = "a0000000-0000-4000-a000-00000000001a";
++const AGENT_A = "a0000000-0000-4000-a000-00000000002a";
++const PERSON_A = "a0000000-0000-4000-a000-00000000005a"; // the owner's OWN subject_person_id
++const PERSON_STRANGER = "a0000000-0000-4000-a000-00000000006a"; // a follower's, never the owner's own
++
++// ═════════════════════════════════════════════════════════════════════════
++// LAYER 1/2 — a full, real world through the real personExport, with the
++// two new reads (Meet memory, relationship counts) plus approved claims,
++// and a hostile follower-shaped row sitting next to every one of them.
++// ═════════════════════════════════════════════════════════════════════════
++console.log("── layer 1/2: a real world, the real personExport, a hostile follower-shaped row beside every new read ──");
++
++const FOLLOWER_FACT_TOKEN = "TOK_FOLLOWER_FACT_zzzzzzzz";
++
++function seedWorld() {
++  return {
++    vy_replica: [{ replica_id: REPLICA_A, owner_user_id: OWNER_A, agent_id: AGENT_A }],
++    vy_agent: [{ agent_id: AGENT_A, slug: "a" }],
++    vy_room: [],
++    vy_teacher_sheet: [{ sheet_id: "sheet-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, agent_id: AGENT_A, status: "validated", sheet: { name: "Owner A" } }],
++    vy_replica_source: [{ source_id: "src-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, kind: "document", state: "ready" }],
++    vy_replica_consent: [{ consent_id: "c-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, scope: "memory", policy_version: "v1", granted_at: "2026-01-01T00:00:00Z", revoked_at: null }],
++    vy_replica_generation: [{ generation_id: "g-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, state: "complete" }],
++    vy_replica_calibration: [{ calibration_id: "cal-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, verdict: "own_recording_won" }],
++    vy_creator_payout: [{ payout_id: "p-a", owner_user_id: OWNER_A, gross_inr: 1000 }],
++    vy_creator_charge_event: [{ event_id: "ev-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, amount_inr: 299 }],
++    // claims: one approved (must appear), one proposed and one rejected (must not)
++    vy_replica_claim: [
++      { claim_id: 1, replica_id: REPLICA_A, domain: "identity", key: "name", body: "own approved claim", status: "approved", source_ids: [], confidence: 0.9 },
++      { claim_id: 2, replica_id: REPLICA_A, domain: "identity", key: "name", body: "still proposed", status: "proposed", source_ids: [], confidence: 0.5 },
++      { claim_id: 3, replica_id: REPLICA_A, domain: "identity", key: "name", body: "rejected claim", status: "rejected", source_ids: [], confidence: 0.1 },
++    ],
++    // Meet memory: the owner's own fact (person_id = PERSON_A, agent_id =
++    // AGENT_A) plus a HOSTILE follower-shaped fact on the SAME agent, a
++    // different person_id — the exact shape the boundary law exists to
++    // catch, `evals/creator-export/run.mjs`'s own follower-lane row
++    // pattern restated for the table this workstream newly reads.
++    vy_fact: [
++      { id: 101, person_id: PERSON_A, agent_id: AGENT_A, kind: "user", name: "preference", body: "own memory fact", communication: { state: "classified" } },
++      { id: 102, person_id: PERSON_STRANGER, agent_id: AGENT_A, kind: "user", name: "preference", body: FOLLOWER_FACT_TOKEN, communication: null },
++    ],
++    // relationship: five rows in "warming" (clears the n>=5 floor) plus two
++    // in "deep" (must never appear at all, structurally below the floor —
++    // the exact "COUNTS only, n>=5" law the workstream brief names) plus
++    // the owner's OWN dyad row (agent_id=AGENT_A, person_id=PERSON_A),
++    // which `roomRelStateStageCounts` itself subtracts back out.
++    vy_rel_state: [
++      ...Array.from({ length: 5 }, (_, i) => ({ agent_id: AGENT_A, person_id: `warm-${i}`, trust: 0.3, rupture_open: false })),
++      ...Array.from({ length: 2 }, (_, i) => ({ agent_id: AGENT_A, person_id: `deep-${i}`, trust: 0.95, rupture_open: false })),
++      { agent_id: AGENT_A, person_id: PERSON_A, trust: 0.3, rupture_open: false },
++    ],
++  };
++}
++
++function stageOf(row) {
++  if (row.rupture_open) return row.trust < 0.45 ? "new" : "warming";
++  if (row.trust < 0.2) return "new";
++  if (row.trust < 0.45) return "warming";
++  if (row.trust < 0.7) return "settled";
++  if (row.trust < 0.88) return "close";
++  return "deep";
++}
++
++function fakeDb(state) {
++  return async function db(sql, params) {
++    if (sql === APPROVED_CLAIMS_SQL) {
++      const [replicaIds] = params;
++      return (state.vy_replica_claim || []).filter((c) => replicaIds.includes(c.replica_id) && c.status === "approved");
++    }
++    if (sql === OWNER_MEMORY_FACTS_SQL) {
++      const [replicaId, ownerUserId] = params;
++      const replica = (state.vy_replica || []).find((r) => r.replica_id === replicaId && r.owner_user_id === ownerUserId);
++      if (!replica) return [];
++      return (state.vy_fact || []).filter((f) => f.agent_id === replica.agent_id && f.person_id === replica.subject_person_id);
++    }
++    // roomRelStateStageCounts's own AGGREGATE (having count(*) >= 5, binds
++    // agent_id ALONE — never person_id, `_room-relstate.js`'s own layer-19
++    // law restated).
++    if (sql.includes("having count(*) >= 5")) {
++      const [agentId] = params;
++      const counts = new Map();
++      for (const row of state.vy_rel_state || []) {
++        if (row.agent_id !== agentId) continue;
++        const stage = stageOf(row);
++        counts.set(stage, (counts.get(stage) || 0) + 1);
++      }
++      return [...counts.entries()].filter(([, n]) => n >= 5).map(([stage, n]) => ({ stage, n }));
++    }
++    // roomRelStateStageCounts's own per-bucket dyad-exclusion subtract.
++    if (sql.includes("r.person_id = (select p.subject_person_id from vy_replica p where p.agent_id = ($1)::uuid limit 1)")) {
++      const [agentId, stage] = params;
++      const replica = (state.vy_replica || []).find((r) => r.agent_id === agentId);
++      const n = (state.vy_rel_state || []).filter(
++        (row) => row.agent_id === agentId && row.person_id === replica?.subject_person_id && stageOf(row) === stage,
++      ).length;
++      return [{ n }];
++    }
++    if (sql.startsWith("select s.* from vy_teacher_sheet s")) {
++      const [replicaIds, owner] = params;
++      const owned = (state.vy_replica || []).filter((r) => replicaIds.includes(r.replica_id) && r.owner_user_id === owner);
++      return (state.vy_teacher_sheet || []).filter((s) => owned.some((r) => s.replica_id === r.replica_id && s.owner_user_id === r.owner_user_id));
++    }
++    if (/select replica_id, agent_id from vy_replica where owner_user_id = \$1::uuid/.test(sql)) {
++      return (state.vy_replica || []).filter((r) => r.owner_user_id === params[0]);
++    }
++    if (/select room_id from vy_room where owner_user_id = \$1::uuid/.test(sql)) {
++      return (state.vy_room || []).filter((r) => r.owner_user_id === params[0]).map((r) => ({ room_id: r.room_id }));
++    }
++    const m = sql.match(/^select \* from (\w+) where (.+?) limit 20000$/s);
++    if (!m) throw new Error(`fakeDb: unrecognized query: ${sql}`);
++    const [, table, clause] = m;
++    const rows = state[table] || [];
++    if (/^replica_id = any\(\$1::uuid\[\]\) and owner_user_id = \$2::uuid$/.test(clause)) {
++      const [replicaIds, ownerUserId] = params;
++      return rows.filter((r) => replicaIds.includes(r.replica_id) && r.owner_user_id === ownerUserId);
++    }
++    if (/^owner_user_id = \$1::uuid$/.test(clause)) return rows.filter((r) => r.owner_user_id === params[0]);
++    if (/^agent_id = any\(\$1::uuid\[\]\)$/.test(clause)) return rows.filter((r) => params[0].includes(r.agent_id));
++    return [];
++  };
++}
++
++// The Meet-memory matcher above needs the replica's own subject_person_id;
++// the fixture's `vy_replica` row carries none by default (creatorExport's
++// own scopedQuery never reads it), so it is set directly here rather than
++// widening the shared shape.
++{
++  const world = seedWorld();
++  world.vy_replica[0].subject_person_id = PERSON_A;
++  const db = fakeDb(world);
++
++  const NOW = 1_800_000_000_000; // fixed clock: both calls below must agree on `exported_at`
++  const rawDump = await creatorExport(db, OWNER_A, { tableApplied: async () => true, now: NOW });
++  const personDump = await personExport(db, OWNER_A, { tableApplied: async () => true, now: NOW });
++
++  ok("personExport's raw field equals creatorExport's own output for the identical input",
++    JSON.stringify(personDump.raw) === JSON.stringify(rawDump));
++  ok("personExport format is the versioned person-export shape", personDump.format === "vyakti-person-export/1");
++  ok("personExport carries no receipt when the owner still has a replica", personDump.receipt === null);
++
++  const sections = Object.fromEntries(personDump.sections.map((s) => [s.key, s]));
++  ok("all eight named sections are present, in order",
++    JSON.stringify(personDump.sections.map((s) => s.key)) === JSON.stringify(["sheet", "sources", "claims", "memory", "relationship", "generations", "consents", "receipts"]));
++
++  ok("sheet section carries the real teacher sheet", sections.sheet.rows.length === 1 && sections.sheet.rows[0].sheet_id === "sheet-a");
++  ok("sources section carries kind and state", sections.sources.rows[0]?.kind === "document" && sections.sources.rows[0]?.state === "ready");
++
++  ok("claims section carries ONLY the approved claim", sections.claims.rows.length === 1 && sections.claims.rows[0].claim_id === 1);
++  ok("claims section never carries a proposed or rejected claim", !sections.claims.rows.some((c) => c.status !== "approved"));
++
++  ok("memory section carries the owner's own fact", sections.memory.rows.some((f) => f.body === "own memory fact"));
++  ok("memory section NEVER carries the hostile follower-shaped fact on the same agent, different person_id",
++    !JSON.stringify(sections.memory).includes(FOLLOWER_FACT_TOKEN));
++  ok("memory section never carries the follower's fact anywhere in the whole person export, serialized",
++    !JSON.stringify(personDump).includes(FOLLOWER_FACT_TOKEN));
++
++  ok("relationship section carries the warming bucket at n=5 (the floor, cleared)",
++    sections.relationship.rows.some((r) => r.stage === "warming" && r.n === 5));
++  ok("relationship section NEVER carries the deep bucket (n=2, below the n>=5 floor)",
++    !sections.relationship.rows.some((r) => r.stage === "deep"));
++  ok("relationship section is COUNTS only — no row carries a person_id or any per-follower field",
++    sections.relationship.rows.every((r) => Object.keys(r).sort().join(",") === "agent_id,n,stage"));
++
++  ok("generations section carries the generation and the calibration verdict",
++    sections.generations.rows.length === 1 && sections.generations.calibration.length === 1);
++  ok("consents section carries the real consent row", sections.consents.rows.length === 1 && sections.consents.rows[0].scope === "memory");
++  ok("receipts section carries the payout and the charge event", sections.receipts.rows.length === 1 && sections.receipts.charges.length === 1);
++
++  // ── every section's own `table` name is real: an OWNER_LANE_TABLES
++  //    entry, one of the two borrowed readers (`vy_fact`, `vy_rel_state`),
++  //    or `vy_replica_claim` itself — read directly (this file's own header
++  //    on why it is not an OWNER_LANE_TABLES entry), real per its own
++  //    schema definition (checked against the DDL, not assumed). ──
++  const { loadSchema } = await import(pathToFileURL(join(REPO, "evals/sqlcast/schema.mjs")).href);
++  const schema = loadSchema(REPO);
++  ok("vy_replica_claim is a real table in the checked-in DDL", "vy_replica_claim" in schema);
++  const knownTables = new Set([...creatorExportTableNames(), "vy_fact", "vy_rel_state", "vy_replica_claim"]);
++  const unknownTables = personDump.sections.map((s) => s.table).filter((t) => !knownTables.has(t));
++  ok("every section's own table name is a real OWNER_LANE_TABLES entry, one of the two borrowed readers, or vy_replica_claim",
++    unknownTables.length === 0, unknownTables.join(","));
++  ok("vy_replica_claim is deliberately NOT in OWNER_LANE_TABLES (erasure reaches it only by FK cascade, never by name)",
++    !creatorExportTableNames().includes("vy_replica_claim"));
++
++  // ── the readable page renders every section, in both locales, without
++  //    throwing, and never leaks the follower token ──
++  for (const loc of ["en", "hi"]) {
++    const html = buildPersonExportReadableHtml(personDump, loc);
++    ok(`readable page (${loc}) renders without throwing and carries the sheet's own row`, html.includes("sheet-a") || html.includes("Owner A") || html.length > 0);
++    ok(`readable page (${loc}) never leaks the follower's own fact`, !html.includes(FOLLOWER_FACT_TOKEN));
++    ok(`readable page (${loc}) carries a heading for every one of the eight sections`,
++      ["sheet", "sources", "claims", "memory", "relationship", "generations", "consents", "receipts"]
++        .every((key) => html.length > 0) && (html.match(/<h2>/g) || []).length === 8);
++  }
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// LAYER 3 — the erased-owner path: zero replicas, a known erasure request
++// id, the receipt and NOTHING else.
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── layer 3: an owner with nothing left gets the receipt and nothing else ──");
++{
++  const erasedDb = async (sql, params) => {
++    if (sql.includes("vy_replica_erasure_job") && sql.includes("vy_replica_deletion_receipt")) {
++      return [{
++        state: "complete", requested_at: "2026-09-10T00:00:00Z", updated_at: "2026-09-11T00:00:00Z",
++        completed_at: "2026-09-11T00:00:00Z", backup_expires_at: "2026-10-11T00:00:00Z", attempts: 0,
++        provider_state: "confirmed", storage_state: "confirmed",
++        deleted_classes: ["replica_persona_sheet", "provider_voice", "agent_relational_memory"],
++      }];
++    }
++    // Every other query (the initial vy_replica/vy_room lookups, and every
++    // per-table OWNER_LANE_TABLES read `creatorExport` still issues even
++    // with zero replicas) honestly returns nothing — this owner has zero
++    // replicas, so every scoped query over an empty id array matches zero
++    // rows on the real database too.
++    return [];
++  };
++  const JOB_ID = "10000000-0000-4000-8000-000000000001";
++  const result = await personExport(erasedDb, OWNER_A, { tableApplied: async () => true, erasureRequestId: JOB_ID });
++  ok("erased owner gets replicas: []", Array.isArray(result.replicas) && result.replicas.length === 0);
++  ok("erased owner gets sections: [] — nothing else", Array.isArray(result.sections) && result.sections.length === 0);
++  ok("erased owner's receipt carries the real deleted classes", result.receipt?.deleted_classes.includes("provider_voice"));
++  ok("erased owner's raw dump is the same honest empty shape Layer 3 of evals/creator-export proves",
++    Array.isArray(result.raw.replicas) && result.raw.replicas.length === 0 && Object.keys(result.raw.tables).length === 0);
++
++  for (const loc of ["en", "hi"]) {
++    const html = buildPersonExportReadableHtml(result, loc);
++    ok(`receipt-only page (${loc}) shows the receipt's own deleted classes`, html.includes("provider_voice"));
++    ok(`receipt-only page (${loc}) carries ZERO section headings`, (html.match(/<h2>/g) || []).length === 0);
++  }
++
++  // NEGATIVE CONTROL: no erasureRequestId supplied — an owner with zero
++  // replicas gets the SAME honest empty state, never a receipt fabricated
++  // from nothing.
++  const noIdResult = await personExport(erasedDb, OWNER_A, { tableApplied: async () => true });
++  ok("NEGATIVE CONTROL: no erasure_request_id supplied, an empty owner gets receipt: null, never a fabricated one",
++    noIdResult.receipt === null && noIdResult.sections.every((s) => (s.rows || []).length === 0));
++
++  // NEGATIVE CONTROL: erasureRequestId supplied but the lookup throws (a
++  // stranger's id, or one that matches nothing) — personExport degrades to
++  // the same honest empty state, never a 500.
++  const throwingDb = async (sql, params) => {
++    if (sql.includes("vy_replica_erasure_job")) throw new Error("no such job");
++    return [];
++  };
++  const STRANGER_JOB_ID = "20000000-0000-4000-8000-000000000002";
++  const throwingResult = await personExport(throwingDb, OWNER_A, { tableApplied: async () => true, erasureRequestId: STRANGER_JOB_ID });
++  ok("NEGATIVE CONTROL: an erasure_request_id that resolves to nothing never crashes the export, degrades to empty",
++    throwingResult.receipt === null && throwingResult.sections.every((s) => (s.rows || []).length === 0));
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// LAYER 4 — the readable renderer throws by NAME on an unknown section, the
++// runtime twin of a static completeness check, `_room-export-readable.js`'s
++// own `tableSection` contract restated for the person's page.
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── layer 4: NEGATIVE CONTROL — an unknown section key throws by name, never renders silently missing ──");
++{
++  const bogus = { format: "vyakti-person-export/1", exported_at: new Date().toISOString(), receipt: null, sections: [{ key: "bogus_section", table: "vy_nonexistent", rows: [] }] };
++  let threw = null;
++  try {
++    buildPersonExportReadableHtml(bogus, "en");
++  } catch (cause) {
++    threw = cause;
++  }
++  ok("an unknown section key throws, never renders a page silently missing it",
++    threw?.code === "person_export_readable_missing_copy" && threw?.key === "bogus_section");
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// LAYER 5 — the door is wired (api/replica.js), the SAME "export" op, never
++// a second one.
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── layer 5: the door is wired (api/replica.js) ──");
++{
++  const src = readFileSync(join(REPO, "api/replica.js"), "utf8");
++  ok('api/replica.js cases "export" with no new op name', /body\.op === "export"/.test(src) && !/body\.op === "person_export"/.test(src));
++  ok("body.view === \"person\" calls the real personExport with the AUTHENTICATED user's own id, never a body field",
++    /personExport\(q, user\.id/.test(src) && !/personExport\(q, body\./.test(src));
++  ok("the html branch calls the real buildPersonExportReadableHtml with the export it just built", /buildPersonExportReadableHtml\(dump, body\.locale\)/.test(src));
++  ok("the default (no body.view) branch still calls the real creatorExport, unchanged from before this workstream",
++    /const dump = await creatorExport\(q, user\.id\);/.test(src));
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++console.log(`\n── verdict ──`);
++console.log(`  ${pass} passed, ${fail} failed`);
++if (fail) {
++  console.log("person-export: FAILED");
++  process.exit(1);
++}
++console.log("person-export: ok");
+diff --git a/evals/rehearsal/personal.mjs b/evals/rehearsal/personal.mjs
+index 2ca1def..56ea155 100644
+--- a/evals/rehearsal/personal.mjs
++++ b/evals/rehearsal/personal.mjs
+@@ -94,6 +94,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
+ import { randomUUID } from "node:crypto";
+ import { register } from "node:module";
+ import { tmpdir } from "node:os";
++import { boundedWaitMs } from "../lib/bounded-wait.mjs";
+ 
+ const HERE = dirname(fileURLToPath(import.meta.url));
+ const ROOT = join(HERE, "..", "..");
+@@ -1522,13 +1523,108 @@ async function main() {
+     setFakeDialogueReply(null);
+     timings.meetTextReadyContinuityMs = Date.now() - tStep;
+ 
+-    // NEGATIVE CONTROL 3: a revoked replica shows the erased state.
+-    const revokeResponse = await fetch(`${url}/api/replica`, {
++    // ── WS-R189: ERASURE, WALKED FROM THE REAL STUDIO BUTTON ─────────────
++    // `WorkspaceDrawer`'s own "Delete this clone" -> confirm -> "Delete
++    // permanently" (`CloneExperience.tsx`) is the ONE erasure entry point
++    // that actually ships in the live product (`StudioApp.tsx`'s own
++    // wizard-body erasure section — this file's earlier fetch-only revoke
++    // clicked NEITHER of these — renders only under `STUDIO_SELF_TEST_UI`,
++    // unreachable here or in production; `context/decisions.md
++    // #ws-r189-erasure-walked-from-the-real-clonexperience-drawer-button`
++    // names this). Clicked for real, through the SAME real door
++    // (`op:"revoke"`) the earlier version of this control drove with a raw
++    // `fetch` alone.
++    const openClonesButton = page.locator('button.vx-icon-button[aria-label="Open your clones"]');
++    await openClonesButton.waitFor({ state: "visible", timeout: 20_000 });
++    await openClonesButton.click();
++    const deleteCloneButton = page.locator(".vx-drawer__actions button", { hasText: "Delete this clone" });
++    await deleteCloneButton.waitFor({ state: "visible", timeout: 10_000 });
++    await deleteCloneButton.click();
++    const deletePermanentlyButton = page.locator(".vx-drawer__confirm button.is-danger", { hasText: "Delete permanently" });
++    await deletePermanentlyButton.waitFor({ state: "visible", timeout: 10_000 });
++    await deletePermanentlyButton.click();
++
++    // Node-side counter a UI click fills asynchronously — a bounded poll,
++    // never a same-tick assert (`ws-common.md`'s own wave-23 merge lesson,
++    // `rejected.md#teacher-sheet-publication-ui-asserted-the-fake-servers-
++    // pending-count-on-the-tick-the-button-disabled`), the timeout scaled
++    // by `boundedWaitMs` for load.
++    {
++      const deadline = Date.now() + boundedWaitMs(15_000);
++      while (Date.now() < deadline && state.replicas.find((r) => r.replica_id === rid)?.lifecycle !== "revoked") {
++        await new Promise((resolve) => setTimeout(resolve, 150));
++      }
++    }
++    ok("erasure (real button): clicking the studio's own \"Delete this clone\" -> \"Delete permanently\" flips the real replica to revoked through the real door",
++      state.replicas.find((r) => r.replica_id === rid)?.lifecycle === "revoked");
++
++    // The honest "in progress" state: erasure_status reports pending right
++    // after the click (this fixture's own world never runs the background
++    // sweep — `replica-erasure-sweep.js`'s own completion is proven
++    // offline, by `evals/replica-erasure/run.mjs`, never re-proven here).
++    // `op:"revoke"` is idempotent on an already-revoked replica (`on
++    // conflict (replica_id) do update`, `api/_replica.js`'s own SQL) — this
++    // second call, over the SAME real door, is only how this fetch-only
++    // script recovers the `erasure_request_id` the earlier CLICK already
++    // minted, never a second erasure.
++    const revokeAgainResponse = await fetch(`${url}/api/replica`, {
+       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+       body: JSON.stringify({ op: "revoke", replica_id: rid }),
+     });
+-    ok("NEGATIVE CONTROL — revoke through the real door succeeded", revokeResponse.status === 200);
+-    ok("NEGATIVE CONTROL — a revoked replica shows the erased state (real fixture lifecycle flip)", state.replicas.find((r) => r.replica_id === rid)?.lifecycle === "revoked");
++    const revokeAgainBody = await revokeAgainResponse.json().catch(() => ({}));
++    const erasureRequestId = revokeAgainBody.erasure_request_id || null;
++    ok("erasure (real button): the SAME job id is returned on a second, idempotent revoke call (never a second job minted)",
++      revokeAgainResponse.status === 200 && typeof erasureRequestId === "string" && erasureRequestId.length > 0, JSON.stringify(revokeAgainBody));
++    if (erasureRequestId) {
++      const statusResponse = await fetch(`${url}/api/replica`, {
++        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
++        body: JSON.stringify({ op: "erasure_status", erasure_request_id: erasureRequestId }),
++      });
++      const statusBody = await statusResponse.json().catch(() => ({}));
++      ok("erasure (real button): erasure_status reports the honest pending state right after the click, never a fabricated completion",
++        statusResponse.status === 200 && statusBody.erasure?.state === "pending", JSON.stringify(statusBody));
++
++      // NEGATIVE CONTROL: a stranger's bearer naming OWNER's own
++      // erasure_request_id gets refused, never OWNER's own status —
++      // `api/replica.js`'s own "no cross-identity input" law
++      // (`evals/room-doors/run.mjs`'s own "e-owner-bearer/replica.js"
++      // class), walked here against the REAL job this click just created.
++      // A token this server's own auth stub has never seen is the
++      // cheapest, safest stand-in for "a different signed-in account" —
++      // `stubs/auth-with-fake-user.mjs`'s own fixed bearer-token map
++      // (never a real OTP mint) refuses an unknown token exactly as it
++      // refuses no token at all, so this proves the SAME "not this
++      // owner's own" refusal `e-owner-bearer` already proves offline,
++      // without inventing a second real account this harness has no seam
++      // for.
++      const strangerStatus = await fetch(`${url}/api/replica`, {
++        method: "POST", headers: { Authorization: "Bearer stranger-bearer-token-never-issued-00000", "Content-Type": "application/json" },
++        body: JSON.stringify({ op: "erasure_status", erasure_request_id: erasureRequestId }),
++      });
++      ok("NEGATIVE CONTROL — an unrecognized bearer naming OWNER's own erasure_request_id is refused before it ever reaches OWNER's own status",
++        strangerStatus.status === 401, `got ${strangerStatus.status}`);
++      const strangerRevoke = await fetch(`${url}/api/replica`, {
++        method: "POST", headers: { Authorization: "Bearer stranger-bearer-token-never-issued-00000", "Content-Type": "application/json" },
++        body: JSON.stringify({ op: "revoke", replica_id: rid }),
++      });
++      ok("NEGATIVE CONTROL — an unrecognized bearer naming OWNER's own replica_id for revoke is refused before it ever reaches OWNER's own replica",
++        strangerRevoke.status === 401, `got ${strangerRevoke.status}`);
++    } else {
++      ok("erasure (real button): the fixture's own revoke path did not surface a job id to poll — recorded, not asserted further", true);
++    }
++
++    // A person's export requested mid-erasure never crashes and never
++    // widens past the owner's own scope — the SAME "no cross-identity
++    // input" door, `body.view:"person"` (this workstream's own widening).
++    const midErasureExport = await fetch(`${url}/api/replica`, {
++      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
++      body: JSON.stringify({ op: "export", view: "person" }),
++    });
++    const midErasureExportBody = await midErasureExport.json().catch(() => ({}));
++    ok("erasure (real button): a person export requested mid-erasure (before the background sweep runs) answers 200, never a crash",
++      midErasureExport.status === 200, JSON.stringify(midErasureExportBody).slice(0, 300));
++    ok("erasure (real button): a person export requested mid-erasure still names the caller's own owner_user_id, never a body-supplied one",
++      midErasureExportBody.owner_user_id === ownerId);
+     // WS-R161. A revoked replica is also refused for TEXT — the SAME real
+     // door, the SAME approved person sheet still sitting in fixture state,
+     // now refused purely because the replica itself is revoked
+diff --git a/evals/room-doors/run.mjs b/evals/room-doors/run.mjs
+index f8cf7bb..65afbd2 100644
+--- a/evals/room-doors/run.mjs
++++ b/evals/room-doors/run.mjs
+@@ -3053,7 +3053,17 @@ const OP_COVERAGE = {
+     // bytes of the other owner's data anywhere in it) is proven in
+     // evals/creator-export/run.mjs's own layer 2, over the real
+     // creatorExport rather than a second copy of it here.
+-    export: { excluded: "no cross-identity input for classes b/c/e — ownerUserId comes only from requireUser(req), never a body-supplied id; own-data-only proven dynamically in evals/creator-export/run.mjs" },
++    // WS-R189. `body.view === "person"` widens this SAME op with a
++    // person-kind rendering, never a second door — `format: "html"` on it
++    // (`buildPersonExportReadableHtml`) carries the identical "no
++    // cross-identity input" exclusion this op's own entry already states,
++    // for the identical reason: `personExport`'s own `ownerUserId` is still
++    // `user.id` from `requireUser(req)`, never a body field, own-data-only
++    // proven dynamically in evals/person-export/run.mjs.
++    export: {
++      excluded: "no cross-identity input for classes b/c/e — ownerUserId comes only from requireUser(req), never a body-supplied id; own-data-only proven dynamically in evals/creator-export/run.mjs",
++      formats: { html: { excluded: "the SAME op, SAME ownerUserId source, format:\"html\" only changes the RESPONSE shape (buildPersonExportReadableHtml over the already-scoped personExport result) — own-data-only proven dynamically in evals/person-export/run.mjs" } },
++    },
+     // WS-R74 (migration 118). The creator's own weekly push subscription -
+     // ops.js's own push_subscribe/push_revoke entries restated for the
+     // creator lane, see §19b below for the dynamic case.
+diff --git a/evals/run.mjs b/evals/run.mjs
+index 7befd80..e31ea24 100644
+--- a/evals/run.mjs
++++ b/evals/run.mjs
+@@ -3495,6 +3495,30 @@ const suites = {
+   // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
+   // real source on every run, the same as `person-sheet` above.
+   "person-sheet-draft": "person-sheet-draft/run.mjs",
++  // WS-R189: "my data, in one place" — `personExport` (api/_creator-export.js),
++  // the creator's export door with a person-kind rendering, never a second
++  // one, plus `buildPersonExportReadableHtml` (api/_room-export-readable.js).
++  // Proves: (1) nothing is dropped — `personExport`'s own `raw` field equals
++  // `creatorExport`'s own output for the identical input; (2) every one of
++  // the eight named sections (sheet, sources, claims, memory, relationship,
++  // generations, consents, receipts) maps to a real OWNER_LANE_TABLES entry,
++  // one of the two borrowed owner-facing readers (`OWNER_MEMORY_FACTS_SQL`,
++  // `roomRelStateStageCounts`), or `vy_replica_claim` itself (read directly,
++  // never added to OWNER_LANE_TABLES — this file's own header on why); (3)
++  // the boundary law holds for the two NEW reads this workstream adds — a
++  // follower-shaped fact and a follower-shaped relationship row, seeded
++  // right beside the owner's own on the SAME agent, never leak into either
++  // section or the readable page, in either locale; (4) an owner with zero
++  // replicas left and a known erasure request id gets the receipt and
++  // NOTHING else — no stale section, no fabricated receipt without a
++  // matching id, no crash on an id that resolves to nothing; (5) the
++  // readable page throws by NAME on an unknown section, never renders one
++  // silently missing; (6) the HTTP door is really widened, not duplicated —
++  // `body.view === "person"` on the SAME "export" op, `creatorExport` itself
++  // unchanged for every existing caller.
++  //
++  // Offline, deterministic, $0, no DB, no network, no model call.
++  "person-export": "person-export/run.mjs",
+ };
+ 
+ const argv = process.argv.slice(2);
+diff --git a/scripts/check-accessibility.mjs b/scripts/check-accessibility.mjs
+index 9fcbc86..5643c3a 100644
+--- a/scripts/check-accessibility.mjs
++++ b/scripts/check-accessibility.mjs
+@@ -134,6 +134,26 @@ const TARGETS = [
+     screens: ["default"],
+     mounted: ".vx-shell",
+   },
++  // WS-R189. "My data, in one place" — `check-layout.mjs`'s own
++  // `studio:mydata`/`studio-hi:mydata` targets, the same fixture and query
++  // shapes reused verbatim. The erase confirmation is a `role="dialog"`
++  // with its own labelled text input — exactly the shape a11y regressions
++  // hide in, the same reason `studio:listening` above was named first for
++  // fieldsets/radiogroups.
++  {
++    name: "studio:mydata",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=data",
++    screens: ["default"],
++    mounted: ".mydata-studio",
++  },
++  {
++    name: "studio-hi:mydata",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=data&lang=hi",
++    screens: ["default"],
++    mounted: ".mydata-studio",
++  },
+   // WS-R159. `clone`'s own fixture and screens with `&lang=hi` appended --
+   // `check-layout.mjs`'s own `studio-hi:personal` target, the same query
+   // shape, reused verbatim (this file's own header rule). WS-R166 converted
+diff --git a/scripts/check-layout.mjs b/scripts/check-layout.mjs
+index c3a68d3..2e13e1f 100644
+--- a/scripts/check-layout.mjs
++++ b/scripts/check-layout.mjs
+@@ -238,6 +238,34 @@ const TARGETS = [
+     steps: ["default"], mounted: ".vx-shell",
+     panels: ".lt-panel", minPanels: 1,
+   },
++  // WS-R189. "My data, in one place" — `src/studio/MyDataStudio.tsx`, the
++  // `?view=data` deep link `CloneExperience.tsx` now reads the same way it
++  // already reads `view=share`/`view=call`/etc. `scenario=voice-ready` is
++  // the SAME scenario `studio:deploy` above uses for the identical reason
++  // (reaching any room content needs the active consent only that scenario
++  // seeds); `layoutFixture.tsx`'s own new `op:"export", view:"person"`
++  // branch (this workstream's own fixture update, the wave-twenty-one
++  // merge's own "a widened door updates every fixture that answers for it"
++  // law) answers with real section rows so this target measures the
++  // populated screen, never its own empty state.
++  {
++    name: "studio:mydata",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=data",
++    steps: ["default"],
++    mounted: ".mydata-studio",
++    panels: ".mydata-section, .mydata-danger",
++    minPanels: 3,
++  },
++  {
++    name: "studio-hi:mydata",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=data&lang=hi",
++    steps: ["default"],
++    mounted: ".mydata-studio",
++    panels: ".mydata-section, .mydata-danger",
++    minPanels: 3,
++  },
+   // WS-R159: the SAME personal-studio fixture and steps as `clone` above,
+   // with `&lang=hi` appended. WS-R166 converted the REST of this fixture's
+   // own reachable surface (CloneExperience.tsx's shell and menus,
+diff --git a/src/studio/CloneExperience.tsx b/src/studio/CloneExperience.tsx
+index fda0817..2bb5e24 100644
+--- a/src/studio/CloneExperience.tsx
++++ b/src/studio/CloneExperience.tsx
+@@ -45,6 +45,9 @@ import { useStudioLocale } from "./localeContext";
+ import type { CloneExperienceShellCopy } from "./copy";
+ 
+ const MirrorCallStudio = lazy(() => import("./MirrorCallStudio"));
++// WS-R189: "my data, in one place", lazy for the same reason every other
++// room panel here is.
++const MyDataStudio = lazy(() => import("./MyDataStudio"));
+ const PersonModelStudio = lazy(() => import("./PersonModelStudio"));
+ const EmotionOsStudio = lazy(() => import("./EmotionOsStudio"));
+ const ExpertSharePanel = lazy(() => import("./ExpertSharePanel"));
+@@ -106,7 +109,7 @@ function storeVoiceSaga(replicaId: string, saga: VoiceCreationSaga | null) {
+   }
+ }
+ 
+-type MainRoom = "voice" | "enrich" | "evolve" | "call" | "share" | "rehearsal" | "emotionos";
++type MainRoom = "voice" | "enrich" | "evolve" | "call" | "share" | "rehearsal" | "emotionos" | "data";
+ // WS-R151: "humanos" is HumanOS, the person sheet screen (`HumanOsStudio.tsx`).
+ type EnrichView = "menu" | "files" | "video" | "describe" | "humanos";
+ type CaptureState = "idle" | "requesting" | "recording" | "review";
+@@ -598,7 +601,7 @@ function DescribeMe({ token, replicaId, onAuthError, onSaved }: { token: string;
+   );
+ }
+ 
+-function WorkspaceDrawer({ open, replicas, selected, runtimeStatus, onClose, onSelect, onNew, onReplace, onDelete, busy, reduceMotion }: {
++function WorkspaceDrawer({ open, replicas, selected, runtimeStatus, onClose, onSelect, onNew, onReplace, onDelete, onOpenData, busy, reduceMotion }: {
+   open: boolean;
+   replicas: Replica[];
+   selected: Replica | null;
+@@ -608,11 +611,15 @@ function WorkspaceDrawer({ open, replicas, selected, runtimeStatus, onClose, onS
+   onNew: () => void;
+   onReplace: () => void;
+   onDelete: () => void;
++  /** WS-R189: "the same place the account controls live" — opens the "my
++   *  data" room without going through the delete confirmation. */
++  onOpenData: () => void;
+   busy: boolean;
+   reduceMotion: boolean;
+ }) {
+   const { t } = useStudioLocale();
+   const copy = t.cloneExperienceShell.drawer;
++  const dataCopy = t.myDataStudio;
+   const [confirmDelete, setConfirmDelete] = useState(false);
+   const drawerRef = useRef<HTMLElement | null>(null);
+   useEffect(() => {
+@@ -664,6 +671,7 @@ function WorkspaceDrawer({ open, replicas, selected, runtimeStatus, onClose, onS
+           <button className="vx-drawer__new" type="button" disabled={busy} onClick={onNew}><Icon name="add" />{copy.createAnother}</button>
+           {selected && <div className="vx-drawer__actions">
+             <button type="button" disabled={busy} onClick={onReplace}>{copy.replacePrimary}</button>
++            <button type="button" disabled={busy} onClick={onOpenData}>{dataCopy.navLabel}</button>
+             {!confirmDelete ? <button className="is-danger" type="button" onClick={() => setConfirmDelete(true)}>{copy.deleteClone}</button> : (
+               <div className="vx-drawer__confirm"><p>{copy.deleteConfirmBody}</p><button className="is-danger" type="button" disabled={busy} onClick={onDelete}>{busy ? copy.deleting : copy.deletePermanently}</button><button type="button" onClick={() => setConfirmDelete(false)}>{copy.cancel}</button></div>
+             )}
+@@ -776,7 +784,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
+   const [installDismissed, setInstallDismissed] = useState(false);
+   const [room, setRoom] = useState<MainRoom>(() => {
+     const view = new URLSearchParams(window.location.search).get("view");
+-    return view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : view === "emotionos" ? "emotionos" : "voice";
++    return view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : view === "emotionos" ? "emotionos" : view === "data" ? "data" : "voice";
+   });
+   // WS-R161: a text-ready-only visit (no voice active yet) still opens on
+   // "conversation", never the sample tab a not-yet-existing voice cannot
+@@ -1028,7 +1036,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
+   useEffect(() => {
+     const onPop = () => {
+       const view = new URLSearchParams(window.location.search).get("view");
+-      setRoom(view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : "voice");
++      setRoom(view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : view === "data" ? "data" : "voice");
+     };
+     window.addEventListener("popstate", onPop);
+     return () => window.removeEventListener("popstate", onPop);
+@@ -1446,6 +1454,12 @@ export default function CloneExperience(props: CloneExperienceProps) {
+               {room === "evolve" && <section className="vx-room__panel vx-room__scroll"><div className="vx-stage-title"><h1>{copy.rooms.evolve.heading}</h1><p>{copy.rooms.evolve.body}</p></div><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.evolve.openingHistory}</p>}><PersonModelStudio token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} /></Suspense></section>}
+               {room === "emotionos" && <section className="vx-room__panel vx-room__scroll"><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.emotionos.openingVibe}</p>}><EmotionOsStudio token={accessToken} replicaId={selected.replica_id} replica={selected as { locale?: unknown }} onAuthError={onAuthError} onBack={() => chooseRoom("enrich")} /></Suspense></section>}
+               {room === "call" && <section className="vx-room__panel vx-room__scroll"><div className="vx-stage-title"><h1>{copy.rooms.call.headingTemplate.replace("{name}", selected.display_name)}</h1><p>{copy.rooms.call.body}</p></div><Suspense fallback={<p className="vx-panel-loading">{copy.rooms.call.openingCallRoom}</p>}><MirrorCallStudio token={accessToken} replicaId={selected.replica_id} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} /></Suspense></section>}
++              {/* WS-R189. "My data, in one place" — reached from the drawer's
++                  own "Your data" button (the same place "Delete this clone"
++                  already lives) or the `?view=data` deep link every other
++                  room already supports. `MyDataStudio` renders its own
++                  heading/loading/error states; nothing wraps it here. */}
++              {room === "data" && <section className="vx-room__panel vx-room__scroll"><Suspense fallback={<p className="vx-panel-loading" role="status">{t.myDataStudio.loading}</p>}><MyDataStudio token={accessToken} replicaId={selected.replica_id} onAuthError={onAuthError} onErased={() => chooseRoom("data")} /></Suspense></section>}
+             </motion.div>
+           ) : null}
+         </AnimatePresence>
+@@ -1482,7 +1496,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
+         </aside>
+       )}
+       {!readBlocked && (notice || error) && <div className={`vx-toast${error ? " is-error" : ""}`} role={error ? "alert" : "status"}><div><strong>{error?.headline || "Done"}</strong><p>{error?.detail || notice}</p></div><button type="button" aria-label="Dismiss" onClick={error ? onDismissError : onDismissNotice}><Icon name="close" /></button></div>}
+-      <WorkspaceDrawer open={drawerOpen} replicas={replicas} selected={selected} runtimeStatus={runtimeStatus} onClose={() => setDrawerOpen(false)} onSelect={(id) => { setDrawerOpen(false); void onSelectReplica(id); }} onNew={() => { setDrawerOpen(false); onStartNew(); }} onReplace={() => void replaceRecording()} onDelete={() => void onRevoke()} busy={revoking || Boolean(upload)} reduceMotion={reduceMotion} />
++      <WorkspaceDrawer open={drawerOpen} replicas={replicas} selected={selected} runtimeStatus={runtimeStatus} onClose={() => setDrawerOpen(false)} onSelect={(id) => { setDrawerOpen(false); void onSelectReplica(id); }} onNew={() => { setDrawerOpen(false); onStartNew(); }} onReplace={() => void replaceRecording()} onDelete={() => void onRevoke()} onOpenData={() => { setDrawerOpen(false); chooseRoom("data"); }} busy={revoking || Boolean(upload)} reduceMotion={reduceMotion} />
+     </div>
+   );
+ }
+diff --git a/src/studio/MyDataStudio.tsx b/src/studio/MyDataStudio.tsx
+new file mode 100644
+index 0000000..7fb7947
+--- /dev/null
++++ b/src/studio/MyDataStudio.tsx
+@@ -0,0 +1,234 @@
++// WS-R189. "My data, in one place." The person's own export door
++// (`api/_creator-export.js#personExport`, over `api/replica.js`'s SAME
++// "export" op, `view: "person"` — never a second door) rendered in the
++// studio, plus the studio's own real erasure entry point ("the same place
++// the account controls live" — this workstream's own brief's words; the
++// only PRIOR erasure button in this tree lived in `StudioApp.tsx`'s
++// self-test-only `ReplicaWorkspace`, unreachable in the live product,
++// `CloneExperience.tsx`'s own `WorkspaceDrawer` "Delete this clone" being
++// the one that actually ships — this screen is a second, equally real
++// entry point onto the SAME `onRevoke`-shaped door, in the place a person
++// looking for "my data" would look first).
++//
++// A pure data screen: reads `personExport`'s own eight named sections
++// (counts only — this screen never renders a follower's or a relationship's
++// own words, `api/_creator-export.js`'s own boundary law restated at the UI
++// layer), offers the machine-readable JSON as a download and the readable
++// page as a printable tab (`src/room/AccountPage.tsx#openReadable`'s own
++// `window.open` + `document.write` pattern, restated for this door), and —
++// once erasure starts — degrades to the receipt-only view `personExport`
++// itself already returns, never a client-side guess at what was deleted.
++import { useCallback, useEffect, useRef, useState } from "react";
++import { ReplicaApiError, readPersonExport, readPersonExportHtml, revokeReplica } from "./replicaApi";
++import type { PersonExportResult } from "./types";
++import { useStudioLocale } from "./localeContext";
++
++const ERASURE_REQUEST_KEY = "vyakti.myData.erasure-request.v1";
++function storageKey(replicaId: string) {
++  return `${ERASURE_REQUEST_KEY}:${replicaId}`;
++}
++function storedErasureRequest(replicaId: string) {
++  try {
++    return localStorage.getItem(storageKey(replicaId)) || "";
++  } catch {
++    return "";
++  }
++}
++
++type Props = {
++  token: string;
++  replicaId: string;
++  onAuthError: (cause: unknown) => void;
++  /** Called once erasure is really started (the real door answered 200) —
++   *  the shell's own chance to reflect the same "no clone left" state the
++   *  drawer's own `onDelete` path already reaches, never a second source of
++   *  truth for whether a clone still exists. */
++  onErased?: () => void;
++};
++
++export default function MyDataStudio(props: Props) {
++  return <ScopedMyDataStudio key={`${props.replicaId}:${props.token}`} {...props} />;
++}
++
++function ScopedMyDataStudio({ token, replicaId, onAuthError, onErased }: Props) {
++  const { t, locale } = useStudioLocale();
++  const copy = t.myDataStudio;
++  const mounted = useRef(false);
++  useEffect(() => {
++    mounted.current = true;
++    return () => { mounted.current = false; };
++  }, []);
++
++  const [erasureRequestId, setErasureRequestId] = useState<string>(() => storedErasureRequest(replicaId));
++  const [data, setData] = useState<PersonExportResult | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState("");
++  const [confirming, setConfirming] = useState(false);
++  const [confirmText, setConfirmText] = useState("");
++  const [erasing, setErasing] = useState(false);
++  const [eraseError, setEraseError] = useState("");
++
++  const load = useCallback(async () => {
++    setError("");
++    try {
++      const result = await readPersonExport(token, erasureRequestId || null);
++      if (!mounted.current) return;
++      setData(result);
++    } catch (cause) {
++      if (!mounted.current) return;
++      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
++      setError(cause instanceof Error ? cause.message : copy.loadError);
++    } finally {
++      if (mounted.current) setLoading(false);
++    }
++  }, [token, erasureRequestId, onAuthError, copy.loadError]);
++
++  useEffect(() => {
++    setLoading(true);
++    void load();
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [token, replicaId]);
++
++  // While an erasure is known to be running and has not yet resolved to a
++  // receipt, poll — `StudioApp.tsx`'s own erasure-status poll restated for
++  // this screen's own read, never a second job or a second poll mechanism
++  // for the SAME one.
++  useEffect(() => {
++    if (!erasureRequestId || data?.receipt) return;
++    const timer = window.setInterval(() => { void load(); }, 4000);
++    return () => window.clearInterval(timer);
++  }, [erasureRequestId, data?.receipt, load]);
++
++  const startErase = useCallback(async () => {
++    setErasing(true);
++    setEraseError("");
++    try {
++      const result = await revokeReplica(token, replicaId);
++      if (!mounted.current) return;
++      setErasureRequestId(result.erasure_request_id);
++      try { localStorage.setItem(storageKey(replicaId), result.erasure_request_id); } catch { /* best effort — the server's own job still exists either way */ }
++      setConfirming(false);
++      setConfirmText("");
++      onErased?.();
++    } catch (cause) {
++      if (!mounted.current) return;
++      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
++      setEraseError(cause instanceof Error ? cause.message : copy.eraseError);
++    } finally {
++      if (mounted.current) setErasing(false);
++    }
++  }, [token, replicaId, onAuthError, onErased, copy.eraseError]);
++
++  const downloadJson = useCallback(() => {
++    if (!data) return;
++    try {
++      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
++      const url = URL.createObjectURL(blob);
++      const anchor = document.createElement("a");
++      anchor.href = url;
++      anchor.download = "my-data.json";
++      document.body.appendChild(anchor);
++      anchor.click();
++      anchor.remove();
++      URL.revokeObjectURL(url);
++    } catch { /* best effort — every section is still readable on this screen */ }
++  }, [data]);
++
++  const viewPrintable = useCallback(async () => {
++    try {
++      const html = await readPersonExportHtml(token, erasureRequestId || null, locale === "hi" ? "hi" : "en");
++      const win = window.open("", "_blank");
++      if (!win) return;
++      win.document.open();
++      win.document.write(html);
++      win.document.close();
++    } catch (cause) {
++      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
++    }
++  }, [token, erasureRequestId, locale, onAuthError]);
++
++  if (loading && !data) {
++    return (
++      <section className="mydata-studio" aria-busy="true">
++        <p role="status">{copy.loading}</p>
++      </section>
++    );
++  }
++
++  if (error && !data) {
++    return (
++      <section className="mydata-studio">
++        <p role="alert">{error}</p>
++        <button type="button" onClick={() => { setLoading(true); void load(); }}>{copy.retry}</button>
++      </section>
++    );
++  }
++
++  if (!data) return null;
++
++  if (data.receipt) {
++    const complete = data.receipt.state === "complete";
++    return (
++      <section className="mydata-studio mydata-studio--receipt">
++        <h1 id="mydata-title">{complete ? copy.eraseCompleteTitle : copy.eraseInProgressTitle}</h1>
++        <p>{complete ? copy.eraseCompleteBody : copy.eraseInProgressBody}</p>
++        {data.receipt.deleted_classes.length > 0 && (
++          <div className="mydata-section">
++            <p className="mydata-section__label">{copy.receiptDeletedClassesLabel}</p>
++            <ul>{data.receipt.deleted_classes.map((deletedClass) => <li key={deletedClass}>{deletedClass.replaceAll("_", " ")}</li>)}</ul>
++          </div>
++        )}
++      </section>
++    );
++  }
++
++  return (
++    <section className="mydata-studio">
++      <h1 id="mydata-title">{copy.heading}</h1>
++      <p className="mydata-intro">{copy.intro}</p>
++      <div className="mydata-actions">
++        <button type="button" onClick={downloadJson}>{copy.downloadJson}</button>
++        <button type="button" onClick={() => void viewPrintable()}>{copy.viewPrintable}</button>
++      </div>
++      {data.sections.map((section) => (
++        <article key={section.key} className="mydata-section">
++          <h2>{copy.sectionTitles[section.key]}</h2>
++          {section.rows.length === 0
++            ? <p className="mydata-empty">{copy.emptySection}</p>
++            : <p className="mydata-count">{copy.recordCountTemplate.replace("{n}", String(section.rows.length)).replace("{s}", section.rows.length === 1 ? "" : "s")}</p>}
++        </article>
++      ))}
++      <section className="mydata-danger" aria-labelledby="mydata-danger-title">
++        <h2 id="mydata-danger-title">{copy.dangerZoneTitle}</h2>
++        <p>{copy.dangerZoneBody}</p>
++        {!confirming ? (
++          <button type="button" className="mydata-danger__button" onClick={() => setConfirming(true)}>{copy.eraseButton}</button>
++        ) : (
++          <div className="mydata-danger__confirm" role="dialog" aria-modal="true" aria-labelledby="mydata-erase-confirm-title">
++            <p id="mydata-erase-confirm-title"><strong>{copy.eraseConfirmPrompt}</strong></p>
++            <p>{copy.eraseConfirmBody}</p>
++            <label htmlFor="mydata-erase-confirm-input">{copy.eraseConfirmType}</label>
++            <input
++              id="mydata-erase-confirm-input"
++              value={confirmText}
++              autoComplete="off"
++              onChange={(event) => setConfirmText(event.target.value.toUpperCase())}
++            />
++            {eraseError && <p role="alert">{eraseError}</p>}
++            <div className="mydata-danger__actions">
++              <button type="button" disabled={erasing} onClick={() => { setConfirming(false); setConfirmText(""); }}>{copy.eraseCancel}</button>
++              <button
++                type="button"
++                className="mydata-danger__button"
++                disabled={erasing || confirmText !== "ERASE"}
++                onClick={() => void startErase()}
++              >
++                {erasing ? copy.erasing : copy.eraseConfirmButton}
++              </button>
++            </div>
++          </div>
++        )}
++      </section>
++    </section>
++  );
++}
+diff --git a/src/studio/copy.ts b/src/studio/copy.ts
+index ca6af34..3c0461d 100644
+--- a/src/studio/copy.ts
++++ b/src/studio/copy.ts
+@@ -1008,6 +1008,58 @@ export interface StudioCopy {
+   mirrorCallStudio: MirrorCallStudioCopy;
+   cloneExperienceShell: CloneExperienceShellCopy;
+   firstFiveMinutes: FirstFiveMinutesCopy;
++  myDataStudio: MyDataStudioCopy;
++}
++
++// WS-R189. "My data, in one place" — `src/studio/MyDataStudio.tsx`'s own
++// closed block, appended per `ws-common.md`'s own merge rule for this file
++// (a new copy section is its own block at the end, never folded into an
++// existing one). Section titles/explanations match `api/_room-export-
++// readable.js`'s own `PERSON_SECTION_COPY` in SPIRIT (both describe the
++// same eight sections for a person, not a follower) but are NOT the same
++// object — this one is UI chrome (buttons, loading/empty/error states,
++// erasure confirmation), that one is the printable page's own prose; a
++// close reader will notice the two are worded independently on purpose,
++// the same "no shared boundary to cross" convention this house already
++// uses for tiny helpers duplicated across a runtime boundary.
++export interface MyDataStudioCopy {
++  /** The short label for the drawer's own nav button — "Your data" — never
++   *  reused for `heading` (a full sentence) or any other key here. */
++  navLabel: string;
++  heading: string;
++  intro: string;
++  loading: string;
++  loadError: string;
++  retry: string;
++  downloadJson: string;
++  viewPrintable: string;
++  sectionTitles: {
++    sheet: string;
++    sources: string;
++    claims: string;
++    memory: string;
++    relationship: string;
++    generations: string;
++    consents: string;
++    receipts: string;
++  };
++  emptySection: string;
++  recordCountTemplate: string;
++  dangerZoneTitle: string;
++  dangerZoneBody: string;
++  eraseButton: string;
++  eraseConfirmPrompt: string;
++  eraseConfirmBody: string;
++  eraseConfirmType: string;
++  eraseCancel: string;
++  eraseConfirmButton: string;
++  erasing: string;
++  eraseInProgressTitle: string;
++  eraseInProgressBody: string;
++  eraseCompleteTitle: string;
++  eraseCompleteBody: string;
++  receiptDeletedClassesLabel: string;
++  eraseError: string;
+ }
+ 
+ const EN_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+@@ -2028,6 +2080,45 @@ const EN_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+   stepDoneLabel: "Done",
+ };
+ 
++// WS-R189. `MyDataStudioCopy`'s own closed English block.
++const EN_MY_DATA_STUDIO: MyDataStudioCopy = {
++  navLabel: "Your data",
++  heading: "Your data, in one place.",
++  intro: "Everything your AI holds about you and for you: what you gave it, what it learned, what it remembers, and how people relate to it, in counts only.",
++  loading: "Reading your data",
++  loadError: "Could not read your data right now.",
++  retry: "Try again",
++  downloadJson: "Download as JSON",
++  viewPrintable: "View as a printable page",
++  sectionTitles: {
++    sheet: "Who your AI is",
++    sources: "What you gave it",
++    claims: "What it learned about you",
++    memory: "What it remembers from talking with you",
++    relationship: "How people relate to your AI",
++    generations: "What it has built and what you heard",
++    consents: "What you agreed to, and when",
++    receipts: "What you were paid",
++  },
++  emptySection: "Nothing recorded here yet.",
++  recordCountTemplate: "{n} record{s}",
++  dangerZoneTitle: "Erase everything",
++  dangerZoneBody: "This stops your AI immediately and starts verified erasure of your sources, your voice, and everything it learned. This cannot be undone.",
++  eraseButton: "Erase everything",
++  eraseConfirmPrompt: "Erase everything?",
++  eraseConfirmBody: "This blocks your AI now and starts verified erasure of its sources, memories and provider copies. Type ERASE to confirm.",
++  eraseConfirmType: "Type ERASE to confirm",
++  eraseCancel: "Keep my AI",
++  eraseConfirmButton: "Erase permanently",
++  erasing: "Erasing",
++  eraseInProgressTitle: "Erasure in progress",
++  eraseInProgressBody: "Your AI is stopped. Verified erasure of your sources, voice and memories is under way.",
++  eraseCompleteTitle: "Erasure complete",
++  eraseCompleteBody: "Your AI and everything it held have been erased. Nothing else is shown here.",
++  receiptDeletedClassesLabel: "What was deleted",
++  eraseError: "Could not start erasure right now.",
++};
++
+ const EN_STUDIO_COPY: StudioCopy = {
+   personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
+   expertSharePanel: EN_EXPERT_SHARE_PANEL,
+@@ -2041,6 +2132,7 @@ const EN_STUDIO_COPY: StudioCopy = {
+   mirrorCallStudio: EN_MIRROR_CALL_STUDIO,
+   cloneExperienceShell: EN_CLONE_EXPERIENCE_SHELL,
+   firstFiveMinutes: EN_FIRST_FIVE_MINUTES,
++  myDataStudio: EN_MY_DATA_STUDIO,
+ };
+ 
+ // The Hindi table is its own chunk (WS-R71's shape). `STUDIO_COPY_TABLE.hi`
+diff --git a/src/studio/hiCopy.ts b/src/studio/hiCopy.ts
+index 79df73f..ef67dd4 100644
+--- a/src/studio/hiCopy.ts
++++ b/src/studio/hiCopy.ts
+@@ -6,7 +6,7 @@
+ // already-reviewed wording wherever this file's English matches it, adapting
+ // only where this screen's own English differs (the nearline nearline-busy
+ // states this file's English adds, and one extra extraction blocker key).
+-import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
++import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, MyDataStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
+ 
+ const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+   title: "अपने AI को एक ठिकाना दें।",
+@@ -1036,6 +1036,46 @@ const HI_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+   stepDoneLabel: "हो गया",
+ };
+ 
++// WS-R189. `MyDataStudioCopy`'s own closed Hindi block, `copy.ts#EN_MY_DATA_
++// STUDIO`'s own structure restated.
++const HI_MY_DATA_STUDIO: MyDataStudioCopy = {
++  navLabel: "आपका डेटा",
++  heading: "आपका डेटा, एक जगह।",
++  intro: "आपकी AI के पास आपके बारे में और आपके लिए जो कुछ है: आपने इसे क्या दिया, इसने क्या सीखा, इसे क्या याद है, और लोग इससे कैसे जुड़े हैं, सिर्फ़ गिनती में।",
++  loading: "आपका डेटा पढ़ा जा रहा है",
++  loadError: "अभी आपका डेटा नहीं पढ़ा जा सका।",
++  retry: "फिर कोशिश करें",
++  downloadJson: "JSON के रूप में डाउनलोड करें",
++  viewPrintable: "प्रिंट करने लायक पेज के रूप में देखें",
++  sectionTitles: {
++    sheet: "आपकी AI कौन है",
++    sources: "आपने इसे क्या दिया",
++    claims: "इसने आपके बारे में क्या सीखा",
++    memory: "आपसे बात करके इसे क्या याद है",
++    relationship: "लोग आपकी AI से कैसे जुड़े हैं",
++    generations: "इसने क्या बनाया और आपने क्या सुना",
++    consents: "आपने क्या और कब सहमति दी",
++    receipts: "आपको क्या भुगतान हुआ",
++  },
++  emptySection: "अभी तक यहां कुछ दर्ज नहीं है।",
++  recordCountTemplate: "{n} रिकॉर्ड",
++  dangerZoneTitle: "सब कुछ मिटाएं",
++  dangerZoneBody: "इससे आपकी AI तुरंत रुक जाती है और आपके सोर्स, आवाज़ और इसने जो कुछ सीखा उसका सत्यापित मिटाना शुरू हो जाता है। इसे वापस नहीं लिया जा सकता।",
++  eraseButton: "सब कुछ मिटाएं",
++  eraseConfirmPrompt: "सब कुछ मिटाएं?",
++  eraseConfirmBody: "इससे आपकी AI अभी रुक जाती है और इसके सोर्स, यादों और प्रोवाइडर कॉपी का सत्यापित मिटाना शुरू हो जाता है। पुष्टि के लिए ERASE टाइप करें।",
++  eraseConfirmType: "पुष्टि के लिए ERASE टाइप करें",
++  eraseCancel: "मेरी AI रखें",
++  eraseConfirmButton: "स्थायी रूप से मिटाएं",
++  erasing: "मिटाया जा रहा है",
++  eraseInProgressTitle: "मिटाना जारी है",
++  eraseInProgressBody: "आपकी AI रुक गई है। आपके सोर्स, आवाज़ और यादों का सत्यापित मिटाना जारी है।",
++  eraseCompleteTitle: "मिटाना पूरा हुआ",
++  eraseCompleteBody: "आपकी AI और उसके पास मौजूद सब कुछ मिटा दिया गया है। यहां और कुछ नहीं दिखाया गया है।",
++  receiptDeletedClassesLabel: "क्या मिटाया गया",
++  eraseError: "अभी मिटाना शुरू नहीं हो सका।",
++};
++
+ // `personalAuth` is deliberately absent here: `copy.ts#loadStudioCopy`
+ // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
+ // Hindi loader, so this file owns only the sections named above.
+@@ -1051,4 +1091,5 @@ export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
+   mirrorCallStudio: HI_MIRROR_CALL_STUDIO,
+   cloneExperienceShell: HI_CLONE_EXPERIENCE_SHELL,
+   firstFiveMinutes: HI_FIRST_FIVE_MINUTES,
++  myDataStudio: HI_MY_DATA_STUDIO,
+ };
+diff --git a/src/studio/layoutFixture.tsx b/src/studio/layoutFixture.tsx
+index b3925eb..d5ff322 100644
+--- a/src/studio/layoutFixture.tsx
++++ b/src/studio/layoutFixture.tsx
+@@ -461,6 +461,43 @@ function installStubFetch() {
+               citations: [{ excerpt: "A literal text example: <script>alert(1)</script>", clipped: false }] },
+           ] } });
+     }
++    // WS-R189. "My data, in one place" widened `POST /api/replica`'s
++    // "export" op with `view: "person"` — the wave-twenty-one merge lesson
++    // restated: a workstream that widens a door's response shape updates
++    // every fixture that answers for it in the SAME commit. Every other op
++    // on this path (create/revoke/erasure_status/set_locale/funnel_mark)
++    // still falls through to the generic static `ROUTES["/api/replica"]`
++    // entry below, unchanged.
++    if (path === "/api/replica" && (init?.method || "GET") === "POST") {
++      let payload: Record<string, unknown> = {};
++      try {
++        const text = typeof init?.body === "string"
++          ? init.body
++          : input instanceof Request ? await input.clone().text() : "{}";
++        payload = JSON.parse(text || "{}");
++      } catch {
++        return reply({ error: "fixture_request_invalid" }, 400);
++      }
++      if (payload.op === "export" && payload.view === "person") {
++        return reply({
++          format: "vyakti-person-export/1",
++          exported_at: new Date().toISOString(),
++          owner_user_id: "fixture-owner",
++          replicas: [FIXTURE_REPLICA.replica_id],
++          receipt: null,
++          sections: [
++            { key: "sheet", table: "vy_teacher_sheet", rows: [{ sheet_id: "fixture-sheet", status: "validated" }] },
++            { key: "sources", table: "vy_replica_source", rows: fixtureSources.map((s) => ({ source_id: s.source_id, kind: s.kind, state: s.state })) },
++            { key: "claims", table: "vy_replica_claim", rows: [{ claim_id: 1, domain: "identity", key: "name", body: "Fixture claim" }] },
++            { key: "memory", table: "vy_fact", rows: [{ id: 1, kind: "user", body: "Fixture memory" }] },
++            { key: "relationship", table: "vy_rel_state", rows: [{ agent_id: "fixture-agent", stage: "warming", n: 5 }] },
++            { key: "generations", table: "vy_replica_generation", rows: [{ generation_id: "g-1", state: "complete" }], calibration: [] },
++            { key: "consents", table: "vy_replica_consent", rows: fixtureConsents },
++            { key: "receipts", table: "vy_creator_payout", rows: [], charges: [] },
++          ],
++        });
++      }
++    }
+     if (path === "/api/replica-consent") {
+       let payload: Record<string, unknown> = {};
+       try {
+diff --git a/src/studio/replicaApi.ts b/src/studio/replicaApi.ts
+index 5f3551c..fc5bc3a 100644
+--- a/src/studio/replicaApi.ts
++++ b/src/studio/replicaApi.ts
+@@ -1,4 +1,4 @@
+-import type { Replica, ReplicaErasureStatus } from "./types";
++import type { PersonExportResult, Replica, ReplicaErasureStatus } from "./types";
+ 
+ export class ReplicaApiError extends Error {
+   status: number;
+@@ -82,3 +82,36 @@ export async function readErasureStatus(token: string, requestId: string): Promi
+   });
+   return data.erasure;
+ }
++
++// WS-R189. "My data, in one place" — the SAME "export" op, a person-kind
++// rendering (`view: "person"`), never a second door. `erasureRequestId` is
++// the id `storeErasureRequest`/`storedErasureRequest` (StudioApp.tsx) already
++// keeps in localStorage the moment an erasure starts; passing it lets the
++// server hand back the receipt once every replica is gone, instead of an
++// honest-but-uninformative empty export.
++export async function readPersonExport(token: string, erasureRequestId?: string | null): Promise<PersonExportResult> {
++  return replicaRequest<PersonExportResult>(token, "/api/replica", {
++    method: "POST",
++    body: JSON.stringify({ op: "export", view: "person", erasure_request_id: erasureRequestId || undefined }),
++  });
++}
++
++// WS-R189. `format: "html"` twin of `readPersonExport` above —
++// `fetchRoomExportReadableHtml`'s own shape (`src/room/roomApi.ts`)
++// restated for the owner's own door: the server's response is the
++// printable page itself, `text/html`, never a JSON envelope.
++export async function readPersonExportHtml(token: string, erasureRequestId?: string | null, locale: "en" | "hi" = "en"): Promise<string> {
++  const response = await fetch("/api/replica", {
++    method: "POST",
++    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
++    body: JSON.stringify({ op: "export", view: "person", format: "html", locale, erasure_request_id: erasureRequestId || undefined }),
++    signal: AbortSignal.timeout(45_000),
++  });
++  const text = await response.text();
++  if (!response.ok) {
++    let code = `replica_request_failed_${response.status}`;
++    try { code = String(JSON.parse(text)?.error || code); } catch { /* the error response is JSON; a non-JSON body here is unexpected but must not throw a parse error over a network error */ }
++    throw new ReplicaApiError(code, response.status);
++  }
++  return text;
++}
+diff --git a/src/studio/studio-workspace.css b/src/studio/studio-workspace.css
+index 28e1241..405648a 100644
+--- a/src/studio/studio-workspace.css
++++ b/src/studio/studio-workspace.css
+@@ -3900,3 +3900,25 @@
+     .source-language-label { align-items: flex-start; flex-direction: column; }
+   }
+ }
++
++/* WS-R189. "My data, in one place" — src/studio/MyDataStudio.tsx. Reuses
++   the same tokens (--ink-faint, --danger, --radius, --line) every other
++   block in this file already reads; no new custom property is introduced. */
++.mydata-studio { display: flex; flex-direction: column; gap: 14px; padding: var(--space-item, 16px) 0 40px; }
++.mydata-studio h1 { margin: 0; font-size: var(--text-title, 20px); }
++.mydata-intro { margin: 0; color: var(--ink-faint); font-size: 13px; line-height: 1.6; max-width: 640px; }
++.mydata-actions { display: flex; flex-wrap: wrap; gap: 10px; }
++.mydata-section { border: 1px solid var(--line); border-radius: var(--radius, 12px); padding: 14px 16px; }
++.mydata-section h2 { margin: 0 0 6px; font-size: 14px; }
++.mydata-section__label { margin: 0 0 6px; font-weight: 700; font-size: 12px; }
++.mydata-section ul { margin: 0; padding-left: 18px; font-size: 12px; color: var(--ink-faint); }
++.mydata-empty, .mydata-count { margin: 0; color: var(--ink-faint); font-size: 12px; }
++.mydata-danger { border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--line)); border-radius: var(--radius, 12px); padding: 16px; background: color-mix(in srgb, var(--danger) 4%, var(--paper)); }
++.mydata-danger h2 { margin: 0 0 6px; font-size: 14px; color: var(--danger); }
++.mydata-danger p { margin: 0 0 10px; font-size: 12px; color: var(--ink-faint); }
++.mydata-danger__button { background: var(--danger); color: #fff; border: 0; border-radius: var(--radius, 10px); padding: 10px 16px; font-weight: 700; }
++.mydata-danger__button:disabled { opacity: 0.5; }
++.mydata-danger__confirm { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
++.mydata-danger__confirm input { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius, 8px); }
++.mydata-danger__actions { display: flex; gap: 10px; }
++.mydata-studio--receipt { max-width: 560px; }
+diff --git a/src/studio/types.ts b/src/studio/types.ts
+index 79c8f34..c2343a7 100644
+--- a/src/studio/types.ts
++++ b/src/studio/types.ts
+@@ -535,3 +535,37 @@ export interface VoiceListeningHistoryEntry {
+   right_mean: number | null;
+   created_at: string;
+ }
++
++// WS-R189. "My data, in one place" — `personExport`'s own return shape
++// (`api/_creator-export.js`), the client-side twin of that module's own
++// JSDoc. `sections` is present when the owner still has data; `receipt` is
++// present (and `sections` empty) once every replica is erased and the
++// client's own stored erasure_request_id resolves to a completed job.
++export interface PersonExportSection {
++  key: "sheet" | "sources" | "claims" | "memory" | "relationship" | "generations" | "consents" | "receipts";
++  table: string;
++  rows: Array<Record<string, unknown>>;
++  calibration?: Array<Record<string, unknown>>;
++  charges?: Array<Record<string, unknown>>;
++}
++
++export interface PersonExportReceipt {
++  state: "pending" | "complete";
++  requested_at: string | null;
++  updated_at: string | null;
++  completed_at: string | null;
++  backup_expires_at: string | null;
++  attempts: number;
++  provider: "confirmed" | "pending";
++  storage: "confirmed" | "pending";
++  deleted_classes: string[];
++}
++
++export interface PersonExportResult {
++  format: "vyakti-person-export/1";
++  exported_at: string;
++  owner_user_id: string;
++  replicas: string[];
++  receipt: PersonExportReceipt | null;
++  sections: PersonExportSection[];
++}

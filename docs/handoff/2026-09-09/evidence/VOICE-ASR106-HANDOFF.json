@@ -1,0 +1,164 @@
+{
+  "date": "2026-09-09",
+  "state": "paused_for_user_commit_push_handoff",
+  "provider_calls": 0,
+  "cloud_calls_this_handoff": 0,
+  "sql_writes": 0,
+  "packet": {
+    "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\VOICE-ASR106-DISABLED.json",
+    "sha256": "e5ecd73cdb614a4ca6bfe08a936bcc030dd96a63362e291a17abd0087bdfe3c3",
+    "run_allowed": false,
+    "root_admitted": false
+  },
+  "files": {
+    "voice-asr106-screen.mjs": "1c2b8a963c8b450b1b9a05eecf5477e7a54102213a64d6af33fd17492804b824",
+    "voice-asr106-key.py": "e3d227f2cc22e52bafd9b3dfe582bfc4c3cb6fdacd5954a1a1ca633e66f6805b",
+    "voice-asr106-controls.mjs": "b3ef0268dbff6f87697b1c5cb879d3e49b73692a55054546833438fb2e57dfde",
+    "voice-asr106-controls-result.json": "8d27a6d7fddc5abdffc6845bc3e570af01218beed02335582cfe44f6c7910b71"
+  },
+  "source_worktree": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform-processing-runtime204",
+  "source_commit": "e913ffcb0c86711fca7ed6c449d94266c63f1312",
+  "source_pins": 419,
+  "input_paths": [
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\c46c21f293cfd638d6a3da20.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\dfaaa471415ba6b714f08bee.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\68f71ce5d4dfab70cbbbc8da.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\8cd1c2be9169b69250d45011.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\97a4340a36c1b1aec7c462e0.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\6d577fe65ecf736cbb5f0b96.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\eec6139a036b641d5a92aae0.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\95ddd1609fcba459a08fe6d4.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\b71cf50c79fc2bd6be2e2ae7.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\cf0f38010cdfc8e891f96a13.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\566ae4b414f4890a02030e1a.wav",
+    "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-listening106-public\\audio\\51040b82d3557b04cb492f7c.wav"
+  ],
+  "input_inventory": [
+    {
+      "id": "c46c21f293cfd638d6a3da20",
+      "arm": "chatterbox",
+      "cell_id": "chatterbox:hi-pendulum-negation",
+      "wav_sha256": "4e43c1b447630203bcd697c05cd1ffd023790ac7e7f16eb8d82d1642a527d53f",
+      "pcm_sha256": "819e9fea2f7ba5a22ba9601e2aa1174836a96e8062d43de0d284912b19829ba8",
+      "duration_ms": 12560,
+      "reserved_microusd": 1300
+    },
+    {
+      "id": "dfaaa471415ba6b714f08bee",
+      "arm": "chatterbox",
+      "cell_id": "chatterbox:hi-current-condition",
+      "wav_sha256": "3aadddda472c9d61bde3d14a6a852d398f9538af01203a2b967edcda64217267",
+      "pcm_sha256": "2a0df34ba54ced646f0e51ed99701e8e0f824f8f670ce8fbb16090e8508109d8",
+      "duration_ms": 12480,
+      "reserved_microusd": 1300
+    },
+    {
+      "id": "68f71ce5d4dfab70cbbbc8da",
+      "arm": "chatterbox",
+      "cell_id": "chatterbox:hinglish-sign-correction",
+      "wav_sha256": "f2bd0b9625275720d13ee336eb3be97ea1598c0f5464407703d46d2cf4bd9aa6",
+      "pcm_sha256": "87f40aa9defe22e3cf2e17cced86fe17f6023af7e00b93b2a95854742c16b3d4",
+      "duration_ms": 9600,
+      "reserved_microusd": 1000
+    },
+    {
+      "id": "8cd1c2be9169b69250d45011",
+      "arm": "chatterbox",
+      "cell_id": "chatterbox:hinglish-length-ratio",
+      "wav_sha256": "d24f89301f669b8d3294779ef49c5f41c1bdcada64e18aeabeb23c5134098e99",
+      "pcm_sha256": "ea6f80708d49c761192b56a4045263feee98bebbcbd0ce924c84c5d1fdfd8c2a",
+      "duration_ms": 11520,
+      "reserved_microusd": 1200
+    },
+    {
+      "id": "97a4340a36c1b1aec7c462e0",
+      "arm": "chatterbox",
+      "cell_id": "chatterbox:en-pendulum-negation",
+      "wav_sha256": "025102284c4805f588a1ef11fbea48eccfaf4b50456d851c9e2f37bcb6003883",
+      "pcm_sha256": "bd4f038beeaf0ab88eeae219e569e99080c3123a54b7155b2b68428495720ce9",
+      "duration_ms": 10960,
+      "reserved_microusd": 1100
+    },
+    {
+      "id": "6d577fe65ecf736cbb5f0b96",
+      "arm": "chatterbox",
+      "cell_id": "chatterbox:en-names-current",
+      "wav_sha256": "8492d9c469d0c51527260281e6a744a8bc8e6bd079784dadf778fae0e4c46acd",
+      "pcm_sha256": "a5550fe8328f9cfda678548884a9763c3a202b074ccd38a943c0cd5ab15afebd",
+      "duration_ms": 10800,
+      "reserved_microusd": 1100
+    },
+    {
+      "id": "eec6139a036b641d5a92aae0",
+      "arm": "voxcpm2",
+      "cell_id": "voxcpm2:hi-pendulum-negation",
+      "wav_sha256": "a480632bd29fe8da1494848778cca149fe203868dad3e069c57264eb65d3c621",
+      "pcm_sha256": "e7f8030f70d6017b5d54f61a994833a0113c92128e62889afa1481e4d474090a",
+      "duration_ms": 11040,
+      "reserved_microusd": 1200
+    },
+    {
+      "id": "95ddd1609fcba459a08fe6d4",
+      "arm": "voxcpm2",
+      "cell_id": "voxcpm2:hi-current-condition",
+      "wav_sha256": "f8a713c6012a2b3628665c491f6a8f85be3cc8202b63c39bfd951edf07845f58",
+      "pcm_sha256": "b7b1a6b8d3be9a4ba5ce0e14a33b4ac0380d515a3072651037caddea840d14a6",
+      "duration_ms": 12320,
+      "reserved_microusd": 1300
+    },
+    {
+      "id": "b71cf50c79fc2bd6be2e2ae7",
+      "arm": "voxcpm2",
+      "cell_id": "voxcpm2:hinglish-sign-correction",
+      "wav_sha256": "918f3c35c2f16789b8f8ade5e83ac0e41c60d4c2545dd930d6b3b1a4276cf971",
+      "pcm_sha256": "e5da7c28b0db55df383b975eee726261d246d98a9d502287fc400881c3f949c0",
+      "duration_ms": 9280,
+      "reserved_microusd": 1000
+    },
+    {
+      "id": "cf0f38010cdfc8e891f96a13",
+      "arm": "voxcpm2",
+      "cell_id": "voxcpm2:hinglish-length-ratio",
+      "wav_sha256": "178609e059dac42a1bfb76561a247ac541f4b63d4f2f459eced7a11bc917ac6a",
+      "pcm_sha256": "30c8310cbc478f0b874608bdc4938a7144b0ff10c1fc5b1112bed3ce5aa36896",
+      "duration_ms": 12000,
+      "reserved_microusd": 1200
+    },
+    {
+      "id": "566ae4b414f4890a02030e1a",
+      "arm": "voxcpm2",
+      "cell_id": "voxcpm2:en-pendulum-negation",
+      "wav_sha256": "8ec5f2664675a20420378820f31065cce6fe448cb86514789d60786ac60367fe",
+      "pcm_sha256": "4443584d8591e43c9b162d90bcea933354b0abc95e06fe33851c8f3961602119",
+      "duration_ms": 10080,
+      "reserved_microusd": 1100
+    },
+    {
+      "id": "51040b82d3557b04cb492f7c",
+      "arm": "voxcpm2",
+      "cell_id": "voxcpm2:en-names-current",
+      "wav_sha256": "117af1ee22c754aa6d1386e036ecb11d9f59c2ba52715cf3afacd6ab1c27730b",
+      "pcm_sha256": "dc4bf88273610f3abcb2dedcaa91434a61be015223b9ed79122f555a739bc80b",
+      "duration_ms": 10080,
+      "reserved_microusd": 1100
+    }
+  ],
+  "total_duration_ms": 132720,
+  "rounded_billable_seconds": 139,
+  "proposed_total_microusd": 13900,
+  "maximum_admission_microusd": 50000,
+  "existing_budget_id": "expert-development-20260906",
+  "last_root_reported_ledger": {
+    "spent_microusd": 246480,
+    "reserved_microusd": 0,
+    "limit_microusd": 1000000
+  },
+  "checks": "Actual offline12input/hash/duration/expected-text and production-module graph check passed;7 script-aware scoring groups passed; no provider/SQL run.",
+  "remaining": [
+    "Root source review of disabled runtime/key helper and concrete spend admission.",
+    "Do not dispatch automatically on resume; respect latest user handoff direction.",
+    "If later admitted, use fresh existing text-ledger headroom; one-useclaim before any write;12POST maximum/no retries; preserve unknown spend.",
+    "Retain raw ASR and normalized segments; mixed/different-script WER null; full expected text includes spoken disclosure; ASR correctness is not speaker likeness."
+  ],
+  "commit_guidance": "No uncommitted product-source change in this final ASR task. Draft tooling lives in ignored scratchpad/expert-tools; do not bulk force-add scratchpad or audio/capture/base64/private credentials. Commit a compact context/handoff reference only unless separately reviewing exact source-only helper files."
+}

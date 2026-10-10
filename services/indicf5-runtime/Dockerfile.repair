@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1.7
+# The first immutable image already contains the exact gated model and Vocos
+# snapshot. This bounded repair creates the explicit local Vocos directory and
+# replaces only the runtime sources; it performs no network/model fetch.
+FROM vyaktivoiceacr.azurecr.io/vyakti/indicf5-eval@sha256:276104f9bcc9719ce00010da3b58f71c506fd32ec02d59f906f170f1d7e4949a
+
+USER 0:0
+WORKDIR /srv/indicf5
+COPY repair_vocoder_manifest.py ./repair_vocoder_manifest.py
+COPY offline_vocoder.py ./offline_vocoder.py
+COPY duration_control.py ./duration_control.py
+COPY pronunciation_normalizer.py ./pronunciation_normalizer.py
+COPY contract.py ./contract.py
+COPY app.py ./app.py
+RUN python repair_vocoder_manifest.py \
+    && chown -R indicf5:indicf5 /srv/indicf5 /models/vocos /models/indicf5/.vyakti-model-manifest.json
+
+USER 10007:10007

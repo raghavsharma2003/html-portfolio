@@ -11,8 +11,9 @@
 // record of it. --check is what stops that.
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import { fileURLToPath } from "url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const CTX = join(ROOT, "context");
 const g = JSON.parse(readFileSync(join(CTX, "graph.json"), "utf8"));
 const args = process.argv.slice(2);

@@ -91,11 +91,13 @@ export const NEGATIVE_AFFECT_TAGS = [
 /** The ONLY place membership is read. Membership governs the live channel;
  *  it never governs history — a member who joins today does not become a
  *  participant of last month's episodes (§1 M10), because the ACL is read
- *  from vy_episode_participant, not from here. Bind $1 = group id. */
+ *  from vy_episode_participant, not from here. Bind $1 = group id and $2 =
+ *  the agent that owns that room. */
 export const RECIPIENT_SET_SQL = `
 select coalesce(array_agg(m.person_id), '{}'::uuid[]) as recipients
   from vy_group_member m
- where m.group_id = $1 and m.left_at is null and m.linked_at is not null`;
+ where m.group_id = $1 and m.agent_id = $2::uuid
+   and m.left_at is null and m.linked_at is not null`;
 
 /**
  * Per-subject column mapping. "The same predicate, with subject_kind swapped"
@@ -158,9 +160,10 @@ const DEFAULT_BIND = {
  * the WHERE clause of a query over `<subject table> f`.
  *
  * @param {"fact"|"phrase"|"episode"} subjectKind
- * @param {{recipients?:string,isGroup?:string,roomId?:string,negTags?:string,alias?:string}} [bind]
- *        SQL expressions to substitute for the four bindings. Defaults are the
- *        positional parameters $1-$4. A caller that evaluates many recipient
+ * @param {{recipients?:string,isGroup?:string,roomId?:string,negTags?:string,agentId?:string,alias?:string}} [bind]
+ *        SQL expressions to substitute for the bindings. The disclosure
+ *        fixture deliberately omits agentId because its pre-agent schema has
+ *        no such columns; every shipping caller supplies it. A caller that evaluates many recipient
  *        sets in one round trip (evals/mp/gate0.mjs) passes column references
  *        instead — same clause text, which is the whole point of this module
  *        existing: the predicate that ships is the predicate that was tested.
@@ -180,6 +183,8 @@ export function disclosurePredicate(subjectKind, bind = {}) {
   const G = `(${B.isGroup})::boolean`;
   const M = `(${B.roomId})::bigint`;
   const N = `(${B.negTags})::text[]`;
+  const A = B.agentId ? `(${B.agentId})::uuid` : null;
+  const AGENT = (alias) => (A ? ` and ${alias}.agent_id = ${A}` : "");
   const CIT = s.citations;
   const PERSON = s.person;
   const GRP = s.groupId;
@@ -195,6 +200,7 @@ export function disclosurePredicate(subjectKind, bind = {}) {
 -- are both vacuously true over an empty set, so the empty set is refused here
 -- rather than left to be discovered by whichever clause is evaluated first.
 and cardinality(${R}) >= 1
+${A ? `and f.agent_id = ${A}` : ""}
 
 -- (0) explicit deny always wins; presence is not consent to be surfaced.
 --     Read on BOTH the row and every episode it cites — see 008b's resolution
@@ -204,7 +210,7 @@ and cardinality(${R}) >= 1
 and not (${DENY} && ${R})
 and not exists (
       select 1 from unnest(${CIT}) as c(ep)
-       join vy_episode de on de.id = c.ep
+       join vy_episode de on de.id = c.ep${AGENT("de")}
       where de.disclosure_deny && ${R})
 
 -- (5) hard floor: sensitive / negatively-valenced rows never cross a
@@ -216,7 +222,7 @@ and not (${SENS} and ${G})
 and coalesce(not ${SENS} or ${PERSON} = any(${R}), false)
 and not exists (
       select 1 from unnest(${CIT}) as c(ep)
-       join vy_episode ae on ae.id = c.ep
+       join vy_episode ae on ae.id = c.ep${AGENT("ae")}
        cross join lateral jsonb_array_elements(ae.affect_tags) atag
       where (atag->>'tag') = any(${N}))
 
@@ -229,7 +235,7 @@ and (
       (select coalesce(array_agg(g.granted_to), '{}'::uuid[])
          from vy_disclosure_grant g
         where g.subject_kind = ${KIND} and g.subject_id = ${s.id}
-          and g.t_invalid is null) @> ${R}
+          and g.t_invalid is null${AGENT("g")}) @> ${R}
    or
       -- (2) the structural branch — the only layer with a measured floor of
       --     ZERO. EVERY recipient was a participant at EVERY cited episode.
@@ -240,7 +246,7 @@ and (
         and not exists (
           select 1 from unnest(${CIT}) as c(ep)
            where exists (select 1 from vy_episode se
-                          where se.id = c.ep
+                          where se.id = c.ep${AGENT("se")}
                             and (se.disclosure_scope = 'private'
                                  -- (3) a DM is not a room, even between the
                                  --     same two people
@@ -276,7 +282,7 @@ and (${GRP} is not null
      or coalesce(${PERSON} = any(${R}), false)
      or exists (select 1 from vy_disclosure_grant g6
                  where g6.subject_kind = ${KIND} and g6.subject_id = ${s.id}
-                   and g6.t_invalid is null and g6.granted_to = any(${R})
+                   and g6.t_invalid is null${AGENT("g6")} and g6.granted_to = any(${R})
                    and ${G}))
 `;
 }
@@ -300,11 +306,12 @@ export function bridgeEligibilityClause(subjectKind, bind = {}) {
   const s = SUBJECT_BINDINGS[subjectKind];
   if (!s) throw new Error(`unknown disclosure subject kind: ${subjectKind}`);
   const M = `(${{ ...DEFAULT_BIND, ...bind }.roomId})::bigint`;
+  const A = bind.agentId ? `((${bind.agentId})::uuid)` : null;
   return `
 -- (§3.2 ruling A) proactive-bridge eligibility only — never base retrieval
 and not exists (
   select 1 from vy_group_member gm
-   where gm.group_id = ${M} and gm.left_at is not null
+   where gm.group_id = ${M}${A ? ` and gm.agent_id = ${A}` : ""} and gm.left_at is not null
      and gm.person_id = ${s.person})
 `;
 }

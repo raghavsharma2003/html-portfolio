@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Maya · Delete your account</title>
+  <!-- Google Play's account-deletion URL (data-safety requirement): a public
+       page where a person can delete their Maya account and data without
+       needing the app installed. The wipe itself is api/account.js
+       op:wipe_state mode:"forget" — the same whole-wipe the in-app control
+       uses (PERSON_TABLES, every user-data table, memory.js). -->
+  <link rel="canonical" href="https://meera-silk.vercel.app/delete-account" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .del-wrap { max-width: 620px; margin: 0 auto; padding: 56px 20px 80px; }
+    .del-wrap h1 { font-size: 30px; margin: 0 0 6px; }
+    .del-wrap .sub { color: var(--dim, #6d635e); margin-bottom: 26px; }
+    .del-card { border: 1px solid var(--line, #e6ddd5); border-radius: 12px; padding: 20px 22px; margin: 16px 0; }
+    .del-card h2 { font-size: 17px; margin: 0 0 8px; }
+    .del-card p, .del-card li { font-size: 15px; line-height: 1.6; }
+    .del-danger { color: #b3261e; font-weight: 600; }
+    .del-btn { display: inline-block; background: #b3261e; color: #fff; border-radius: 999px; padding: 12px 22px; font-weight: 600; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main class="del-wrap">
+    <h1>Delete your Maya account</h1>
+    <p class="sub">This removes your account and everything Maya knows about you. It cannot be undone.</p>
+
+    <div class="del-card">
+      <h2>What gets deleted</h2>
+      <ul>
+        <li>Your account and sign-in identity (email, phone, Google link).</li>
+        <li>Every conversation, call record, photo and file you shared.</li>
+        <li>Everything Maya remembers about you: facts, episodes, patterns, milestones.</li>
+        <li>Synced app state across your devices.</li>
+      </ul>
+      <p>Deletion runs across every data table immediately; encrypted backups roll off within 30 days. Nothing is retained for advertising. There are no ads.</p>
+    </div>
+
+    <div class="del-card">
+      <h2>Delete from the app (fastest)</h2>
+      <p>Open Maya → the <strong>&hellip;</strong> menu → <strong>Make her forget you</strong>. Confirming runs the full deletion above, instantly.</p>
+    </div>
+
+    <div class="del-card">
+      <h2>Delete from the web</h2>
+      <p>Sign in at <a href="/chat">meera-silk.vercel.app/chat</a> with the same account, open the <strong>&hellip;</strong> menu and choose <strong>Make her forget you</strong>. Works without the app installed.</p>
+    </div>
+
+    <div class="del-card">
+      <h2>Can't sign in?</h2>
+      <p>Email <a href="mailto:compliance@carbonsettle.com?subject=Delete%20my%20Maya%20account">compliance@carbonsettle.com</a> from the address on your account (or include your account phone number) and we'll run the deletion for you within 7 days, with a confirmation reply.</p>
+    </div>
+
+    <p class="sub"><span class="del-danger">This is permanent.</span> If you only want a fresh start, the app's <em>Clear chat</em> keeps your account but empties the conversation instead. See also our <a href="/privacy">privacy policy</a>.</p>
+  </main>
+</body>
+</html>

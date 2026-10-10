@@ -8,6 +8,7 @@
 
 import type { CompileInput } from "../compiler";
 import type { UserProfile, VoiceEngine } from "../persona";
+import { demoTeacherAgent } from "../agents/teacher";
 
 const USER_MIN: UserProfile = { name: "Aakash", vibe: ["company"], facts: {} };
 const USER_RICH: UserProfile = {
@@ -50,6 +51,7 @@ function textFixture(
   return {
     id,
     input: {
+      agent: demoTeacherAgent,
       user: opts.user ?? USER_MIN,
       messageCount: 42,
       medium: "text",
@@ -80,6 +82,7 @@ function voiceFixture(
   return {
     id,
     input: {
+      agent: demoTeacherAgent,
       user: opts.user ?? USER_MIN,
       messageCount: 210,
       medium: "voice",

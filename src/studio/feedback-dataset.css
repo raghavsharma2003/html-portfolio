@@ -1,0 +1,20 @@
+.feedback-dataset { margin-block: 16px; border-block: 1px solid var(--expert-line, #d4dcd4); }
+.feedback-dataset > summary { display: list-item; min-height: 48px; padding-block: 13px; cursor: pointer; }
+.feedback-dataset > summary > span { font-weight: 600; }
+.feedback-dataset > summary > small { display: block; margin-top: 6px; }
+.feedback-dataset summary small, .feedback-dataset__counts { color: #506256; font-size: 13px; }
+.feedback-dataset__body { padding: 4px 0 20px; }
+.feedback-dataset__body p { margin: 0 0 12px; }
+.feedback-dataset__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 16px; }
+.feedback-dataset__requirements { margin-top: 16px; }
+.feedback-dataset__requirements > summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
+.feedback-dataset__requirements ul { padding-left: 22px; margin-block: 4px 16px; }
+.feedback-dataset__requirements li { margin-block: 8px; font-size: 14px; line-height: 1.55; }
+.feedback-dataset .feedback-dataset__error { color: #a12b23; }
+.feedback-dataset :focus-visible { outline: 2px solid #1f6b54; outline-offset: 4px; }
+@media (max-width: 520px) {
+  .feedback-dataset__actions button { flex: 1 1 160px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feedback-dataset * { scroll-behavior: auto; transition: none; }
+}

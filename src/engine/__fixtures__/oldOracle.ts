@@ -14,23 +14,18 @@
 // Takes the same CompileInput shape as compiler.ts (type-only import — zero
 // runtime coupling) so the harness can feed both sides identical fixtures.
 
-import {
-  buildSystemPromptParts,
-  buildSpeechStyle,
-  WATCH_MODE_NOTE,
-  SEARCH_DECISION,
-  FORGET_DECISION,
-} from "../persona";
 import type { CompileInput, CompiledPrompt } from "../compiler";
 
 export function compileOld(input: CompileInput): CompiledPrompt {
-  const parts = buildSystemPromptParts(input.user, input.messageCount, input.medium);
-  const sysCore = parts.core + (input.mode === "call" ? buildSpeechStyle(input.voiceEngine) : "");
+  const agent = input.agent;
+  if (!agent) throw Object.assign(new Error("agent_module_required"), { code: "agent_module_required" });
+  const parts = agent.buildSystemPromptParts(input.user, input.messageCount, input.medium);
+  const sysCore = parts.core + (input.mode === "call" ? agent.buildSpeechStyle(input.voiceEngine) : "");
   let sysTail = parts.tail;
 
   sysTail += input.innerThread;
 
-  if (input.watching) sysTail += WATCH_MODE_NOTE;
+  if (input.watching) sysTail += agent.WATCH_MODE_NOTE;
 
   if (input.memories) {
     sysTail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail rather than making them repeat themselves. Two things keep it honest:
@@ -44,8 +39,8 @@ ${input.memories}`;
   sysTail += input.innerWants;
 
   if (input.mode === "chat" && !input.isDirective) sysTail += input.cultureNoteText;
-  if (input.mode === "chat") sysTail += SEARCH_DECISION;
-  sysTail += FORGET_DECISION;
+  if (input.mode === "chat") sysTail += agent.SEARCH_DECISION;
+  sysTail += agent.FORGET_DECISION;
 
   return { core: sysCore, tail: sysTail, system: sysCore + sysTail };
 }

@@ -1,0 +1,21 @@
+{
+  "contract": "auth-google205-local-account-handler/v1",
+  "sourceHead": "f928c80c5e7e696d0d5310f3b9756751a69d2912",
+  "port": 5180,
+  "configModule": "blank example-derived, ignored, no credentials",
+  "googleUrlProbe": {
+    "status": 200,
+    "urlPresent": true,
+    "urlIsHttps": true,
+    "authorizePath": true
+  },
+  "unknownProbe": {
+    "status": 400,
+    "error": "unknown op"
+  },
+  "emailOrOtpRequests": 0,
+  "providerRedirects": 0,
+  "resourceWrites": 0,
+  "note": "Proves local account handler reaches static authorize-url branch after config-module repair; does not prove Supabase Google provider enablement.",
+  "at": "2026-09-09T05:38:55.9950112Z"
+}

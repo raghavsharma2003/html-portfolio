@@ -1,0 +1,303 @@
+/* activity.css — the Activity surface's own stylesheet.
+ *
+ * A SEPARATE FILE, and that is a mechanical decision as much as a design one.
+ * `studio.css` is owned by the wizard rebuild (WS-AE) while this is being
+ * written, and a shared 2 700-line file is where a concurrent diff goes to lose
+ * a merge. Everything here is namespaced under `.vy-activity` so it can be
+ * imported beside studio.css in any order without reaching into anything else.
+ *
+ * Every value comes from `design/tokens.css`. There is not one ad-hoc px in
+ * this file, which is the whole point of that file existing
+ * (docs/gurukul/DESIGN-LAW.md §3: "Ad-hoc values are the defect this
+ * replaces"). The palette names (--paper, --ink, --line, --forest) come from
+ * studio.css's token layer, so this file adds no colours of its own.
+ *
+ * MOTION. Only `transform` and `opacity` animate, nothing is longer than
+ * --motion-enter, and the skeleton's shimmer is a transform on a pseudo-element
+ * rather than a background-position sweep, which would repaint the whole row.
+ * `prefers-reduced-motion` collapses the durations through the tokens and the
+ * shimmer stops entirely, because a looping oscillation is exactly what that
+ * setting is asking us not to do.
+ */
+
+@layer components {
+  .vy-activity {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-block);
+  }
+
+  .vy-activity__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-row);
+  }
+
+  .vy-activity__title {
+    font-size: var(--text-title);
+    line-height: var(--leading-tight);
+    letter-spacing: -0.01em;
+    font-weight: var(--weight-strong);
+    margin: 0;
+  }
+
+  .vy-activity__lede {
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    color: var(--ink-soft);
+    max-width: var(--measure);
+    margin: 0;
+  }
+
+  /* ── the list ───────────────────────────────────────────────────────── */
+
+  .vy-activity__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-row);
+  }
+
+  .vy-activity__group-name {
+    font-size: var(--text-micro);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+    font-weight: var(--weight-medium);
+    color: var(--ink-faint);
+    margin: 0;
+  }
+
+  .vy-activity__row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: start;
+    gap: var(--space-tight) var(--space-item);
+    padding: var(--space-item);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--panel-solid);
+  }
+
+  /* The state dot. Colour AND shape carry the state, because colour alone
+   * fails for a person who cannot separate the forest from the ember. A
+   * running job's dot is hollow, a done job's is filled, a stopped job's is
+   * a square. */
+  .vy-activity__dot {
+    inline-size: 10px;
+    block-size: 10px;
+    margin-block-start: 5px;
+    border-radius: var(--radius-pill);
+    background: var(--state-running);
+    flex: none;
+  }
+
+  .vy-activity__row[data-state="done"] .vy-activity__dot { background: var(--state-done); }
+  .vy-activity__row[data-state="waiting_on_you"] .vy-activity__dot { background: var(--state-waiting); }
+  .vy-activity__row[data-state="failed"] .vy-activity__dot,
+  .vy-activity__row[data-state="blocked"] .vy-activity__dot {
+    background: var(--state-stopped);
+    border-radius: 2px;
+  }
+  .vy-activity__row[data-state="queued"] .vy-activity__dot,
+  .vy-activity__row[data-state="running"] .vy-activity__dot {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--state-running);
+  }
+  .vy-activity__row[data-state="cancelled"] .vy-activity__dot {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--ink-faint);
+  }
+
+  .vy-activity__row[data-state="failed"],
+  .vy-activity__row[data-state="blocked"] {
+    border-color: color-mix(in srgb, var(--state-stopped) 34%, var(--line));
+    background: var(--state-stopped-soft);
+  }
+
+  .vy-activity__row[data-state="waiting_on_you"] {
+    border-color: color-mix(in srgb, var(--state-waiting) 34%, var(--line));
+    background: var(--state-waiting-soft);
+  }
+
+  .vy-activity__body { min-inline-size: 0; }
+
+  .vy-activity__subject {
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-snug);
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+
+  .vy-activity__reason {
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+    color: var(--ink-soft);
+    margin-block-start: var(--space-hair);
+    max-width: var(--measure-tight);
+  }
+
+  .vy-activity__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight);
+    align-items: center;
+    margin-block-start: var(--space-tight);
+    font-size: var(--text-micro);
+    color: var(--ink-faint);
+  }
+
+  /* The only progress indicator in this surface, and it renders ONLY where the
+   * server sent a real fraction. It is deliberately steps-and-a-count rather
+   * than a bar: eight discrete ticks cannot imply a rate, and a bar can. */
+  .vy-activity__steps {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .vy-activity__step {
+    inline-size: 14px;
+    block-size: 4px;
+    border-radius: var(--radius-pill);
+    background: var(--line-strong);
+  }
+
+  .vy-activity__step[data-done="true"] { background: var(--state-running); }
+
+  .vy-activity__side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-hair);
+    text-align: end;
+  }
+
+  .vy-activity__when {
+    font-size: var(--text-micro);
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+
+  .vy-activity__act {
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    color: var(--forest);
+    background: transparent;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: transform var(--motion-instant) var(--ease-standard),
+                opacity var(--motion-instant) var(--ease-standard);
+  }
+
+  /* Feedback on press, not on release. DESIGN-LAW §2. */
+  .vy-activity__act:active { transform: scale(0.97); }
+
+  .vy-activity__act:focus-visible {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--focus-offset);
+  }
+
+  .vy-activity__act[disabled] { opacity: 0.55; cursor: default; }
+
+  /* ── the not-connected notice ───────────────────────────────────────── */
+
+  .vy-activity__notice {
+    border: var(--hairline) dashed var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: var(--space-item);
+    background: var(--paper-deep);
+  }
+
+  .vy-activity__notice p {
+    margin: 0;
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+    color: var(--ink-soft);
+    max-width: var(--measure);
+  }
+
+  .vy-activity__notice p + p { margin-block-start: var(--space-hair); }
+
+  .vy-activity__missing {
+    font-family: var(--mono);
+    font-size: var(--text-micro);
+    color: var(--ink);
+  }
+
+  /* ── loading: skeletons shaped like the rows, never a spinner ───────── */
+
+  .vy-activity__skeleton {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: start;
+    gap: var(--space-tight) var(--space-item);
+    padding: var(--space-item);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--panel-solid);
+  }
+
+  .vy-activity__bone {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background: var(--paper-deep);
+    block-size: 10px;
+  }
+
+  .vy-activity__bone::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+    transform: translateX(-100%);
+    animation: vy-activity-sheen 1.4s var(--ease-standard) infinite;
+  }
+
+  @keyframes vy-activity-sheen {
+    to { transform: translateX(100%); }
+  }
+
+  .vy-activity__bone--dot {
+    inline-size: 10px;
+    block-size: 10px;
+    margin-block-start: 5px;
+  }
+
+  .vy-activity__bone--subject { inline-size: min(60%, 260px); block-size: 13px; }
+  .vy-activity__bone--reason { inline-size: min(85%, 400px); block-size: 10px; margin-block-start: var(--space-hair); }
+  .vy-activity__bone--when { inline-size: 64px; block-size: 10px; }
+
+  .vy-activity__empty {
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    color: var(--ink-soft);
+    max-width: var(--measure);
+    margin: 0;
+  }
+
+  .vy-activity__error {
+    border: var(--hairline) solid color-mix(in srgb, var(--state-stopped) 34%, var(--line));
+    background: var(--state-stopped-soft);
+    border-radius: var(--radius-sm);
+    padding: var(--space-item);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+    color: var(--ink);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vy-activity__bone::after { animation: none; opacity: 0.5; transform: none; }
+  }
+
+  @media (prefers-contrast: more) {
+    .vy-activity__row,
+    .vy-activity__skeleton,
+    .vy-activity__notice { border-color: var(--ink-soft); }
+  }
+}

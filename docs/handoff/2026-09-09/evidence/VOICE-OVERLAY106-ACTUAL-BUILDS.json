@@ -1,0 +1,29 @@
+{
+  "source": "0b47b2b892f60b3f45f5d56bd647d97e2308329d",
+  "scope": "CPU COPY-only overlay image builds; not model execution or full release",
+  "arms": [
+    {
+      "arm": "chatterbox",
+      "run_id": "cu3r",
+      "image": "vyaktivoiceacr.azurecr.io/vyakti/stock106-chatterbox@sha256:19b990e606e08a3434ca0d4b64f24fe26d78f6652b61948d1988aae0254f1885",
+      "base_digest": "sha256:625edc223f7063e744d6463dd7443daeaa7097552997a7a4e47c99888cfa86d8",
+      "receipt": "voice-overlay106-chatterbox-verify-1788928847280701000.json",
+      "receipt_sha256": "d5e51ff14a6830ef18d243ad00a921653f4513064710b1270cba56dae6e065c8",
+      "status": "Succeeded",
+      "held_micro_usd": 500000
+    },
+    {
+      "arm": "voxcpm2",
+      "run_id": "cu3s",
+      "image": "vyaktivoiceacr.azurecr.io/vyakti/stock106-voxcpm2@sha256:6117bb89a4eb32508f39834ba6a7841a8a667c67d31a8ba78e68794e5defcd5c",
+      "base_digest": "sha256:40df335c38bf98b2eee6bf496c2f7ac9285c6bd572014abc7d7662134436f697",
+      "receipt": "voice-overlay106-voxcpm2-verify-1788928847279597900.json",
+      "receipt_sha256": "987bb7ce7da4c9afb23c8ae6196560314f6d55bb5c3f0ef8901031601f695f6c",
+      "status": "Succeeded",
+      "held_micro_usd": 500000
+    }
+  ],
+  "all_holds_preserved": true,
+  "gpu_provision": false,
+  "quality_verified": false
+}

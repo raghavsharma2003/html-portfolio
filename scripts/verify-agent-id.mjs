@@ -5,8 +5,7 @@
 // Three files have to carry the same uuid and none of them can import it from
 // the others: a .sql migration cannot import from TypeScript, db/schema.sql is
 // a flat transcript of the live shape by design, and src/engine/agents/
-// registry.ts is compiled into a client bundle that must not reach for the
-// database layer. So the constant is copied, and a copied constant drifts
+// api/_agentscope.js owns the legacy account-wide row scope. So the constant is copied, and a copied constant drifts
 // unless something fails the build when it does. This is that something — the
 // same pattern scripts/check-prompt-budget.mjs uses for OPERATIONAL_CORE_CAP,
 // where api/chat.js's literal caps are regex-read out of the source and
@@ -26,12 +25,13 @@
 // for a day (db/schema.sql:189-196).
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 const MIGRATION = "db/migrations/009_agents.sql";
 const SCHEMA = "db/schema.sql";
-const REGISTRY = "src/engine/agents/registry.ts";
+const AGENT_SCOPE = "api/_agentscope.js";
 
 const UUID_RX = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
 
@@ -85,43 +85,32 @@ if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.tes
 const schemaSrc = readOrDie(SCHEMA);
 if (schemaSrc) {
   const ids = uuidsIn(schemaSrc);
-  if (ids.length !== 1) {
-    fail(
-      `${SCHEMA} contains ${ids.length} distinct uuid literals ` +
-        `(${ids.join(", ") || "none"}) — expected exactly 1`,
-    );
-  } else if (ids[0] !== MEERA_AGENT_ID) {
-    fail(`${SCHEMA} says ${ids[0]}, ${MIGRATION} says ${MEERA_AGENT_ID} — the mirrors have drifted`);
+  if (!ids.includes(MEERA_AGENT_ID)) {
+    fail(`${SCHEMA} does not contain ${MEERA_AGENT_ID} from ${MIGRATION} — found: ${ids.join(", ") || "none"}`);
   } else {
-    ok(`${SCHEMA} matches (${(schemaSrc.match(UUID_RX) ?? []).length} occurrences, 1 distinct)`);
+    ok(`${SCHEMA} contains the legacy agent id (${(schemaSrc.match(UUID_RX) ?? []).length} uuid occurrences, ${ids.length} distinct)`);
   }
 }
 
-// ── 3. src/engine/agents/registry.ts, if it exists yet ─────────────────────
-//
-// Tolerant on purpose, and in two directions. The file belongs to another
-// workstream and may be absent; and once it exists it may legitimately carry
-// MORE than one uuid (a second agent's id is exactly what this layer is for),
-// so "exactly one distinct" is the wrong rule here. Prefer the named binding,
-// fall back to "the expected id appears at all", and say which rule was used.
-const regPath = join(ROOT, REGISTRY);
-if (!existsSync(regPath)) {
-  skip(`${REGISTRY} not present yet (WS-AGENT-PERSONA owns it) — mirror unchecked`);
+// ── 3. api/_agentscope.js, the surviving legacy account-row scope ─────────
+const scopePath = join(ROOT, AGENT_SCOPE);
+if (!existsSync(scopePath)) {
+  skip(`${AGENT_SCOPE} not present — legacy scope mirror unchecked`);
 } else {
-  const regSrc = readFileSync(regPath, "utf8");
-  const named = /MEERA_AGENT_ID\s*(?::[^=]*)?=\s*["'`]([^"'`]+)["'`]/.exec(regSrc);
+  const scopeSrc = readFileSync(scopePath, "utf8");
+  const named = /MEERA_AGENT_ID\s*(?::[^=]*)?=\s*["'`]([^"'`]+)["'`]/.exec(scopeSrc);
   if (named) {
     if (named[1].toLowerCase() !== MEERA_AGENT_ID) {
-      fail(`${REGISTRY} binds MEERA_AGENT_ID = ${named[1]}, ${MIGRATION} says ${MEERA_AGENT_ID}`);
+      fail(`${AGENT_SCOPE} binds MEERA_AGENT_ID = ${named[1]}, ${MIGRATION} says ${MEERA_AGENT_ID}`);
     } else {
-      ok(`${REGISTRY} matches (MEERA_AGENT_ID binding)`);
+      ok(`${AGENT_SCOPE} matches (MEERA_AGENT_ID binding)`);
     }
-  } else if (uuidsIn(regSrc).includes(MEERA_AGENT_ID)) {
-    ok(`${REGISTRY} contains ${MEERA_AGENT_ID} (no MEERA_AGENT_ID binding found — matched by literal)`);
+  } else if (uuidsIn(scopeSrc).includes(MEERA_AGENT_ID)) {
+    ok(`${AGENT_SCOPE} contains ${MEERA_AGENT_ID} (no MEERA_AGENT_ID binding found — matched by literal)`);
   } else {
     fail(
-      `${REGISTRY} exists but carries no MEERA_AGENT_ID binding and no occurrence of ` +
-        `${MEERA_AGENT_ID} — found: ${uuidsIn(regSrc).join(", ") || "no uuid literals at all"}`,
+      `${AGENT_SCOPE} exists but carries no MEERA_AGENT_ID binding and no occurrence of ` +
+        `${MEERA_AGENT_ID} — found: ${uuidsIn(scopeSrc).join(", ") || "no uuid literals at all"}`,
     );
   }
 }

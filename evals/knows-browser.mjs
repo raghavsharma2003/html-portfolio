@@ -29,7 +29,7 @@
 //   4. REDUCED MOTION IS STILL A PAGE. Not a blank one, and not a moving one.
 //
 // The model is never called and no network request leaves the page. $0.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -45,7 +45,7 @@ const ok = (n, c, e = "") => {
   if (!c && !OBSERVE) fails++;
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("knows-browser");
 
 /** Every forget request the page made, and what the server was told to say. */
 async function open({

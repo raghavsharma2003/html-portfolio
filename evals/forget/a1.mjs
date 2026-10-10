@@ -45,7 +45,7 @@
 //   node evals/forget/a1.mjs --live --lane=free --confirm   production pool
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { CASES, RESOLVED_CASES } from "./cases.mjs";
@@ -59,7 +59,7 @@ const MEM = readFileSync(join(ROOT, "api/memory.js"), "utf8");
 // header for the same posture). Nothing in the default run executes a query or
 // a fetch.
 const { forgetHookPrompt, parseForgetHook, askForgetHook } = await import(
-  join(ROOT, "api/memory.js")
+  pathToFileURL(join(ROOT, "api/memory.js")).href
 );
 
 const ARGV = process.argv.slice(2);
@@ -94,7 +94,7 @@ execSync(
     `--outfile=${BUNDLE} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
   { stdio: "inherit", cwd: ROOT },
 );
-const { resolveForget } = await import(BUNDLE);
+const { resolveForget } = await import(pathToFileURL(BUNDLE).href);
 
 // ── STRUCTURAL: the properties that must hold with no model in the room ────
 
@@ -357,7 +357,7 @@ if (LIVE) {
     );
     process.exit(1);
   }
-  const cfg = await import(join(ROOT, "api/_config.js"));
+  const cfg = await import(pathToFileURL(join(ROOT, "api/_config.js")).href);
 
   // ── the SHIPPED function, driven once, over the real lane plumbing ───────
   // Everything above measures the shipped PROMPT and PARSER through this

@@ -1,0 +1,188 @@
+/* EmotionOS — WS-R153. Mobile-first (390px), desktop at 768px+.
+ * Tokens from design/tokens.css and studio.css's own palette; no new colour
+ * or radius scale introduced. */
+@layer components {
+  .emotionos-studio {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-block, 24px);
+    max-width: 720px;
+  }
+
+  .emotionos-studio__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-item, 16px);
+  }
+
+  .emotionos-studio__lang {
+    background: none;
+    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
+    border-radius: var(--radius-pill, 999px);
+    padding: 6px 14px;
+    font-size: var(--text-small, 12px);
+    color: var(--ink-soft, #52564e);
+    cursor: pointer;
+  }
+  .emotionos-studio__lang:hover { border-color: var(--line-strong, rgba(28, 32, 26, 0.22)); }
+
+  .emotionos-studio__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-block, 24px);
+  }
+
+  .emotionos-studio__dim {
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-tight, 8px);
+  }
+  .emotionos-studio__dim legend {
+    font-size: var(--text-body, 14px);
+    font-weight: 600;
+    color: var(--ink, #171915);
+    padding: 0;
+  }
+
+  .emotionos-studio__segmented {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight, 8px);
+  }
+  .emotionos-studio__segmented button {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 10px;
+    border-radius: var(--radius-control, 10px);
+    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
+    background: var(--panel-solid, #fffef9);
+    color: var(--ink-soft, #52564e);
+    font-size: var(--text-small, 12px);
+    line-height: 1.25;
+    text-align: center;
+    cursor: pointer;
+  }
+  .emotionos-studio__segmented button.is-selected {
+    background: var(--forest, #17493b);
+    border-color: var(--forest, #17493b);
+    color: #fff;
+    font-weight: 600;
+  }
+  .emotionos-studio__segmented button:focus-visible {
+    outline: 2px solid var(--forest, #17493b);
+    outline-offset: 2px;
+  }
+
+  .emotionos-studio__note {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair, 4px);
+    font-size: var(--text-small, 12px);
+    color: var(--ink-soft, #52564e);
+  }
+  .emotionos-studio__note textarea {
+    min-height: 72px;
+    resize: vertical;
+    border-radius: var(--radius-control, 10px);
+    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
+    padding: 10px 12px;
+    font: inherit;
+    color: var(--ink, #171915);
+    background: var(--panel-solid, #fffef9);
+  }
+
+  .emotionos-studio__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-item, 16px);
+  }
+  .emotionos-studio__actions button[type="submit"] {
+    min-height: 44px;
+    padding: 10px 20px;
+    border-radius: var(--radius-pill, 999px);
+    border: none;
+    background: var(--forest, #17493b);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .emotionos-studio__actions button[type="submit"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .emotionos-studio__actions [role="status"] {
+    color: var(--forest, #17493b);
+    font-size: var(--text-small, 12px);
+  }
+
+  .emotionos-studio__error {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-tight, 8px);
+    color: var(--danger, #9d302d);
+  }
+
+  .emotionos-studio__history ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-row, 12px);
+  }
+  .emotionos-studio__history li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-tight, 8px);
+    padding: var(--space-tight, 8px) var(--space-item, 16px);
+    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
+    border-radius: var(--radius-control, 10px);
+  }
+  .emotionos-studio__history li.is-current {
+    border-color: var(--forest, #17493b);
+    background: var(--forest-soft, #e1eee7);
+  }
+  .emotionos-studio__history-version {
+    font-weight: 700;
+    font-size: var(--text-small, 12px);
+    color: var(--ink, #171915);
+  }
+  .emotionos-studio__history-summary {
+    flex: 1 1 220px;
+    max-width: var(--measure-tight, 52ch);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px var(--space-tight, 8px);
+    font-size: var(--text-small, 12px);
+    color: var(--ink-soft, #52564e);
+  }
+  .emotionos-studio__history-chip {
+    white-space: nowrap;
+  }
+  .emotionos-studio__history-tag {
+    font-size: var(--text-micro, 11px);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--forest, #17493b);
+  }
+  .emotionos-studio__history li button {
+    min-height: 36px;
+    padding: 6px 14px;
+    border-radius: var(--radius-pill, 999px);
+    border: 1px solid var(--forest, #17493b);
+    background: none;
+    color: var(--forest, #17493b);
+    font-size: var(--text-small, 12px);
+    cursor: pointer;
+  }
+
+  @media (min-width: 768px) {
+    .emotionos-studio__segmented button { flex: 1 1 0; }
+  }
+}

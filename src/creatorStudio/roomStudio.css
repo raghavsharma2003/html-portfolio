@@ -1,0 +1,380 @@
+/* roomStudio.css — the Room's own stylesheet. WS-R7.
+ *
+ * A SEPARATE FILE for `readiness.css`'s own mechanical reason: `studio.css`
+ * is thousands of lines and contended by several workstreams, and a shared
+ * file is where a concurrent diff goes to lose a merge. Everything here is
+ * namespaced under `.vy-room`; the cards themselves reuse `.teacher-sheet-card`
+ * / `.field` / `.button` from `studio.css` rather than reinventing them.
+ *
+ * Every value comes from `design/tokens.css` and `studio.css`'s palette
+ * layer. MOBILE 390 FIRST: the stats grid is one column under 480px, three
+ * from there up, and the slug/cap rows stack before they ever wrap awkwardly.
+ * MOTION: only transform and opacity animate, `prefers-reduced-motion`
+ * collapses every transition to near-zero via `tokens.css`'s own guard.
+ */
+
+@layer components {
+  .vy-room .section-heading { align-items: flex-start; justify-content: space-between; gap: var(--space-item); }
+
+  .vy-room__status {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-hair);
+    border-radius: var(--radius-pill);
+    padding: 6px 14px;
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .vy-room__status--draft { color: var(--ink-soft); background: rgba(43, 46, 40, 0.06); }
+  .vy-room__status--live { color: var(--forest); background: var(--forest-soft); }
+  .vy-room__status--paused { color: var(--state-waiting); background: var(--state-waiting-soft); }
+
+  .vy-room__link-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-tight);
+    margin: var(--space-tight) 0 var(--space-item);
+  }
+  /* WS-R55. Sits right under the link row; the same gap the row's own
+     children use rather than a new value. */
+  .vy-room__story-card-link {
+    margin: 0 0 var(--space-item);
+  }
+  .vy-room__link {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 10px 14px;
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    background: rgba(255, 255, 255, 0.6);
+    font-family: var(--mono);
+    font-size: var(--text-small);
+    color: var(--forest-deep);
+  }
+
+  .vy-room__slug-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight);
+    align-items: center;
+  }
+  .vy-room__slug-row .field { flex: 1 1 220px; }
+
+  /* ── the publish blockers: the honesty split, rendered ─────────────── */
+  .vy-room__blockers {
+    list-style: none;
+    margin: var(--space-item) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-row);
+  }
+  .vy-room__blocker {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: start;
+    gap: var(--space-tight) var(--space-row);
+    border-radius: var(--radius-control);
+    padding: var(--space-row);
+    border: var(--hairline) solid var(--line);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vy-room__blocker p { margin: 0; }
+  .vy-room__blocker p + p { margin-top: 2px; }
+  .vy-room__blocker-badge {
+    grid-row: 1 / span 2;
+    align-self: start;
+    border-radius: var(--radius-pill);
+    padding: 4px 10px;
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .vy-room__blocker--you .vy-room__blocker-badge { color: var(--state-waiting); background: var(--state-waiting-soft); }
+  .vy-room__blocker--us .vy-room__blocker-badge { color: var(--state-running); background: var(--state-running-soft); }
+
+  /* ── the free-cap presets ───────────────────────────────────────────── */
+  .vy-room__cap-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+  }
+  .vy-room__cap-pill {
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: var(--radius-pill);
+    border: var(--hairline) solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--ink);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard),
+                background var(--motion-quick) var(--ease-standard),
+                color var(--motion-quick) var(--ease-standard);
+  }
+  .vy-room__cap-pill:active:not(:disabled) { transform: scale(0.95); }
+  .vy-room__cap-pill--selected { background: var(--forest); border-color: var(--forest); color: #fff; }
+  .vy-room__cap-field { flex: 0 0 90px; height: 44px; text-align: center; }
+
+  /* ── pulse: a topic chip is a pill worn as a <span>, with its own remove
+     button rather than being one whole clickable pill ────────────────── */
+  .vy-room__pulse-card .vy-room__cap-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .vy-room__pulse-topic-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: var(--text-body);
+    line-height: 1;
+    opacity: 0.75;
+    transition: opacity var(--motion-quick) var(--ease-standard),
+                transform var(--motion-instant) var(--ease-standard);
+  }
+  .vy-room__pulse-topic-remove:hover:not(:disabled) { opacity: 1; }
+  .vy-room__pulse-topic-remove:active:not(:disabled) { transform: scale(0.85); }
+
+  /* ── the three real numbers ─────────────────────────────────────────── */
+  .vy-room__stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-row);
+    margin-top: var(--space-tight);
+  }
+  @media (min-width: 480px) {
+    .vy-room__stats-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .vy-room__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vy-room__stat-value { font-size: var(--text-heading); font-weight: var(--weight-strong); color: var(--forest-deep); }
+  .vy-room__stat-label { font-size: var(--text-small); color: var(--ink-soft); }
+
+  /* ── week six: the number that decides the company (WS-R12) ─────────── */
+  .vy-room__cohort-list {
+    list-style: none;
+    margin: var(--space-tight) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+  .vy-room__cohort-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  @media (min-width: 480px) {
+    .vy-room__cohort-row { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-tight); }
+  }
+  .vy-room__cohort-week { font-size: var(--text-small); color: var(--ink-soft); }
+  .vy-room__cohort-value { font-weight: var(--weight-strong); color: var(--forest-deep); }
+  .vy-room__cohort-value--pending { font-weight: var(--weight-medium); color: var(--ink-soft); }
+  .vy-room__cohort-verdict { margin-top: var(--space-tight); font-weight: var(--weight-medium); color: var(--ink); }
+
+  /* Check-ins (WS-R16). Same list/row shape as the cohort table above,
+     `.vy-room__cohort-list`/`-row`'s own tokens, so the two read as one
+     system rather than two hand-tuned lists. */
+  .vy-room__checkins-list {
+    list-style: none;
+    margin: var(--space-tight) 0 var(--space-item);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+  .vy-room__checkins-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  @media (min-width: 480px) {
+    .vy-room__checkins-row { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-tight); }
+  }
+  .vy-room__checkins-title { font-weight: var(--weight-strong); color: var(--ink); }
+  .vy-room__checkins-cadence { font-size: var(--text-small); color: var(--ink-soft); }
+  .vy-room__checkins-card textarea.field { resize: vertical; min-height: 4.5em; }
+
+  /* Suites (WS-R28). Same list/row shape as check-ins above, restated for a
+     Suite roster instead of a check-in list. */
+  .vy-room__suite-note { color: var(--ink-soft); }
+  .vy-room__suite-list {
+    list-style: none;
+    margin: var(--space-tight) 0 var(--space-item);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+  .vy-room__suite-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vy-room__suite-row-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+  @media (min-width: 480px) {
+    .vy-room__suite-row-head { flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-tight); }
+  }
+  .vy-room__suite-name { font-weight: var(--weight-strong); color: var(--ink); }
+  .vy-room__suite-seats { font-size: var(--text-small); color: var(--ink-soft); }
+  .vy-room__suite-actions { display: flex; flex-wrap: wrap; gap: var(--space-hair); }
+  .vy-room__suite-members { list-style: none; margin: var(--space-hair) 0 0; padding: 0; font-size: var(--text-small); color: var(--ink-soft); }
+  .vy-room__suite-join { display: flex; flex-wrap: wrap; gap: var(--space-hair); align-items: center; }
+  .vy-room__suite-join .field { flex: 1 1 12em; }
+
+  /* Handoff (WS-R20). The one waiting request's own bubble - not a list, by
+     design (`api/_handoff.js`'s "one at a time" law): a bordered block that
+     reads as a quoted message rather than a form field, `.vy-room__checkins-
+     row`'s own tokens so it belongs to the same visual family. */
+  .vy-room__handoff-next {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    margin-top: var(--space-tight);
+  }
+  .vy-room__handoff-payload {
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .vy-room__handoff-card textarea.field { resize: vertical; min-height: 4.5em; }
+
+  /* Showcase (WS-R66/WS-R72). The slot itself was unstyled before this
+     workstream (no rule below existed for `.vy-room__showcase-slot` at
+     all) - the layout gate never rendered it, `room` was always null in
+     its fixture. It renders for real now (the "deploy-picker" scenario),
+     so this gives the slot its own gap rather than shipping the FIRST
+     measured render of a card this workstream did not itself lay out. */
+  .vy-room__showcase-slot {
+    display: grid;
+    gap: var(--space-tight);
+    padding-top: var(--space-item);
+    border-top: var(--hairline) solid var(--line);
+  }
+  .vy-room__showcase-slot:first-of-type { padding-top: 0; border-top: none; }
+
+  /* The picker. `.review-card-answer`'s own `max-width: var(--measure)` +
+     `white-space: pre-wrap` reasoning, restated for a card the owner is
+     about to copy rather than one they are deciding: real prose, not
+     chrome, so it is held to the same readable-line-length floor. */
+  .vy-room__showcase-picker {
+    display: grid;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+    border-radius: var(--radius-control);
+    padding: var(--space-item);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vy-room__showcase-picker-list {
+    display: grid;
+    gap: var(--space-row);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .vy-room__showcase-picker-item {
+    display: grid;
+    gap: var(--space-hair);
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.6);
+  }
+  .vy-room__showcase-picker-q {
+    max-width: var(--measure);
+    margin: 0;
+    font-weight: var(--weight-medium);
+  }
+  .vy-room__showcase-picker-a {
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    white-space: pre-wrap;
+  }
+
+  /* ── the share kit (WS-R85, migration 122) ──────────────────────────── */
+  .vy-room__share-kit-rows {
+    display: grid;
+    gap: var(--space-row);
+    margin-top: var(--space-tight);
+  }
+  .vy-room__share-kit-row {
+    display: grid;
+    gap: var(--space-hair);
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.6);
+  }
+  .vy-room__share-kit-row h4 {
+    margin: 0;
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .vy-room__share-kit-text {
+    width: 100%;
+    resize: vertical;
+    font-family: inherit;
+    white-space: pre-wrap;
+  }
+  .vy-room__share-kit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vy-room__cap-pill { transition: none; }
+    .vy-room__pulse-topic-remove { transition: none; }
+  }
+}

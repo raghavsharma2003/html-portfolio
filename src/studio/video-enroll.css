@@ -1,0 +1,413 @@
+.video-enroll-panel {
+  --video-ink: var(--ink, #15231f);
+  --video-muted: var(--ink-soft, #58645f);
+  --video-line: var(--line, rgba(21, 55, 45, 0.14));
+  --video-line-strong: var(--line-strong, rgba(21, 55, 45, 0.24));
+  --video-surface: var(--panel-solid, #fffefa);
+  --video-tint: var(--forest-soft, #e5f0eb);
+  --video-accent: var(--forest, #155443);
+  width: min(100%, 760px);
+  display: grid;
+  gap: 20px;
+}
+
+.video-enroll-intro {
+  display: grid;
+  gap: 8px;
+}
+
+.video-enroll-intro .video-enroll-kicker {
+  margin: 0;
+  color: var(--video-accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.video-enroll-intro h2,
+.video-enroll-intro p,
+.video-enroll-fallback p,
+.video-enroll-error p,
+.video-enroll-result p {
+  margin: 0;
+}
+
+.video-enroll-intro > p:last-child {
+  max-width: 58ch;
+  color: var(--video-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.video-enroll-availability,
+.video-enroll-limit {
+  margin: 0;
+  color: var(--video-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.video-enroll-fallback {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--video-accent) 30%, var(--video-line));
+  border-radius: 18px;
+  padding: 16px;
+  background: color-mix(in srgb, var(--video-tint) 76%, var(--video-surface));
+}
+
+.video-enroll-fallback-icon,
+.video-enroll-match-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: var(--video-accent);
+  background: var(--video-surface);
+  box-shadow: inset 0 0 0 1px var(--video-line);
+}
+
+.video-enroll-fallback-icon svg,
+.video-enroll-match-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.video-enroll-fallback strong {
+  display: block;
+  color: var(--video-ink);
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.video-enroll-fallback p {
+  margin-top: 4px;
+  color: var(--video-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.video-enroll-fallback .button,
+.video-enroll-error .button,
+.video-enroll-input-row .button,
+.video-enroll-actions .button {
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.video-enroll-check {
+  display: grid;
+  gap: 8px;
+}
+
+.video-enroll-check > label,
+.video-enroll-consent legend {
+  color: var(--video-ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.video-enroll-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.video-enroll-input-row input {
+  min-width: 0;
+  min-height: 48px;
+  border: 1px solid var(--video-line-strong);
+  border-radius: 12px;
+  padding: 0 14px;
+  color: var(--video-ink);
+  background: var(--video-surface);
+  font: inherit;
+  font-size: 16px;
+  outline: 0;
+}
+
+.video-enroll-input-row input:focus-visible {
+  border-color: var(--video-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--video-accent) 20%, transparent);
+}
+
+.video-enroll-check small,
+.video-enroll-actions small {
+  color: var(--video-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.video-enroll-match {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--video-line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: var(--video-surface);
+}
+
+.video-enroll-match > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.video-enroll-match > div > span {
+  color: var(--video-accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.video-enroll-match strong,
+.video-enroll-match small,
+.video-enroll-match p {
+  overflow-wrap: anywhere;
+}
+
+.video-enroll-match strong {
+  color: var(--video-ink);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.video-enroll-match small {
+  color: var(--video-muted);
+  font-size: 12px;
+}
+
+.video-enroll-match p {
+  margin: 4px 0 0;
+  color: var(--video-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.video-enroll-consent {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.video-enroll-consent legend {
+  margin-bottom: 8px;
+}
+
+.video-enroll-consent label {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--video-line);
+  border-radius: 12px;
+  padding: 11px 13px;
+  color: var(--video-muted);
+  background: var(--video-surface);
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.video-enroll-consent label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--video-accent) 44%, var(--video-line));
+  color: var(--video-ink);
+  background: color-mix(in srgb, var(--video-tint) 54%, var(--video-surface));
+}
+
+.video-enroll-consent input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--video-accent);
+}
+
+.video-enroll-consent input:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--video-accent) 26%, transparent);
+  outline-offset: 3px;
+}
+
+.video-enroll-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.video-enroll-error {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--danger, #a3352d) 42%, var(--video-line));
+  border-radius: 14px;
+  padding: 14px;
+  color: var(--danger, #8d2d27);
+  background: color-mix(in srgb, var(--danger-soft, #f8e8e5) 68%, var(--video-surface));
+}
+
+.video-enroll-error > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-weight: 800;
+}
+
+.video-enroll-error p {
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.video-enroll-result {
+  display: grid;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--video-accent) 32%, var(--video-line));
+  border-radius: 20px;
+  padding: 20px;
+  background: color-mix(in srgb, var(--video-tint) 48%, var(--video-surface));
+}
+
+.video-enroll-result > div:first-child > span {
+  color: var(--video-accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.video-enroll-result h3 {
+  margin: 4px 0 0;
+  color: var(--video-ink);
+  font: 500 clamp(24px, 4vw, 34px)/1.1 var(--serif, Georgia, serif);
+  font-variant-numeric: tabular-nums;
+}
+
+.video-enroll-result p {
+  max-width: 64ch;
+  color: var(--video-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.video-enroll-result details,
+.video-enroll-history {
+  border-top: 1px solid var(--video-line);
+  padding-top: 8px;
+}
+
+.video-enroll-result summary,
+.video-enroll-history summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--video-ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.video-enroll-result summary:focus-visible,
+.video-enroll-history summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--video-accent) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.video-enroll-result ul,
+.video-enroll-history ul {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-enroll-result li,
+.video-enroll-history li {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--video-muted);
+  background: color-mix(in srgb, var(--video-surface) 74%, transparent);
+  font-size: 12px;
+}
+
+.video-enroll-history {
+  margin-top: 4px;
+}
+
+.video-enroll-history li > span,
+.video-enroll-history li > small {
+  overflow-wrap: anywhere;
+}
+
+.video-enroll-history li > strong {
+  color: var(--video-accent);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 680px) {
+  .video-enroll-panel {
+    gap: 16px;
+  }
+
+  .video-enroll-fallback,
+  .video-enroll-error {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .video-enroll-fallback .button,
+  .video-enroll-error .button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .video-enroll-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .video-enroll-input-row .button,
+  .video-enroll-actions,
+  .video-enroll-actions .button {
+    width: 100%;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .video-enroll-panel {
+    gap: 12px;
+  }
+
+  .video-enroll-fallback,
+  .video-enroll-result {
+    padding: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-enroll-panel *,
+  .video-enroll-panel *::before,
+  .video-enroll-panel *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}

@@ -1,0 +1,40 @@
+@layer components {
+  .vyakti-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.58rem;
+    color: currentColor;
+  }
+
+  .vyakti-mark__glyph {
+    display: grid;
+    min-width: 1.85rem;
+    height: 1.85rem;
+    place-items: center;
+    color: var(--vx-brand-ember, #b93627);
+    font-family: "Noto Sans Devanagari", "Kohinoor Devanagari", Mangal, sans-serif;
+    font-size: 1.45rem;
+    font-weight: 650;
+    letter-spacing: -0.12em;
+    line-height: 1;
+  }
+
+  .vyakti-mark__word {
+    display: inline-flex;
+    align-items: baseline;
+    color: currentColor;
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+
+  .vyakti-mark__word small {
+    margin-left: 0.16em;
+    color: var(--vx-brand-ember, #b93627);
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 0.56em;
+    font-weight: 560;
+    letter-spacing: -0.02em;
+  }
+}

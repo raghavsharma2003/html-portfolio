@@ -25,7 +25,7 @@
 // the same strip of pixels.
 //
 // The model is stubbed, so it is deterministic and costs $0. Runtime ~70s.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -40,7 +40,7 @@ const ok = (n, c, e = "") => {
   if (!c && !OBSERVE) fails++;
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("skyfelt-browser");
 
 const BASE_STATE = {
   onboarded: true,

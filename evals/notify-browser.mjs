@@ -40,7 +40,7 @@
 // No network leaves the page (the origin is served from memory by a route
 // handler), no model is called, $0.
 
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,18 +82,13 @@ execSync(
 const BUNDLE = readFileSync(OUT, "utf8");
 
 // Headed, under a virtual display. See the header: this is not a preference.
-let browser;
-try {
-  browser = await chromium.launch({ headless: false });
-} catch (e) {
-  console.log(
-    "FAIL  a headed browser could not start. Run this as `xvfb-run -a node " +
-      "evals/notify-browser.mjs`; headless Chromium denies notifications " +
-      "outright, so a headless run would measure nothing.\n      " +
-      String(e.message).slice(0, 200),
-  );
-  process.exit(1);
-}
+// `launchSuiteBrowser`'s `launchOptions` param (WS-R165) exists for exactly
+// this one caller's `{ headless: false }` — headless Chromium denies
+// notifications outright, so a headless run would measure nothing. If a
+// headed browser cannot start (no `xvfb-run`, say), the shared launcher's
+// own reason explains why in the SKIP line rather than this file
+// re-deriving that message.
+const browser = await launchSuiteBrowser("notify-browser", [], { headless: false });
 const ctx = await browser.newContext();
 
 // Record every Notification the page constructs, and every close(). Wrapped

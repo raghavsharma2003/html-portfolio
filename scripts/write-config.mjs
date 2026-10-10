@@ -30,6 +30,7 @@ const STRINGS = [
   "NEON_URL",
   "SUPABASE_URL",
   "SUPABASE_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
   "AZURE_KEY",
   "AZURE_ENDPOINT",
   // The Telegram surface (api/tg.js). TELEGRAM_WEBHOOK_SECRET is the only
@@ -52,12 +53,44 @@ const STRINGS = [
   "FCM_PRIVATE_KEY",
 ];
 
+// WS-G (docs/gurukul/ENV-MANIFEST.md) checked, deliberately, whether
+// CRON_SECRET belongs on this list too, since it authenticates every replica
+// cron sweep and its absence is what silently 401s all five of them. It does
+// NOT belong here: every consumer (api/consolidate-sweep.js and all five
+// api/replica-*-sweep.js) reads `process.env.CRON_SECRET` directly at
+// request time — none of them import api/_config.js — so Vercel's own
+// Project → Environment Variables is the one place it needs to be set. Baking
+// it into this gitignored, deploy-time-generated file would freeze a value
+// into the deployed bundle instead of letting Vercel's per-environment secret
+// rotate independently. The other ~55+ replica/voice env vars are not on this
+// list for the same reason — none of their consumers import api/_config.js
+// either. Full inventory, file:line verified, at docs/gurukul/ENV-MANIFEST.md.
+
 // Refusing to overwrite a real local config is not politeness — running this
 // by hand in a checkout that HAS the keys would destroy them, and they are not
 // recoverable from the repo.
 if (existsSync(OUT) && !process.env.CI) {
   console.error("api/_config.js already exists and CI is not set — refusing to overwrite.");
   process.exit(1);
+}
+
+// A production Vyakti build has one provider. The explicit CLI flag keeps
+// offline --stub use separate from deploy admission without a runtime product
+// selector or a project-specific environment switch.
+const vyaktiDeploy = process.argv.includes("--vyakti-deploy");
+if (vyaktiDeploy) {
+  try {
+    const { azureSurfaceReplyConfig } = await import("../api/_azure-surface-reply.js");
+    azureSurfaceReplyConfig(process.env);
+    if (!String(process.env.NEON_URL || "").trim()) {
+      throw Object.assign(new Error("NEON_URL_required"), { code: "NEON_URL_required" });
+    }
+  } catch (error) {
+    const code = /^[A-Za-z][A-Za-z0-9_]{2,100}$/.test(error?.code || "")
+      ? error.code : "azure_build_config_invalid";
+    console.error(`::error::${code} - Vyakti Azure configuration refused.`);
+    process.exit(1);
+  }
 }
 
 const lines = [
@@ -146,15 +179,19 @@ if (researchFallback) {
 // empty string, so nothing is granted, and an accidental query against an
 // empty NEON_URL fails loudly instead of quietly reaching production. The
 // deploy guard below is skipped because there is nothing to deploy.
+if (vyaktiDeploy) {
+  console.log("  Vyakti Azure reply configuration validated; private dialogue/auth/storage readiness remains separate.");
+  process.exit(0);
+}
 if (process.argv.includes("--stub")) {
   console.log("  (--stub: no keys, gate use only — this build cannot deploy or reach the DB)");
   process.exit(0);
 }
 
-// The site cannot function without these two: no OpenRouter key means she has
-// no brain and no voice fallback, no Neon URL means no memory at all. Failing
-// here is much cheaper than deploying a site that looks fine and answers 500.
-for (const required of ["OPENROUTER_KEY", "NEON_URL"]) {
+// Non-deploy workflows may still reconstruct this legacy config for database,
+// research, or maintenance scripts. Room provider admission belongs only to
+// --vyakti-deploy above and is Azure-only. The common floor here is Neon.
+for (const required of ["NEON_URL"]) {
   if (!process.env[required]) {
     console.error(`::error::${required} is required and was not set — refusing to deploy.`);
     process.exit(1);

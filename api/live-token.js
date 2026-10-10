@@ -2,6 +2,8 @@
 // the client can open its realtime WebSocket WITHOUT ever seeing the real
 // Google key. The token expires in 30 minutes and admits one session.
 import { GOOGLE_KEY } from "./_config.js";
+import { obs } from "./_obs.js";
+import { poolHealth } from "./_gkeys.js";
 import { withGeminiKey } from "./_gkeys.js";
 import { classifyUpstream, QUOTA, TRANSIENT } from "./_lanes.js";
 import { allow, ipOf } from "./_ratelimit.js";
@@ -99,6 +101,7 @@ export default async function handler(req, res) {
       data = got.value ?? null;
     }
     if (!data?.name) return res.status(502).json({ error: "token mint failed" });
+    await obs("live_token", { pool: poolHealth() });
     return res.status(200).json({ token: data.name, model: LIVE_MODEL });
   } catch {
     return res.status(500).json({ error: "token failure" });

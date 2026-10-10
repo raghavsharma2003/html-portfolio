@@ -29,13 +29,28 @@
 //
 // Refresh is idempotent per IST day, so it needs no secret to be safe: the
 // worst an unauthenticated caller can do is cause the one distillation pass
-// that was going to happen anyway. `force` does need the secret.
+// that was going to happen anyway. `force` does need the secret, carried in
+// the `x-owner-secret` header, never the body — WS-R93. It used to be
+// `body.secret`, which lands in access logs and proxies, the same leak
+// class WS-R89 already closed for `api/consolidate-sweep.js`'s cron secret
+// (`context/rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope`).
+import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { OPENROUTER_KEY } from "./_config.js";
 
 const KEY = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
 const SECRET = process.env.CULTURE_SECRET || "";
+
+// Owner secret, header only, constant-time compare — api/self-check.js's
+// own `authorized` shape, api/consolidate-sweep.js's own `secretMatches`.
+// A short or unset SECRET can never match, so an unconfigured deploy is
+// simply closed rather than open-by-accident.
+function authorized(req) {
+  const expected = Buffer.from(String(SECRET));
+  const actual = Buffer.from(String(req.headers?.["x-owner-secret"] || ""));
+  return expected.length >= 16 && expected.length === actual.length && timingSafeEqual(expected, actual);
+}
 
 // How long a stale index may still be served. Moment-level culture has a
 // viral half-life just over five days and meme formats turn over in months,
@@ -70,7 +85,7 @@ export default async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).json({ error: "GET or POST" });
     const b = req.body || {};
     if (b.op !== "refresh") return res.status(400).json({ error: "op required" });
-    const forced = b.force === true && SECRET && b.secret === SECRET;
+    const forced = b.force === true && authorized(req);
     return await refresh(res, forced);
   } catch {
     // the index is a nice-to-have; it must never be an error the app sees

@@ -34,7 +34,7 @@
 
 import type { ActivityState } from "./activity";
 import type { Game, MoveAssessment, PieceType, Side } from "./chess";
-import { openingName } from "./chess";
+import { SCHOLARS_NAME, openingName } from "./chess";
 
 /** Coarse bands, never a centipawn number she could read out loud. */
 function standingFact(a: MoveAssessment, herSide: Side): string {
@@ -454,6 +454,200 @@ export function chessMoveNote(
 /** Past this many plies the opening is over and its name is no longer news. */
 const OPENING_FACT_PLY = 16;
 
+// ── BOARD TRUTH: the one line she may not talk past ────────────────────────
+//
+// Tester report, 2026-08-25: she declared checkmate in the middle of a live
+// game, and she replayed the previous game's content as if it were the board
+// in front of them. Both are the same absence — the block carried whose move
+// it was and what had just been played, and nothing in it stated, as a fact,
+// WHERE THIS GAME STANDS.
+//
+// `ActivityState.state` is that fact, and it is derived HERE from
+// `game.status` — the rules authority's own reading of the position, the same
+// object `verdict` on screen is drawn from. It is never assembled from a fact
+// row, never inferred from a move's tags, and never touched by a model. That
+// is the entire property `STATE_LAW` in activity.ts leans on: a fence is only
+// worth its bytes when the thing it points at cannot itself be wrong.
+//
+// Two shapes, and no third:
+//   in progress, move N       — the game is live, whatever else is happening
+//   <ending>                  — and the ending names its winner or says there
+//                               is none, because "the game ended" with nobody
+//                               named is what lets her fill a winner in.
+
+/**
+ * The machine-derived state line. Pure, total, search-free.
+ *
+ * `endedEarly` is the session's, exactly as `chessRecord` takes it and for the
+ * same reason: only the session knows the difference between "no result yet"
+ * and "he stopped playing", and a board put away by hand is a board she must
+ * not claim a result on.
+ */
+export function chessGameState(game: Game, herSide: Side, endedEarly = false): string {
+  const st = game?.status;
+  const moves = Math.ceil((game?.played?.length ?? 0) / 2);
+  if (st?.over) {
+    if (st.result === "checkmate") {
+      return `checkmate, ${st.winner === herSide ? "she" : "he"} won`;
+    }
+    const how =
+      st.result === "stalemate" ? "stalemate"
+      : st.result === "insufficient_material" ? "not enough pieces left"
+      : st.result === "threefold_repetition" ? "the same position three times"
+      : st.result === "fifty_move" ? "fifty moves with no progress"
+      : "";
+    return `the game ended in a draw${how ? `, ${how}` : ""}, nobody won`;
+  }
+  // Ended by hand. It IS over — she may not go on playing it — and it has no
+  // result, which the line says out loud so the fence's "if it names no
+  // winner there is none" clause has something to bite on.
+  if (endedEarly) return `the game ended early on move ${moves}, no result, nobody won`;
+  return `in progress, move ${moves || 1}`;
+}
+
+// ── HER IDEA: the substrate under "what's your plan" ───────────────────────
+//
+// Same tester, same session: *"what's your idea behind this opening"* → "mai
+// bhul gayi". She was not being evasive and she was not forgetting. The block
+// carried the board and not one byte about what SHE was trying to do with it,
+// so there was nothing to answer from — the `chess-facts-as-a-scoresheet`
+// failure seen from the other side.
+//
+// Derived from HER OWN MOVES against the book that already exists
+// (`openings.ts`) plus a phase-and-shape reading of the position. Never a
+// model, never prose, and never a line she could say: it is a noun phrase in
+// the third person, the same shape as an opening name, and the eval holds it
+// to the ≤14-word contract every other row here lives under.
+//
+// A wrong plan is worse than no plan, exactly as a wrong opening name is
+// (`openings.ts`'s own law). So every branch below is read off something that
+// is literally on the board — a rook she actually moved to a file, a piece
+// that is actually within three squares of his king, a pawn count — and the
+// fallbacks are deliberately the vaguest true things rather than the most
+// interesting ones.
+
+/** Pieces that count as "coming at the king" for the plan reading. Pawns do
+ *  not: a pawn beside his king is a pawn storm's result, not its intent, and
+ *  the king itself is never its own attacker. */
+const PLAN_ATTACKER = new Set(["n", "b", "r", "q"]);
+
+/** How close one of her pieces has to be to his king before the plan reads as
+ *  an attack. Three, not `NEAR_KING`'s two: this is a standing feature of the
+ *  position rather than a thing that just happened, so it may be looser. */
+const PLAN_NEAR_KING = 3;
+
+/** Two of them, not one. A single knight near his king is where knights go;
+ *  two pieces aimed at the same king is a plan. */
+const PLAN_ATTACKERS_MIN = 2;
+
+/** Below this many heavy+minor pieces on the board it is an endgame and the
+ *  plan is an endgame plan, whatever the move number says. */
+const PLAN_ENDGAME_PIECES = 6;
+
+/** Material edge, in whole pawns, before "up material" is the plan. */
+const PLAN_MATERIAL_EDGE = 2;
+
+const PIECE_CP: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+interface Shape {
+  /** her non-king, non-pawn pieces within PLAN_NEAR_KING of his king */
+  nearKing: number;
+  /** she has castled in this game */
+  castled: boolean;
+  /** distinct squares her knights and bishops have landed on */
+  developed: number;
+  /** she has a pawn on one of the four central squares */
+  centre: boolean;
+  /** total minor+major pieces left on the board, both sides */
+  pieces: number;
+  /** her material minus his, in whole pawns */
+  edge: number;
+}
+
+function shapeOf(game: Game, herSide: Side): Shape {
+  const grid = gridOf(game.fen);
+  const theirKing = kingSquare(grid, herSide === "w" ? "b" : "w");
+  let nearKing = 0;
+  let pieces = 0;
+  let edge = 0;
+  let centre = false;
+  for (let row = 0; row < 8; row++) {
+    for (let f = 0; f < 8; f++) {
+      const p = grid[row]?.[f];
+      if (!p) continue;
+      const white = p === p.toUpperCase();
+      const mine = white === (herSide === "w");
+      const t = p.toLowerCase();
+      edge += (mine ? 1 : -1) * (PIECE_CP[t] ?? 0);
+      if (t !== "p" && t !== "k") pieces++;
+      const sq: Sq = { f, r: 7 - row };
+      if (mine && t === "p" && sq.f >= 3 && sq.f <= 4 && sq.r >= 3 && sq.r <= 4) centre = true;
+      if (mine && theirKing && PLAN_ATTACKER.has(t) && chebyshev(sq, theirKing) <= PLAN_NEAR_KING) {
+        nearKing++;
+      }
+    }
+  }
+  const mine = game.played.filter((m) => m.by === herSide);
+  return {
+    nearKing,
+    castled: mine.some((m) => m.isCastle),
+    developed: new Set(mine.filter((m) => m.piece === "n" || m.piece === "b").map((m) => m.to)).size,
+    centre,
+    pieces,
+    edge,
+  };
+}
+
+/**
+ * One clause for what she is trying to do, most specific first. Exported so
+ * the eval can drive the ladder directly instead of inferring which branch
+ * fired from a rendered block.
+ */
+export function chessPlanClause(game: Game, herSide: Side): string {
+  const s = shapeOf(game, herSide);
+  if (s.pieces <= PLAN_ENDGAME_PIECES) {
+    return s.edge >= PLAN_MATERIAL_EDGE
+      ? "endgame now, trading down while she is up material"
+      : "endgame now, pushing pawns and keeping her king active";
+  }
+  if (s.nearKing >= PLAN_ATTACKERS_MIN) {
+    return s.castled
+      ? "castled, pieces already pointed at their king"
+      : "pieces pointed at their king";
+  }
+  if (s.edge >= PLAN_MATERIAL_EDGE) return "up material, happy to trade pieces off";
+  if (!s.castled && s.developed >= 2) return "getting the pieces out, king safe first";
+  if (s.centre) return "holding the centre, developing behind it";
+  return "developing pieces, keeping the centre flexible";
+}
+
+/**
+ * HER IDEA, as one telegraphic row: the opening's name when the book knows it,
+ * and what she is trying to do with the position either way.
+ *
+ * "" before she has played a move — she cannot have a plan for a game she has
+ * not started, and inventing one is the defect wearing a nicer hat.
+ */
+export function chessIdea(game: Game, herSide: Side): string {
+  if (!game?.played?.length) return "";
+  if (game.status?.over) return "";
+  const book = openingName(game.played.map((m) => m.san));
+  // THE ONE BOOK ENTRY THAT IS NOT HERS TO CLAIM. Every other name describes
+  // the game both of them are in — "the italian game" is as true of her side
+  // as of his. The scholar's-mate shape describes what ONE player is trying to
+  // do, and on the board where SHE is the one being mated at, "her idea: the
+  // four-move checkmate try" is the most confidently wrong row this file could
+  // emit. It still reaches her: `chessActivity` keeps its own "the opening is
+  // …" fact row for exactly the names this line drops.
+  const name = book && book !== SCHOLARS_NAME ? book : null;
+  const plan = chessPlanClause(game, herSide);
+  const row = [name, plan].filter(Boolean).join(", ");
+  // The ≤14-word contract, enforced rather than hoped for — the same reason
+  // `moveFact` enforces it. The NAME is what survives: it is the specific half
+  // and the half a person actually asks about.
+  return row.split(/\s+/).length <= MAX_FACT_WORDS ? row : (name ?? plan);
+}
+
 // ── the DURABLE half: what is still true about this game next week ─────────
 //
 // `chessActivity`'s `facts` are the present moment and are correct to be: they
@@ -672,9 +866,17 @@ export function chessActivity(
   // this directly — *"taking the opening name and explaining 'this is the
   // opening' can be there, in a good sense"* — and it is deliberately below the
   // move and the threat: it is the nicest row here and the least urgent.
+  //
+  // SUPPRESSED WHEN `idea` ALREADY CARRIES IT. `chessIdea` leads with the same
+  // book name, and the two rendered together read as the block repeating
+  // itself — "her idea: the italian game, …" three lines above "the opening is
+  // the italian game". The idea line is the one that survives, because it is
+  // undroppable and says strictly more; dropping the fact row gives the threat
+  // and the move count a row back rather than costing anything.
+  const idea = chessIdea(game, herSide);
   if (ply > 0 && ply <= OPENING_FACT_PLY && !game.status?.over) {
     const name = openingName(game.played.map((m) => m.san));
-    if (name) facts.push(`the opening is ${name}`);
+    if (name && !idea.includes(name)) facts.push(`the opening is ${name}`);
   }
 
   const moves = Math.ceil(ply / 2);
@@ -700,6 +902,12 @@ export function chessActivity(
     facts,
     nameable,
     record: chessRecord(game, herSide, endedEarly),
+    // THE TWO UNDROPPABLE ROWS. Both are derived from THIS `game` and nothing
+    // else — there is no path by which a previous session's moves can reach
+    // either one, which is the structural half of the cross-game-bleed fix
+    // (the prompt half is `STATE_LAW`).
+    state: chessGameState(game, herSide, endedEarly),
+    idea,
     waitingOnHer: !game.status?.over && turn === herSide,
     over: Boolean(game.status?.over),
   };

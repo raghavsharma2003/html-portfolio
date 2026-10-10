@@ -1,0 +1,8 @@
+ await check('executed checkpoint23 missing return and discarded unsent question',async()=>{
+  await page.setViewportSize({width:390,height:900});await open('ready',true);await page.locator('#ptr-question').fill('Keep this unsent question');
+  await page.getByRole('button',{name:'Add or edit source material'}).click();await page.getByText('pendulum-notes.txt',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Test this source'}).count(),0);
+  await page.screenshot({path:join(artifact,'old-source-390.png'),fullPage:true});
+  await page.getByRole('button',{name:/Back to choices/}).click();await page.getByRole('button',{name:/Test a private draft/}).click();await page.locator('#ptr-question').waitFor();
+  assert.equal(await page.locator('#ptr-question').inputValue(),'');assert.equal(await page.locator('.ptr-fields select').nth(0).inputValue(),'');assert.equal(await page.locator('.ptr-fields select').nth(1).inputValue(),'');assert.equal(askCount(),0);
+ });

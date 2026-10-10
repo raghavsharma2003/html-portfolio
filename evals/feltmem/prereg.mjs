@@ -50,7 +50,9 @@ export function computePrereg() {
   const missing = declared.filter((f) => !onDisk.includes(f));
 
   const files = PREREG_FILES.map((f) => {
-    const bytes = readFileSync(join(FIXTURE_DIR, f), "utf8");
+    // Git's text checkout may materialize CRLF on Windows. The registration
+    // describes source content, so hash its repository-stable LF form.
+    const bytes = readFileSync(join(FIXTURE_DIR, f), "utf8").replace(/\r\n/g, "\n");
     return { file: f, bytes: Buffer.byteLength(bytes, "utf8"), sha256: sha256(bytes) };
   });
   // order-dependent by construction: PREREG_FILES fixes the order, so a

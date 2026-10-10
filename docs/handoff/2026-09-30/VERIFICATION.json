@@ -1,0 +1,129 @@
+{
+  "schema": "vyakti-handoff-verification/v1",
+  "recorded_on": "2026-09-30",
+  "evidence_date": "2026-09-29",
+  "fresh_cloud_checks_on_recorded_date": false,
+  "deployment": {
+    "state": "passed",
+    "origin": "https://vyakti-replica-14kfokzor-raghav-carbonsettles-projects.vercel.app",
+    "deployment_id": "dpl_ADhVvHMuTvaZ97oomTngjJzR9wps",
+    "accepted_code_commit": "5fe2fa2590a355834bf61eea4e889103351af1f7",
+    "source_commitment": "sha256:d7dd4313d69f2833afc7d78e753cd4d19ce0b7a552ae2f190d06d8bd9d3e8918",
+    "probe_live": {
+      "exitCode": 0,
+      "findings": 0,
+      "surfaces": 60
+    },
+    "verify_deploy": {
+      "exitCode": 0
+    },
+    "policy_verified": true,
+    "private_boundaries": [
+      {
+        "name": "preview",
+        "status": 401,
+        "error": "bearer_token_required",
+        "enabled_endpoint": true
+      },
+      {
+        "name": "azure-cpu",
+        "status": 401,
+        "error": "private_voice_session_required"
+      }
+    ],
+    "initial_receipt_sha256": "2ac70726932de5d173ff3779cccb50e88c32110b3acbd3cc0571cfe616242c41",
+    "correction": "only failed custom boundary rerun; exact-origin Vercel transport remains restricted, Azure read uses independent unauthenticated transport",
+    "real_account_verified": false,
+    "model_calls": 0,
+    "observed_at_epoch": 1790671366.467785
+  },
+  "runtime": {
+    "cpu": "vyakti-internal-voice25",
+    "supervisor_job": "vyakti-voice-watchdog29",
+    "budget_id": "gpu-private-voice-internal-v1",
+    "application_limit_microusd": 1000000,
+    "hard_invoice_cap": false,
+    "supervisor_cpu": 0.25,
+    "supervisor_memory": "0.5Gi",
+    "schedule_utc": "*/15 * * * *",
+    "timeout_seconds": 1020,
+    "retry_limit": 0,
+    "cpu_mode": "account-private",
+    "supervisor_enabled": "true",
+    "heartbeat": [
+      {
+        "fresh": true,
+        "source_matches": true
+      }
+    ],
+    "budget": [
+      {
+        "budget_id": "gpu-private-voice-internal-v1",
+        "state": "active",
+        "limit_microusd": "1000000",
+        "spent_microusd": "0",
+        "reserved_microusd": "0"
+      }
+    ],
+    "executions": [
+      {
+        "name": "vyakti-voice-watchdog29-29844525",
+        "status": "Running"
+      },
+      {
+        "name": "vyakti-voice-watchdog29-29844510",
+        "status": "Running"
+      },
+      {
+        "name": "vyakti-voice-watchdog29-ky8wtig",
+        "status": "Succeeded"
+      }
+    ]
+  },
+  "cpu": {
+    "state": "Succeeded",
+    "image_matches": true,
+    "revision": "vyakti-internal-voice25--private29-enabled-5fe2fa25",
+    "ready_revision": "vyakti-internal-voice25--private29-enabled-5fe2fa25",
+    "scale": {
+      "minReplicas": 1,
+      "maxReplicas": 1,
+      "cooldownPeriod": 300,
+      "pollingInterval": 30,
+      "rules": null
+    },
+    "gpu_mutations": 0,
+    "health_status": 200,
+    "service": "private-account-voice"
+  },
+  "gpu": {
+    "scale": {
+      "minReplicas": 0,
+      "maxReplicas": 1
+    },
+    "revisions": [
+      {
+        "name": "vyakti-open-voice-hi--y6cp1ld",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-open-voice-hi--0000001",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-open-voice-hi--0000002",
+        "active": false,
+        "replicas": 0
+      }
+    ],
+    "gpu_mutations": 0
+  },
+  "evidence_sha256": {
+    "REBUILD29-VOICE-ACCEPTANCE.json": "6e8fd27fd619de62b8ac45ae4b3500e03583c92791e7501bd51b5768255ffff5",
+    "REBUILD29-VOICE-OBSERVE.json": "37e69f99d6adb5ca6e24e0d264f0e619e5b419d88524bb4bb44e1c960ef612c3",
+    "REBUILD29-CPU-OBSERVE.json": "e1e17bde33538a6b6261ac55eb3868c865980ae542b52cecb992f3f82a1b6f68",
+    "REBUILD29-GPU-AFTER-VOICE-ENABLE.json": "950c5eb72c7fad6b4faf0adcc02f4762723eab055836f113ac64630333017da9"
+  }
+}
