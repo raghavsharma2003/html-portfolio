@@ -43,6 +43,7 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const replicaId = "10000000-0000-4000-8000-000000000027";
 const statementSet = "private-own-voice/v1";
+const permissionStatement = "This recording is my own voice. Use it to make this private AI voice sample for me.";
 const wav = (() => {
   const samples = 800, bytes = samples * 2, buffer = Buffer.alloc(44 + bytes);
   buffer.write("RIFF", 0); buffer.writeUInt32LE(36 + bytes, 4); buffer.write("WAVEfmt ", 8);
@@ -55,8 +56,8 @@ const config = (account) => ({
   enabled: true,
   scope: "private_voice_test",
   statement_set: statementSet,
-  statement: account === "B" ? "यह केवल खाता बी का निजी वाक्य है।" : "यह केवल खाता ए का निजी वाक्य है।",
-  config: { text: "fixture", language_id: "hi", model_arm: "hindi_v3", seed: 27, public_release: false },
+  statement: permissionStatement,
+  config: { text: account === "B" ? "खाता बी का नमूना" : "fixture", language_id: "hi", model_arm: "hindi_v3", seed: 27, public_release: false },
   text_limits: { max_code_points: 280, language_id: "hi", english_supported: false },
   candidates: [{ source_id: `source-${account}`, artifact_id: `artifact-${account}`, reference_sha256: "a".repeat(64), duration_ms: 24000, snapshot_hash: `snapshot-${account}` }],
 });
@@ -181,6 +182,27 @@ try {
 
   {
     let posts = 0;
+    const malformed = config("A");
+    delete malformed.config.text;
+    const { context, page } = await pageWithRoute((route) => {
+      if (route.request().method() === "POST") posts += 1;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(malformed) });
+    });
+    await page.getByRole("heading", { name: "We could not check the private voice test" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Make private sample" }).count(), 0);
+    assert.equal(await page.getByRole("textbox", { name: "What should your voice say?" }).count(), 0);
+    const details = page.getByText("Technical details", { exact: true });
+    assert.equal(await details.isVisible(), true);
+    assert.equal(await page.getByText("private_voice_response_invalid", { exact: true }).isVisible(), false);
+    await details.click();
+    assert.equal(await page.getByText("private_voice_response_invalid", { exact: true }).isVisible(), true);
+    assert.equal(posts, 0);
+    pass("a malformed spoken-text config is rejected before the component can dereference it");
+    await context.close();
+  }
+
+  {
+    let posts = 0;
     const { context, page } = await pageWithRoute((route) => {
       if (route.request().method() === "POST") posts += 1;
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(config("A")) });
@@ -259,6 +281,7 @@ try {
 
   {
     const legacy = { ...config("A") };
+    legacy.config = { ...legacy.config, text: "आज हम यह सवाल समझेंगे।" };
     delete legacy.text_limits;
     let posted;
     const { context, page } = await pageWithRoute((route) => {
@@ -270,7 +293,14 @@ try {
     });
     await page.getByRole("heading", { name: "Test your voice privately" }).waitFor();
     assert.equal(await page.getByRole("textbox", { name: "What should your voice say?" }).count(), 0);
-    assert.equal(await page.getByText("This service currently supports the fixed sample below.", { exact: true }).count(), 1);
+    assert.equal(await page.getByText("This voice test will speak the fixed sample below.", { exact: true }).count(), 1);
+    assert.equal(await page.getByRole("heading", { name: "Your permission" }).count(), 1);
+    assert.equal(await page.getByText("आज हम यह सवाल समझेंगे।", { exact: true }).count(), 1);
+    const spoken = page.locator("blockquote").filter({ hasText: "आज हम यह सवाल समझेंगे।" });
+    const permission = page.locator("blockquote").filter({ hasText: permissionStatement });
+    assert.equal(await spoken.getAttribute("lang"), "hi");
+    assert.equal(await permission.getAttribute("lang"), "en");
+    assert.equal(await permission.innerText(), permissionStatement);
     await page.getByRole("checkbox").check();
     await page.getByRole("button", { name: "Make private sample" }).click();
     await page.getByRole("heading", { name: "Sample failed" }).waitFor();
@@ -292,11 +322,11 @@ try {
     });
     while (!held) await new Promise((resolve) => setTimeout(resolve, 10));
     await page.getByRole("button", { name: "Switch account" }).click();
-    await page.getByText("यह केवल खाता बी का निजी वाक्य है।", { exact: true }).waitFor();
+    await page.waitForFunction(() => document.querySelector("#private-voice-sample-text")?.value === "खाता बी का नमूना");
     await held.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(config("A")) });
     await page.waitForTimeout(100);
-    assert.equal(await page.getByText("यह केवल खाता ए का निजी वाक्य है।", { exact: true }).count(), 0);
-    assert.equal(await page.getByText("यह केवल खाता बी का निजी वाक्य है।", { exact: true }).count(), 1);
+    assert.equal(await page.locator("#private-voice-sample-text").inputValue(), "खाता बी का नमूना");
+    assert.equal(await page.getByText(permissionStatement, { exact: true }).count(), 1);
     pass("a late previous-account configuration cannot render into the current scope");
     await context.close();
   }

@@ -65,15 +65,16 @@ const COPY = {
     sampleText: "What should your voice say?",
     sampleTextHelp: "Use Hindi or Hinglish. This Hindi model does not support English-only text.",
     sampleTextCount: "{n} of {max} characters",
-    fixedSampleOnly: "This service currently supports the fixed sample below.",
+    fixedSampleOnly: "This voice test will speak the fixed sample below.",
+    spokenSampleTitle: "Spoken sample",
     textErrors: {
       english: "Use Hindi or Hinglish, then try again.",
       required: "Enter a Hindi or Hinglish line, then try again.",
       tooLarge: "Shorten this to {max} characters or fewer, then try again.",
       plan: "Rewrite this line in Hindi or Hinglish, then try again.",
     },
-    statementTitle: "Private test statement",
-    statementHelp: "This exact line is used only to make this sample.",
+    statementTitle: "Your permission",
+    statementHelp: "This confirmation allows this one private sample.",
     confirm: "I confirm this is my own voice and I am using it for a private test.",
     generate: "Make private sample",
     generating: "Starting sample",
@@ -134,15 +135,16 @@ const COPY = {
     sampleText: "आवाज़ क्या बोले?",
     sampleTextHelp: "हिंदी या हिंग्लिश लिखें। यह हिंदी मॉडल केवल अंग्रेज़ी वाक्य नहीं बोलता।",
     sampleTextCount: "{max} में से {n} अक्षर",
-    fixedSampleOnly: "यह सेवा अभी नीचे दिया गया तय नमूना बना सकती है।",
+    fixedSampleOnly: "इस आवाज़ जाँच में नीचे दिया गया तय नमूना बोला जाएगा।",
+    spokenSampleTitle: "बोला जाने वाला नमूना",
     textErrors: {
       english: "हिंदी या हिंग्लिश लिखकर फिर कोशिश करें।",
       required: "हिंदी या हिंग्लिश की एक पंक्ति लिखकर फिर कोशिश करें।",
       tooLarge: "इसे {max} अक्षर या उससे कम करके फिर कोशिश करें।",
       plan: "इस पंक्ति को हिंदी या हिंग्लिश में दोबारा लिखकर फिर कोशिश करें।",
     },
-    statementTitle: "निजी जाँच का वाक्य",
-    statementHelp: "यही पंक्ति केवल इस नमूने को बनाने के लिए इस्तेमाल होगी।",
+    statementTitle: "आपकी अनुमति",
+    statementHelp: "यह पुष्टि केवल इस एक निजी नमूने की अनुमति देती है।",
     confirm: "मैं पुष्टि करता हूँ कि यह मेरी अपनी आवाज़ है और मैं इसे निजी जाँच के लिए इस्तेमाल कर रहा हूँ।",
     generate: "निजी नमूना बनाएँ",
     generating: "नमूना शुरू हो रहा है",
@@ -613,9 +615,9 @@ export function PrivateVoiceTest({
               .replace("{n}", String(sampleTextLength)).replace("{max}", String(availability.text_limits.max_code_points))}</small>
           </div>
           {textValidationError ? <small className="private-voice-test__code" role="alert">{textValidationError}</small> : null}
-        </div> : <p className="private-voice-test__fixed-sample" data-private-voice-fixed-sample>{copy.fixedSampleOnly}</p>}
+        </div> : <div className="private-voice-test__fixed-sample" data-private-voice-fixed-sample><strong>{copy.spokenSampleTitle}</strong><p>{copy.fixedSampleOnly}</p><blockquote lang={availability.config.language_id}>{availability.config.text}</blockquote></div>}
         <div><h3>{copy.statementTitle}</h3><p>{copy.statementHelp}</p></div>
-        <blockquote lang="hi">{availability.statement}</blockquote>
+        <blockquote lang="en">{availability.statement}</blockquote>
         <label className="private-voice-test__confirm">
           <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.currentTarget.checked)} />
           <span>{copy.confirm}</span>

@@ -133,8 +133,10 @@ function validRun(value: unknown): value is PrivateVoiceRun {
 
 function validateAvailability(value: unknown): PrivateVoiceAvailability {
   if (!isObject(value) || value.enabled !== true || value.scope !== "private_voice_test"
-      || value.statement_set !== "private-own-voice/v1" || typeof value.statement !== "string"
-      || !isObject(value.config) || !Array.isArray(value.candidates)) {
+      || value.statement_set !== "private-own-voice/v1" || typeof value.statement !== "string" || !value.statement.trim()
+      || !isObject(value.config) || typeof value.config.text !== "string" || !value.config.text.trim()
+      || value.config.language_id !== "hi" || value.config.model_arm !== "hindi_v3"
+      || !Array.isArray(value.candidates)) {
     throw new PrivateVoiceApiError("private_voice_response_invalid", 502, value);
   }
   const textLimits = value.text_limits === undefined ? null : value.text_limits;

@@ -92,6 +92,13 @@ record it as a local failure, not an application regression established by a
 baseline comparison. The obsolete Windows run and only its own process tree
 were stopped after these CI results; it is not a completed acceptance run.
 
+Final voice presentation review caught another mismatch: the permission sentence
+was labelled as the spoken sample. Legacy service responses now show the actual
+fixed `config.text` separately, with the unchanged permission statement correctly
+labelled. Missing or invalid required voice config is rejected before rendering.
+The mounted voice suite now passes14/14, with typecheck and copy checks passing.
+This is a UI/API-contract fix; it is not a new model or a voice-quality result.
+
 One additional real UI bug was fixed before the retry: a definite custom-voice
 text rejection followed by exact run-not-found previously stranded the editor
 in an unknown state. The editor now recovers only on that confirmed combination,
