@@ -25693,3 +25693,14 @@ Reverse this decision when an actually configured payment provider and a reviewe
 publication-specific charge, refund, renewal and payout contract can replace
 manual entitlement without weakening the atomic visitor binding or legacy open
 publication behavior.
+
+## `access-pass-dev-proof-before-release-20261010`
+
+Keep application review, real development SQL proof and production release as
+separate facts. Migration173 is additive and tested in the dedicated integration
+database first; only exact typed statements and recorded synthetic identities
+may be exercised there. A blocked concurrent writer must be observed through
+transaction-pinned backend PIDs before claiming race coverage. Preserve spent
+ledgers and content-free retirement witnesses while independently proving private
+fixture removal. Reverse the test harness when an equivalent isolated database
+runner proves the same locking, response and cleanup boundaries with less work.

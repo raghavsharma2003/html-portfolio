@@ -1,55 +1,59 @@
 # STATE — read this first, then the graph
 
-## START HERE: OCTOBER 10 ITERATION IN PROGRESS
+## START HERE: OCTOBER 10 INTEGRATION, NOT DEPLOYED
 
-The owner asked to keep improving Vyakti toward a sellable product. Work continues
-in standalone25 on the same branch; the October9 preview below is still the live
-release. Read `docs/handoff/2026-10-10/WORK-IN-PROGRESS.md` for the current batch.
-Custom Hindi/Hinglish sample text, Hindi rehearsal controls, reviewed person
-language/tone refinement and long-document private retrieval are being integrated.
-Do not deploy a partial working tree or replay any consumed operator intent.
+Continue repo `raghavsharma2003/html-portfolio`, branch
+`claude/vyakti-cloning-platform-aq05n4`, checkout `Vyakti-platform-standalone25`.
+The October9 preview below remains LIVE. Do not call October10 shipped.
+Read `docs/handoff/2026-10-10/WORK-IN-PROGRESS.md` for receipts and failed attempts.
 
-Candidate a95589f8 is pushed but NOT deployed. Android passed; both Node gates
-finished24/25, with only private-text-rehearsal-ui failing on an assertion that
-read the transient checking message before the final blocked result. A held-response
-test now verifies the honest in-flight state and waits for the final recovery;
-all26focused mounted groups pass. A new full gate is still required. The fresh live DB
-check still reports only36external Meera pointers; other DB checks pass.
+The merged candidate includes chosen Hindi/Hinglish voice text, localized private
+answers, reviewed person language/tone changes, long-document private/public
+retrieval, single-use publication access passes, and honest email link/code UX.
+Application03c285b0 is pushed. Its full matrix finished24/25 on both nodes: only
+older `rehearsal-personal` and `first-five-minutes` fixtures still tried to fill
+an intentionally collapsed optional code field. Exact journey repairs now pass
+65personal and11first-session checks; all other gates, including the new voice/
+text/pass suites, passed. The next full matrix is still required.
+The earlier recovery fixture races are fixed. Do not deploy before full acceptance.
 
-c9f12d24's next matrix also finished24/25: Node24 voice status-read counting
-and Node22 text retry checkbox enumeration each raced a real pending response.
-Both test-only repairs now force that delay and pass14voice/26text groups.
-Still no October10 deployment. See WIP for exact evidence and current branch work.
+Migration173 is now applied ONLY in dedicated development database
+`vyakti_expert_integration_20260906`. All29 SQL shapes passed actual EXPLAIN;
+two blocked concurrent transactions proved the mint cap and one-use redemption,
+and a claimed-pass revoke returned revoked and refused rejoin. Both exact
+synthetic fixtures were independently absent across15tables afterward; one
+content-free retired publication ID per fixture remains intentionally. No model,
+email or other-product call. Production173 remains UNAPPLIED. No October10 CPU
+build/update or Vercel deployment has occurred. Dev V1/V2 intents are consumed.
 
-Real sign-in gap found by root in the signed-in Supabase dashboard: Preview
-redirect wildcard is configured, but custom SMTP is OFF and the default email
-contains only a sign-in link, no numeric code. Default SMTP serves team addresses
-only. Admin-created test accounts did not exercise that delivery restriction.
-Auth copy/error repair is in the isolated next iteration; general email delivery
-still requires configuration. Google is enabled but no human login is claimed.
+The access-pass branch is merged. Its separate test-only transaction-PID fix is
+also cherry-picked locally. The current API/schema bytes match the dev-tested
+`dadde8a7` branch. Real proof: docs/research/2026-10-10-access-pass-postgres.json.
 
-Next iteration is isolated in `Vyakti-platform-accesspass-oct10`, branch
-`codex/vyakti-access-passes-oct10`, based on a95589f8. It implements owner-issued
-single-use publication access, not payments. Migration173 is reserved there.
-Do not deploy or merge this unfinished work into the current release.
+Real auth gap: Supabase has the Preview redirect wildcard configured, but custom
+SMTP is OFF and the default email contains a link, no numeric OTP. Built-in SMTP
+only serves project-team addresses. Earlier admin-created synthetic accounts did
+not test email delivery. Google is enabled; no human Google login is claimed.
+A Vyakti-only native Azure email adapter is being built separately in
+`Vyakti-platform-authmail-oct10`, branch`codex/vyakti-azure-authmail-oct10`, based
+on03c285b0, with migration174 reserved. Do not change shared Supabase SMTP/hooks.
+Azure Email/Communication resources are planned but NOT created; no email sent.
 
-Embedding prerequisite: the existing Azure text-embedding-3-small deployment
-reports Succeeded, but the Vyakti project's current Preview environment lacks
-AZURE_ENDPOINT and AZURE_API_KEY required by the azure_only embedding caller.
-No environment write or model call occurred. Do not enable its older callers
-without tracing ownership and durable budget admission first.
+Existing Azure embedding deployment is available, but current Vyakti Preview
+lacks the runtime endpoint/key bindings its azure_only caller requires. Do not
+activate older unbudgeted callers. Current document/memory selection is lexical,
+not established cross-language semantic retrieval or complete relational memory.
 
-New live evidence: eight invented factual questions through the accepted Azure
-text path passed the specific checks and were read by root. Median HTTP2376ms,
-recorded model-token cost23186microusd total. The exact synthetic account and
-sample data were removed, with every attempted charge preserved. Sanitized
-answers and limits are in `docs/research/2026-10-10-answer-quality.json`.
-This does not establish voice likeness, real-human usability, PMF or superiority.
+New live answer evidence remains8invented questions on the October9 app, all
+specific checks manually reviewed, median2376ms, recorded token cost23186microusd.
+That synthetic account/data was cleaned; the intent is consumed. No fresh voice
+sample, likeness score, paid-customer proof or competitor-superiority result exists.
 
-Maya, Meera and other products remain out of scope. Azure-only serving, existing
-spend caps, no personal Microsoft login and no reuse of old voice recordings
-remain binding. Existing English Chatterbox/Qwen app metadata was read only;
-no GPU was activated. Paused goals/automations remain paused.
+Maya, Meera and other products remain out of scope. The global production DB gate
+still reports36external legacy Meera pointers; it is not globally green. Azure-only
+serving, existing budgets, no personal Microsoft login, and no reuse of expired
+voice grants remain binding. Do not restart paused goals/automations or repeat
+the waived billing question. Preserve the original dirty `Vyakti-platform` tree.
 
 ## START HERE: OCTOBER 9 PREVIEW DEPLOYED AND VERIFIED
 

@@ -951,6 +951,10 @@ async function main() {
     ok("sign-in: the real AuthGate renders (no localStorage seed)", true);
     await page.locator("#studio-email").fill(EMAIL);
     await page.locator(".auth-card button.primary-button").first().click();
+    const optionalCode = page.getByText("My email includes a six-digit code", { exact: true });
+    await optionalCode.waitFor({ state: "visible", timeout: 20_000 });
+    ok("sign-in: the numeric fallback stays closed until the owner says their email includes a code", await page.locator("#studio-code").isVisible() === false);
+    await optionalCode.click();
     await page.locator("#studio-code").waitFor({ state: "visible", timeout: 20_000 });
     ok("sign-in: send_otp through the real api/account.js door moved the UI to the code step", true);
 

@@ -19494,3 +19494,19 @@ RETURNING`, with a separate locked-row branch only when it was already revoked.
 Offline predicate controls pass. The prepared two-session PostgreSQL mint and
 redemption runner is not live evidence until root executes it against the exact
 development schema.
+
+## `pooled-pids-and-optional-code-journeys-20261010`
+
+A backend PID read before BEGIN is not proof of the transaction's backend on a
+pooled Neon endpoint. Move BEGIN and transaction-local limits before reading the
+PID. This source-review correction preceded the successful real races; no live
+failure is attributed to the earlier order. The first operator's partial-seed
+guard also matched imported function names instead of actual aliased calls and
+refused before connecting; its replacement verifies the actual manifest, absence,
+seed-attempt and cleanup call order. Never bypass the guard or replay consumed
+rehearsal intents to hide that mistake.
+
+The next full matrix caught older first-session tests skipping the new optional
+OTP disclosure. Open the same control a person must use and retain wrong-code,
+session and ownership assertions. Making a hidden input visible in tests or
+forcing a click would erase the product behavior being checked.

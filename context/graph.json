@@ -17,6 +17,9 @@
     "blocks": "this is blocked on that"
   },
   "nodes": [
+    {"id": "access-pass-dev-proof-before-release-20261010", "kind": "decision", "title": "Prove scoped access races in development before production release", "at": "2026-10-10"},
+    {"id": "access-pass-postgres-proof-20261010", "kind": "measurement", "title": "Twenty-nine real SQL shapes, two blocking races and exact cleanup", "at": "2026-10-10"},
+    {"id": "pooled-pids-and-optional-code-journeys-20261010", "kind": "rejection", "title": "Pin transaction PIDs and take the actual optional-code action", "at": "2026-10-10"},
     {"id": "bounded-source-and-voice-extension-20261010", "kind": "decision", "title": "Bound selected passages and chosen speech to existing authority", "at": "2026-10-10"},
     {"id": "candidate-contract-checks-20261010", "kind": "measurement", "title": "Real SQL proof, focused contracts and remaining CI browser failure", "at": "2026-10-10"},
     {"id": "transient-results-and-confounded-language-tests-20261010", "kind": "rejection", "title": "A transient paragraph and a language instruction cannot prove the intended result", "at": "2026-10-10"},
@@ -21096,6 +21099,8 @@
     }
   ],
   "edges": [
+    {"src": "access-pass-dev-proof-before-release-20261010", "rel": "measured_by", "dst": "access-pass-postgres-proof-20261010"},
+    {"src": "pooled-pids-and-optional-code-journeys-20261010", "rel": "caused_by", "dst": "access-pass-postgres-proof-20261010"},
     {"src": "bounded-source-and-voice-extension-20261010", "rel": "measured_by", "dst": "candidate-contract-checks-20261010"},
     {"src": "transient-results-and-confounded-language-tests-20261010", "rel": "caused_by", "dst": "candidate-contract-checks-20261010"},
     {"src": "text-publication-access-passes-20261010", "rel": "measured_by", "dst": "text-publication-entitlement-baseline-20261010"},

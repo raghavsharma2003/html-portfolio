@@ -19424,3 +19424,25 @@ EXPLAIN nor either race was run here. No migration, provider, model, email,
 payment, network or cloud operation ran. These checks prove local control flow,
 wire compatibility and mounted UI behavior; they do not prove PostgreSQL parser
 or concurrency behavior, delivery email, payment collection or customer value.
+
+## `access-pass-postgres-proof-20261010`
+
+2026-10-10, exact development database vyakti_expert_integration_20260906,
+tested commit dadde8a7. Its API/schema bytes equal application03c285b0 (git diff0).
+Migration173's10 statements were first rehearsed and rolled back, all29 typed
+SQL shapes explained without ANALYZE, and absent catalog verified independently.
+The separate V2 action committed173 in development only. Two actual blocked
+transaction races passed: a99-to100 issuance winner with a refused competing
+mint, and one pass bound to exactly one of two competing visitors. Revoke returned
+revoked, list omitted the credential, and rejoin failed. Two fixture cleanups and
+an independent observer found0private rows across15tables each; one content-free
+retired publication ID per fixture remains.211tracked fixture queries,0provider
+calls,0global cleanup. Receipt SHA63ddab81aaf3cba5222764f295b27794eb0fa9310d3f075d0c37776fa4379979.
+Production173 is not applied. Sanitized evidence lives in
+docs/research/2026-10-10-access-pass-postgres.json.
+
+Application03c285b0 full CI also finished24/25 on both Node22 and24, with only two
+older auth journeys trying to fill a deliberately collapsed optional code input.
+Their exact-action repairs passed65personal and11first-session assertions locally.
+No new app behavior was introduced by those fixture repairs; a new full matrix
+is pending. No October10 application deploy or fresh voice result is claimed.

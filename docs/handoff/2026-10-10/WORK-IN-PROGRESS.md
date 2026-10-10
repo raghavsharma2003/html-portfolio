@@ -125,6 +125,33 @@ actual human Google completion remains untested. Auth link/code copy and clear
 platform-setup errors are being repaired in the isolated access-pass worktree.
 Source: https://supabase.com/docs/guides/auth/auth-smtp . No Microsoft login.
 
+## Access integration and real development proof
+
+Access/auth feature7db6a80e is merged as03c285b0 and pushed on the canonical
+branch. Its transaction-PID test fix dadde8a7 is cherry-picked asd6391a25.
+The two actual concurrency races, revoke response and independent exact cleanup
+passed in the dedicated development DB. Migration173 remains there; production
+173 is NOT applied. Read docs/research/2026-10-10-access-pass-postgres.json.
+Dev V1 rehearsal and V2 rehearsal/commit-race intents are consumed. V2 final
+receipt63ddab81aaf3cba5222764f295b27794eb0fa9310d3f075d0c37776fa4379979.
+
+The03 matrix passed24/25 on each node; only rehearsal-personal and
+first-five-minutes expected a permanently visible numeric code input. Both now
+perform the actual optional-code action and pass65and11assertions. Push these
+test/context changes and require the next full matrix before release. Existing
+operator web/canary helpers remain pinned to older candidates and must be rebound
+only to the final accepted head. There has still been no October10 production
+migration, CPU build/update, Vercel deployment, email or voice generation.
+
+Next work is isolated in Vyakti-platform-authmail-oct10, branch
+codex/vyakti-azure-authmail-oct10 from03c285b0, migration174 reserved. It implements
+Vyakti-only Supabase admin link generation plus native Azure email, with encrypted
+durable recovery and a50-message initial pilot cap. Shared Supabase SMTP/hooks
+must remain unchanged. Azure Contributor/API access is available; exact new
+ACS/Email names were404and providerRegistered, but resources are only PLANNED.
+No key retrieval or email has happened. Root must review the finished code and
+free provisioning plan before activation. Other products remain out of scope.
+
 Final voice presentation review caught another mismatch: the permission sentence
 was labelled as the spoken sample. Legacy service responses now show the actual
 fixed `config.text` separately, with the unchanged permission statement correctly

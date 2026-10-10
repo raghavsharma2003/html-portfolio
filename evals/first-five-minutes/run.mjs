@@ -98,6 +98,10 @@ async function main() {
     tStep = Date.now();
     await page.locator("#studio-email").fill(EMAIL);
     await page.locator(".auth-card button.primary-button").first().click();
+    const optionalCode = page.getByText("My email includes a six-digit code", { exact: true });
+    await optionalCode.waitFor({ state: "visible", timeout: 20_000 });
+    ok("sign-in: the numeric fallback stays closed until the owner says their email includes a code", await page.locator("#studio-code").isVisible() === false);
+    await optionalCode.click();
     await page.locator("#studio-code").waitFor({ state: "visible", timeout: 20_000 });
 
     // NEGATIVE CONTROL — a wrong OTP is refused with a sentence, never a
