@@ -1,9 +1,11 @@
 // An explicit owner edit to one existing private compiler field. No generation.
 import {canonicalJson,sha256Hex} from './_provenance/contracts.js';
-import {readPrivateTextRehearsal} from './_private-text-rehearsal-store.js';
+import {readPrivateTextCompilerContexts,readPrivateTextRehearsal} from './_private-text-rehearsal-store.js';
 import {compilePrivateExpertRehearsal} from './_engine.gen.js';
 
-const FIELD='explanationOrder',POLICY='replica-self-v1';
+const TEACHER_FIELD='explanationOrder',PERSON_FIELD='personTalk',POLICY='replica-self-v1';
+const PERSON_REGISTERS=new Set(['formal','mixed','casual']);
+const PERSON_SCRIPTS=new Set(['roman-hinglish','devanagari','english']);
 const hash=value=>sha256Hex(canonicalJson(value));
 const json=value=>typeof value==='string'?JSON.parse(value):value;
 function fail(code,status=409){throw Object.assign(Error(code),{code,status});}
@@ -13,7 +15,7 @@ function text(value){if(typeof value!=='string'||!value.trim()||value.length>400
 
 export const PRIVATE_REFINEMENT_REVIEW_SQL=`select r.replica_id,r.owner_user_id,r.private_text_epoch,
  h.request_id,h.source_id,h.context_item_id,h.consent_id,h.snapshot,h.snapshot_hash,
- s.sheet_id,s.sheet,s.version,s.updated_at,t.body
+ s.sheet_id,s.sheet,s.version,s.updated_at,coalesce(s.sheet->>'sheetKind','teacher') sheet_kind,t.body
  from vy_private_text_rehearsal h
  join vy_replica r on r.replica_id=h.replica_id and r.owner_user_id=h.owner_user_id
  join vy_teacher_sheet s on s.sheet_id=h.sheet_id and s.replica_id=r.replica_id and s.owner_user_id=r.owner_user_id
@@ -52,15 +54,27 @@ export const PRIVATE_REFINEMENT_SAVE_SQL=`with source_lock as materialized (
   and s.status='draft' and s.sheet=$6::jsonb and s.version=$12::text)
  returning r.replica_id,r.owner_user_id,r.agent_id,r.private_text_epoch
 )
- update vy_teacher_sheet s set sheet=case when $13::boolean then s.sheet-'explanationOrder'
-  else jsonb_set(s.sheet,'{explanationOrder}',to_jsonb($7::text),true) end,updated_at=now()
+ update vy_teacher_sheet s set sheet=$7::jsonb,updated_at=now()
  from owned o where s.sheet_id=$4::uuid and s.replica_id=o.replica_id and s.owner_user_id=o.owner_user_id
  and (s.agent_id is null or s.agent_id=o.agent_id) and s.status='draft' and s.sheet=$6::jsonb and s.version=$12::text
+ and (($13::text='personTalk' and s.sheet->>'sheetKind'='person')
+  or ($13::text='explanationOrder' and coalesce(s.sheet->>'sheetKind','teacher')='teacher'))
  returning s.sheet_id,s.sheet,s.version,s.updated_at,o.private_text_epoch`;
 
-function wire(row,canSave){const sheet=json(row.sheet);return {replica_id:row.replica_id,request_id:row.request_id,sheet_id:row.sheet_id,
- sheet_hash:hash(sheet),sheet_version:row.version,private_text_epoch:String(row.private_text_epoch),field:FIELD,
- value:sheet[FIELD]===undefined?null:sheet[FIELD],updated_at:row.updated_at,can_save:canSave,
+function sheetKind(sheet){
+ if(sheet?.sheetKind==='person')return 'person';
+ if(sheet?.sheetKind===undefined||sheet?.sheetKind==='teacher')return 'teacher';
+ fail('private_refinement_sheet_kind_unavailable',503);
+}
+function personTalkValue(sheet){
+ const talk=sheet?.personTalk;
+ if(talk===undefined)return null;
+ if(!talk||typeof talk!=='object'||Array.isArray(talk)||!PERSON_REGISTERS.has(String(talk.register))||!PERSON_SCRIPTS.has(String(talk.scriptBaseline)))fail('private_refinement_field_unavailable',503);
+ return {register:String(talk.register),scriptBaseline:String(talk.scriptBaseline)};
+}
+function wire(row,canSave){const sheet=json(row.sheet),kind=sheetKind(sheet),person=kind==='person';return {replica_id:row.replica_id,request_id:row.request_id,sheet_id:row.sheet_id,
+ sheet_hash:hash(sheet),sheet_version:row.version,private_text_epoch:String(row.private_text_epoch),...(person?{sheet_kind:'person'}:{}),field:person?PERSON_FIELD:TEACHER_FIELD,
+ value:person?personTalkValue(sheet):(sheet[TEACHER_FIELD]===undefined?null:sheet[TEACHER_FIELD]),updated_at:row.updated_at,can_save:canSave,
  ...(canSave?{}:{blocker:'private_refinement_review_changed'})};}
 
 async function review(db,owner,input,options){
@@ -70,30 +84,53 @@ async function review(db,owner,input,options){
  const result=await readPrivateTextRehearsal(db,owner,scoped,options);
  let rows;try{rows=await db(PRIVATE_REFINEMENT_REVIEW_SQL,[scoped.replica_id,owner,scoped.request_id,POLICY]);}catch{fail('private_refinement_review_unavailable',503);}
  const row=rows[0];if(!row)fail('private_refinement_completed_draft_required');
- const sheet=json(row.sheet),snapshot=json(row.snapshot);
- if(sheet[FIELD]!==undefined&&typeof sheet[FIELD]!=='string')fail('private_refinement_field_unavailable',503);
+ const sheet=json(row.sheet),snapshot=json(row.snapshot),kind=sheetKind(sheet);
+ if((kind==='person')!==(result.source?.sheet_kind==='person')||(row.sheet_kind&&row.sheet_kind!==kind))fail('private_refinement_sheet_kind_changed');
+ if(kind==='teacher'&&sheet[TEACHER_FIELD]!==undefined&&typeof sheet[TEACHER_FIELD]!=='string')fail('private_refinement_field_unavailable',503);
+ if(kind==='person')personTalkValue(sheet);
  const canSave=result.state==='complete'&&result.source?.sheet_id===row.sheet_id&&result.source?.sheet_hash===hash(sheet)
   &&snapshot.sheet_hash===hash(sheet)&&String(snapshot.authority_epoch)===String(row.private_text_epoch);
- return {row,scoped,wire:wire(row,canSave)};
+ // Only an editable review can reach compilation. After this explicit save the
+ // sheet epoch is intentionally stale for the original request; recovery must
+ // still read the new field without pretending the old request is executable.
+ const contexts=canSave?(await readPrivateTextCompilerContexts(db,owner,scoped,options)).contexts:[];
+ return {row,scoped,contexts,wire:wire(row,canSave)};
 }
 export async function readPrivateTeachingRefinement(db,owner,input,options={}){return (await review(db,owner,input,options)).wire;}
 export async function savePrivateTeachingRefinement(db,owner,input,options={}){
- scope(input);if(input.field!==FIELD)fail('private_refinement_field_unsupported',400);
- const clear=input.clear===true;if(('clear'in input&&!clear)||(clear&&'value'in input))fail('private_refinement_value_invalid',400);
- const value=clear?null:text(input.value);
+ scope(input);
+ let teacherChange=null,personChange=null;
+ if(input.field===TEACHER_FIELD){
+  const clear=input.clear===true;if(('clear'in input&&!clear)||(clear&&'value'in input))fail('private_refinement_value_invalid',400);
+  teacherChange={clear,value:clear?null:text(input.value)};
+ }else if(input.field===PERSON_FIELD){
+  if('value'in input||'clear'in input||'codeSwitchNote'in input||'code_switch_note'in input)fail('private_refinement_value_invalid',400);
+  if(!PERSON_REGISTERS.has(String(input.register))||!PERSON_SCRIPTS.has(String(input.script_baseline)))fail('private_refinement_value_invalid',400);
+  personChange={register:String(input.register),scriptBaseline:String(input.script_baseline)};
+ }else fail('private_refinement_field_unsupported',400);
  const sheetId=uuid(input.sheet_id);if(typeof input.expected_sheet_hash!=='string'||input.expected_sheet_hash.length!==64||!/^[0-9a-f]{64}$/.test(input.expected_sheet_hash))fail('private_refinement_hash_required',400);
  if(typeof input.expected_private_text_epoch!=='string'||!/^(0|[1-9][0-9]{0,18})$/.test(input.expected_private_text_epoch)||BigInt(input.expected_private_text_epoch)>9223372036854775806n)fail('private_refinement_epoch_required',400);
  const basis=await review(db,owner,input,options),{row}=basis;
  if(!basis.wire.can_save||sheetId!==row.sheet_id||input.expected_sheet_hash!==basis.wire.sheet_hash||input.expected_private_text_epoch!==basis.wire.private_text_epoch)fail('private_refinement_conflict');
- const previous=json(row.sheet),next={...previous};if(clear){if(previous[FIELD]===undefined)fail('private_refinement_no_change',400);delete next[FIELD];}
- else{if(previous[FIELD]===value)fail('private_refinement_no_change',400);next[FIELD]=value;}
+ const previous=json(row.sheet),kind=sheetKind(previous),next={...previous};
+ if(kind==='teacher'){
+  if(!teacherChange||input.field!==TEACHER_FIELD)fail('private_refinement_field_unsupported',400);
+  if(teacherChange.clear){if(previous[TEACHER_FIELD]===undefined)fail('private_refinement_no_change',400);delete next[TEACHER_FIELD];}
+  else{if(previous[TEACHER_FIELD]===teacherChange.value)fail('private_refinement_no_change',400);next[TEACHER_FIELD]=teacherChange.value;}
+ }else{
+  if(!personChange||input.field!==PERSON_FIELD)fail('private_refinement_field_unsupported',400);
+  const current=personTalkValue(previous);
+  if(current?.register===personChange.register&&current?.scriptBaseline===personChange.scriptBaseline)fail('private_refinement_no_change',400);
+  const existing=previous.personTalk&&typeof previous.personTalk==='object'&&!Array.isArray(previous.personTalk)?previous.personTalk:{};
+  next.personTalk={...existing,...personChange};
+ }
  // Validate the real private compiler's field/core bounds without generating a
  // turn or calling a model. This fixed validation question is never persisted.
  compilePrivateExpertRehearsal({authority:{scope:'private_text_rehearsal',basis:'owner_question_attestation_v1',ownerId:owner,replicaId:row.replica_id,
   requestId:row.request_id,sheetId:row.sheet_id,sheetHash:hash(next),receiptId:row.consent_id},draft:next,
-  contexts:[{itemId:row.context_item_id,sourceId:row.source_id,hash:sha256Hex(row.body),body:row.body}],question:'Validate this explicit private draft edit.'});
+  contexts:basis.contexts,question:'Validate this explicit private draft edit.'});
  let rows;try{rows=await db(PRIVATE_REFINEMENT_SAVE_SQL,[row.replica_id,owner,row.request_id,row.sheet_id,row.private_text_epoch,
-  JSON.stringify(previous),value,row.source_id,json(row.snapshot).source_hash,row.snapshot_hash,POLICY,row.version,clear]);}catch{fail('private_refinement_save_uncertain',503);}
+  JSON.stringify(previous),JSON.stringify(next),row.source_id,json(row.snapshot).source_hash,row.snapshot_hash,POLICY,row.version,kind==='person'?PERSON_FIELD:TEACHER_FIELD]);}catch{fail('private_refinement_save_uncertain',503);}
  const saved=rows[0];if(!saved)fail('private_refinement_conflict');
  if(hash(json(saved.sheet))!==hash(next)||String(saved.private_text_epoch)!==String(BigInt(row.private_text_epoch)+1n))fail('private_refinement_save_uncertain',503);
  return {...wire({...row,...saved},false),saved:true};

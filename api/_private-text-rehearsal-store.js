@@ -5,6 +5,7 @@ import { REPLICA_POLICY_VERSION as POLICY } from './_replica.js';
 import { PROCESSING_SCHEMA_VERSION } from './_replica-processing/contracts.js';
 import { verifyContextCanonicalEvidence } from './_experience-compiler/context-evidence.js';
 import { privateTextKey, encryptPrivateText, decryptPrivateText } from './_private-text-rehearsal-crypto.js';
+import {PRIVATE_TEXT_EVIDENCE_BUDGET,selectPrivateTextEvidence,restorePrivateTextEvidenceSelection} from './_private-text-evidence-selection.js';
 export const PRIVATE_TEXT_SCOPE='private_text_rehearsal';
 export const PRIVATE_TEXT_STATEMENT_SET='private-text-rehearsal/v1';
 export const PRIVATE_TEXT_STATEMENTS=Object.freeze([
@@ -88,14 +89,19 @@ async function selection(db,owner,input){
  if(!row.item_id||!['extracted','mined'].includes(row.item_status)||row.authorship!=='mine'||!TEXT_FORMATS.includes(row.format))fail('rehearsal_owner_text_context_required');
  if(row.source_state!=='ready'||row.source_hash!==row.content_sha256||!row.source_id)fail('rehearsal_source_unavailable');
  if(typeof row.body!=='string'||!row.body.trim())fail('rehearsal_canonical_text_unavailable');
- if(row.body.length>8000)fail('rehearsal_context_too_large',413);
  const account=json(row.account_receipts)||[];
  for(const scope of ['capture','storage']){
   const receipt=account.find(c=>c.scope===scope),m=receipt&&json(receipt.metadata);
   if(!m||m.owner_user_id!==owner||m.replica_id!==rid||m.method!=='account_attestation'||m.policy_version!==POLICY||m.statement_set!=='self-replica-enrollment-v1'||!Array.isArray(m.scopes)||!m.scopes.includes(scope)||['is_self','is_adult','has_source_rights','understands_synthetic_disclosure'].some(k=>m.attestations?.[k]!==true)||hash(m)!==receipt.receipt_hash)fail('rehearsal_account_attestation_required');
  }
- const evidence=(json(row.evidence)||[]).map(reconstructEvidence);if(!evidence.length)fail('rehearsal_canonical_evidence_required');
- let end=0;for(const e of evidence){verifyContextCanonicalEvidence(e);const locator=e.value.locator;if(locator.shape!=='contiguous'||locator.start_char!==end||row.body.slice(locator.start_char,locator.end_char)!==e.value.text||locator.canonical_text_sha256!==sha256Hex(row.body))fail('rehearsal_canonical_evidence_changed');end=locator.end_char;}
+ const evidence=(json(row.evidence)||[]).map(reconstructEvidence);if(!evidence.length||evidence.length>128)fail('rehearsal_canonical_evidence_required');
+ const evidenceIds=new Set();let end=0;for(const e of evidence){verifyContextCanonicalEvidence(e);const locator=e.value.locator;
+  if(evidenceIds.has(e.evidence_id)||e.replica_id!==rid||e.owner_user_id!==owner||e.source_id!==row.source_id
+   ||e.input_sha256!==row.source_hash||e.value?.provenance?.context_item_id!==itemId||e.value?.provenance?.source_id!==row.source_id
+   ||locator.shape!=='contiguous'||locator.start_char!==end||row.body.slice(locator.start_char,locator.end_char)!==e.value.text
+   ||locator.canonical_text_sha256!==sha256Hex(row.body))fail('rehearsal_canonical_evidence_changed');
+  evidenceIds.add(e.evidence_id);end=locator.end_char;
+ }
  if(end!==row.body.length)fail('rehearsal_canonical_evidence_incomplete');
  const vibe=savedVibe(row.saved_vibe);
  const styleRevision=row.style_revision;
@@ -106,14 +112,43 @@ async function selection(db,owner,input){
  // Omit the absent style to preserve existing no-vibe snapshot hashes.
  const snapshot={...(isPerson?{sheet_kind:"person"}:{}),...(vibe?{vibe}:{}),...(styleRevision?{style_revision:styleRevision}:{}),sheet_id:sheetId,sheet_hash:hash(draft),context_item_id:itemId,context_hash:hash({body:row.body,format:row.format,authorship:row.authorship,owner_speaker:row.owner_speaker,consent_scope:row.consent_scope}),source_id:row.source_id,source_hash:row.source_hash,evidence_hash:hash(evidence.map(e=>({id:e.evidence_id,hash:e.record_hash}))),evidence_records:evidence.map(e=>({id:e.evidence_id,hash:e.record_hash})),authority_epoch:String(row.private_text_epoch),account_receipts:account.map(c=>({consent_id:c.consent_id,receipt_hash:c.receipt_hash,scope:c.scope})).sort((a,b)=>a.scope.localeCompare(b.scope))};
  const snapshotHash=hash({owner_user_id:owner,replica_id:rid,policy_version:POLICY,...snapshot});
- return {row,draft,vibe,snapshot,snapshotHash,contexts:[{itemId,sourceId:row.source_id,hash:sha256Hex(row.body),body:row.body}]};
+ return {row,draft,vibe,evidence,snapshot,snapshotHash,contexts:[{itemId,sourceId:row.source_id,hash:sha256Hex(row.body),body:row.body}]};
+}
+function evidenceSelectionIds(value){return Array.isArray(value?.records)?value.records.map(record=>record?.evidence_id).filter(Boolean):[];}
+function bindEvidenceSelection(s,question,questionHash,fallbackEvidenceIds=[]){
+ if(s.row.body.length<=PRIVATE_TEXT_EVIDENCE_BUDGET)return{contexts:s.contexts,snapshot:s.snapshot,evidenceSelection:null};
+ const selected=selectPrivateTextEvidence(s.evidence,question,questionHash,fallbackEvidenceIds);
+ return{contexts:selected.selected.map(({record,body})=>({itemId:s.snapshot.context_item_id,sourceId:s.snapshot.source_id,hash:sha256Hex(body),body})),
+  snapshot:{...s.snapshot,evidence_selection:selected.commitment},evidenceSelection:selected.commitment};
+}
+/** Reconstruct only the exact evidence admitted for this request. The caller
+ * must first establish current request/source authority; this helper then
+ * validates the server-owned selection commitment against the full source
+ * snapshot and returns no client-supplied bytes. */
+export function privateTextCompilerContextsFromRequest(row){
+ const snapshot=json(row?.snapshot),body=row?.body;
+ if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot)||typeof body!=='string'||!body.trim())fail('rehearsal_evidence_selection_invalid',503);
+ const itemId=uuid(row.context_item_id),sourceId=uuid(row.source_id);
+ if(!snapshot.evidence_selection){
+  if(body.length>PRIVATE_TEXT_EVIDENCE_BUDGET)fail('rehearsal_evidence_selection_unavailable',409,row);
+  return{contexts:[{itemId,sourceId,hash:sha256Hex(body),body}],evidenceSelection:null};
+ }
+ if(!isHash(row.question_hash)||!Array.isArray(snapshot.evidence_records))fail('rehearsal_evidence_selection_invalid',503,row);
+ const restored=restorePrivateTextEvidenceSelection({commitment:snapshot.evidence_selection,questionHash:row.question_hash,
+  evidenceRecords:snapshot.evidence_records,canonicalRecords:row.evidence,body,itemId,sourceId});
+ return{contexts:restored.contexts,evidenceSelection:restored.commitment};
 }
 export async function readPrivateTextReadiness(db,owner,input,options={}){
  const rid=uuid(input.replica_id),row=(await db(PRIVATE_TEXT_CHOICES_SQL,[rid,owner]))[0];if(!row)fail('replica_not_found',404);
  const blockers=[];let selected=null;
  if(['paused','revoked','purging'].includes(row.lifecycle))blockers.push({code:'rehearsal_stopped',responsibility:'owner'});
  try{privateTextKey(envOf(options));}catch{blockers.push({code:'rehearsal_encryption_unavailable',responsibility:'platform'});}
- if(input.sheet_id&&input.context_item_id){try{const s=await selection(db,owner,input);selected={...s.snapshot,snapshot_hash:s.snapshotHash,material:{draft:{name:s.draft.name,identityWho:s.draft.identityWho,...(s.draft.sheetKind==="person"?{sheetKind:"person"}:{subjectDomain:s.draft.subjectDomain})},context:{source_name:s.row.source_name,format:s.row.format,body:s.row.body}}};delete selected.evidence_records;delete selected.account_receipts;delete selected.vibe;delete selected.style_revision;}catch(e){blockers.push({code:e.code||'rehearsal_read_unavailable',responsibility:OWNER_ERRORS.has(e.code)?'owner':'platform'});}}
+ if(input.sheet_id&&input.context_item_id){try{const s=await selection(db,owner,input),long=s.row.body.length>PRIVATE_TEXT_EVIDENCE_BUDGET;
+  const preview=long?s.evidence[0]:null,locator=preview?.value?.locator;
+  selected={...s.snapshot,snapshot_hash:s.snapshotHash,material:{draft:{name:s.draft.name,identityWho:s.draft.identityWho,...(s.draft.sheetKind==="person"?{sheetKind:"person"}:{subjectDomain:s.draft.subjectDomain})},context:{source_name:s.row.source_name,format:s.row.format,body:long?preview.value.text:s.row.body,
+   ...(long?{excerpt:true,source_chars:s.row.body.length,excerpt_start_char:locator.start_char,excerpt_end_char:locator.end_char}:{})}}};
+  delete selected.evidence_records;delete selected.account_receipts;delete selected.vibe;delete selected.style_revision;
+ }catch(e){blockers.push({code:e.code||'rehearsal_read_unavailable',responsibility:OWNER_ERRORS.has(e.code)?'owner':'platform'});}}
  else blockers.push({code:'rehearsal_select_draft_and_context',responsibility:'owner'});
  return {replica_id:rid,state:blockers.some(b=>b.code==='rehearsal_stopped')?'stopped':blockers.some(b=>b.responsibility==='platform')?'unavailable':blockers.length?'needs_input':'ready',blockers,drafts:json(row.drafts)||[],context_items:(json(row.context_items)||[]).map(i=>({...i,eligible:['extracted','mined'].includes(i.status)&&i.authorship==='mine'&&i.source_ready&&TEXT_FORMATS.includes(i.format),reason:i.authorship!=='mine'?'rehearsal_owner_text_context_required':!i.source_ready?'rehearsal_source_unavailable':null})),selected,statement_set:PRIVATE_TEXT_STATEMENT_SET,statements:PRIVATE_TEXT_STATEMENTS,grant_scope:PRIVATE_TEXT_SCOPE,can_ask:!blockers.length};
 }
@@ -143,7 +178,17 @@ function wire(row,answer){
 }
 async function currentAuthority(db,owner,row){
  const m=json(row.receipt_metadata);if(row.revoked_at||!row.expires_at||new Date(row.expires_at).getTime()<=Date.now()||row.consent_scope!==PRIVATE_TEXT_SCOPE||row.consent_method!=='account_attestation'||row.consent_policy!==POLICY||m?.statement_set!==PRIVATE_TEXT_STATEMENT_SET||m.owner_user_id!==owner||m.replica_id!==row.replica_id||m.request_id!==row.request_id||m.request_hash!==row.request_hash||m.snapshot_hash!==row.snapshot_hash||row.live_receipt_hash!==row.receipt_hash||PRIVATE_TEXT_STATEMENTS.some(s=>m.attestations?.[s.id]!==true)||hash(m)!==row.receipt_hash)fail('rehearsal_permission_unavailable',409,row);
- const s=await selection(db,owner,{replica_id:row.replica_id,sheet_id:row.sheet_id,context_item_id:row.context_item_id});if(s.snapshotHash!==row.snapshot_hash||String(s.snapshot.authority_epoch)!==String(row.authority_epoch))fail('rehearsal_inputs_changed',409,row);return s;
+ const s=await selection(db,owner,{replica_id:row.replica_id,sheet_id:row.sheet_id,context_item_id:row.context_item_id}),stored=json(row.snapshot),base={...stored};delete base.evidence_selection;
+ if(s.snapshotHash!==row.snapshot_hash||String(s.snapshot.authority_epoch)!==String(row.authority_epoch)||canonicalJson(base)!==canonicalJson(s.snapshot))fail('rehearsal_inputs_changed',409,row);
+ let bound;try{bound=privateTextCompilerContextsFromRequest({...row,body:s.row.body,evidence:s.evidence});}catch{fail('rehearsal_inputs_changed',409,row);}
+ const selectionHash=bound.evidenceSelection?.selection_hash||null;
+ if((m.evidence_selection_hash||null)!==selectionHash)fail('rehearsal_permission_unavailable',409,row);
+ return{...s,contexts:bound.contexts,evidenceSelection:bound.evidenceSelection};
+}
+export async function readPrivateTextCompilerContexts(db,owner,input,options={}){
+ const row=await requestRow(db,owner,input);if(!row)fail('rehearsal_not_found',404);
+ const current=await currentAuthority(db,owner,row);
+ return{contexts:current.contexts,evidenceSelection:current.evidenceSelection};
 }
 export async function readPrivateTextRehearsal(db,owner,input,options={}){
  const row=await requestRow(db,owner,input);if(!row)fail('rehearsal_not_found',404);
@@ -190,7 +235,7 @@ const receiptLive=`exists(select 1 from vy_replica_consent c where c.consent_id=
  and c.replica_id=h.replica_id and c.owner_user_id=h.owner_user_id and c.receipt_hash=h.receipt_hash
  and c.scope='private_text_rehearsal' and c.method='account_attestation' and c.policy_version=$5
  and c.revoked_at is null and c.expires_at>now())`;
-function fenceArgs(owner,input,s){return [uuid(input.replica_id),owner,uuid(input.request_id),s.snapshot.source_id,POLICY,s.snapshot.authority_epoch,JSON.stringify(s.snapshot),JSON.stringify(s.draft),s.row.body];}
+function fenceArgs(owner,input,s,snapshot=s.snapshot){return [uuid(input.replica_id),owner,uuid(input.request_id),s.snapshot.source_id,POLICY,s.snapshot.authority_epoch,JSON.stringify(snapshot),JSON.stringify(s.draft),s.row.body];}
 function questionInput(input){
  const question=typeof input.question==='string'?input.question.trim():'';
  if(!question||question.length>2000)fail('rehearsal_question_invalid',400);
@@ -215,7 +260,7 @@ export const PRIVATE_TEXT_ADMIT_SQL=`with ${AUTHORITY_FENCE}, granted as (
 ) select request_id from admitted`;
 
 async function privateFollowupHistory(db,owner,current,s,options){
- const history=[];let chars=0,parent=json(current.gate_sidecar)?.parent_request_id||null;
+ const history=[];let chars=0,parent=json(current.gate_sidecar)?.parent_request_id||null,fallbackEvidenceIds=[];
  const seen=new Set([current.request_id]);
  while(parent&&history.length<HISTORY_EXCHANGES*2){
   if(seen.has(parent))fail('rehearsal_parent_cycle',409,current);seen.add(parent);
@@ -223,7 +268,8 @@ async function privateFollowupHistory(db,owner,current,s,options){
   if(!row||row.state!=='complete'||row.billing_state!=='settled'||row.spend_state!=='settled'
     ||row.sheet_id!==current.sheet_id||row.context_item_id!==current.context_item_id||row.source_id!==current.source_id
     ||row.snapshot_hash!==s.snapshotHash||String(row.authority_epoch)!==String(s.snapshot.authority_epoch))fail('rehearsal_parent_unavailable',409,current);
-  await currentAuthority(db,owner,row);
+  const authority=await currentAuthority(db,owner,row);
+  if(!fallbackEvidenceIds.length)fallbackEvidenceIds=evidenceSelectionIds(authority.evidenceSelection);
   const question=decryptPrivateText(json(row.question_envelope),binding(row,'question',row.question_hash),envOf(options));
   const answer=decryptPrivateText(json(row.answer_envelope),binding(row,'answer',row.answer_hash),envOf(options));
   if(!question.trim()||question.length>2000||!answer.trim()||answer.length>4000)fail('rehearsal_parent_invalid',503,current);
@@ -231,34 +277,39 @@ async function privateFollowupHistory(db,owner,current,s,options){
   history.unshift({role:'assistant',content:answer});history.unshift({role:'user',content:question});chars+=question.length+answer.length;
   parent=json(row.gate_sidecar)?.parent_request_id||null;
  }
- return history;
+ return {history,fallbackEvidenceIds};
 }
 export async function admitPrivateTextRehearsal(db,owner,input,options={}){
  const q=questionInput(input),existing=await requestRow(db,owner,input);
  if(existing?.state==='withdrawn'&&existing.request_hash==null)return {created:false,request:wire(existing),compilerInput:null};
- if(existing){if(existing.request_hash!==q.requestHash)fail('rehearsal_request_conflict',409,existing);return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};}
+ if(existing){const selectionHash=json(existing.snapshot)?.evidence_selection?.selection_hash;
+  const replayHash=selectionHash?hash({...q.payload,evidence_selection_hash:selectionHash}):q.requestHash;
+  if(existing.request_hash!==replayHash)fail('rehearsal_request_conflict',409,existing);return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};}
  privateTextKey(envOf(options));
  const s=await selection(db,owner,input);if(s.snapshotHash!==input.expected_snapshot_hash)fail('rehearsal_inputs_changed',409,input);
  const prospective={request_id:q.payload.request_id,replica_id:q.payload.replica_id,owner_user_id:owner,sheet_id:s.snapshot.sheet_id,
   context_item_id:s.snapshot.context_item_id,source_id:s.snapshot.source_id,snapshot_hash:s.snapshotHash,authority_epoch:s.snapshot.authority_epoch,
   gate_sidecar:q.payload.parent_request_id?{parent_request_id:q.payload.parent_request_id}:{}};
- const history=await privateFollowupHistory(db,owner,prospective,s,options);
+ const followup=await privateFollowupHistory(db,owner,prospective,s,options);
+ const bound=bindEvidenceSelection(s,q.question,q.payload.question_hash,followup.fallbackEvidenceIds);
+ const requestHash=bound.evidenceSelection?hash({...q.payload,evidence_selection_hash:bound.evidenceSelection.selection_hash}):q.requestHash;
  const now=options.now?new Date(options.now):new Date(),expires=new Date(now.getTime()+30*86400000),consentId=randomUUID();
  const metadata={receipt_format:'vyakti-consent-v1',canonicalization:'vyakti-canonical-json/v1',hash_algorithm:'sha256',statement_set:PRIVATE_TEXT_STATEMENT_SET,
- owner_user_id:owner,replica_id:q.payload.replica_id,request_id:q.payload.request_id,request_hash:q.requestHash,
+ owner_user_id:owner,replica_id:q.payload.replica_id,request_id:q.payload.request_id,request_hash:requestHash,
  scopes:[PRIVATE_TEXT_SCOPE],method:'account_attestation',policy_version:POLICY,basis:'owner_question_attestation_v1',snapshot_hash:s.snapshotHash,
+ ...(bound.evidenceSelection?{evidence_selection_hash:bound.evidenceSelection.selection_hash}:{}),
  granted_at:now.toISOString(),expires_at:expires.toISOString(),nonce:randomBytes(24).toString('hex'),attestations:q.payload.attestations};
  const questionEnvelope=encryptPrivateText(q.question,binding({owner_user_id:owner,...q.payload},'question',q.payload.question_hash),envOf(options));
  let rows;
- try{rows=await db(PRIVATE_TEXT_ADMIT_SQL,[...fenceArgs(owner,input,s),consentId,hash(metadata),now.toISOString(),expires.toISOString(),JSON.stringify(metadata),q.requestHash,q.payload.question_hash,s.snapshotHash,JSON.stringify(questionEnvelope),JSON.stringify(q.payload.parent_request_id?{parent_request_id:q.payload.parent_request_id}:{})]);}
+ try{rows=await db(PRIVATE_TEXT_ADMIT_SQL,[...fenceArgs(owner,input,s,bound.snapshot),consentId,hash(metadata),now.toISOString(),expires.toISOString(),JSON.stringify(metadata),requestHash,q.payload.question_hash,s.snapshotHash,JSON.stringify(questionEnvelope),JSON.stringify(q.payload.parent_request_id?{parent_request_id:q.payload.parent_request_id}:{})]);}
  catch(e){if(e.code!=='23505')fail('rehearsal_admission_uncertain',503,input);rows=[];}
- if(!rows.length){const replay=await requestRow(db,owner,input);if(replay?.state==='withdrawn'&&replay.request_hash==null)return {created:false,request:wire(replay),compilerInput:null};if(replay&&replay.request_hash===q.requestHash)return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};fail(replay?'rehearsal_request_conflict':'rehearsal_admission_blocked',409,input);}
+ if(!rows.length){const replay=await requestRow(db,owner,input);if(replay?.state==='withdrawn'&&replay.request_hash==null)return {created:false,request:wire(replay),compilerInput:null};if(replay&&replay.request_hash===requestHash)return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};fail(replay?'rehearsal_request_conflict':'rehearsal_admission_blocked',409,input);}
  // Confirm the durable request before giving a caller permission to reserve.
  const confirmed=await requestRow(db,owner,input);
  if(confirmed?.state==='withdrawn'&&confirmed.request_hash==null)return {created:false,request:wire(confirmed),compilerInput:null};
- if(!confirmed||confirmed.request_hash!==q.requestHash)fail('rehearsal_admission_uncertain',503,input);
+ if(!confirmed||confirmed.request_hash!==requestHash)fail('rehearsal_admission_uncertain',503,input);
  if(confirmed.state!=='admitted')return {created:false,request:await readPrivateTextRehearsal(db,owner,input,options),compilerInput:null};
- return {created:true,request:wire(confirmed),compilerInput:{authority:{scope:PRIVATE_TEXT_SCOPE,basis:'owner_question_attestation_v1',ownerId:owner,replicaId:q.payload.replica_id,requestId:q.payload.request_id,sheetId:s.snapshot.sheet_id,sheetHash:s.snapshot.sheet_hash,receiptId:consentId},draft:s.draft,...(s.vibe?{vibe:s.vibe}:{}),contexts:s.contexts,history,question:q.question}};
+ return {created:true,request:wire(confirmed),compilerInput:{authority:{scope:PRIVATE_TEXT_SCOPE,basis:'owner_question_attestation_v1',ownerId:owner,replicaId:q.payload.replica_id,requestId:q.payload.request_id,sheetId:s.snapshot.sheet_id,sheetHash:s.snapshot.sheet_hash,receiptId:consentId},draft:s.draft,...(s.vibe?{vibe:s.vibe}:{}),contexts:bound.contexts,history:followup.history,question:q.question}};
 }
 export const PRIVATE_TEXT_CLAIM_SQL=`with ${AUTHORITY_FENCE}
  update vy_private_text_rehearsal h set state='dispatched',dispatch_token_hash=$10,dispatched_at=now(),

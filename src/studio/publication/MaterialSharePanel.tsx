@@ -159,7 +159,9 @@ export default function MaterialSharePanel({ token, replicaId, onReview, onOpenP
         </div>}
         {data.selected && <div className="vp-review">
           <h3>Review what you will share</h3>
-          <details><summary>{data.selected.source_name}</summary><pre>{data.selected.material_text}</pre></details>
+          <details><summary>{data.selected.source_name}{data.selected.material_excerpt ? " excerpt" : ""}</summary>
+            {data.selected.material_excerpt ? <p>This review shows characters {data.selected.excerpt_start_char! + 1} to {data.selected.excerpt_end_char!.toLocaleString()} of {data.selected.source_chars!.toLocaleString()}. Visitor questions may use another matching excerpt from this full source.</p> : null}
+            <pre>{data.selected.material_text}</pre></details>
           <details><summary>{personProfile ? "Personal profile to share" : "Teaching choices"}</summary>
             {personProfile && <p>Every field below will be available to visitors. Remove anything you want to keep private before publishing.</p>}
             <dl>{Object.entries(data.selected.projection).filter(([name]) => name !== "sheetKind").map(([name, value]) => <div key={name}><dt>{personProfile ? personalProfileLabels[name] || name : name.replace(/([A-Z])/g, " $1")}</dt><dd>{displayChoice(name, value)}</dd></div>)}</dl></details>

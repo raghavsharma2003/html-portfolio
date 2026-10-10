@@ -4,6 +4,7 @@ import {REPLICA_POLICY_VERSION as POLICY} from './_replica.js';
 import {readPublicationSelection,PRIVATE_TEXT_CHOICES_SQL} from './_text-publication-source.js';
 import {textPublicationKey,encryptPublicationText,decryptPublicationText,publicationTextBinding} from './_text-publication-crypto.js';
 import {PUBLICATION_MEMORY_MODE,PUBLICATION_MEMORY_POLICY,PUBLICATION_MEMORY_POLICY_HASH,publicationHasMemory,publicationMemorySettings,validateMemoryChoice,decodePublicationContinuity,PUBLICATION_MEMORY_REQUEST_GUARD,EMPTY_MEMORY_REFS_HASH} from './_text-publication-memory.js';
+import {PRIVATE_TEXT_EVIDENCE_BUDGET,selectPrivateTextEvidence,restorePrivateTextEvidenceSelection} from './_private-text-evidence-selection.js';
 
 export const TEXT_PUBLICATION_STATEMENT_SET='account-material-publication/v1';
 export const TEXT_PUBLICATION_STATEMENTS=Object.freeze([
@@ -83,6 +84,21 @@ async function currentPublication(db,p){
  const s=await readPublicationSelection(db,p.owner_user_id,{replica_id:p.replica_id,sheet_id:p.sheet_id,context_item_id:p.context_item_id},projection);
  if(hash(s.snapshot)!==hash(snapshot))fail('text_publication_source_changed');return s;
 }
+function requestIdentity(publicId,visitor,requestId,questionHash,selectionHash=null){return{
+ public_id:publicId,visitor_user_id:visitor,request_id:requestId,question_hash:questionHash,...(selectionHash?{evidence_selection_hash:selectionHash}:{})};}
+function bindPublishedEvidence(s,question,questionHash){
+ if(s.row.body.length<=PRIVATE_TEXT_EVIDENCE_BUDGET)return{contexts:s.contexts,evidenceSelection:null};
+ let selected;try{selected=selectPrivateTextEvidence(s.evidence,question,questionHash);}catch{fail('text_publication_evidence_selection_unavailable');}
+ return{contexts:selected.selected.map(({body})=>({itemId:s.snapshot.context_item_id,sourceId:s.snapshot.source_id,hash:sha256Hex(body),body})),evidenceSelection:selected.commitment};
+}
+function publishedContextsFromRequest(s,r){
+ const commitment=json(r.gate_sidecar)?.evidence_selection;
+ if(!commitment){if(s.row.body.length>PRIVATE_TEXT_EVIDENCE_BUDGET)fail('text_publication_evidence_selection_unavailable');return{contexts:s.contexts,evidenceSelection:null};}
+ let restored;try{restored=restorePrivateTextEvidenceSelection({commitment,questionHash:r.question_hash,evidenceRecords:s.snapshot.evidence_records,
+  canonicalRecords:s.evidence,body:s.row.body,itemId:s.snapshot.context_item_id,sourceId:s.snapshot.source_id});}
+ catch{fail('text_publication_evidence_selection_changed');}
+ return{contexts:restored.contexts,evidenceSelection:restored.commitment};
+}
 // Match existing source removal and consent withdrawal lock order. A public
 // projection deliberately does not depend on the private draft epoch.
 export const TEXT_PUBLICATION_SOURCE_FENCE=`source_gate as materialized (
@@ -122,7 +138,11 @@ export async function readTextPublicationReadiness(db,owner,input,options={}){
  if(allowMemory)try{if((await db(TEXT_PUBLICATION_MEMORY_SCHEMA_SQL,[]))[0]?.available!==true)fail('text_publication_memory_schema_unavailable',503);}catch{blockers.push({code:'text_publication_memory_schema_unavailable',responsibility:'platform'});}
  try{textPublicationKey(envOf(options));terms=textPublicationTerms(envOf(options),allowMemory);if(String(envOf(options).CRON_SECRET||'').length<24)fail('text_publication_retention_unavailable',503);}catch(e){blockers.push({code:e.code,responsibility:'platform'});}
  if(input.sheet_id&&input.context_item_id){
-  if(!row.active_candidate_binding_required)try{const s=await readPublicationSelection(db,owner,input),p=publicationProjection(s.draft);policy=publicationPolicy(allowMemory,p.sheetKind==='person');if(terms)selected={review_hash:reviewHash(owner,rid,s,p,terms),source_name:s.row.source_name,projection:p,material_text:s.row.body,terms};}catch(e){blockers.push({code:e.code||'text_publication_read_unavailable',responsibility:/saved_draft|draft_|projection_invalid|owner_text_context|context_too_large|account_attestation/.test(e.code||'')?'owner':'platform'});}
+  if(!row.active_candidate_binding_required)try{const s=await readPublicationSelection(db,owner,input),p=publicationProjection(s.draft),long=s.row.body.length>PRIVATE_TEXT_EVIDENCE_BUDGET;
+   policy=publicationPolicy(allowMemory,p.sheetKind==='person');if(terms)selected={review_hash:reviewHash(owner,rid,s,p,terms),source_name:s.row.source_name,projection:p,
+    material_text:long?s.evidence[0].value.text:s.row.body,terms,...(long?{material_excerpt:true,source_chars:s.row.body.length,
+     excerpt_start_char:s.evidence[0].value.locator.start_char,excerpt_end_char:s.evidence[0].value.locator.end_char}:{})};
+  }catch(e){blockers.push({code:e.code||'text_publication_read_unavailable',responsibility:/saved_draft|draft_|projection_invalid|owner_text_context|account_attestation/.test(e.code||'')?'owner':'platform'});}
  }else blockers.push({code:'text_publication_selection_required',responsibility:'owner'});
  const publications=(await db(`select * from vy_text_publication where replica_id=$1::uuid and owner_user_id=$2::uuid and review_hash is not null order by created_at desc limit 20`,[rid,owner])).filter(p=>p.review_hash!=null).map(p=>summary(p,true));
  if(publications.some(p=>p.state==='active'))blockers.push({code:'text_publication_already_active',responsibility:'owner'});
@@ -226,7 +246,9 @@ async function currentRequest(db,visitor,input,options){
  const auth=await visitorAuthority(db,visitor,input,options),r=(await db(TEXT_PUBLICATION_AUTHORIZED_READ_SQL,[...authArgs(auth.p,auth.s,auth.session,visitor),uuid(input.request_id)]))[0];if(!r)fail('text_publication_request_unavailable');
  if(String(r.publication_epoch)!==String(auth.p.epoch)||String(r.session_epoch)!==String(auth.v.session_epoch)||new Date(r.expires_at).getTime()<=Date.now())fail('text_publication_request_unavailable');
  if(r.memory_epoch!=null&&hash(json(r.memory_refs))!==r.memory_refs_hash)fail('text_publication_memory_provenance_invalid');
- return {...auth,r};
+ const bound=publishedContextsFromRequest(auth.s,r),selectionHash=bound.evidenceSelection?.selection_hash||null;
+ if(r.request_hash!==hash(requestIdentity(r.publication_id,r.visitor_user_id,r.request_id,r.question_hash,selectionHash)))fail('text_publication_request_unavailable');
+ return {...auth,r,contexts:bound.contexts,evidenceSelection:bound.evidenceSelection};
 }
 export const TEXT_PUBLICATION_AUTHORIZED_READ_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE},${PUB_LOCK},${VISITOR_LOCK}
  select h.*,sp.state spend_state from vy_text_publication_request h join visitor v on v.publication_id=h.publication_id and v.visitor_user_id=h.visitor_user_id
@@ -260,8 +282,8 @@ export const TEXT_PUBLICATION_ADMIT_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE},$
  where p.question_count<(p.terms->>'total_question_limit')::integer and v.question_count<(p.terms->>'visitor_question_limit')::integer
  on conflict do nothing returning id
 ),admitted as (
- insert into vy_text_publication_request(request_id,publication_id,replica_id,owner_user_id,visitor_user_id,publication_epoch,session_epoch,request_hash,question_hash,question_envelope,expires_at,memory_epoch,memory_refs,memory_refs_hash)
- select $13::uuid,p.publication_id,p.replica_id,p.owner_user_id,v.visitor_user_id,p.epoch,v.session_epoch,$14,$15,$16::jsonb,least(p.expires_at,now()+interval '30 days'),$17::bigint,$18::jsonb,$19 from pub p join visitor v on v.publication_id=p.publication_id
+ insert into vy_text_publication_request(request_id,publication_id,replica_id,owner_user_id,visitor_user_id,publication_epoch,session_epoch,request_hash,question_hash,question_envelope,expires_at,memory_epoch,memory_refs,memory_refs_hash,gate_sidecar)
+ select $13::uuid,p.publication_id,p.replica_id,p.owner_user_id,v.visitor_user_id,p.epoch,v.session_epoch,$14,$15,$16::jsonb,least(p.expires_at,now()+interval '30 days'),$17::bigint,$18::jsonb,$19,$20::jsonb from pub p join visitor v on v.publication_id=p.publication_id
  where exists(select 1 from claimed_request_id)
  on conflict do nothing returning *
 ),pub_count as (update vy_text_publication p set question_count=p.question_count+1 from admitted a where p.publication_id=a.publication_id returning p.publication_id),
@@ -269,9 +291,13 @@ visitor_count as (update vy_text_publication_visitor v set question_count=v.ques
  select a.* from admitted a where exists(select 1 from pub_count) and exists(select 1 from visitor_count)`;
 export async function admitTextPublicationRequest(db,visitor,input,options={}){
  const publicId=uuid(input.public_id),id=uuid(input.request_id);uuid(visitor);if(!validText(input.question,2000))fail('text_publication_question_invalid',400);
- const qh=sha256Hex(input.question),requestHash=hash({public_id:publicId,visitor_user_id:visitor,request_id:id,question_hash:qh});
- const existing=await requestRow(db,visitor,input);if(existing){if(existing.request_hash!==requestHash)fail('text_publication_request_conflict');return {created:false,request:await readTextPublicationRequest(db,visitor,input,options),compilerInput:null};}
+ const qh=sha256Hex(input.question),existing=await requestRow(db,visitor,input);
+ if(existing){const selectionHash=json(existing.gate_sidecar)?.evidence_selection?.selection_hash||null;
+  if(existing.request_hash!==hash(requestIdentity(publicId,visitor,id,qh,selectionHash)))fail('text_publication_request_conflict');
+  return {created:false,request:await readTextPublicationRequest(db,visitor,input,options),compilerInput:null};}
  textPublicationKey(envOf(options));const {p,s,v,session}=await visitorAuthority(db,visitor,input,options);
+ const bound=bindPublishedEvidence(s,input.question,qh),selectionHash=bound.evidenceSelection?.selection_hash||null;
+ const requestHash=hash(requestIdentity(publicId,visitor,id,qh,selectionHash)),gateSidecar=bound.evidenceSelection?{evidence_selection:bound.evidenceSelection}:{};
  const remembers=publicationHasMemory(p)&&v.memory_enabled===true;
  let memory={exchanges:[],refs:[],refsHash:EMPTY_MEMORY_REFS_HASH},memoryFailure=null;
  if(remembers){const result=(await db(TEXT_PUBLICATION_MEMORY_HISTORY_SQL,authArgs(p,s,session,visitor)))[0];
@@ -287,9 +313,9 @@ export async function admitTextPublicationRequest(db,visitor,input,options={}){
   }
  }
  const row={publication_id:publicId,request_id:id,replica_id:p.replica_id,owner_user_id:p.owner_user_id,visitor_user_id:visitor};
- let rows;try{rows=await db(TEXT_PUBLICATION_ADMIT_SQL,[...authArgs(p,s,session,visitor),id,requestHash,qh,JSON.stringify(encryptPublicationText(input.question,binding(row,'question',qh),envOf(options))),remembers?String(v.memory_epoch):null,JSON.stringify(memory.refs),memory.refsHash]);}catch{fail('text_publication_admission_uncertain',503);}
+ let rows;try{rows=await db(TEXT_PUBLICATION_ADMIT_SQL,[...authArgs(p,s,session,visitor),id,requestHash,qh,JSON.stringify(encryptPublicationText(input.question,binding(row,'question',qh),envOf(options))),remembers?String(v.memory_epoch):null,JSON.stringify(memory.refs),memory.refsHash,JSON.stringify(gateSidecar)]);}catch{fail('text_publication_admission_uncertain',503);}
  if(!rows.length){const replay=await requestRow(db,visitor,input);if(replay){if(replay.request_hash!==requestHash)fail('text_publication_request_conflict');return {created:false,request:await readTextPublicationRequest(db,visitor,input,options),compilerInput:null};}fail('text_publication_admission_blocked',Number(p.question_count)>=json(p.terms).total_question_limit||Number(v.question_count)>=json(p.terms).visitor_question_limit?429:409);}
- return {created:true,request:requestWire(rows[0]),owner_user_id:p.owner_user_id,replica_id:p.replica_id,...(memoryFailure?{failure_code:memoryFailure,compilerInput:null}:{compilerInput:{authority:{scope:'account_material_publication',basis:(json(p.projection).sheetKind==='person'?'account_person_material_publication/v':'account_material_publication/v')+(Number(p.version)===2?'2':'1'),ownerId:p.owner_user_id,replicaId:p.replica_id,publicationId:publicId,requestId:id,visitorId:visitor,projectionHash:hash(json(p.projection)),receiptHash:p.receipt_hash,sourceHash:s.snapshot.source_hash},projection:json(p.projection),contexts:s.contexts,question:input.question,...(publicationHasMemory(p)?{privateContinuity:{enabled:remembers,memoryEpoch:String(v.memory_epoch),policyHash:PUBLICATION_MEMORY_POLICY_HASH,exchanges:memory.exchanges}}:{})}})};
+ return {created:true,request:requestWire(rows[0]),owner_user_id:p.owner_user_id,replica_id:p.replica_id,...(memoryFailure?{failure_code:memoryFailure,compilerInput:null}:{compilerInput:{authority:{scope:'account_material_publication',basis:(json(p.projection).sheetKind==='person'?'account_person_material_publication/v':'account_material_publication/v')+(Number(p.version)===2?'2':'1'),ownerId:p.owner_user_id,replicaId:p.replica_id,publicationId:publicId,requestId:id,visitorId:visitor,projectionHash:hash(json(p.projection)),receiptHash:p.receipt_hash,sourceHash:s.snapshot.source_hash},projection:json(p.projection),contexts:bound.contexts,question:input.question,...(publicationHasMemory(p)?{privateContinuity:{enabled:remembers,memoryEpoch:String(v.memory_epoch),policyHash:PUBLICATION_MEMORY_POLICY_HASH,exchanges:memory.exchanges}}:{})}})};
 }
 export const TEXT_PUBLICATION_CLAIM_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE},${PUB_LOCK},${VISITOR_LOCK},claimed as (
  update vy_text_publication_request h set state='dispatched',dispatch_token_hash=$14,dispatch_authority_epoch=($4::jsonb->>'fence_epoch')::bigint,reservation_id=$15::uuid,budget_id=$16,spend_request_hash=$17,provider=$18::jsonb,billing_state='reserved'
@@ -311,7 +337,7 @@ export async function claimTextPublicationRequest(db,visitor,input,options={}){
  if(!rows.length)fail('text_publication_dispatch_blocked');return {dispatch_token:token,request:requestWire(rows[0])};
 }
 export const TEXT_PUBLICATION_COMPLETE_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE},${PUB_LOCK},${VISITOR_LOCK}
- update vy_text_publication_request h set state='complete',answer_envelope=$15::jsonb,answer_hash=$16,raw_envelope=$17::jsonb,raw_hash=$18,gate_sidecar=$19::jsonb,billing_state=$20
+ update vy_text_publication_request h set state='complete',answer_envelope=$15::jsonb,answer_hash=$16,raw_envelope=$17::jsonb,raw_hash=$18,gate_sidecar=h.gate_sidecar||$19::jsonb,billing_state=$20
  from visitor v where h.request_id=$13::uuid and h.publication_id=v.publication_id and h.visitor_user_id=v.visitor_user_id and h.replica_id=$1::uuid and h.owner_user_id=$2::uuid
  and h.publication_epoch=$9::bigint and h.session_epoch=$11::bigint and h.expires_at>now() and h.state='dispatched' and h.dispatch_token_hash=$14
  and ${PUBLICATION_MEMORY_REQUEST_GUARD}

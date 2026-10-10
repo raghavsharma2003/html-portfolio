@@ -12,6 +12,7 @@ const root=fileURLToPath(new URL('../../',import.meta.url)),out=join(root,'scrat
 const RID='10000000-0000-4000-8000-000000000001',SID='20000000-0000-4000-8000-000000000001',IID='30000000-0000-4000-8000-000000000001',PID='40000000-0000-4000-8000-000000000001';
 const visitorToken='synthetic-visitor-access-token',ownerToken='synthetic-owner-access-token';
 const terms={audience:'signed_in_adult_attestation',publication_days:30,retention_days:30,visitor_question_limit:20,total_question_limit:200,budget_microusd:100000,quota_policy:'admission_counts',memory:false,voice:false};
+const reviewMaterial='Twelve oscillations take24seconds. The period is2seconds.';
 const base={public_id:PID,version:1,state:'active',title:'Physics with Mira',subject_domain:'physics',disclosure:'AI answers from material published by this account.',disclosure_hash:'a'.repeat(64),terms,created_at:'2026-09-08T00:00:00Z',expires_at:'2026-10-08T00:00:00Z',can_text:true,can_voice:false};
 let publication=null,requests=[],heldQuestion=null,lostPublish=false,lostForget=false,heldRefresh=null,holdRefresh=false,failRefresh=false,asked=new Map();
 const sourcePaths=['src/studio/publication/PublicationApp.tsx','src/studio/publication/MaterialSharePanel.tsx','src/studio/publication/PublicationSignIn.tsx','src/studio/publication/publicationApi.ts','src/studio/publication/publication.css'];
@@ -38,7 +39,7 @@ const server=createServer(async(req,res)=>{
   }
   if(url.pathname==='/api/replica-text-publication'){
    assert.equal(req.headers.authorization,`Bearer ${ownerToken}`);
-   if(op==='readiness')return send({readiness:{replica_id:RID,state:'ready',blockers:[],drafts:[{sheet_id:SID,name:'Physics profile',updated_at:base.created_at,status:'draft'}],context_items:[{item_id:IID,source_name:'pendulum.txt',status:'mined',format:'text',authorship:'mine',source_id:IID,source_ready:true,eligible:true,reason:null}],selected:input.sheet_id===SID&&input.context_item_id===IID?{review_hash:'b'.repeat(64),source_name:'pendulum.txt',projection:{name:'Physics with Mira',subjectDomain:'physics',explanationOrder:'Known facts, then calculation'},material_text:'Twelve oscillations take24seconds. The period is2seconds.',terms}:null,statement_set:'account-material-publication/v1',statements:[
+   if(op==='readiness')return send({readiness:{replica_id:RID,state:'ready',blockers:[],drafts:[{sheet_id:SID,name:'Physics profile',updated_at:base.created_at,status:'draft'}],context_items:[{item_id:IID,source_name:'pendulum.txt',status:'mined',format:'text',authorship:'mine',source_id:IID,source_ready:true,eligible:true,reason:null}],selected:input.sheet_id===SID&&input.context_item_id===IID?{review_hash:'b'.repeat(64),source_name:'pendulum.txt',projection:{name:'Physics with Mira',subjectDomain:'physics',explanationOrder:'Known facts, then calculation'},material_text:reviewMaterial,material_excerpt:true,source_chars:12000,excerpt_start_char:0,excerpt_end_char:reviewMaterial.length,terms}:null,statement_set:'account-material-publication/v1',statements:[
  {id:'authorize_public_material',text:'Let signed-in adults receive AI text answers using this reviewed material and these teaching choices.'},
  {id:'confirm_material_rights',text:'I created this material and have permission to publish its contents. I reviewed it for private information.'},
  {id:'accept_public_ai_disclosure',text:'This publishes AI text from my account materials. It does not verify my identity or authorize voice, training or private relationship memory.'},
@@ -79,8 +80,9 @@ try{
   await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+'/?view=owner');await page.getByLabel('Teaching profile').selectOption(SID);await page.getByLabel('Material').selectOption(IID);
-  await page.getByRole('heading',{name:'Review what you will share'}).waitFor();assert(await page.getByRole('button',{name:'Publish link',exact:true}).isDisabled());assert.equal(requests.filter(r=>r.op==='publish').length,0);check(width+' owner review does not publish');
-  await page.getByText('pendulum.txt',{exact:true}).last().click();for(const box of await page.getByRole('group',{name:'Permission to publish'}).getByRole('checkbox').all())await box.check();lostPublish=true;
+  await page.getByRole('heading',{name:'Review what you will share'}).waitFor();assert(await page.getByRole('button',{name:'Publish link',exact:true}).isDisabled());assert.equal(requests.filter(r=>r.op==='publish').length,0);
+  await page.getByText('pendulum.txt excerpt',{exact:true}).last().click();await page.getByText(/Visitor questions may use another matching excerpt from this full source\./).waitFor();check(width+' owner review labels bounded material as an excerpt without publishing');
+  for(const box of await page.getByRole('group',{name:'Permission to publish'}).getByRole('checkbox').all())await box.check();lostPublish=true;
   await page.getByRole('button',{name:'Publish link',exact:true}).click();await page.getByRole('button',{name:'Check status',exact:true}).waitFor();assert.equal(requests.filter(r=>r.op==='publish').length,1);check(width+' unknown publication keeps recovery');
   await page.reload();await page.getByRole('button',{name:'Check status',exact:true}).click();await page.getByLabel('Share link').waitFor();assert.equal(requests.filter(r=>r.op==='publish').length,1);check(width+' reload readback never republishes');
   await page.screenshot({path:join(out,`owner-${width}.png`),fullPage:true});

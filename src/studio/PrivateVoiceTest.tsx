@@ -59,7 +59,7 @@ const COPY = {
     sampleTextCount: "{n} of {max} characters",
     fixedSampleOnly: "This service currently supports the fixed sample below.",
     statementTitle: "Private test statement",
-    statementHelp: "This exact line is used only for this test request.",
+    statementHelp: "This exact line is used only to make this sample.",
     confirm: "I confirm this is my own voice and I am using it for a private test.",
     generate: "Make private sample",
     generating: "Starting sample",
@@ -72,27 +72,27 @@ const COPY = {
     unknown: "Status needs checking",
     revoked: "Sample removed",
     expired: "Sample expired",
-    pendingBody: "You can leave this screen and return to the same request.",
-    readyBody: "Listen to the generated WAV, then rate what you hear.",
-    failedBody: "The service could not finish this request.",
-    unknownBody: "The request ID is preserved. Check the same request before trying another.",
-    revokedBody: "The generated audio is no longer available.",
+    pendingBody: "You can leave this screen and return to this sample.",
+    readyBody: "Listen to your private sample, then rate what you hear.",
+    failedBody: "We could not finish this sample.",
+    unknownBody: "This sample is saved. Check it before trying another.",
+    revokedBody: "This private sample is no longer available.",
     expiredBody: "This private sample is no longer available.",
-    checkStatus: "Check this request",
+    checkStatus: "Check this sample",
     cancel: "Cancel sample",
     remove: "Remove sample",
-    audioLoading: "Loading authenticated audio",
-    audioError: "The WAV could not be loaded. Try the same request again.",
+    audioLoading: "Loading your private sample",
+    audioError: "The audio could not be loaded. Try loading this sample again.",
     retryAudio: "Load audio again",
-    audioLabel: "Generated private sample",
-    audioFallback: "Your browser cannot play this WAV file.",
+    audioLabel: "Your private sample",
+    audioFallback: "Your browser cannot play this audio.",
     rateTitle: "How does it sound?",
     rateHelp: "Choose 1 to 5 for each listening note.",
     saveRatings: "Save listening ratings",
     ratingsSaved: "Listening ratings saved",
     cleanup: "Removal is still being confirmed.",
-    request: "Request {id}",
-    code: "Service code: {code}",
+    request: "Private sample",
+    code: "Technical details",
     axes: {
       owner_likeness: "Sounds like me",
       naturalness: "Naturalness",
@@ -122,7 +122,7 @@ const COPY = {
     sampleTextCount: "{max} में से {n} अक्षर",
     fixedSampleOnly: "यह सेवा अभी नीचे दिया गया तय नमूना बना सकती है।",
     statementTitle: "निजी जाँच का वाक्य",
-    statementHelp: "यही पंक्ति केवल इस जाँच अनुरोध में इस्तेमाल होगी।",
+    statementHelp: "यही पंक्ति केवल इस नमूने को बनाने के लिए इस्तेमाल होगी।",
     confirm: "मैं पुष्टि करता हूँ कि यह मेरी अपनी आवाज़ है और मैं इसे निजी जाँच के लिए इस्तेमाल कर रहा हूँ।",
     generate: "निजी नमूना बनाएँ",
     generating: "नमूना शुरू हो रहा है",
@@ -135,27 +135,27 @@ const COPY = {
     unknown: "स्थिति फिर जाँचनी है",
     revoked: "नमूना हटा दिया गया",
     expired: "नमूने की अवधि पूरी हुई",
-    pendingBody: "आप यह स्क्रीन छोड़कर इसी अनुरोध पर वापस आ सकते हैं।",
-    readyBody: "बनाई गई WAV सुनें, फिर अपनी राय दें।",
-    failedBody: "सेवा यह अनुरोध पूरा नहीं कर सकी।",
-    unknownBody: "अनुरोध आईडी सुरक्षित है। दूसरा प्रयास करने से पहले इसी अनुरोध को जाँचें।",
-    revokedBody: "बनाई गई आवाज़ अब उपलब्ध नहीं है।",
+    pendingBody: "आप यह स्क्रीन छोड़कर इसी नमूने पर वापस आ सकते हैं।",
+    readyBody: "अपना निजी नमूना सुनें, फिर अपनी राय दें।",
+    failedBody: "हम यह नमूना पूरा नहीं कर सके।",
+    unknownBody: "यह नमूना सुरक्षित है। दूसरा नमूना बनाने से पहले इसे जाँचें।",
+    revokedBody: "यह निजी नमूना अब उपलब्ध नहीं है।",
     expiredBody: "यह निजी नमूना अब उपलब्ध नहीं है।",
-    checkStatus: "यह अनुरोध जाँचें",
+    checkStatus: "यह नमूना जाँचें",
     cancel: "नमूना रद्द करें",
     remove: "नमूना हटाएँ",
-    audioLoading: "सुरक्षित ऑडियो लोड हो रहा है",
-    audioError: "WAV लोड नहीं हुई। इसी अनुरोध को फिर से जाँचें।",
+    audioLoading: "आपका निजी नमूना लोड हो रहा है",
+    audioError: "ऑडियो लोड नहीं हुआ। यह नमूना फिर लोड करें।",
     retryAudio: "ऑडियो फिर लोड करें",
-    audioLabel: "बनाया गया निजी नमूना",
-    audioFallback: "आपका ब्राउज़र यह WAV फ़ाइल नहीं चला सकता।",
+    audioLabel: "आपका निजी नमूना",
+    audioFallback: "आपका ब्राउज़र यह ऑडियो नहीं चला सकता।",
     rateTitle: "आवाज़ कैसी लगी?",
     rateHelp: "हर सुनने के बिंदु के लिए 1 से 5 चुनें।",
     saveRatings: "सुनने की रेटिंग सहेजें",
     ratingsSaved: "सुनने की रेटिंग सहेजी गई",
     cleanup: "हटाने की पुष्टि अभी बाकी है।",
-    request: "अनुरोध {id}",
-    code: "सेवा कोड: {code}",
+    request: "निजी नमूना",
+    code: "तकनीकी जानकारी",
     axes: {
       owner_likeness: "मेरी आवाज़ जैसी",
       naturalness: "स्वाभाविकता",
@@ -517,7 +517,7 @@ export function PrivateVoiceTest({
   if (loadState === "error" || !availability) return <section className="private-voice-test private-voice-test--notice" data-private-voice-error>
     <h2>{copy.errorTitle}</h2><p>{copy.errorBody}</p>
     <button className="private-voice-test__secondary" type="button" onClick={() => replicaId && void loadConfiguration(scope, token, replicaId)}>{copy.retry}</button>
-    {errorCode ? <small role="alert">{copy.code.replace("{code}", errorCode)}</small> : null}
+    {errorCode ? <details className="private-voice-test__code"><summary>{copy.code}</summary><code>{errorCode}</code></details> : null}
   </section>;
 
   const chosen = availability.candidates.find((item) => candidateKey(item) === selectedCandidate);
@@ -595,7 +595,7 @@ export function PrivateVoiceTest({
           : audioError ? <><p role="alert">{copy.audioError}</p><button className="private-voice-test__secondary" type="button" onClick={() => setAudioEpoch((value) => value + 1)}>{copy.retryAudio}</button></>
           : <p>{copy.audioLoading}</p>}
       </div> : null}
-      {errorCode ? <small className="private-voice-test__code" role="alert">{copy.code.replace("{code}", errorCode)}</small> : null}
+      {errorCode ? <details className="private-voice-test__code"><summary>{copy.code}</summary><code>{errorCode}</code></details> : null}
       <div className="private-voice-test__actions">
         {(run.state === "unknown" || run.state === "failed") ? <button className="private-voice-test__secondary" type="button" disabled={Boolean(busyAction)} onClick={() => void checkRun(run.run_id)}>{copy.checkStatus}</button> : null}
         {pending ? <button className="private-voice-test__secondary" type="button" disabled={Boolean(busyAction)} onClick={() => void revoke()}>{copy.cancel}</button> : null}

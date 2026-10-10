@@ -65,6 +65,14 @@ await check('existing bounds and authority fail before provider, independent of 
  }
  assert(source({...input,question:'x'.repeat(2000),contexts:[{...input.contexts[0],body:'x'.repeat(8000)}]}).system.length<=30000);
 });
+await check('whole selected chunks from one published source share the existing 8k evidence budget',()=>{
+ const contexts=[{...input.contexts[0],body:'FIRST SOURCE CHUNK'},{...input.contexts[0],hash:'e'.repeat(64),body:'SECOND SOURCE CHUNK'}];
+ const compiled=source({...input,contexts}),material=JSON.parse(compiled.system.split('PUBLISHED SOURCE MATERIAL JSON: ')[1].split('\n')[0]);
+ assert.deepEqual(material,[{body:'FIRST SOURCE CHUNK'},{body:'SECOND SOURCE CHUNK'}]);
+ assert.throws(()=>source({...input,contexts:[contexts[0],{...contexts[1],itemId:id(8)}]}),e=>e.code==='text_publication_compiler_invalid');
+ assert.throws(()=>source({...input,contexts:[contexts[0],{...contexts[1],sourceId:id(9)}]}),e=>e.code==='text_publication_compiler_invalid');
+ assert.throws(()=>source({...input,contexts:contexts.map(row=>({...row,body:'x'.repeat(4001)}))}),e=>e.code==='text_publication_compiler_invalid');
+});
 await check('provenance and shared platform boundaries remain intact; no new memory or action authority',()=>{
  const a=source(input);assert.deepEqual(a.privateMemoryRecord,[]);assert.equal(a.profile,'account_material_publication/v1');
  for(const phrase of ['Identity:','Relationship:','Distress:','Assessment:','Protocol:','real-world identity and voice are unverified','No private biography'])assert(a.system.includes(phrase));

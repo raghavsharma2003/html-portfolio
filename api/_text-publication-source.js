@@ -56,16 +56,21 @@ export async function readPublicationSelection(db,owner,input,frozenProjection=n
  if(!row.item_id||!['extracted','mined'].includes(row.item_status)||row.authorship!=='mine'||!TEXT_FORMATS.includes(row.format))fail('text_publication_owner_text_context_required');
  if(row.source_state!=='ready'||row.source_hash!==row.content_sha256||!row.source_id)fail('text_publication_source_unavailable');
  if(typeof row.body!=='string'||!row.body.trim())fail('text_publication_canonical_text_unavailable');
- if(row.body.length>8000)fail('text_publication_context_too_large',413);
  const account=json(row.account_receipts)||[];
  for(const scope of ['capture','storage']){
   const receipt=account.find(c=>c.scope===scope),m=receipt&&json(receipt.metadata);
   if(!m||m.owner_user_id!==owner||m.replica_id!==rid||m.method!=='account_attestation'||m.policy_version!==POLICY||m.statement_set!=='self-replica-enrollment-v1'||!Array.isArray(m.scopes)||!m.scopes.includes(scope)||['is_self','is_adult','has_source_rights','understands_synthetic_disclosure'].some(k=>m.attestations?.[k]!==true)||hash(m)!==receipt.receipt_hash)fail('text_publication_account_attestation_required');
  }
- const evidence=(json(row.evidence)||[]).map(reconstructEvidence);if(!evidence.length)fail('text_publication_canonical_evidence_required');
- let end=0;for(const e of evidence){verifyContextCanonicalEvidence(e);const locator=e.value.locator;if(locator.shape!=='contiguous'||locator.start_char!==end||row.body.slice(locator.start_char,locator.end_char)!==e.value.text||locator.canonical_text_sha256!==sha256Hex(row.body))fail('text_publication_canonical_evidence_changed');end=locator.end_char;}
+ const evidence=(json(row.evidence)||[]).map(reconstructEvidence);if(!evidence.length||evidence.length>128)fail('text_publication_canonical_evidence_required');
+ const evidenceIds=new Set();let end=0;for(const e of evidence){verifyContextCanonicalEvidence(e);const locator=e.value.locator;
+  if(evidenceIds.has(e.evidence_id)||e.replica_id!==rid||e.owner_user_id!==owner||e.source_id!==row.source_id
+   ||e.input_sha256!==row.source_hash||e.value?.provenance?.context_item_id!==itemId||e.value?.provenance?.source_id!==row.source_id
+   ||locator.shape!=='contiguous'||locator.start_char!==end||row.body.slice(locator.start_char,locator.end_char)!==e.value.text
+   ||locator.canonical_text_sha256!==sha256Hex(row.body))fail('text_publication_canonical_evidence_changed');
+  evidenceIds.add(e.evidence_id);end=locator.end_char;
+ }
  if(end!==row.body.length)fail('text_publication_canonical_evidence_incomplete');
  const snapshot={sheet_id:sheetId,context_item_id:itemId,context_hash:hash({body:row.body,format:row.format,authorship:row.authorship,owner_speaker:row.owner_speaker,consent_scope:row.consent_scope}),source_id:row.source_id,source_hash:row.source_hash,evidence_hash:hash(evidence.map(e=>({id:e.evidence_id,hash:e.record_hash}))),evidence_records:evidence.map(e=>({id:e.evidence_id,hash:e.record_hash})),account_receipts:account.map(c=>({consent_id:c.consent_id,receipt_hash:c.receipt_hash,scope:c.scope})).sort((a,b)=>a.scope.localeCompare(b.scope))};
  const snapshotHash=hash({owner_user_id:owner,replica_id:rid,policy_version:POLICY,...snapshot});
- return {row,draft,snapshot,snapshotHash,contexts:[{itemId,sourceId:row.source_id,hash:sha256Hex(row.body),body:row.body}]};
+ return {row,draft,evidence,snapshot,snapshotHash,contexts:[{itemId,sourceId:row.source_id,hash:sha256Hex(row.body),body:row.body}]};
 }

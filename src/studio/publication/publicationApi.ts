@@ -39,7 +39,8 @@ export type PublicationReadiness = {
   context_items: { item_id: string; source_name: string; status: string; format: string;
     authorship: string; source_id: string | null; source_ready: boolean; eligible: boolean; reason: string | null }[];
   selected: null | { review_hash: string; source_name: string; projection: PublicationProjection;
-    material_text: string; terms: PublicationTerms };
+    material_text: string; terms: PublicationTerms; material_excerpt?: true; source_chars?: number;
+    excerpt_start_char?: number; excerpt_end_char?: number };
   statement_set: string; statements: { id: string; text: string }[];
   can_publish: boolean; publications: Publication[];
 };
@@ -110,8 +111,16 @@ export async function publicationReadiness(token: string, replicaId: string, she
       !data.readiness.statements.every(s => typeof s.id === "string" && typeof s.text === "string") ||
       new Set(data.readiness.statements.map(s => s.id)).size !== data.readiness.statements.length) invalid();
   data.readiness.publications.forEach(p => validatePublication(p));
-  if (data.readiness.selected && (typeof data.readiness.selected.review_hash !== "string" ||
-      typeof data.readiness.selected.material_text !== "string" || !record(data.readiness.selected.projection))) invalid();
+  if (data.readiness.selected) {
+    const selected = data.readiness.selected;
+    if (typeof selected.review_hash !== "string" || typeof selected.material_text !== "string" || selected.material_text.length > 8000 || !record(selected.projection)
+      || (selected.material_excerpt === true
+        ? !Number.isSafeInteger(selected.source_chars) || selected.source_chars! <= selected.material_text.length
+          || !Number.isSafeInteger(selected.excerpt_start_char) || selected.excerpt_start_char! < 0
+          || !Number.isSafeInteger(selected.excerpt_end_char) || selected.excerpt_end_char! <= selected.excerpt_start_char!
+          || selected.excerpt_end_char! - selected.excerpt_start_char! !== selected.material_text.length || selected.excerpt_end_char! > selected.source_chars!
+        : selected.material_excerpt !== undefined || selected.source_chars !== undefined || selected.excerpt_start_char !== undefined || selected.excerpt_end_char !== undefined)) invalid();
+  }
   return data.readiness;
 }
 export const publishMaterial = (token: string, body: {

@@ -4,10 +4,16 @@ import type { TeacherSubject } from "../engine/agents/teacherTypes";
 export const PRIVATE_TEXT_STATEMENT_SET = "private-text-rehearsal/v1" as const;
 export const PRIVATE_TEXT_ATTESTATIONS = ["authorize_private_text_question", "understand_ai_text_only", "understand_private_retention_and_withdrawal"] as const;
 export type PrivateTextAttestation = typeof PRIVATE_TEXT_ATTESTATIONS[number];
+export interface PrivateTextContextMaterial {
+  source_name: string; format: string; body: string;
+  /** Display metadata only. Authority and POST selection remain bound to the
+   * complete source snapshot returned beside this material. */
+  excerpt?: true; source_chars?: number; excerpt_start_char?: number; excerpt_end_char?: number;
+}
 export interface PrivateTextSelection {
   sheet_id: string; sheet_hash: string; context_item_id: string; context_hash: string;
   source_id: string; source_hash: string; evidence_hash: string; authority_epoch: string; snapshot_hash: string;
-  material: { draft: { name: string; identityWho: string; sheetKind?: "person" | "teacher"; subjectDomain?: TeacherSubject }; context: { source_name: string; format: string; body: string } };
+  material: { draft: { name: string; identityWho: string; sheetKind?: "person" | "teacher"; subjectDomain?: TeacherSubject }; context: PrivateTextContextMaterial };
 }
 export interface PrivateTextReadiness {
   replica_id: string; state: "ready" | "needs_input" | "unavailable" | "stopped";
@@ -65,12 +71,19 @@ export function validatePrivateTextReadiness(value: PrivateTextReadiness, replic
     || PRIVATE_TEXT_ATTESTATIONS.some(id => value.statements.filter(row => row.id === id && text(row.text, 1500) && row.text.trim()).length !== 1)
     || typeof value.can_ask !== "boolean") throw failure();
   const selected = value.selected;
+  const context = selected?.material?.context;
   if (selected && (!isPrivateTextId(selected.sheet_id) || !isPrivateTextId(selected.context_item_id) || !isPrivateTextId(selected.source_id)
     || ![selected.sheet_hash, selected.context_hash, selected.source_hash, selected.evidence_hash, selected.snapshot_hash].every(hash)
     || typeof selected.authority_epoch !== "string" || !/^[0-9]{1,19}$/u.test(selected.authority_epoch)
     || !selected.material || !text(selected.material.draft?.name, 500) || !text(selected.material.draft?.identityWho, 2000)
     || (selected.material.draft?.sheetKind === "person" ? selected.material.draft.subjectDomain !== undefined : (selected.material.draft?.sheetKind !== undefined && selected.material.draft.sheetKind !== "teacher") || !["physics", "chemistry", "maths"].includes(selected.material.draft?.subjectDomain || ""))
-    || !text(selected.material.context?.source_name, 1000) || !["text", "markdown", "pdf", "docx"].includes(selected.material.context?.format) || !text(selected.material.context?.body, 8000))) throw failure();
+    || !text(context?.source_name, 1000) || !["text", "markdown", "pdf", "docx"].includes(context?.format || "") || !text(context?.body, 8000)
+    || (context?.excerpt === true
+      ? !Number.isSafeInteger(context.source_chars) || context.source_chars! <= context.body.length
+        || !Number.isSafeInteger(context.excerpt_start_char) || context.excerpt_start_char! < 0
+        || !Number.isSafeInteger(context.excerpt_end_char) || context.excerpt_end_char! <= context.excerpt_start_char!
+        || context.excerpt_end_char! - context.excerpt_start_char! !== context.body.length || context.excerpt_end_char! > context.source_chars!
+      : context?.excerpt !== undefined || context?.source_chars !== undefined || context?.excerpt_start_char !== undefined || context?.excerpt_end_char !== undefined))) throw failure();
   if (selected && (!value.drafts.some(row => row.sheet_id === selected.sheet_id)
     || !value.context_items.some(row => row.item_id === selected.context_item_id && row.eligible))) throw failure();
   if (value.can_ask && (value.state !== "ready" || value.blockers.length || !selected)) throw failure();

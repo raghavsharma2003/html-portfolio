@@ -89,6 +89,33 @@ check('missing cue and no-match cue preserve exact recency fallback', () => {
   assert.deepEqual(engine.selectExpertPrivateMemoryRows(candidates, true, 'ज़ेफिर unmatched').map(item => item.id), baseline);
 });
 
+check('a rare single-letter expert identifier reaches the compiled prompt', () => {
+  const relevant = row(25, 'Section X uses oral revision before the written test.');
+  const candidates = [
+    ...filler(1700, 24, 'Section has an unrelated checkpoint'),
+    relevant,
+    ...filler(1800, 5, 'Section has an older unrelated checkpoint'),
+  ];
+  assert.equal(currentFirstFit(candidates).includes(relevant), false);
+  const { selected, compiled, promptRows } = compileSelected(candidates, 'What did I decide for Section X?');
+  assert.ok(selected.includes(relevant));
+  assert.ok(promptRows.some(item => item.body === relevant.body));
+  assert.ok(compiled.privateMemoryRecord.includes(relevant.body));
+});
+
+check('frequent one-letter cues preserve recency fallback instead of promoting old rows', () => {
+  const recent = filler(1900, 20, 'recent unrelated memory');
+  const older = [
+    ...filler(2000, 5, 'I remember an older note'),
+    ...filler(2100, 5, 'A separate older note'),
+  ];
+  const candidates = [...recent, ...older];
+  assert.deepEqual(
+    engine.selectExpertPrivateMemoryRows(candidates, true, 'I A').map(item => item.id),
+    recent.map(item => item.id),
+  );
+});
+
 check('communication support remains reserved ahead of question relevance and within limits', () => {
   const support = row(999, 'Please answer in short Roman Hinglish.', { communication_support: true });
   const relevant = row(25, 'Gulmohar plan has two revision sessions.');

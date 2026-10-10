@@ -9,15 +9,21 @@ export interface PrivateMemorySelectionCandidate {
 
 const MAX_QUERY_TOKENS = 128;
 const MAX_BODY_TOKENS = 512;
+// A one-letter label such as Section X is useful only while it remains rare
+// inside this already-bounded pool. This frequency guard keeps generic
+// one-letter words from turning every matching row into "relevant".
+const MAX_SINGLE_LETTER_DOCUMENT_FREQUENCY = 2;
 const TOKEN = /[\p{L}\p{M}\p{N}]+/gu;
+
+function isSingleLetter(token: string): boolean {
+  return Array.from(token).length === 1 && /^\p{L}$/u.test(token);
+}
 
 function tokens(value: string, limit: number): string[] {
   const normalized = value.normalize("NFKC").toLowerCase();
   const matches = normalized.match(TOKEN) ?? [];
   const unique = new Set<string>();
   for (const token of matches) {
-    const codePoints = Array.from(token);
-    if (codePoints.length < 2 && !/^\p{N}+$/u.test(token)) continue;
     unique.add(token);
     if (unique.size === limit) break;
   }
@@ -57,7 +63,9 @@ export function privateMemorySelectionOrder<T extends PrivateMemorySelectionCand
 
   const relevant = ordinary.map(index => {
     const rowTokens = bodyTokens.get(index) ?? new Set<string>();
-    const matched = queryTokens.filter(token => rowTokens.has(token));
+    const matched = queryTokens.filter(token => rowTokens.has(token)
+      && (!isSingleLetter(token)
+        || (frequency.get(token) ?? 0) <= MAX_SINGLE_LETTER_DOCUMENT_FREQUENCY));
     const weighted = matched.reduce((score, token) => score + ordinary.length + 1 - (frequency.get(token) ?? 0), 0);
     return { index, matched: matched.length, weighted };
   }).filter(row => row.matched > 0)
