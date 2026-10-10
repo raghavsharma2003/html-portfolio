@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { readStoredSession, writeStoredSession } from "../../creatorStudio/session";
 import { consumeStudioOAuthCallback } from "../../creatorStudio/studioAuth";
 import { ensureStudioSession } from "../studioAuth";
+import { ReplicaApiError } from "../replicaApi";
 import type { StudioSession } from "../types";
 import PublicationSignIn from "./PublicationSignIn";
 import ExpertAnswer from "../ExpertAnswer";
@@ -26,6 +27,8 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
   const [remember, setRemember] = useState(false);
   const [memoryError, setMemoryError] = useState(false);
   const [rejoinRequired, setRejoinRequired] = useState(false);
+  const [accessPass, setAccessPass] = useState("");
+  const [accessError, setAccessError] = useState("");
   const memoryRevision = useRef(0);
   const generation = useRef(0), locked = useRef(false);
   const locale = new URLSearchParams(window.location.search).get("lang") === "hi" ? "hi" : "en";
@@ -36,6 +39,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
     const revision = ++generation.current, controller = new AbortController();
     let alive = true;
     locked.current = false; setBusy(false); setRestoring(true); setPublication(null); setAuth(null); setAdmission(null); setAgreed(false); setQuestion(""); setRequest(null); setMessage("");
+    setAccessPass(""); setAccessError("");
     memoryRevision.current++; setMemory(null); setRemember(false); setMemoryError(false); setRejoinRequired(false);
     const storedCandidate = readStoredSession();
     const callback = consumeStudioOAuthCallback();
@@ -58,7 +62,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
     return () => { alive = false; generation.current++; controller.abort(); };
   }, [publicId, reload]);
   useEffect(() => {
-    setRequest(null); setRequestId(null); setAdmission(null); setAgreed(false); setQuestion(""); setDeletionUncertain(false);
+    setRequest(null); setRequestId(null); setAdmission(null); setAgreed(false); setQuestion(""); setDeletionUncertain(false); setAccessPass(""); setAccessError("");
     if (!auth) return;
     try { const id = sessionStorage.getItem(receiptKey(auth.userId)); if (id && /^[a-f0-9-]{36}$/.test(id)) setRequestId(id); setDeletionUncertain(sessionStorage.getItem(deletionKey(auth.userId)) === "pending"); } catch { /* No stored receipt. */ }
   }, [auth?.userId, publicId]);
@@ -76,7 +80,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
   }, [auth?.userId, auth?.accessToken, publicId, publication?.version, publication?.terms.memory_policy_hash, restoring, reload]);
   useEffect(() => {
     const sync = () => { const session = readStoredSession(); if (session?.userId !== auth?.userId || session?.accessToken !== auth?.accessToken) {
-      generation.current++; locked.current = false; setBusy(false); setAuth(session); setAdmission(null); setRequest(null); setQuestion(""); setAgreed(false);
+      generation.current++; locked.current = false; setBusy(false); setAuth(session); setAdmission(null); setRequest(null); setQuestion(""); setAgreed(false); setAccessPass(""); setAccessError("");
     } };
     window.addEventListener("storage", sync); window.addEventListener("focus", sync);
     return () => { window.removeEventListener("storage", sync); window.removeEventListener("focus", sync); };
@@ -90,7 +94,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
     if (action === "memory" && (!admission || !memory?.policy_hash || requestId && (!request || request.state === "pending" || request.state === "uncertain"))) return;
     if ((action === "ask" || action === "result") && !admission) return;
     if (action === "ask" && (!question.trim() || question.length > 2000 || requestId && (!request || request.state === "pending" || request.state === "uncertain"))) return;
-    const revision = generation.current; locked.current = true; setBusy(true); setMessage("");
+    const revision = generation.current; locked.current = true; setBusy(true); setMessage(""); setAccessError("");
     let authenticated = false;
     try {
       const candidate = readStoredSession();
@@ -109,10 +113,10 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
       if (action === "join") {
         const joined = await joinPublication(fresh.accessToken, publicId, publication!.disclosure_hash, publication!.version === 2 ? {
           remember, expected_memory_epoch: memory!.epoch, expected_memory_policy_hash: memory!.policy_hash!,
-        } : undefined);
+        } : undefined, publication!.terms.access_mode === "pass" ? accessPass.trim() || undefined : undefined);
         if (!responseIsCurrent()) return;
         if (!joined.session_token || !joined.publication) throw new Error("invalid admission");
-        setAdmission(joined); setPublication(joined.publication);
+        setAdmission(joined); setPublication(joined.publication); setAccessPass(""); setAccessError("");
         if (joined.memory) { memoryRevision.current++; setMemory(joined.memory); setRemember(joined.memory.enabled); }
         setRejoinRequired(false);
       } else if (action === "memory") {
@@ -146,17 +150,28 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
         setRequest(result.request);
         if (action === "ask") setQuestion("");
       }
-    } catch {
+    } catch (error) {
+      const code = error instanceof ReplicaApiError && typeof error.data?.error === "string" ? error.data.error : "";
+      if (generation.current === revision && (code === "text_publication_access_required" || code === "text_publication_access_revoked")) {
+        if (code === "text_publication_access_revoked") {
+          saveReceipt(null); setAdmission(null); setRequest(null); setRejoinRequired(true); setAccessPass("");
+        }
+        setAccessError(code === "text_publication_access_revoked"
+          ? locale === "hi" ? "आपका एक्सेस पास रद्द हो चुका है। बातचीत जारी रखने के लिए मालिक से नया पास मांगें।" : "Your access pass was revoked. Ask the owner for a new pass to continue."
+          : accessPass.trim()
+            ? locale === "hi" ? "यह एक्सेस पास इस्तेमाल नहीं हो सकता। कोड जांचें या मालिक से नया पास मांगें।" : "This access pass cannot be used. Check the code or ask the owner for a new pass."
+            : locale === "hi" ? "पहली बार बातचीत शुरू करने के लिए अपना एक्सेस पास डालें।" : "Enter your access pass to start this conversation for the first time.");
+      }
       if (generation.current === revision && action === "memory") {
         memoryRevision.current++; setMemory(null); setMemoryError(true); setAdmission(null); setRequest(null); setRejoinRequired(true);
       }
-      if (generation.current === revision) setMessage(!authenticated ? "We couldn't refresh your sign-in. Reload to continue." : action === "memory" ? "We couldn't confirm your memory choice. Reload to check it before continuing." : action === "forget" ? "Deletion isn't confirmed. Please try again." : action === "join" ? "We couldn't start this conversation. Reload the link and try again." : "We couldn't confirm the answer. Check its status before asking again.");
+      if (generation.current === revision && code !== "text_publication_access_required" && code !== "text_publication_access_revoked") setMessage(!authenticated ? "We couldn't refresh your sign-in. Reload to continue." : action === "memory" ? "We couldn't confirm your memory choice. Reload to check it before continuing." : action === "forget" ? "Deletion isn't confirmed. Please try again." : action === "join" ? "We couldn't start this conversation. Reload the link and try again." : "We couldn't confirm the answer. Check its status before asking again.");
     } finally { if (generation.current === revision) { locked.current = false; setBusy(false); } }
   }
   const unresolved = !!requestId && (!request || request.state === "pending" || request.state === "uncertain");
   const memoryBudgetBlocked = request?.state === "blocked" && request.failure_code === "text_publication_memory_budget_exceeded";
   return <main className="vp-page"><header className="vp-top"><a href="/">Vyakti</a>{auth && !restoring ? <button className="vp-text-button" onClick={() => {
-    generation.current++; locked.current = false; setBusy(false); writeStoredSession(null); setAuth(null); setAdmission(null); setRequest(null); setQuestion(""); setAgreed(false);
+    generation.current++; locked.current = false; setBusy(false); writeStoredSession(null); setAuth(null); setAdmission(null); setRequest(null); setQuestion(""); setAgreed(false); setAccessPass(""); setAccessError("");
   }}>Sign out</button> : <span>AI conversation</span>}</header>
     <div className="vp-conversation">
       {restoring ? <p role="status">Opening conversation</p> : !publication ? <section><h1>This link is unavailable</h1><p>{message}</p><button onClick={() => setReload(value => value + 1)}>Try again</button></section> : <>
@@ -168,6 +183,13 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
         }} /> : deletionUncertain ? <p role="status">Deletion needs confirmation. Your previous answers are hidden.</p> : !admission ? <section className="vp-admission"><h2>{rejoinRequired ? "Continue your conversation" : "Before your first question"}</h2>
           <p>For adults aged 18 and over. Your questions and answers are kept for up to {publication.terms.retention_days} days. You can delete them here.</p>
           <p>You have up to {publication.terms.visitor_question_limit} questions. Submitted questions count even when an answer cannot be delivered.</p>
+          {publication.terms.access_mode === "pass" && <div className="vp-access-entry">
+            <label htmlFor="publication-access-pass">{locale === "hi" ? "एक्सेस पास (पहली बार)" : "Access pass (first visit)"}</label>
+            <input id="publication-access-pass" type="text" autoComplete="off" spellCheck={false} value={accessPass} disabled={busy}
+              aria-describedby="publication-access-pass-help" aria-invalid={!!accessError} onChange={event => { setAccessPass(event.target.value); setAccessError(""); }} />
+            <p id="publication-access-pass-help">{locale === "hi" ? "अगर आप पहले इस बातचीत में शामिल हो चुके हैं, तो इसे खाली छोड़ सकते हैं।" : "If you have joined this conversation before, you can leave this blank."}</p>
+            {accessError && <p className="vp-error" role="alert">{accessError}</p>}
+          </div>}
           <label><input type="checkbox" checked={agreed} disabled={busy} onChange={event => setAgreed(event.target.checked)} />I am 18 or older. I understand this is AI and agree to the retention above.</label>
           {publication.version === 2 && <>
             {memory ? <><label><input type="checkbox" checked={remember} disabled={busy} aria-describedby="publication-memory-policy" onChange={event => setRemember(event.target.checked)} />Remember my recent conversations (optional)</label><p id="publication-memory-policy">{memory.policy}</p></>

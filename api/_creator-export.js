@@ -179,6 +179,9 @@ export const OWNER_LANE_TABLES = Object.freeze([
   // Owner projection/receipt only. Visitor sessions and encrypted questions
   // belong to the authenticated visitor, never this owner's export.
   { table: "vy_text_publication", scope: "replica" },
+  // Access inventory is an owner-visible count only. Code hashes and the
+  // authenticated visitor binding are never creator export rows.
+  { table: "vy_text_publication_access_pass", scope: "replica" },
   { table: "vy_replica_provider_consent", scope: "replica" },
 
   // ── Mirror Call, interview, the review queue ───────────────────────────
@@ -485,8 +488,8 @@ export async function creatorExport(db, ownerUserId, options = {}) {
       if (entry.table === "vy_replica_comparison_preparation" || entry.table === "vy_replica_comparison_dispatch") {
         throw Object.assign(new Error("creator_export_comparison_preparation_unavailable"), {code:"creator_export_comparison_preparation_unavailable",status:503});
       }
-      if (entry.scope === "teacher_sheet" || entry.table === "vy_private_text_rehearsal" || entry.table === "vy_text_publication") {
-        const code=entry.scope === "teacher_sheet"?"creator_export_teacher_sheet_unavailable":entry.table === "vy_text_publication"?"creator_export_text_publication_unavailable":"creator_export_private_rehearsal_unavailable";
+      if (entry.scope === "teacher_sheet" || entry.table === "vy_private_text_rehearsal" || entry.table === "vy_text_publication" || entry.table === "vy_text_publication_access_pass") {
+        const code=entry.scope === "teacher_sheet"?"creator_export_teacher_sheet_unavailable":entry.table === "vy_text_publication"?"creator_export_text_publication_unavailable":entry.table === "vy_text_publication_access_pass"?"creator_export_text_access_unavailable":"creator_export_private_rehearsal_unavailable";
         throw Object.assign(new Error(code), {
           code, status: 503,
         });
@@ -498,6 +501,7 @@ export async function creatorExport(db, ownerUserId, options = {}) {
       rows=rows.map(row=>privateTextExportRow(row,ownerUserId,options.env||process.env));
     }
     manifest.push({ table: entry.table, rows: rows.length });
+    if (entry.table === "vy_text_publication_access_pass") continue;
     if (rows.length) tables[entry.table] = rows;
   }
 

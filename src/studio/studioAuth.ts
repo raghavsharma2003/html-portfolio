@@ -2,15 +2,27 @@ import type { StudioSession } from "./types";
 
 export class StudioAuthError extends Error {
   status: number;
+  code: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code = "") {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
 export const isStudioAuthDead = (cause: unknown) =>
   cause instanceof StudioAuthError && (cause.status === 400 || cause.status === 401 || cause.status === 403);
+
+const EMAIL_PLATFORM_CODES = new Set([
+  "email_address_not_authorized",
+  "email_provider_disabled",
+  "otp_disabled",
+  "smtp_not_configured",
+]);
+
+export const isStudioEmailUnavailable = (cause: unknown) => cause instanceof StudioAuthError
+  && (EMAIL_PLATFORM_CODES.has(cause.code) || /smtp[^\n]*not[^\n]*configur/i.test(cause.message));
 
 async function accountPost(body: unknown): Promise<any> {
   const response = await fetch("/api/account", {
@@ -21,9 +33,13 @@ async function accountPost(body: unknown): Promise<any> {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    const code = typeof data?.code === "string" ? data.code
+      : typeof data?.error_code === "string" ? data.error_code
+        : typeof data?.error === "string" && /^[a-z][a-z0-9_]{2,100}$/u.test(data.error) ? data.error : "";
     throw new StudioAuthError(
       data?.error || data?.msg || data?.error_description || `Sign-in failed (${response.status})`,
       response.status,
+      code,
     );
   }
   return data;

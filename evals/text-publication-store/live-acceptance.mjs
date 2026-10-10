@@ -8,11 +8,12 @@ import {textPublicationSqlInventory} from './sql-inventory.mjs';
 import {LIVE_PUBLICATION_DATABASE,LIVE_PROVIDER,makeLivePublicationFixture,liveFixtureManifest,assertLiveFixtureAbsent,seedLivePublicationFixture,cleanupLivePublicationFixture,countLivePublicationFixture,publishLiveFixture,joinLiveFixture,liveQuestionInput,admitLiveFixture,claimLiveFixture,settleLiveFixture,completeLiveFixture,liveReservation} from './live-fixtures.mjs';
 
 export const TEXT_PUBLICATION_ACCEPTANCE_SOURCE_HASHES=Object.freeze({
- 'api/_text-publication-store.js':'84f77e894e93a81ae69375ec4e96657461279617aa2819b62ebd5966283e2f22',
- 'api/_text-publication-source.js':'45d0b297c47ed10633a7dd37b42d5296613880f8af46d53a046b663bff66f4b9',
- 'api/_text-publication-crypto.js':'8612f7879bbdafa0621245d1b5cb48042aa7ae86a829aadd464a225684f6e665',
- 'api/_engine.gen.js':'a3e263b7c33dc7936929ade9903b039505dd038a166a2b5ec4a1592453a5ba5a',
- 'db/migrations/143_text_publication.sql':'d71a06bd0c96d09b4c1723ec3f100805d4e059bebacdb11ccde6e8b936da22aa',
+ 'api/_text-publication-store.js':'d9b691acaa1ee2a130583cb458aadd6b4b0a97f02a82519b3c7a66a31173cc0e',
+ 'api/_text-publication-source.js':'f3c32d647a966ee8906167f86d74e1f7cae3be40f7fd598cf97b7e142c13c02c',
+ 'api/_text-publication-crypto.js':'ba842f5e2a0008c84af8be7408ca1f8eea68101281dfd3e7298f4764f8af01a4',
+ 'api/_engine.gen.js':'7b189d6a06362e3b72195d0779fb2c1df2b7a2cd19355d163a9e42c9f09f3d88',
+ 'db/migrations/143_text_publication.sql':'595b387018697f32ed476a69ddf2af881fd11346e3a4909feb18880b0f2a62fb',
+ 'db/migrations/173_text_publication_access_pass.sql':'40018bc0f77cf918bfdd50c18380fce4b04435a1b57a4aac0f358d016e8223da',
 });
 const safeCode=e=>/^[A-Za-z0-9_]{2,100}$/.test(e?.code||'')?e.code:'UNCLASSIFIED_FAILURE';
 const scope=f=>({replica_id:f.rid,sheet_id:f.sheet,context_item_id:f.item});
@@ -23,7 +24,7 @@ export function verifyTextPublicationAcceptanceSources(){
  return TEXT_PUBLICATION_ACCEPTANCE_SOURCE_HASHES;
 }
 export async function prepareTextPublicationAcceptance(){
- verifyTextPublicationAcceptanceSources();const inventory=await textPublicationSqlInventory();assert.equal(inventory.length,17);
+ verifyTextPublicationAcceptanceSources();const inventory=await textPublicationSqlInventory();assert.equal(inventory.length,29);
  const fixtures=['lifecycle','foreign','quota','expiry','terminal'].map(makeLivePublicationFixture);
  return{fixtures,inventory,manifest:{schema:'text-publication-live-acceptance/v1',database:LIVE_PUBLICATION_DATABASE,source_hashes:TEXT_PUBLICATION_ACCEPTANCE_SOURCE_HASHES,fixture_type:'synthetic relational state, not native upload/auth or real owner grant',fixtures:fixtures.map(liveFixtureManifest),SQL:inventory.map(({name,sha256})=>({name,sha256})),provider_calls:0,ledger_policy:'retain exact content-free publication/request IDs after private payload cleanup; isolated synthetic spend/budgets removed'}};
 }
@@ -38,7 +39,7 @@ export async function runTextPublicationAcceptance({db,onFixtureManifest,onProgr
  try{
   await checkpoint();assert.equal((await db('select current_database() name'))[0]?.name,LIVE_PUBLICATION_DATABASE,'wrong_database');verified=true;
   for(const entry of inventory){phase='explain-'+entry.name;await checkpoint();await db('EXPLAIN '+entry.sql,entry.params);result.SQL_explained.push({name:entry.name,sha256:entry.sha256});}
-  result.checks.push({name:'17 exact frozen SQL statements parse against actual schema',passed:true});
+  result.checks.push({name:'29 exact frozen SQL statements parse against actual schema',passed:true});
   for(const f of fixtures){phase='absence-'+f.label;await assertLiveFixtureAbsent(query,f);}absenceVerified=true;await checkpoint();
   for(const f of fixtures){attempted.push(f.label);phase='seed-'+f.label;await checkpoint();await seedLivePublicationFixture(query,f);}
   const [a,b,q,e,t]=fixtures;
@@ -170,7 +171,7 @@ export async function resumeTextPublicationAcceptanceCleanup({db,manifest,expect
 export async function dryCheckTextPublicationAcceptance(){
  let calls=0;
  await assert.rejects(()=>runTextPublicationAcceptance({db:async()=>{calls++;},onFixtureManifest:async()=>{}}),/execution_clearance/);assert.equal(calls,0);
- const plan=await prepareTextPublicationAcceptance();assert.equal(plan.inventory.length,17);assert.equal(plan.fixtures.length,5);
+ const plan=await prepareTextPublicationAcceptance();assert.equal(plan.inventory.length,29);assert.equal(plan.fixtures.length,5);
  const ids=plan.manifest.fixtures.flatMap(f=>[f.owner,f.visitor,f.otherVisitor,f.rid,f.sheet,f.item,f.source,f.pid,f.sparePid,f.ruleId,f.primarySelectionId,...f.requests,...f.reservations,...f.consentIds,...f.evidenceIds]);assert.equal(new Set(ids).size,ids.length);
  assert(!JSON.stringify(plan.manifest).includes('KEK'));assert(!JSON.stringify(plan.manifest).includes('session_token'));
  let manifests=0;const wrong=await runTextPublicationAcceptance({optIn:true,onFixtureManifest:async()=>{manifests++;},db:async sql=>{calls++;assert.equal(sql,'select current_database() name');return[{name:'not_the_development_database'}];}});assert.equal(wrong.result.state,'failed');assert.equal(wrong.result.cleanup.length,0);assert.equal(calls,1);assert(manifests>0);
@@ -178,5 +179,5 @@ export async function dryCheckTextPublicationAcceptance(){
  await assert.rejects(()=>resumeTextPublicationAcceptanceCleanup({optIn:true,db:async()=>{throw Error('db_must_not_run');},manifest:malformed,expectedManifestHash:'0'.repeat(64)}),/cleanup_manifest_changed/);
  const f=plan.fixtures[0],terminal=await store.publishTextPublication(async(sql,args)=>{assert.equal(sql,store.TEXT_PUBLICATION_READ_SQL);assert.deepEqual(args,[f.pid]);return[{publication_id:f.pid,replica_id:f.rid,owner_user_id:f.owner,state:'revoked',review_hash:null}];},f.owner,{...scope(f),publication_id:f.pid,expected_review_hash:'0'.repeat(64),statement_set:store.TEXT_PUBLICATION_STATEMENT_SET,attestations:Object.fromEntries(store.TEXT_PUBLICATION_STATEMENTS.map(s=>[s.id,true]))},options(f));
  assert.equal(terminal.created,false);assert.equal(terminal.publication.state,'revoked');assert.equal(terminal.publication.publication_never_created,true);
- return{passed:6,checks:['explicit opt-in before any DB','exact development guard before SQL mutation','all fixture IDs unique and predeclared','manifest excludes crypto/session credentials','cleanup rejects changed manifest before DB','actual store terminal publish replay is no-op response, never a required exception'],prepared_SQL:17,prepared_fixtures:5,SQL_executed:0,provider_calls:0};
+ return{passed:6,checks:['explicit opt-in before any DB','exact development guard before SQL mutation','all fixture IDs unique and predeclared','manifest excludes crypto/session credentials','cleanup rejects changed manifest before DB','actual store terminal publish replay is no-op response, never a required exception'],prepared_SQL:29,prepared_fixtures:5,SQL_executed:0,provider_calls:0};
 }

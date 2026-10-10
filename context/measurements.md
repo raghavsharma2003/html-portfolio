@@ -19383,3 +19383,44 @@ d72d3fccc34be0c25eaa6fd56966a91e4066b81437868016903e7a3b75fb686d.
 Two targeted Azure metadata GETs confirm an available embedding deployment;
 Vyakti-only Vercel metadata confirms missing runtime endpoint/key names. This
 proves neither an embedding response nor a past deployment's exact environment.
+
+## `text-publication-entitlement-baseline-20261010`
+
+2026-10-10, source-only audit at exact commit
+`a95589f884da624d6cca429f8d95b12760db6ccd`, n=3 authority families inspected:
+text publication owner/visitor, Room follower payment and publication continuity.
+Method: traced every shipping caller from `ExpertSharePanel` through owner publish,
+visitor join/ask, the three-exchange continuity read, Room publish and follower
+subscription checkout; searched the migration set and handler registry for any
+publication price, subscription, invite or entitlement caller.
+
+Result: personal text publication has one real visitor answer path, one
+authenticated visitor identity and optional continuity, but zero access or price
+predicates. Room payments have a real UI, HTTP door, ledger and provider seam,
+but all follower subscription authority begins with a Room session and Room
+follower. Text-only creators are deliberately routed away from Room publication
+until the active voice runtime exists. Frozen source defaults the payment provider
+to `none`; repository evidence contains no real Razorpay checkout or webhook.
+No database, browser, provider, network, model or cloud operation ran for this
+baseline.
+
+## `text-publication-access-pass-offline-proof-20261010`
+
+2026-10-10, exact isolated branch from `a95589f884da624d6cca429f8d95b12760db6ccd`.
+The access-pass store suite passed15groups, including legacy open byte shape,
+one-use visitor binding, owner isolation, continuity, revoke-before-spend fences,
+post-claim completion refusal, and behavioral partial-seed cleanup. Mounted owner
+and visitor controls passed14groups across390px and1440px. Existing publication
+store30, person10, runtime48, continuity store12/compiler16/client25,
+creator-export69, retained-account112, persontables, schema mirror, sqlcast and
+TypeScript checks passed. The combined link-first email-auth patch passed54 locale
+controls, its link/code suite, recovery, redirect,8 mounted locale views and8 CSS
+checks. Copy passed6scopes and21negative controls.
+
+The frozen acceptance inventory contains29 typed SQL shapes. A root-only runner
+is prepared for real two-session mint-cap and double-redemption races, with
+`pg_blocking_pids` witnesses and partial-seed cleanup, but neither PostgreSQL
+EXPLAIN nor either race was run here. No migration, provider, model, email,
+payment, network or cloud operation ran. These checks prove local control flow,
+wire compatibility and mounted UI behavior; they do not prove PostgreSQL parser
+or concurrency behavior, delivery email, payment collection or customer value.

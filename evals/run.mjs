@@ -70,6 +70,8 @@ const suites = {
   "azure-build-config": "azure-build-config/run.mjs",
   "recorded-listening-pack": "voice-listening-benchmark/recorded-run.mjs",
   "text-publication-store": "text-publication-store/run.mjs",
+  "text-publication-access-pass": "text-publication-access-pass/run.mjs",
+  "text-publication-access-passes-mounted": "text-publication-access-passes-mounted.mjs",
   "person-publication-store": "text-publication-store/person.mjs",
   "person-publication-ui": "text-publication-ui/person-profile.mjs",
   "publication-continuity-store": "publication-continuity-store.mjs",

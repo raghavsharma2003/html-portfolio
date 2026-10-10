@@ -25674,3 +25674,22 @@ and preserve a visible fixed spoken sample on an older CPU. Keep profile changes
 explicit and typed, with a fresh question after applying them. Reverse the lexical
 selection when a scoped, budgeted multilingual retrieval implementation beats it
 on matched evidence tests; reverse the voice arm only after fresh listening proof.
+
+## `text-publication-access-passes-20261010`
+
+Give an owner one immutable publication choice: open access or access by a
+single-use pass. A pass is an unguessable plaintext credential returned exactly
+once, stored only as a hash, and atomically bound to the first authenticated
+visitor who redeems it. That visitor may rejoin without presenting the pass;
+another visitor and a replay may not. This is private access the owner can hand
+to someone whose payment they confirmed elsewhere. It is not a payment receipt,
+price, checkout or claim that Vyakti collected money.
+
+This is the smallest sellable core because the personal text publication already
+answers grounded questions and keys continuity by publication plus visitor. The
+existing payment authority is Room follower authority and cannot be copied onto
+a publication visitor without a new cross-product identity and payout contract.
+Reverse this decision when an actually configured payment provider and a reviewed
+publication-specific charge, refund, renewal and payout contract can replace
+manual entitlement without weakening the atomic visitor binding or legacy open
+publication behavior.

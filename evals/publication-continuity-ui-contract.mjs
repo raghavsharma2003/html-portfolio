@@ -71,7 +71,9 @@ check('memory changes cannot strand a completed request receipt', () => {
   assert.match(app, /action === "memory" && \(!admission \|\| !memory\?\.policy_hash \|\| requestId && \(!request \|\| request\.state === "pending" \|\| request\.state === "uncertain"\)\)/);
   const change = app.slice(app.indexOf('} else if (action === "memory")'), app.indexOf('} else if (action === "forget")'));
   assert.match(change, /saveReceipt\(null\); setAdmission\(null\); setRequest\(null\); setRejoinRequired\(true\)/);
-  const failure = app.slice(app.indexOf('} catch {\n      if (generation.current === revision && action === "memory")'));
+  const failureStart = app.indexOf('if (generation.current === revision && action === "memory")');
+  assert.notEqual(failureStart, -1);
+  const failure = app.slice(failureStart);
   assert.match(failure, /setMemoryError\(true\); setAdmission\(null\); setRequest\(null\); setRejoinRequired\(true\)/);
   assert.doesNotMatch(failure.slice(0, failure.indexOf('const unresolved')), /saveReceipt\(null\)/);
 });

@@ -13,6 +13,10 @@ const copy = [
   "src/studio/personalAuthCopyRegistry.ts",
   "src/studio/hiPersonalAuthCopy.ts",
 ].map((file) => readFileSync(join(ROOT, file), "utf8")).join("\n");
+const personalCopy = [
+  "src/studio/personalAuthCopyRegistry.ts",
+  "src/studio/hiPersonalAuthCopy.ts",
+].map((file) => readFileSync(join(ROOT, file), "utf8")).join("\n");
 const auth = readFileSync(join(ROOT, "src/studio/studioAuth.ts"), "utf8");
 const session = readFileSync(join(ROOT, "src/studio/session.ts"), "utf8");
 const entry = readFileSync(join(ROOT, "src/studio/PersonalStudioEntry.tsx"), "utf8");
@@ -37,13 +41,14 @@ function ok(name, condition) {
 
 ok("NEGATIVE CONTROL: code-only delivery copy is detected",
   /sent a six-digit code/i.test("We sent a six-digit code to you@example.com."));
-ok("email delivery truthfully supports a link and an optional code",
-  /We sent a sign-in email/.test(copy)
-  && /Open its link/.test(copy)
-  && /If the email also shows a six-digit code/.test(copy)
-  && /Six-digit code \(optional\)/.test(copy)
+ok("email delivery truthfully leads with a link and reveals code entry only when present",
+  /Check \{email\} for a sign-in email/.test(personalCopy)
+  && /If it arrives, open its link/.test(personalCopy)
+  && /My email includes a six-digit code/.test(personalCopy)
+  && /<details className="auth-code-fallback">/.test(studio)
+  && /<summary>\{t\.optionalCodeDivider\}<\/summary>/.test(studio)
   && /t.inboxBodyTemplate/.test(studio) && /t.codeLabel/.test(studio)
-  && !/We sent a six-digit code/.test(studio));
+  && !/We sent a sign-in email|We sent a six-digit code|हमने[^\n]*ईमेल भेजा/.test(personalCopy));
 ok("the email link callback is already a real session path",
   /consumeStudioOAuthCallback/.test(session)
   && /window\.location\.hash\.includes\("access_token="\)/.test(auth)
@@ -53,11 +58,18 @@ ok("the original tab notices link completion in a second tab",
   && /addEventListener\("focus", checkStorage\)/.test(studio)
   && /acceptLinkedSession\(false\)/.test(studio));
 ok("the user has an explicit, non-destructive link recovery check",
-  /I opened the email link/.test(copy)
+  /Continue after opening the link/.test(copy)
   && /acceptLinkedSession\(true\)/.test(studio)
   && /Sign-in has not reached this tab yet/.test(copy));
+ok("known email platform refusals name setup and keep Google actionable",
+  /email_address_not_authorized/.test(auth)
+  && /smtp_not_configured/.test(auth)
+  && /isStudioEmailUnavailable\(cause\) \? "emailUnavailableError"/.test(authGate)
+  && /Email sign-in is not available for this address/.test(personalCopy)
+  && /Continue with Google/.test(personalCopy));
 ok("code entry keeps browser OTP autofill and exact validation",
-  /autoComplete="one-time-code"/.test(studio)
+  /auth-code-fallback/.test(studio)
+  && /autoComplete="one-time-code"/.test(studio)
   && /replace\(\/\\D\/g, ""\)\.slice\(0, 6\)/.test(studio)
   && /code\.length !== 6/.test(studio));
 ok("session expiry explains itself and preserves the intended destination",

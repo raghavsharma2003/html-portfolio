@@ -19457,3 +19457,40 @@ exact pending/settled assertions; no forced clicks or broader success condition.
 Root also found that admin-created synthetic accounts had bypassed a real email
 delivery restriction: custom SMTP is off, so arbitrary addresses cannot receive
 the default sign-in message. A healthy Auth settings endpoint cannot prove delivery.
+
+## `room-payment-authority-is-not-publication-access-20261010`
+
+The first considered shortcut was to expose the existing Room Subscribe action
+on the personal text publication. Source tracing rejected it before code changes.
+`startFollowerSubscription` derives its person, follower, Room and price from a
+signed Room session; a publication join has a publication visitor and no Room,
+follower, price, renewal or payout identity. Supplying synthetic Room identifiers,
+copying only the provider call, or treating a checkout URL as entitlement would
+create a paid-looking control whose webhook cannot authorize the publication.
+
+The second rejected shortcut was a shared publication secret in the URL. It can
+be forwarded, leaks through browser history and referrers, and cannot distinguish
+two returning visitors. The replacement is a one-use plaintext pass shown once,
+hashed at rest, sent only in an authenticated POST body and atomically claimed by
+one visitor. Online payment remains a later contract rather than a fake success
+state in this slice.
+
+## `access-pass-snapshot-count-and-revoke-reread-20261010`
+
+The first create statement locked the publication row and then counted separate
+pass rows in the same SQL statement. PostgreSQL keeps the statement snapshot
+while waiting for a row lock, so a second creator could wake after the first
+commit and still count the old number of passes. A lock did not make that count
+fresh. The replacement keeps an issuance counter on the publication row and
+updates it only when `current + requested <= 100`; PostgreSQL rechecks that row
+predicate after the wait, and an insert failure rolls the counter update back in
+the same statement.
+
+The first revoke statement updated the pass in one CTE and selected the pass
+again from the base table in its final query. The final read could see the
+statement's old snapshot and return `available` or `claimed` after the write had
+committed. The replacement returns the changed row directly from `UPDATE ...
+RETURNING`, with a separate locked-row branch only when it was already revoked.
+Offline predicate controls pass. The prepared two-session PostgreSQL mint and
+redemption runner is not live evidence until root executes it against the exact
+development schema.

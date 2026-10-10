@@ -33,6 +33,7 @@ export interface PersonalAuthCopy {
   differentEmail: string;
   linkNotReadyError: string;
   sendError: string;
+  emailUnavailableError: string;
   networkError: string;
   rateLimitError: string;
   serviceUnavailableError: string;

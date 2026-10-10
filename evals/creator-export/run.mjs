@@ -345,6 +345,10 @@ function seedWorld() {
       { publication_id:'publication-a-revoked',replica_id:REPLICA_A,owner_user_id:OWNER_A,state:'revoked',projection:null,receipt:null },
       { publication_id:'publication-b',replica_id:REPLICA_B,owner_user_id:OWNER_B,projection:{marker:'FOREIGN_PUBLICATION'} },
     ],
+    vy_text_publication_access_pass:[
+      {pass_id:'pass-a',publication_id:'publication-a',replica_id:REPLICA_A,owner_user_id:OWNER_A,code_hash:'PRIVATE_PASS_HASH',visitor_user_id:'visitor-a'},
+      {pass_id:'pass-b',publication_id:'publication-b',replica_id:REPLICA_B,owner_user_id:OWNER_B,code_hash:'FOREIGN_PASS_HASH',visitor_user_id:'visitor-b'},
+    ],
     vy_text_publication_visitor:[{publication_id:'publication-a',replica_id:REPLICA_A,owner_user_id:OWNER_A,visitor_user_id:'visitor-a',admission:{marker:FOLLOWER_TOKEN}}],
     vy_text_publication_request:[{request_id:'request-a',publication_id:'publication-a',replica_id:REPLICA_A,owner_user_id:OWNER_A,visitor_user_id:'visitor-a',question_envelope:{ciphertext:FOLLOWER_TOKEN}}],
     vy_creator_payout: [
@@ -422,6 +426,9 @@ ok('publication export excludes foreign owner and visitor admission/request reco
   !dumpJson.includes('FOREIGN_PUBLICATION') && !dumpJson.includes(FOLLOWER_TOKEN)
   && !('vy_text_publication_visitor' in dump.tables) && !('vy_text_publication_request' in dump.tables));
 ok('publication manifest reports the actual own count',dump.manifest.find(m=>m.table==='vy_text_publication')?.rows===2);
+ok('access-pass export reports only the own count and exposes no hash or visitor binding',
+  dump.manifest.find(m=>m.table==='vy_text_publication_access_pass')?.rows===1
+  && !('vy_text_publication_access_pass' in dump.tables) && !dumpJson.includes('PRIVATE_PASS_HASH') && !dumpJson.includes('visitor-a'));
 {
   const query=scopedQuery({table:'vy_text_publication',scope:'replica'},{replicaIds:[REPLICA_A,REPLICA_B],ownerUserId:OWNER_A});
   const rows=await db(query.sql,query.params);

@@ -33,6 +33,26 @@ if(communication162.length) {
     and e.agent_id=v.agent_id and e.person_id=v.person_id and e.room_memory_follower_id is not null))`);
 }
 
+const accessPass173 = await q(`select 1 from information_schema.tables
+ where table_schema='public' and table_name='vy_text_publication_access_pass'`);
+if (accessPass173.length) {
+  check("publication access passes bind exactly one live visitor", `select count(*)::integer n from (
+    select a.pass_id from vy_text_publication_access_pass a
+    left join vy_text_publication_visitor v on v.publication_id=a.publication_id
+      and v.visitor_user_id=a.visitor_user_id and v.access_pass_id=a.pass_id
+    where (a.state='claimed' and (a.visitor_user_id is null or a.claimed_at is null or v.publication_id is null))
+      or (a.state='available' and (a.visitor_user_id is not null or a.claimed_at is not null))
+      or (a.state='revoked' and a.revoked_at is null)
+    union all
+    select v.access_pass_id from vy_text_publication_visitor v
+    join vy_text_publication p on p.publication_id=v.publication_id
+    left join vy_text_publication_access_pass a on a.pass_id=v.access_pass_id
+      and a.publication_id=v.publication_id and a.visitor_user_id=v.visitor_user_id
+      and a.state='claimed' and a.expires_at>now()
+    where p.terms->>'access_mode'='pass' and v.admission is not null and a.pass_id is null
+  ) broken`);
+}
+
 // 159 adds only columns to tables already in PERSON_TABLES and already named
 // by full replica erasure. The FK walk below must additionally verify the two
 // source-parent cascades; explicit cited-child cleanup is a trigger, not an FK.

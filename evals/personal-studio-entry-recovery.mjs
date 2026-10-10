@@ -105,7 +105,8 @@ try {
   await page.evaluate(() => window.startRelogin());
   await page.locator("#studio-email").waitFor();
   assert.equal(await page.locator("#studio-email").inputValue(), "owner@example.com", "the internal sign-out preserves the owner context for relogin");
-  await page.getByRole("button", { name: "Email me a sign-in link", exact: true }).click();
+  await page.getByRole("button", { name: "Request a sign-in link", exact: true }).click();
+  await page.getByText("My email includes a six-digit code", { exact: true }).click();
   await page.locator("#studio-code").waitFor();
   await page.locator("#studio-code").fill("123456");
   await page.getByRole("button", { name: "Verify and enter", exact: true }).click();

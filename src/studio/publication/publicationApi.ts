@@ -6,6 +6,7 @@ export type PublicationTerms = {
   visitor_question_limit: 20; total_question_limit: 200;
   budget_microusd: number; quota_policy: "admission_counts";
   memory: false | "optional_visitor_continuity_v1"; voice: false;
+  access_mode?: "pass";
   memory_policy_hash?: string; memory_policy?: string; memory_max_exchanges?: 3; memory_max_units?: 3000;
 };
 export type Publication = {
@@ -54,6 +55,11 @@ export type PublicationAdmission = {
 };
 export type PublicationMemory = { available: boolean; enabled: boolean; epoch: string; policy_hash: string | null; policy: string | null };
 export type PublicationMemoryChoice = { remember: boolean; expected_memory_epoch: string; expected_memory_policy_hash: string };
+export type PublicationAccessPass = {
+  pass_id: string; state: "available" | "claimed" | "revoked";
+  created_at: string; expires_at: string; claimed_at?: string; revoked_at?: string;
+};
+export type CreatedPublicationAccessPass = PublicationAccessPass & { code: string };
 const OWNER = "/api/replica-text-publication";
 const VISITOR = "/api/text-publication";
 const invalid = (): never => { throw new Error("publication_response_invalid"); };
@@ -66,6 +72,7 @@ export function validatePublication(value: unknown, publicId?: string): Publicat
       value.can_voice !== false || typeof value.can_text !== "boolean" || !record(value.terms)) invalid();
   const terms = value.terms as Record<string, unknown>;
   if (terms.audience !== "signed_in_adult_attestation" || terms.voice !== false ||
+      terms.access_mode !== undefined && terms.access_mode !== "pass" ||
       terms.quota_policy !== "admission_counts" || terms.publication_days !== 30 || terms.retention_days !== 30 ||
       terms.visitor_question_limit !== 20 || terms.total_question_limit !== 200 ||
       typeof terms.budget_microusd !== "number" || !Number.isSafeInteger(terms.budget_microusd) || terms.budget_microusd <= 0) invalid();
@@ -73,6 +80,16 @@ export function validatePublication(value: unknown, publicId?: string): Publicat
       typeof terms.memory_policy_hash !== "string" || !/^[a-f0-9]{64}$/.test(terms.memory_policy_hash) ||
       typeof terms.memory_policy !== "string" || !terms.memory_policy.trim() || terms.memory_max_exchanges !== 3 || terms.memory_max_units !== 3000) invalid();
   return value as unknown as Publication;
+}
+function validateAccessPass(value: unknown, codeExpected: boolean): PublicationAccessPass | CreatedPublicationAccessPass {
+  const timestamp = (candidate: unknown) => typeof candidate === "string" && Number.isFinite(Date.parse(candidate));
+  if (!record(value) || typeof value.pass_id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.pass_id) ||
+      !["available", "claimed", "revoked"].includes(String(value.state)) ||
+      !timestamp(value.created_at) || !timestamp(value.expires_at) ||
+      (value.claimed_at !== undefined && !timestamp(value.claimed_at)) ||
+      (value.revoked_at !== undefined && !timestamp(value.revoked_at)) ||
+      (codeExpected ? typeof value.code !== "string" || !/^[A-Za-z0-9_-]{32}$/.test(value.code) : value.code !== undefined)) invalid();
+  return value as unknown as PublicationAccessPass | CreatedPublicationAccessPass;
 }
 export function validatePublicationMemory(value: unknown): PublicationMemory {
   if (!record(value) || typeof value.available !== "boolean" || typeof value.enabled !== "boolean" ||
@@ -98,11 +115,12 @@ export function validateOwnedPublication(value: unknown, publicId: string): Publ
 const post = <T>(token: string, path: string, body: unknown, signal?: AbortSignal) =>
   replicaRequest<T>(token, path, { method: "POST", body: JSON.stringify(body), signal });
 
-export async function publicationReadiness(token: string, replicaId: string, sheetId = "", itemId = "", signal?: AbortSignal, allowMemory = false) {
+export async function publicationReadiness(token: string, replicaId: string, sheetId = "", itemId = "", signal?: AbortSignal, allowMemory = false, accessMode: "open" | "pass" = "open") {
   const query = new URLSearchParams({ op: "readiness", replica_id: replicaId });
   if (sheetId) query.set("sheet_id", sheetId);
   if (itemId) query.set("context_item_id", itemId);
   if (allowMemory) query.set("allow_memory", "true");
+  if (accessMode === "pass") query.set("access_mode", "pass");
   const data = await replicaRequest<{ readiness: PublicationReadiness }>(token, `${OWNER}?${query}`, { signal });
   if (!data.readiness || !Array.isArray(data.readiness.drafts) || !Array.isArray(data.readiness.context_items) ||
       !Array.isArray(data.readiness.statements) || !Array.isArray(data.readiness.publications) || !Array.isArray(data.readiness.blockers))
@@ -126,11 +144,25 @@ export async function publicationReadiness(token: string, replicaId: string, she
 export const publishMaterial = (token: string, body: {
   replica_id: string; sheet_id: string; context_item_id: string; publication_id: string;
   expected_review_hash: string; statement_set: string; attestations: Record<string, boolean>;
+  access_mode?: "pass";
 }) => post<{ publication: Publication | PublicationTombstone }>(token, OWNER, { op: "publish", ...body }).then(data => ({ publication: validateOwnedPublication(data.publication, body.publication_id) }));
 export const publicationStatus = (token: string, replicaId: string, publicationId: string, signal?: AbortSignal) =>
   replicaRequest<{ publication: Publication | PublicationTombstone }>(token, `${OWNER}?${new URLSearchParams({ op: "status", replica_id: replicaId, publication_id: publicationId })}`, { signal }).then(data => ({ publication: validateOwnedPublication(data.publication, publicationId) }));
 export const unpublishMaterial = (token: string, replicaId: string, publicationId: string) =>
   post<{ publication: Publication | PublicationTombstone }>(token, OWNER, { op: "unpublish", replica_id: replicaId, publication_id: publicationId }).then(data => ({ publication: validateOwnedPublication(data.publication, publicationId) }));
+export const listPublicationAccessPasses = (token: string, replicaId: string, publicationId: string, signal?: AbortSignal) =>
+  replicaRequest<{ passes: unknown[] }>(token, `${OWNER}?${new URLSearchParams({ op: "access_passes", replica_id: replicaId, publication_id: publicationId })}`, { signal }).then(data => {
+    if (!Array.isArray(data.passes)) invalid();
+    return data.passes.map(pass => validateAccessPass(pass, false) as PublicationAccessPass);
+  });
+export const createPublicationAccessPasses = (token: string, replicaId: string, publicationId: string, count: number) =>
+  post<{ passes: unknown[] }>(token, OWNER, { op: "create_access_passes", replica_id: replicaId, publication_id: publicationId, count }).then(data => {
+    if (!Array.isArray(data.passes) || data.passes.length !== count) invalid();
+    return data.passes.map(pass => validateAccessPass(pass, true) as CreatedPublicationAccessPass);
+  });
+export const revokePublicationAccessPass = (token: string, replicaId: string, publicationId: string, passId: string) =>
+  post<{ pass: unknown }>(token, OWNER, { op: "revoke_access_pass", replica_id: replicaId, publication_id: publicationId, pass_id: passId })
+    .then(data => validateAccessPass(data.pass, false) as PublicationAccessPass);
 export async function openPublication(publicId: string, signal?: AbortSignal): Promise<Publication> {
   const response = await fetch(`${VISITOR}?${new URLSearchParams({ op: "open", public_id: publicId })}`, {
     signal: signal || AbortSignal.timeout(20_000), cache: "no-store",
@@ -139,9 +171,9 @@ export async function openPublication(publicId: string, signal?: AbortSignal): P
   if (!response.ok || !data?.publication || typeof data.publication.title !== "string") throw new Error("publication_unavailable");
   return validatePublication(data.publication, publicId);
 }
-export const joinPublication = (token: string, publicId: string, disclosureHash: string, memory?: PublicationMemoryChoice) =>
+export const joinPublication = (token: string, publicId: string, disclosureHash: string, memory?: PublicationMemoryChoice, accessPass?: string) =>
   post<PublicationAdmission>(token, VISITOR, { op: "join", public_id: publicId, expected_disclosure_hash: disclosureHash,
-    is_adult: true, accept_ai_disclosure: true, accept_retention: true, ...memory }).then(data => {
+    is_adult: true, accept_ai_disclosure: true, accept_retention: true, ...memory, ...(accessPass ? { access_pass: accessPass } : {}) }).then(data => {
       validatePublication(data.publication, publicId);
       if (typeof data.session_token !== "string" || data.session_token.length < 16 || !Number.isSafeInteger(data.remaining_questions) || data.remaining_questions < 0) invalid();
       if (data.publication.version === 2 || data.memory !== undefined) validatePublicationMemory(data.memory);

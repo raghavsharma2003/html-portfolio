@@ -1,4 +1,4 @@
-import {randomBytes,createHmac,timingSafeEqual} from 'node:crypto';
+import {randomBytes,randomUUID,createHmac,timingSafeEqual} from 'node:crypto';
 import {canonicalJson,sha256Hex} from './_provenance/contracts.js';
 import {REPLICA_POLICY_VERSION as POLICY} from './_replica.js';
 import {readPublicationSelection,PRIVATE_TEXT_CHOICES_SQL} from './_text-publication-source.js';
@@ -27,6 +27,8 @@ export const PERSON_PUBLICATION_V2_STATEMENTS=personStatements(TEXT_PUBLICATION_
 const publicationPolicy=(v2,person=false)=>({person,memory:v2,scope:person?(v2?PERSON_PUBLICATION_V2_STATEMENT_SET:PERSON_PUBLICATION_STATEMENT_SET):(v2?TEXT_PUBLICATION_V2_STATEMENT_SET:TEXT_PUBLICATION_STATEMENT_SET),statements:person?(v2?PERSON_PUBLICATION_V2_STATEMENTS:PERSON_PUBLICATION_STATEMENTS):(v2?TEXT_PUBLICATION_V2_STATEMENTS:TEXT_PUBLICATION_STATEMENTS)});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HASH=/^[0-9a-f]{64}$/;
+const ACCESS_PASS_MODE='pass',ACCESS_PASS_CREATE_MAX=20,ACCESS_PASS_PUBLICATION_MAX=100;
+const ACCESS_PASS_CODE=/^[A-Za-z0-9_-]{32}$/;
 const hash=v=>sha256Hex(canonicalJson(v));
 const json=v=>typeof v==='string'?JSON.parse(v):v;
 const envOf=o=>o?.env||process.env;
@@ -62,9 +64,16 @@ export function publicationProjection(draft){
  if(draft.pacePreference!==undefined){if(!['push','balanced','drill'].includes(draft.pacePreference))fail('text_publication_projection_invalid',400);p.pacePreference=draft.pacePreference;}
  if(!p.name||!['physics','chemistry','maths'].includes(p.subjectDomain)||JSON.stringify(p).length>7000)fail('text_publication_projection_invalid',400);return p;
 }
-export function textPublicationTerms(env=process.env,allowMemory=false){
+function accessMode(value){if(value===undefined||value===null||value===''||value==='open')return 'open';if(value===ACCESS_PASS_MODE)return ACCESS_PASS_MODE;fail('text_publication_access_mode_invalid',400);}
+function publicationAccessMode(publication){return accessMode(json(publication?.terms)?.access_mode);}
+function accessPassCode(value){const code=typeof value==='string'?value.trim():'';if(!ACCESS_PASS_CODE.test(code))fail('text_publication_access_required',403);return code;}
+const accessPassHash=code=>sha256Hex('vyakti.text-publication-access-pass.v1\0'+code);
+const accessPassWire=row=>({pass_id:String(row.pass_id),state:String(row.state),created_at:row.created_at,expires_at:row.expires_at,
+ ...(row.claimed_at?{claimed_at:row.claimed_at}:{}),...(row.revoked_at?{revoked_at:row.revoked_at}:{})});
+export function textPublicationTerms(env=process.env,allowMemory=false,requestedAccessMode='open'){
  const usd=Number(env.TEXT_PUBLICATION_BUDGET_USD);if(!Number.isFinite(usd)||usd<=0||usd>10||Math.floor(usd*1e6)<1)fail('text_publication_budget_unavailable',503);
- return {audience:'signed_in_adult_attestation',publication_days:30,retention_days:30,visitor_question_limit:20,total_question_limit:200,budget_microusd:Math.floor(usd*1e6),quota_policy:'admission_counts',memory:allowMemory?PUBLICATION_MEMORY_MODE:false,voice:false,...(allowMemory?{memory_policy:PUBLICATION_MEMORY_POLICY,memory_policy_hash:PUBLICATION_MEMORY_POLICY_HASH,memory_max_exchanges:3,memory_max_units:3000}:{})};
+ const mode=accessMode(requestedAccessMode);
+ return {audience:'signed_in_adult_attestation',publication_days:30,retention_days:30,visitor_question_limit:20,total_question_limit:200,budget_microusd:Math.floor(usd*1e6),quota_policy:'admission_counts',memory:allowMemory?PUBLICATION_MEMORY_MODE:false,voice:false,...(allowMemory?{memory_policy:PUBLICATION_MEMORY_POLICY,memory_policy_hash:PUBLICATION_MEMORY_POLICY_HASH,memory_max_exchanges:3,memory_max_units:3000}:{}),...(mode===ACCESS_PASS_MODE?{access_mode:ACCESS_PASS_MODE}:{})};
 }
 const reviewHash=(owner,rid,s,p,terms)=>hash({scope:publicationPolicy(terms.memory===PUBLICATION_MEMORY_MODE,p.sheetKind==='person').scope,owner_user_id:owner,replica_id:rid,snapshot:s.snapshot,projection:p,terms,disclosure:TEXT_PUBLICATION_DISCLOSURE});
 export const TEXT_PUBLICATION_READ_SQL=`select * from vy_text_publication where publication_id=$1::uuid`;
@@ -78,6 +87,7 @@ function summary(p,owned=false){
 async function currentPublication(db,p){
  if(p.state!=='active'||new Date(p.expires_at).getTime()<=Date.now())fail('text_publication_unavailable');
  const receipt=json(p.receipt),snapshot=json(p.snapshot),projection=json(p.projection),policy=publicationPolicy(Number(p.version)===2,projection?.sheetKind==='person');
+ publicationAccessMode(p);
  if(hash(publicationProjection(projection))!==hash(projection))fail('text_publication_unavailable');
  if(![1,2].includes(Number(p.version))||(Number(p.version)===2&&!publicationHasMemory(p))||(Number(p.version)===1&&json(p.terms).memory!==false))fail('text_publication_unavailable');
  if(!receipt||receipt.scope!==policy.scope||receipt.owner_user_id!==p.owner_user_id||receipt.replica_id!==p.replica_id||receipt.publication_id!==p.publication_id||receipt.review_hash!==p.review_hash||hash(receipt)!==p.receipt_hash||policy.statements.some(s=>receipt.attestations?.[s.id]!==true)||receipt.expires_at!==new Date(p.expires_at).toISOString()||hash(projection)!==receipt.projection_hash||hash(json(p.terms))!==receipt.terms_hash||sha256Hex(p.disclosure)!==p.disclosure_hash)fail('text_publication_unavailable');
@@ -131,12 +141,18 @@ export const TEXT_PUBLICATION_MEMORY_SCHEMA_SQL=`select count(*)=7 as available 
  where not a.attisdropped and a.attnum>0 and (
  (a.attrelid=to_regclass('vy_text_publication_visitor') and a.attname in ('memory_enabled','memory_epoch','memory_policy_hash','memory_choice_at'))
  or (a.attrelid=to_regclass('vy_text_publication_request') and a.attname in ('memory_epoch','memory_refs','memory_refs_hash')))`;
+export const TEXT_PUBLICATION_ACCESS_SCHEMA_SQL=`select count(*)=7 as available from pg_attribute a
+ where not a.attisdropped and a.attnum>0 and (
+ (a.attrelid=to_regclass('vy_text_publication') and a.attname='access_pass_issued_count')
+ or (a.attrelid=to_regclass('vy_text_publication_visitor') and a.attname='access_pass_id')
+ or (a.attrelid=to_regclass('vy_text_publication_access_pass') and a.attname in ('pass_id','publication_id','code_hash','state','visitor_user_id')))`;
 export async function readTextPublicationReadiness(db,owner,input,options={}){
  const rid=uuid(input.replica_id),row=(await db(PRIVATE_TEXT_CHOICES_SQL,[rid,uuid(owner)]))[0];if(!row)fail('text_publication_not_found',404);
- const blockers=[];let selected=null,terms;const allowMemory=input.allow_memory===true||input.allow_memory==='true';let policy=publicationPolicy(allowMemory);
+ const blockers=[];let selected=null,terms;const allowMemory=input.allow_memory===true||input.allow_memory==='true',requestedAccessMode=accessMode(input.access_mode);let policy=publicationPolicy(allowMemory);
  if(row.active_candidate_binding_required===true)blockers.push({code:'candidate_binding_required',responsibility:'platform'});
  if(allowMemory)try{if((await db(TEXT_PUBLICATION_MEMORY_SCHEMA_SQL,[]))[0]?.available!==true)fail('text_publication_memory_schema_unavailable',503);}catch{blockers.push({code:'text_publication_memory_schema_unavailable',responsibility:'platform'});}
- try{textPublicationKey(envOf(options));terms=textPublicationTerms(envOf(options),allowMemory);if(String(envOf(options).CRON_SECRET||'').length<24)fail('text_publication_retention_unavailable',503);}catch(e){blockers.push({code:e.code,responsibility:'platform'});}
+ if(requestedAccessMode===ACCESS_PASS_MODE)try{if((await db(TEXT_PUBLICATION_ACCESS_SCHEMA_SQL,[]))[0]?.available!==true)fail('text_publication_access_schema_unavailable',503);}catch{blockers.push({code:'text_publication_access_schema_unavailable',responsibility:'platform'});}
+ try{textPublicationKey(envOf(options));terms=textPublicationTerms(envOf(options),allowMemory,requestedAccessMode);if(String(envOf(options).CRON_SECRET||'').length<24)fail('text_publication_retention_unavailable',503);}catch(e){blockers.push({code:e.code,responsibility:'platform'});}
  if(input.sheet_id&&input.context_item_id){
   if(!row.active_candidate_binding_required)try{const s=await readPublicationSelection(db,owner,input),p=publicationProjection(s.draft),long=s.row.body.length>PRIVATE_TEXT_EVIDENCE_BUDGET;
    policy=publicationPolicy(allowMemory,p.sheetKind==='person');if(terms)selected={review_hash:reviewHash(owner,rid,s,p,terms),source_name:s.row.source_name,projection:p,
@@ -158,11 +174,12 @@ export const TEXT_PUBLICATION_PUBLISH_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE}
  select $8::uuid,$1::uuid,$2::uuid,$3::uuid,($4::jsonb->>'context_item_id')::uuid,($4::jsonb->>'sheet_id')::uuid,$10,$11,($4::jsonb-'fence_epoch'),$5::jsonb,$12::jsonb,$13,$14,$15,$16::jsonb,$17::timestamptz,case when $12::jsonb->>'scope' in ('account-material-publication/v2','account-person-material-publication/v2') then 2 else 1 end from claimed_id
  on conflict do nothing returning publication_id`;
 export async function publishTextPublication(db,owner,input,options={}){
- const rid=uuid(input.replica_id),id=uuid(input.publication_id);uuid(owner);const policy=publicationPolicy([TEXT_PUBLICATION_V2_STATEMENT_SET,PERSON_PUBLICATION_V2_STATEMENT_SET].includes(input.statement_set),[PERSON_PUBLICATION_STATEMENT_SET,PERSON_PUBLICATION_V2_STATEMENT_SET].includes(input.statement_set));
+ const rid=uuid(input.replica_id),id=uuid(input.publication_id),requestedAccessMode=accessMode(input.access_mode);uuid(owner);const policy=publicationPolicy([TEXT_PUBLICATION_V2_STATEMENT_SET,PERSON_PUBLICATION_V2_STATEMENT_SET].includes(input.statement_set),[PERSON_PUBLICATION_STATEMENT_SET,PERSON_PUBLICATION_V2_STATEMENT_SET].includes(input.statement_set));
  if(input.statement_set!==policy.scope||policy.statements.some(s=>input.attestations?.[s.id]!==true)||!HASH.test(input.expected_review_hash||''))fail('text_publication_attestation_required',400);
- const requestHash=hash({replica_id:rid,publication_id:id,sheet_id:uuid(input.sheet_id),context_item_id:uuid(input.context_item_id),review_hash:input.expected_review_hash,statement_set:input.statement_set,attestations:Object.fromEntries(policy.statements.map(s=>[s.id,true]))});
+ if(requestedAccessMode===ACCESS_PASS_MODE){let schema;try{schema=(await db(TEXT_PUBLICATION_ACCESS_SCHEMA_SQL,[]))[0];}catch{fail('text_publication_access_schema_unavailable',503);}if(schema?.available!==true)fail('text_publication_access_schema_unavailable',503);}
+ const requestHash=hash({replica_id:rid,publication_id:id,sheet_id:uuid(input.sheet_id),context_item_id:uuid(input.context_item_id),review_hash:input.expected_review_hash,statement_set:input.statement_set,attestations:Object.fromEntries(policy.statements.map(s=>[s.id,true])),...(requestedAccessMode===ACCESS_PASS_MODE?{access_mode:ACCESS_PASS_MODE}:{})});
  const existing=(await db(TEXT_PUBLICATION_READ_SQL,[id]))[0];if(existing){if(existing.owner_user_id!==owner||existing.replica_id!==rid)fail('text_publication_not_found',404);if(existing.state==='revoked')return {created:false,publication:summary(existing,true)};if(existing.request_hash!==requestHash)fail('text_publication_request_conflict');return {created:false,publication:summary(existing,true)};}
- textPublicationKey(envOf(options));if(String(envOf(options).CRON_SECRET||'').length<24)fail('text_publication_retention_unavailable',503);const terms=textPublicationTerms(envOf(options),policy.memory),s=await readPublicationSelection(db,owner,input),projection=publicationProjection(s.draft),review=reviewHash(owner,rid,s,projection,terms);
+ textPublicationKey(envOf(options));if(String(envOf(options).CRON_SECRET||'').length<24)fail('text_publication_retention_unavailable',503);const terms=textPublicationTerms(envOf(options),policy.memory,requestedAccessMode),s=await readPublicationSelection(db,owner,input),projection=publicationProjection(s.draft),review=reviewHash(owner,rid,s,projection,terms);
  if(policy.person!==(projection.sheetKind==='person'))fail('text_publication_attestation_required',400);
  if(review!==input.expected_review_hash)fail('text_publication_review_changed');
  const now=new Date(),expires=new Date(now.getTime()+terms.publication_days*86400000).toISOString();
@@ -175,6 +192,74 @@ export async function publishTextPublication(db,owner,input,options={}){
 export async function readOwnedTextPublication(db,owner,input){const p=await publicationRow(db,input.publication_id);if(p.owner_user_id!==owner||p.replica_id!==uuid(input.replica_id))fail('text_publication_not_found',404);return summary(p,true);}
 export async function openTextPublication(db,_actor,input){const p=await publicationRow(db,input.public_id);const result=summary(p);if(result.can_text)try{await currentPublication(db,p);}catch{return {...result,state:'unavailable',can_text:false};}return result;}
 
+export const TEXT_PUBLICATION_ACCESS_PASS_CREATE_SQL=`with issued as (
+ update vy_text_publication p set access_pass_issued_count=p.access_pass_issued_count+cardinality($4::uuid[])
+ where p.publication_id=$1::uuid and p.owner_user_id=$2::uuid and p.replica_id=$3::uuid
+ and p.state='active' and p.expires_at>now() and p.terms->>'access_mode'='pass'
+ and p.access_pass_issued_count+cardinality($4::uuid[])<=$6::integer
+ returning p.publication_id,p.replica_id,p.owner_user_id,p.expires_at
+), inserted as (
+ insert into vy_text_publication_access_pass(pass_id,publication_id,replica_id,owner_user_id,code_hash,expires_at)
+ select x.pass_id,p.publication_id,p.replica_id,p.owner_user_id,x.code_hash,p.expires_at
+ from issued p cross join unnest($4::uuid[],$5::text[]) x(pass_id,code_hash)
+ returning pass_id,state,created_at,expires_at,claimed_at,revoked_at
+) select * from inserted order by created_at,pass_id`;
+async function ownedAccessPassPublication(db,owner,input,{active=false}={}){
+ const publicationId=uuid(input.publication_id),replicaId=uuid(input.replica_id),p=await publicationRow(db,publicationId);uuid(owner);
+ if(p.owner_user_id!==owner||p.replica_id!==replicaId)fail('text_publication_not_found',404);
+ if(publicationAccessMode(p)!==ACCESS_PASS_MODE)fail('text_publication_access_pass_unavailable',409);
+ if(active&&(p.state!=='active'||new Date(p.expires_at).getTime()<=Date.now()))fail('text_publication_access_pass_unavailable',409);
+ return p;
+}
+export async function createTextPublicationAccessPasses(db,owner,input,options={}){
+ const p=await ownedAccessPassPublication(db,owner,input,{active:true}),publicationId=p.publication_id,replicaId=p.replica_id;
+ const count=Number(input.count);if(!Number.isSafeInteger(count)||count<1||count>ACCESS_PASS_CREATE_MAX)fail('text_publication_access_pass_count_invalid',400);
+ const idFactory=options.randomUUID||randomUUID,byteFactory=options.randomBytes||randomBytes;
+ const created=Array.from({length:count},()=>{const code=accessPassCode(byteFactory(24).toString('base64url'));return{passId:uuid(idFactory()),code,codeHash:accessPassHash(code)};});
+ let rows;try{rows=await db(TEXT_PUBLICATION_ACCESS_PASS_CREATE_SQL,[publicationId,owner,replicaId,created.map(x=>x.passId),created.map(x=>x.codeHash),ACCESS_PASS_PUBLICATION_MAX]);}catch{fail('text_publication_access_pass_create_uncertain',503);}
+ if(rows.length!==count){
+  const current=await publicationRow(db,publicationId);
+  if(current.owner_user_id!==owner||current.replica_id!==replicaId)fail('text_publication_not_found',404);
+  if(current.state!=='active'||new Date(current.expires_at).getTime()<=Date.now()||publicationAccessMode(current)!==ACCESS_PASS_MODE)fail('text_publication_access_pass_unavailable',409);
+  if(Number(current.access_pass_issued_count)+count>ACCESS_PASS_PUBLICATION_MAX)fail('text_publication_access_pass_limit_reached',409);
+  fail('text_publication_access_pass_create_uncertain',503);
+ }
+ const byId=new Map(rows.map(row=>[String(row.pass_id),row]));
+ return{passes:created.map(item=>{const row=byId.get(item.passId);if(!row)fail('text_publication_access_pass_create_uncertain',503);return{...accessPassWire(row),code:item.code};})};
+}
+export const TEXT_PUBLICATION_ACCESS_PASS_LIST_SQL=`select a.pass_id,a.state,a.created_at,a.expires_at,a.claimed_at,a.revoked_at
+ from vy_text_publication_access_pass a join vy_text_publication p
+ on p.publication_id=a.publication_id and p.replica_id=a.replica_id and p.owner_user_id=a.owner_user_id
+ where a.publication_id=$1::uuid and a.owner_user_id=$2::uuid and a.replica_id=$3::uuid
+ order by a.created_at,a.pass_id limit 101`;
+export async function listTextPublicationAccessPasses(db,owner,input){
+ const p=await ownedAccessPassPublication(db,owner,input),rows=await db(TEXT_PUBLICATION_ACCESS_PASS_LIST_SQL,[p.publication_id,uuid(owner),p.replica_id]);
+ if(rows.length>ACCESS_PASS_PUBLICATION_MAX)fail('text_publication_access_pass_limit_invalid',503);
+ return{passes:rows.map(accessPassWire)};
+}
+export const TEXT_PUBLICATION_ACCESS_PASS_REVOKE_SQL=`with locked as materialized (
+ select a.* from vy_text_publication_access_pass a join vy_text_publication p
+ on p.publication_id=a.publication_id and p.replica_id=a.replica_id and p.owner_user_id=a.owner_user_id
+ where a.pass_id=$4::uuid and a.publication_id=$1::uuid and a.owner_user_id=$2::uuid and a.replica_id=$3::uuid
+ for update of a
+), revoked as (
+ update vy_text_publication_access_pass a set state='revoked',revoked_at=coalesce(a.revoked_at,now())
+ from locked l where a.pass_id=l.pass_id and a.state<>'revoked'
+ returning a.pass_id,a.state,a.created_at,a.expires_at,a.claimed_at,a.revoked_at
+), current_pass as (
+ select * from revoked
+ union all
+ select l.pass_id,l.state,l.created_at,l.expires_at,l.claimed_at,l.revoked_at from locked l where l.state='revoked'
+), invalidated as (
+ update vy_text_publication_visitor v set session_epoch=v.session_epoch+1,admission=null,admission_hash=null,expires_at=null,access_pass_id=null
+ from locked l where v.publication_id=l.publication_id and v.access_pass_id=l.pass_id
+ and ((select count(*) from revoked)>=0) returning v.publication_id
+) select c.* from current_pass c where (select count(*) from invalidated)>=0`;
+export async function revokeTextPublicationAccessPass(db,owner,input){
+ const p=await ownedAccessPassPublication(db,owner,input),rows=await db(TEXT_PUBLICATION_ACCESS_PASS_REVOKE_SQL,[p.publication_id,uuid(owner),p.replica_id,uuid(input.pass_id)]);
+ if(!rows[0])fail('text_publication_access_pass_not_found',404);return{pass:accessPassWire(rows[0])};
+}
+
 function sessionMac(body,env){return createHmac('sha256',textPublicationKey(env).key).update('vyakti.text-publication-session.v1\0').update(body).digest('base64url');}
 function sessionToken(p,v,env){const payload={public_id:p.publication_id,visitor_user_id:v.visitor_user_id,publication_epoch:String(p.epoch),session_epoch:String(v.session_epoch),admission_hash:v.admission_hash,disclosure_hash:p.disclosure_hash,expires_at:new Date(v.expires_at).toISOString(),...(publicationHasMemory(p)?{memory_epoch:String(v.memory_epoch),memory_policy_hash:v.memory_policy_hash}: {})};const body=Buffer.from(canonicalJson(payload)).toString('base64url');return body+'.'+sessionMac(body,env);}
 function readSession(token,visitor,publicId,env){
@@ -183,15 +268,24 @@ function readSession(token,visitor,publicId,env){
  let s;try{s=JSON.parse(Buffer.from(body,'base64url').toString('utf8'));}catch{fail('text_publication_session_invalid');}
  if(s.public_id!==publicId||s.visitor_user_id!==visitor||!/^\d+$/.test(s.session_epoch)||!/^\d+$/.test(s.publication_epoch)||!HASH.test(s.admission_hash||'')||!Number.isFinite(Date.parse(s.expires_at))||Date.parse(s.expires_at)<=Date.now())fail('text_publication_session_invalid');return s;
 }
+const VISITOR_ACCESS_GUARD=`(coalesce(p.terms->>'access_mode','open')='open' or exists(
+ select 1 from vy_text_publication_access_pass access where access.pass_id=v.access_pass_id
+ and access.publication_id=v.publication_id and access.replica_id=v.replica_id and access.owner_user_id=v.owner_user_id
+ and access.visitor_user_id=v.visitor_user_id and access.state='claimed' and access.expires_at>now()))`;
 const VISITOR_LOCK=`visitor as materialized(select v.* from vy_text_publication_visitor v join pub p on p.publication_id=v.publication_id
  where v.visitor_user_id=$10::uuid and v.replica_id=$1::uuid and v.owner_user_id=$2::uuid and v.session_epoch=$11::bigint
- and v.admission_hash=$12 and v.admission is not null and v.expires_at>now() for update of v)`;
+ and v.admission_hash=$12 and v.admission is not null and v.expires_at>now() and ${VISITOR_ACCESS_GUARD} for update of v)`;
 const authArgs=(p,s,session,visitor)=>[...fenceArgs(p,s),visitor,session.session_epoch,session.admission_hash];
+export const TEXT_PUBLICATION_VISITOR_AUTH_SQL=`select v.*,a.state access_pass_state,a.visitor_user_id access_pass_visitor,a.expires_at access_pass_expires_at
+ from vy_text_publication_visitor v left join vy_text_publication_access_pass a
+ on a.pass_id=v.access_pass_id and a.publication_id=v.publication_id
+ where v.publication_id=$1::uuid and v.visitor_user_id=$2::uuid`;
 async function visitorAuthority(db,visitor,input,options){
  const id=uuid(input.public_id);uuid(visitor);const session=readSession(input.session_token,visitor,id,envOf(options)),p=await publicationRow(db,id);
  if(String(p.epoch)!==session.publication_epoch||p.disclosure_hash!==session.disclosure_hash)fail('text_publication_session_invalid');const s=await currentPublication(db,p);
- const v=(await db(`select * from vy_text_publication_visitor where publication_id=$1::uuid and visitor_user_id=$2::uuid`,[id,visitor]))[0];
+ const v=(await db(TEXT_PUBLICATION_VISITOR_AUTH_SQL,[id,visitor]))[0];
  if(!v||!v.admission||String(v.session_epoch)!==session.session_epoch||v.admission_hash!==session.admission_hash||new Date(v.expires_at).getTime()<=Date.now()||hash(json(v.admission))!==v.admission_hash)fail('text_publication_session_invalid');
+ if(publicationAccessMode(p)===ACCESS_PASS_MODE&&(!v.access_pass_id||v.access_pass_state!=='claimed'||v.access_pass_visitor!==visitor||new Date(v.access_pass_expires_at).getTime()<=Date.now()))fail('text_publication_access_revoked',403);
  if(publicationHasMemory(p)&&(String(v.memory_epoch)!==session.memory_epoch||v.memory_policy_hash!==session.memory_policy_hash))fail('text_publication_memory_authority_changed');
  return {p,s,v,session};
 }
@@ -208,6 +302,37 @@ export const TEXT_PUBLICATION_JOIN_V2_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE}
  memory_enabled=$15::boolean,memory_epoch=v.memory_epoch+case when v.memory_enabled<>$15::boolean then 1 else 0 end,memory_policy_hash=$16,
  memory_choice_at=case when v.memory_enabled<>$15::boolean or v.memory_choice_at is null then now() else v.memory_choice_at end
  where v.memory_epoch=$14::bigint and (v.memory_policy_hash is null or v.memory_policy_hash=$16) returning *`;
+const PASS_ACCESS_CTES=codeParam=>`pass_claim as (
+ update vy_text_publication_access_pass a set state='claimed',visitor_user_id=$10::uuid,claimed_at=now()
+ from pub p where a.publication_id=p.publication_id and a.replica_id=p.replica_id and a.owner_user_id=p.owner_user_id
+ and p.terms->>'access_mode'='pass' and a.code_hash=${codeParam} and a.state='available' and a.visitor_user_id is null and a.expires_at>now()
+ and not exists(select 1 from vy_text_publication_access_pass existing where existing.publication_id=p.publication_id
+  and existing.visitor_user_id=$10::uuid and existing.state='claimed' and existing.expires_at>now())
+ returning a.pass_id,a.publication_id
+), bound_pass as (
+ select a.pass_id,a.publication_id from vy_text_publication_access_pass a join pub p using(publication_id)
+ where a.replica_id=p.replica_id and a.owner_user_id=p.owner_user_id and a.visitor_user_id=$10::uuid
+ and a.state='claimed' and a.expires_at>now()
+ union all select c.pass_id,c.publication_id from pass_claim c
+ where not exists(select 1 from vy_text_publication_access_pass existing where existing.publication_id=c.publication_id
+  and existing.visitor_user_id=$10::uuid and existing.state='claimed' and existing.pass_id<>c.pass_id and existing.expires_at>now())
+)`;
+export const TEXT_PUBLICATION_JOIN_PASS_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE},${PUB_LOCK},${PASS_ACCESS_CTES('$14')}
+ insert into vy_text_publication_visitor as v(publication_id,replica_id,owner_user_id,visitor_user_id,admission,admission_hash,expires_at,access_pass_id)
+ select p.publication_id,p.replica_id,p.owner_user_id,$10::uuid,$11::jsonb,$12,least($13::timestamptz,p.expires_at),a.pass_id
+ from pub p join bound_pass a on a.publication_id=p.publication_id
+ on conflict(publication_id,visitor_user_id) do update set admission=excluded.admission,admission_hash=excluded.admission_hash,
+ expires_at=excluded.expires_at,access_pass_id=excluded.access_pass_id returning *`;
+export const TEXT_PUBLICATION_JOIN_PASS_V2_SQL=`with ${TEXT_PUBLICATION_SOURCE_FENCE},${PUB_LOCK},${PASS_ACCESS_CTES('$17')}
+ insert into vy_text_publication_visitor as v(publication_id,replica_id,owner_user_id,visitor_user_id,admission,admission_hash,expires_at,memory_enabled,memory_epoch,memory_policy_hash,memory_choice_at,access_pass_id)
+ select p.publication_id,p.replica_id,p.owner_user_id,$10::uuid,$11::jsonb,$12,least($13::timestamptz,p.expires_at),$15::boolean,
+ case when $15::boolean then 1 else 0 end,$16,now(),a.pass_id from pub p join bound_pass a on a.publication_id=p.publication_id
+ where p.version=2 and ($14::bigint=0 or exists(select 1 from vy_text_publication_visitor known where known.publication_id=p.publication_id and known.visitor_user_id=$10::uuid))
+ and p.terms->>'memory_policy_hash'=$16
+ on conflict(publication_id,visitor_user_id) do update set admission=excluded.admission,admission_hash=excluded.admission_hash,expires_at=excluded.expires_at,
+ memory_enabled=$15::boolean,memory_epoch=v.memory_epoch+case when v.memory_enabled<>$15::boolean then 1 else 0 end,memory_policy_hash=$16,
+ memory_choice_at=case when v.memory_enabled<>$15::boolean or v.memory_choice_at is null then now() else v.memory_choice_at end,
+ access_pass_id=excluded.access_pass_id where v.memory_epoch=$14::bigint and (v.memory_policy_hash is null or v.memory_policy_hash=$16) returning *`;
 export const TEXT_PUBLICATION_MEMORY_SETTINGS_SQL=`select * from vy_text_publication_visitor where publication_id=$1::uuid and visitor_user_id=$2::uuid`;
 export async function readTextPublicationMemorySettings(db,visitor,input){
  const p=await publicationRow(db,input.public_id);uuid(visitor);await currentPublication(db,p);
@@ -230,10 +355,13 @@ export async function joinTextPublication(db,visitor,input,options={}){
  const p=await publicationRow(db,input.public_id),s=await currentPublication(db,p);textPublicationKey(envOf(options));if(input.expected_disclosure_hash!==p.disclosure_hash)fail('text_publication_disclosure_changed');
  const expires=new Date(Math.min(Date.now()+12*3600000,new Date(p.expires_at).getTime())).toISOString();
  const admission={scope:'account-material-visitor/v1',publication_id:p.publication_id,visitor_user_id:visitor,disclosure_hash:p.disclosure_hash,is_adult:true,accept_ai_disclosure:true,accept_retention:true,nonce:randomBytes(24).toString('hex'),created_at:new Date().toISOString(),expires_at:expires};
- const memory=publicationHasMemory(p);
+ const memory=publicationHasMemory(p),passMode=publicationAccessMode(p)===ACCESS_PASS_MODE;
  if(memory){validateMemoryChoice(input);admission.memory_choice={remember:input.remember,expected_epoch:input.expected_memory_epoch,policy_hash:PUBLICATION_MEMORY_POLICY_HASH};}
  const args=[...fenceArgs(p,s),visitor,JSON.stringify(admission),hash(admission),expires];
- const v=(await db(memory?TEXT_PUBLICATION_JOIN_V2_SQL:TEXT_PUBLICATION_JOIN_SQL,memory?[...args,input.expected_memory_epoch,input.remember,PUBLICATION_MEMORY_POLICY_HASH]:args))[0];if(!v)fail('text_publication_join_blocked');
+ const suppliedCode=input.access_pass===undefined||input.access_pass===null||input.access_pass===''?null:accessPassHash(accessPassCode(input.access_pass));
+ const sql=passMode?(memory?TEXT_PUBLICATION_JOIN_PASS_V2_SQL:TEXT_PUBLICATION_JOIN_PASS_SQL):(memory?TEXT_PUBLICATION_JOIN_V2_SQL:TEXT_PUBLICATION_JOIN_SQL);
+ const params=memory?[...args,input.expected_memory_epoch,input.remember,PUBLICATION_MEMORY_POLICY_HASH,...(passMode?[suppliedCode]:[])]:[...args,...(passMode?[suppliedCode]:[])];
+ const v=(await db(sql,params))[0];if(!v)fail(passMode?'text_publication_access_required':'text_publication_join_blocked',passMode?403:409);
  return {publication:summary(p),session_token:sessionToken(p,v,envOf(options)),expires_at:v.expires_at,remaining_questions:Math.max(0,json(p.terms).visitor_question_limit-Number(v.question_count)),...(memory?{memory:publicationMemorySettings(p,v)}:{})};
 }
 export const TEXT_PUBLICATION_REQUEST_READ_SQL=`select h.*,sp.state spend_state from vy_text_publication_request h left join vy_provider_spend sp
@@ -370,7 +498,9 @@ export const TEXT_PUBLICATION_UNPUBLISH_SQL=`with source_gate as materialized(se
  set state='revoked',epoch=p.epoch+1,projection=null,receipt=null,revoked_at=coalesce(p.revoked_at,now())
  where p.replica_id=excluded.replica_id and p.owner_user_id=excluded.owner_user_id returning p.publication_id),
  retired as(insert into vy_text_publication_id_ledger(id,kind) select publication_id,'publication' from stopped on conflict do nothing returning id),
- visitors as(update vy_text_publication_visitor v set session_epoch=v.session_epoch+1,memory_enabled=false,memory_epoch=v.memory_epoch+1,memory_policy_hash=null,memory_choice_at=null,admission=null,admission_hash=null,expires_at=null where v.publication_id in(select publication_id from stopped) and (select count(*) from retired)>=0 returning v.publication_id),
+ passes as(update vy_text_publication_access_pass a set state='revoked',revoked_at=coalesce(a.revoked_at,now())
+ where a.publication_id in(select publication_id from stopped) and a.state<>'revoked' and (select count(*) from retired)>=0 returning a.publication_id),
+ visitors as(update vy_text_publication_visitor v set session_epoch=v.session_epoch+1,memory_enabled=false,memory_epoch=v.memory_epoch+1,memory_policy_hash=null,memory_choice_at=null,admission=null,admission_hash=null,expires_at=null,access_pass_id=null where v.publication_id in(select publication_id from stopped) and (select count(*) from passes)>=0 returning v.publication_id),
  erased as(update vy_text_publication_request h set state='withdrawn',question_envelope=null,answer_envelope=null,raw_envelope=null,gate_sidecar='{}'::jsonb,memory_refs='[]'::jsonb,memory_refs_hash=null,memory_epoch=null,failure_code='text_publication_revoked' where h.publication_id in(select publication_id from stopped) and (select count(*) from visitors)>=0 returning h.request_id)
  select publication_id from stopped where (select count(*) from erased)>=0`;
 export async function unpublishTextPublication(db,owner,input){
@@ -412,8 +542,13 @@ async function cleanupTextPublicationPayloads(db,ids,visitor=null){const row=(aw
 export const TEXT_PUBLICATION_ACCOUNT_FORGET_SQL=`with locked as materialized (
  select p.publication_id from vy_text_publication p join vy_text_publication_visitor v on v.publication_id=p.publication_id
  where v.visitor_user_id=$1::uuid order by p.publication_id for update of p
-) update vy_text_publication_visitor v set session_epoch=v.session_epoch+1,memory_enabled=false,memory_epoch=v.memory_epoch+1,memory_policy_hash=null,memory_choice_at=null,admission=null,admission_hash=null,expires_at=null
- where v.visitor_user_id=$1::uuid and v.publication_id in(select publication_id from locked) returning v.publication_id`;
+), passes as (
+ update vy_text_publication_access_pass a set state='revoked',visitor_user_id=null,revoked_at=coalesce(a.revoked_at,now())
+ where a.visitor_user_id=$1::uuid and a.publication_id in(select publication_id from locked) returning a.publication_id
+), visitors as (
+ update vy_text_publication_visitor v set session_epoch=v.session_epoch+1,memory_enabled=false,memory_epoch=v.memory_epoch+1,memory_policy_hash=null,memory_choice_at=null,admission=null,admission_hash=null,expires_at=null,access_pass_id=null
+ where v.visitor_user_id=$1::uuid and v.publication_id in(select publication_id from locked) and (select count(*) from passes)>=0 returning v.publication_id
+) select distinct publication_id from (select publication_id from passes union all select publication_id from visitors) reached`;
 export async function forgetTextPublicationAccount(db,visitor){const rows=await db(TEXT_PUBLICATION_ACCOUNT_FORGET_SQL,[uuid(visitor)]);if(rows.length)await cleanupTextPublicationPayloads(db,rows.map(r=>r.publication_id),visitor);return {forgotten:true};}
 
 export const TEXT_PUBLICATION_WITHDRAWN_ACCOUNT_SQL=`select p.publication_id from vy_text_publication p
@@ -440,7 +575,9 @@ export const TEXT_PUBLICATION_EXPIRE_SQL=`with expired as materialized (
 ),stopped as(update vy_text_publication p set state='revoked',epoch=p.epoch+1,projection=null,receipt=null,revoked_at=coalesce(p.revoked_at,now())
  where p.publication_id in(select publication_id from expired) returning p.publication_id),
 retired as(insert into vy_text_publication_id_ledger(id,kind) select publication_id,'publication' from stopped on conflict do nothing returning id),
-visitors as(update vy_text_publication_visitor v set session_epoch=v.session_epoch+1,memory_enabled=false,memory_epoch=v.memory_epoch+1,memory_policy_hash=null,memory_choice_at=null,admission=null,admission_hash=null,expires_at=null where v.publication_id in(select publication_id from stopped) and (select count(*) from retired)>=0 returning v.publication_id),
+passes as(update vy_text_publication_access_pass a set state='revoked',revoked_at=coalesce(a.revoked_at,now())
+ where a.publication_id in(select publication_id from stopped) and a.state<>'revoked' and (select count(*) from retired)>=0 returning a.publication_id),
+visitors as(update vy_text_publication_visitor v set session_epoch=v.session_epoch+1,memory_enabled=false,memory_epoch=v.memory_epoch+1,memory_policy_hash=null,memory_choice_at=null,admission=null,admission_hash=null,expires_at=null,access_pass_id=null where v.publication_id in(select publication_id from stopped) and (select count(*) from passes)>=0 returning v.publication_id),
 erased as(update vy_text_publication_request h set state='withdrawn',question_envelope=null,answer_envelope=null,raw_envelope=null,gate_sidecar='{}'::jsonb,memory_refs='[]'::jsonb,memory_refs_hash=null,memory_epoch=null,failure_code='text_publication_expired' where h.publication_id in(select publication_id from stopped) and (select count(*) from visitors)>=0 returning h.request_id)
 select (select count(*) from stopped)::integer publications,(select count(*) from erased)::integer requests,coalesce((select jsonb_agg(publication_id) from stopped),'[]'::jsonb) publication_ids`;
 export async function expireTextPublications(db,{limit=50}={}){

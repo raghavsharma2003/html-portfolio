@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   StudioAuthError,
   googleSignIn,
+  isStudioEmailUnavailable,
   isStudioAuthDead,
   sendEmailOtp,
   verifyEmailOtp,
@@ -42,7 +43,7 @@ export default function PersonalAuthGate({
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [checkingLink, setCheckingLink] = useState(false);
-  const [error, setError] = useState<"linkNotReadyError" | "sendError" | "networkError" | "rateLimitError" | "serviceUnavailableError" | "codeMismatchError" | "googleError" | "">("");
+  const [error, setError] = useState<"linkNotReadyError" | "sendError" | "emailUnavailableError" | "networkError" | "rateLimitError" | "serviceUnavailableError" | "codeMismatchError" | "googleError" | "">("");
   const codeRef = useRef<HTMLInputElement>(null);
   const linkButtonRef = useRef<HTMLButtonElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -103,7 +104,7 @@ export default function PersonalAuthGate({
       setStep("code");
     } catch (cause) {
       discardBrowserFullPageAuthResume();
-      setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : cause.status >= 500 ? "serviceUnavailableError" : "sendError" : "networkError");
+      setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : isStudioEmailUnavailable(cause) ? "emailUnavailableError" : cause.status >= 500 ? "serviceUnavailableError" : "sendError" : "networkError");
     } finally {
       setBusy(false);
     }
@@ -236,34 +237,38 @@ export default function PersonalAuthGate({
             >
               {checkingLink ? t.checkingLink : t.openedLink}
             </button>
-            <div className="or"><span>{t.optionalCodeDivider}</span></div>
-            <label className="field-label" htmlFor="studio-code">{t.codeLabel}</label>
-            <input
-              ref={codeRef}
-              id="studio-code"
-              className="field code-field"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              aria-describedby="studio-inbox-help"
-              maxLength={6}
-              placeholder={t.codePlaceholder}
-              value={code}
-              onChange={(event) => {
-                setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
-                if (error) setError("");
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && code.length === 6 && !busy) void verifyCode();
-              }}
-            />
-            <button
-              className="button primary-button"
-              type="button"
-              disabled={busy || code.length !== 6}
-              onClick={() => void verifyCode()}
-            >
-              {busy ? <><Spinner label={t.verifyingAriaLabel} />{t.verifying}</> : t.verify}
-            </button>
+            <details className="auth-code-fallback">
+              <summary>{t.optionalCodeDivider}</summary>
+              <div className="auth-code-fields">
+                <label className="field-label" htmlFor="studio-code">{t.codeLabel}</label>
+                <input
+                  ref={codeRef}
+                  id="studio-code"
+                  className="field code-field"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  aria-describedby="studio-inbox-help"
+                  maxLength={6}
+                  placeholder={t.codePlaceholder}
+                  value={code}
+                  onChange={(event) => {
+                    setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                    if (error) setError("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && code.length === 6 && !busy) void verifyCode();
+                  }}
+                />
+                <button
+                  className="button primary-button"
+                  type="button"
+                  disabled={busy || code.length !== 6}
+                  onClick={() => void verifyCode()}
+                >
+                  {busy ? <><Spinner label={t.verifyingAriaLabel} />{t.verifying}</> : t.verify}
+                </button>
+              </div>
+            </details>
             <button
               className="text-button"
               type="button"

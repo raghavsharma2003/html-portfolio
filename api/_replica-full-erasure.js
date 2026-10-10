@@ -642,9 +642,12 @@ export async function completeReplicaErasure(db, lease, receipt) {
        select x.publication_id,'publication' from vy_text_publication x join target t
          on x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
        on conflict do nothing returning id),
+     text_publication_access_passes as (delete from vy_text_publication_access_pass x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id returning x.pass_id),
      text_publications as (delete from vy_text_publication x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
-         and (select count(*) from retired_text_publication_ids)>=0),
+         and (select count(*) from retired_text_publication_ids)>=0
+         and (select count(*) from text_publication_access_passes)>=0),
      comparison_references as (delete from vy_replica_comparison_reference x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      private_text_rehearsals as (delete from vy_private_text_rehearsal x using target t

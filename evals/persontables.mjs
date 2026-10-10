@@ -147,7 +147,7 @@ const listed = new Set(PERSON_TABLES.map((t) => t.table));
 // Never add them to the generic person DELETE loop to satisfy this scan.
 const publicationStore = await import('node:fs').then(fs => fs.readFileSync(path.join(ROOT,'api/_text-publication-store.js'),'utf8'));
 const publicationAccount = await import('node:fs').then(fs => fs.readFileSync(path.join(ROOT,'api/account.js'),'utf8'));
-const accountVisitorTables = new Set(['vy_text_publication_visitor','vy_text_publication_request']);
+const accountVisitorTables = new Set(['vy_text_publication_visitor','vy_text_publication_request','vy_text_publication_access_pass']);
 const accountVisitorReach = (store, account) =>
   store.includes('where v.visitor_user_id=$1::uuid and v.publication_id in(select publication_id from locked)')
   && store.includes('cleanupTextPublicationPayloads(db,rows.map(r=>r.publication_id),visitor)')

@@ -49,6 +49,7 @@ export async function assertLiveFixtureAbsent(db,f){
  (select count(*) from vy_replica_consent where consent_id=any($10::uuid[])) consents,
  (select count(*) from vy_replica_processing_evidence where evidence_id=any($11::uuid[])) evidence,
  (select count(*) from vy_review_never_rule where rule_id=$12::uuid) rules,
+ (select count(*) from vy_text_publication_access_pass where replica_id=$1::uuid and owner_user_id=$2::uuid) access_passes,
  (select count(*) from vy_replica_audit where replica_id=$1::uuid or owner_user_id=$2::uuid) audits`,[f.rid,f.owner,f.budgetId,[f.pid,f.sparePid,...f.requests],f.sheet,f.item,f.source,f.requests,f.reservations,f.account.map(a=>a.consent_id),f.records.map(e=>e.evidence_id),f.ruleId]);
  assert.equal(rows.length,1);for(const n of Object.values(rows[0]))assert.equal(Number(n),0,'fixture_preexisting_scope_refused');
 }
@@ -102,7 +103,7 @@ export async function cleanupLivePublicationFixture(db,f){
  return countLivePublicationFixture(db,f);
 }
 export async function countLivePublicationFixture(db,f){
- const tables=['vy_replica','vy_replica_source','vy_replica_consent','vy_replica_audit','vy_teacher_sheet','vy_context_item','vy_context_item_text','vy_replica_processing_evidence','vy_review_never_rule','vy_text_publication','vy_text_publication_visitor','vy_text_publication_request'];
+ const tables=['vy_replica','vy_replica_source','vy_replica_consent','vy_replica_audit','vy_teacher_sheet','vy_context_item','vy_context_item_text','vy_replica_processing_evidence','vy_review_never_rule','vy_text_publication','vy_text_publication_access_pass','vy_text_publication_visitor','vy_text_publication_request'];
  const counts={};for(const table of tables)counts[table]=Number((await db(`select count(*) n from ${table} where replica_id=$1::uuid and owner_user_id=$2::uuid`,[f.rid,f.owner]))[0]?.n);
  counts.vy_provider_spend=Number((await db('select count(*) n from vy_provider_spend where budget_id=$1',[f.budgetId]))[0]?.n);
  counts.vy_provider_budget=Number((await db('select count(*) n from vy_provider_budget where budget_id=$1',[f.budgetId]))[0]?.n);

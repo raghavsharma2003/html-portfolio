@@ -126,7 +126,8 @@ if (process.argv.includes("--browser")) {
       for (const state of ["email", "code"]) {
         if (state === "code") {
           await page.locator("#studio-email").fill("fixture@example.test");
-          await page.getByRole("button", { name: "Email me a sign-in link" }).click();
+          await page.getByRole("button", { name: "Request a sign-in link" }).click();
+          await page.getByText("My email includes a six-digit code", { exact: true }).click();
           await page.locator("#studio-code").waitFor();
         }
         const before = await snapshot(page);

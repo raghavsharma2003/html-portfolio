@@ -37,6 +37,9 @@ export function createTextPublicationOwnerHandler({db,requireUser,store,resolveG
     return res.status(200).json({readiness});
    }
    if(req.method==='GET'&&input.op==='status')return res.status(200).json({publication:await store.readOwnedTextPublication(db,owner,input)});
+   if(req.method==='GET'&&input.op==='access_passes')return res.status(200).json(await store.listTextPublicationAccessPasses(db,owner,input));
+   if(req.method==='POST'&&input.op==='create_access_passes')return res.status(201).json(await store.createTextPublicationAccessPasses(db,owner,input,{env}));
+   if(req.method==='POST'&&input.op==='revoke_access_pass')return res.status(200).json(await store.revokeTextPublicationAccessPass(db,owner,input));
    if(req.method==='POST'&&input.op==='unpublish')return res.status(200).json({publication:await store.unpublishTextPublication(db,owner,input)});
    if(req.method==='POST'&&input.op==='publish'){
     const result=await store.publishTextPublication(db,owner,input,{env});

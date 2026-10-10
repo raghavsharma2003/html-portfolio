@@ -384,6 +384,33 @@
     line-height: 1.5;
   }
 
+  .auth-code-fallback {
+    margin-top: 14px;
+    border-top: 1px solid var(--vx-line-soft);
+    padding-top: 8px;
+  }
+
+  .auth-code-fallback summary {
+    min-height: 44px;
+    padding: 12px 2px;
+    color: var(--vx-indigo-deep);
+    font-size: 13px;
+    font-weight: 620;
+    cursor: pointer;
+  }
+
+  .auth-code-fallback summary:focus-visible {
+    border-radius: 6px;
+    outline: 3px solid rgba(79, 88, 168, 0.24);
+    outline-offset: 2px;
+  }
+
+  .auth-code-fields {
+    display: flex;
+    flex-direction: column;
+    padding-top: 5px;
+  }
+
   .auth-card .code-field {
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.3em;

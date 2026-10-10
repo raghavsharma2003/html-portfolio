@@ -206,12 +206,13 @@ try {
   // no module graph of its own).
   for (const name of ["sendCode", "verifyCode"]) {
     const body = functionText(auth, name);
-    const text = `export async function run(status) {
-      class StudioAuthError extends Error { constructor(status) { super('PRIVATE_PROVIDER_PAYLOAD'); this.status = status; } }
+    const text = `export async function run(status, providerCode = '') {
+      class StudioAuthError extends Error { constructor(status, code) { super(code || 'PRIVATE_PROVIDER_PAYLOAD'); this.status = status; this.code = code; } }
       const errors = []; let cleared = false; const email = 'owner@example.com'; const code = '123456'; const window = { location: { search: '' } };
-      const cause = status === null ? new TypeError('PRIVATE_PROVIDER_PAYLOAD') : new StudioAuthError(status);
+      const cause = status === null ? new TypeError('PRIVATE_PROVIDER_PAYLOAD') : new StudioAuthError(status, providerCode);
       const sendEmailOtp = async () => { throw cause; }; const verifyEmailOtp = sendEmailOtp;
       const isStudioAuthDead = cause => [400, 401, 403].includes(cause?.status);
+      const isStudioEmailUnavailable = cause => ['email_address_not_authorized','email_provider_disabled','otp_disabled','smtp_not_configured'].includes(cause?.code);
       const setError = v => errors.push(v); const setBusy = () => {}; const setStep = () => {}; const setCode = () => { cleared = true; };
       const writeStoredSession = () => {}; const onAuthed = () => {}; const codeRef = { current: null }; const requestAnimationFrame = fn => fn();
       const saveBrowserFullPageAuthResume = () => {}; const discardBrowserFullPageAuthResume = () => {};
@@ -241,6 +242,11 @@ try {
       }
       const result = await callback.run(404);
       check("Missing verifier route is a platform error", () => assert.deepEqual(result, { error: "serviceUnavailableError", cleared: false }));
+    } else {
+      for (const [status, code] of [[400, "email_address_not_authorized"], [501, "smtp_not_configured"]]) {
+        const result = await callback.run(status, code);
+        check(`Email platform refusal ${code} offers the configured alternative`, () => assert.deepEqual(result, { error: "emailUnavailableError", cleared: false }));
+      }
     }
   }
   const localeSource = await readFile(join(root, "src/studio/personalAuthLocale.tsx"), "utf8");

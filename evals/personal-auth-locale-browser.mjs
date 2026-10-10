@@ -92,7 +92,12 @@ try {
         if (url.pathname !== "/api/account") { await route.continue(); return; }
         const body = request.postDataJSON(); calls.push(body.op);
         let status = 500, payload = { error: "PRIVATE_PROVIDER_PAYLOAD" };
-        if (body.op === "send_otp") { status = ++sends === 1 ? 503 : 200; if (status === 200) payload = {}; }
+        if (body.op === "send_otp") {
+          sends += 1;
+          status = sends === 1 ? 400 : sends === 2 ? 503 : 200;
+          payload = sends === 1 ? { code: "email_address_not_authorized", error: "Email address not authorized" }
+            : status === 200 ? {} : payload;
+        }
         if (body.op === "verify_otp") status = ++verifies === 1 ? 429 : 400;
         if (body.op === "refresh") { status = refreshStatus; if (status === 200) payload = fresh; }
         await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
@@ -189,8 +194,13 @@ try {
       const alert = page.locator(".inline-error");
       async function expectError(value) { await page.waitForFunction(expected => document.querySelector(".inline-error")?.textContent === expected, value); assert.doesNotMatch(await alert.innerText(), /PRIVATE_PROVIDER_PAYLOAD/); }
       await page.locator("#studio-email").fill("owner@example.com");
+      await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await expectError(copy.emailUnavailableError);
+      assert.equal(await page.getByRole("button", { name: copy.google, exact: true }).isVisible(), true, "Platform email refusal leaves Google available");
       await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await expectError(copy.serviceUnavailableError);
-      await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await page.locator("#studio-code").waitFor();
+      await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await page.getByRole("button", { name: copy.openedLink, exact: true }).waitFor();
+      assert.equal(await page.locator("#studio-code").isVisible(), false, "Numeric code stays collapsed unless the email actually includes one");
+      assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), copy.openedLink);
+      await page.locator(".auth-code-fallback summary").click(); await page.locator("#studio-code").waitFor();
       assert.equal(await page.locator('label[for="studio-code"]').innerText(), copy.codeLabel);
       assert.equal(await page.locator("#signin-title").innerText(), copy.inboxTitle);
       await page.locator("#studio-code").fill("654321");
@@ -199,7 +209,9 @@ try {
       await page.getByRole("button", { name: copy.verify, exact: true }).click(); await expectError(copy.codeMismatchError);
       assert.equal(await page.locator("#studio-code").inputValue(), "");
       await page.getByRole("button", { name: copy.differentEmail, exact: true }).click(); await page.locator("#studio-email").waitFor();
-      await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await page.locator("#studio-code").waitFor();
+      await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await page.getByRole("button", { name: copy.openedLink, exact: true }).waitFor();
+      assert.equal(await page.locator("#studio-code").isVisible(), false);
+      await page.locator(".auth-code-fallback summary").click(); await page.locator("#studio-code").waitFor();
 
       // Genuine same-origin second-tab storage event, not a synthetic dispatch.
       const candidate = { userId: "stale-owner", accessToken: "s".repeat(32), refreshToken: "retry-refresh", expiresAt: 1 };
