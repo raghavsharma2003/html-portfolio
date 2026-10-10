@@ -214,6 +214,7 @@ try {
       const isStudioAuthDead = cause => [400, 401, 403].includes(cause?.status);
       const isStudioEmailUnavailable = cause => ['email_address_not_authorized','email_provider_disabled','otp_disabled','smtp_not_configured'].includes(cause?.code);
       const setError = v => errors.push(v); const setBusy = () => {}; const setStep = () => {}; const setCode = () => { cleared = true; };
+      const emailRequestIdRef = { current: '11111111-1111-4111-8111-111111111111' };
       const writeStoredSession = () => {}; const onAuthed = () => {}; const codeRef = { current: null }; const requestAnimationFrame = fn => fn();
       const saveBrowserFullPageAuthResume = () => {}; const discardBrowserFullPageAuthResume = () => {};
       ${body}
@@ -222,7 +223,10 @@ try {
     const transformed = await transform(text, { loader: "ts", format: "esm" });
     const file = join(out, `${name}.mjs`); await writeFile(file, transformed.code);
     const callback = await import(pathToFileURL(file).href);
-    for (const [status, expected] of [[null, "networkError"], [429, "rateLimitError"], [503, "serviceUnavailableError"]]) {
+    const transientCases = name === "sendCode"
+      ? [[null, "networkError"], [429, "rateLimitError"], [409, "emailServiceError"], [503, "emailServiceError"]]
+      : [[null, "networkError"], [429, "rateLimitError"], [503, "serviceUnavailableError"]];
+    for (const [status, expected] of transientCases) {
       const result = await callback.run(status);
       check(`${name} ${status} uses a localized safe error`, () => assert.equal(result.error, expected));
       if (name === "verifyCode") check(`Verification ${status} preserves the unrejected code`, () => assert.equal(result.cleared, false));

@@ -15,7 +15,8 @@ for (const value of redirects) assert.equal(emailRedirect(value), null, `rejects
 assert.equal(emailRedirect("https://preview.example.invalid/studio"), "https://preview.example.invalid/studio");
 assert.equal(emailRedirect("http://localhost:5173/r/example?lang=hi"), "http://localhost:5173/r/example?lang=hi");
 for (const source of ["../src/room/RoomApp.tsx", "../src/studio/publication/PublicationSignIn.tsx"]) {
-  assert.match(readFileSync(new URL(source, HERE), "utf8"), /sendEmailOtp\(email\.trim\(\), window\.location\.pathname \+ window\.location\.search\)/, `${source} preserves its current return path`);
+  const text = readFileSync(new URL(source, HERE), "utf8");
+  assert.match(text, /sendEmailOtp\(email\.trim\(\), window\.location\.pathname \+ window\.location\.search, [^)]+\)/, `${source} preserves its current return path and supplies a stable request id`);
 }
 
 const hook = registerHooks({

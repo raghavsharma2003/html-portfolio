@@ -41,14 +41,15 @@ function ok(name, condition) {
 
 ok("NEGATIVE CONTROL: code-only delivery copy is detected",
   /sent a six-digit code/i.test("We sent a six-digit code to you@example.com."));
-ok("email delivery truthfully leads with a link and reveals code entry only when present",
-  /Check \{email\} for a sign-in email/.test(personalCopy)
-  && /If it arrives, open its link/.test(personalCopy)
+ok("accepted email request truthfully leads with a link and reveals code entry only when present",
+  /Your sign-in request was accepted\. Check \{email\} for a sign-in email/.test(personalCopy)
+  && /साइन-इन अनुरोध स्वीकार हो गया है/.test(personalCopy)
   && /My email includes a six-digit code/.test(personalCopy)
   && /<details className="auth-code-fallback">/.test(studio)
   && /<summary>\{t\.optionalCodeDivider\}<\/summary>/.test(studio)
   && /t.inboxBodyTemplate/.test(studio) && /t.codeLabel/.test(studio)
-  && !/We sent a sign-in email|We sent a six-digit code|हमने[^\n]*ईमेल भेजा/.test(personalCopy));
+  && /Requesting sign-in email/.test(personalCopy)
+  && !/We sent a sign-in email|We sent a six-digit code|Sending sign-in email|Sending email|email (?:was|has been) delivered|हमने[^\n]*ईमेल भेजा|ईमेल भेजा जा रहा है/.test(personalCopy));
 ok("the email link callback is already a real session path",
   /consumeStudioOAuthCallback/.test(session)
   && /window\.location\.hash\.includes\("access_token="\)/.test(auth)
@@ -61,12 +62,16 @@ ok("the user has an explicit, non-destructive link recovery check",
   /Continue after opening the link/.test(copy)
   && /acceptLinkedSession\(true\)/.test(studio)
   && /Sign-in has not reached this tab yet/.test(copy));
-ok("known email platform refusals name setup and keep Google actionable",
+ok("known email platform refusals and Azure failures stay platform-owned with Google actionable",
   /email_address_not_authorized/.test(auth)
   && /smtp_not_configured/.test(auth)
-  && /isStudioEmailUnavailable\(cause\) \? "emailUnavailableError"/.test(authGate)
-  && /Email sign-in is not available for this address/.test(personalCopy)
-  && /Continue with Google/.test(personalCopy));
+  && /isStudioEmailUnavailable\(cause\)\s*\? "emailUnavailableError"/.test(authGate)
+  && /cause\.status === 409 \|\| cause\.status >= 500/.test(authGate)
+  && /\?\s*"emailServiceError"/.test(authGate)
+  && /Our email service is not ready/.test(personalCopy)
+  && /Our email service could not complete this request/.test(personalCopy)
+  && /Try again or continue with Google/.test(personalCopy)
+  && (personalCopy.match(/Continue with Google/g) || []).length >= 2);
 ok("code entry keeps browser OTP autofill and exact validation",
   /auth-code-fallback/.test(studio)
   && /autoComplete="one-time-code"/.test(studio)
@@ -119,6 +124,11 @@ ok("unknown envelope fields fail closed",
 ok("both full-page auth callers save context before leaving",
   /saveBrowserFullPageAuthResume\(window\.location\.search\);\s*await sendEmailOtp/.test(authGate)
   && /saveBrowserFullPageAuthResume\(window\.location\.search\);\s*googleSignIn\(\)/.test(authGate));
+ok("email retries reuse one in-memory request id until address change or accepted request",
+  /const emailRequestIdRef = useRef\(crypto\.randomUUID\(\)\)/.test(authGate)
+  && /sendEmailOtp\(email\.trim\(\), "\/studio", emailRequestIdRef\.current\);\s*emailRequestIdRef\.current = crypto\.randomUUID\(\);\s*setStep\("code"\)/.test(authGate)
+  && /onChange=\{\(event\) => \{\s*setEmail\(event\.target\.value\);\s*emailRequestIdRef\.current = crypto\.randomUUID\(\)/.test(authGate)
+  && !/localStorage[^\n]*(?:emailRequestIdRef|requestId)|sessionStorage[^\n]*(?:emailRequestIdRef|requestId)/.test(authGate));
 ok("same-page success and failed redirect setup discard stale resume context",
   (authGate.match(/discardBrowserFullPageAuthResume\(\)/g) || []).length >= 4);
 ok("the callback consumes, ownership-checks and applies the route through the actual entry caller",
@@ -128,7 +138,7 @@ ok("the callback consumes, ownership-checks and applies the route through the ac
   && /window\.history\.replaceState\(null, "", url\)/.test(entry));
 ok("provider callbacks remain the stable bare Studio URL",
   /const redirect = window\.location\.origin \+ "\/studio"/.test(auth)
-  && /sendEmailOtp\(email\.trim\(\), "\/studio"\)/.test(authGate));
+  && /sendEmailOtp\(email\.trim\(\), "\/studio", emailRequestIdRef\.current\)/.test(authGate));
 
 console.log(failures ? `\n${failures} FAILURES` : "\nALL PASS");
 process.exit(failures ? 1 : 0);

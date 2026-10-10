@@ -22,9 +22,10 @@ const exactReasons = {
   vy_org_member: /organization membership.*account.*other replicas/i,
   vy_operator_push_subscription: /operator notification credentials.*operator role.*replicas/i,
   vy_creator_push_subscription: /creator notification credentials.*account.*replicas/i,
+  vy_auth_email_outbox: /sign-in delivery.*authenticated account.*replicas/i,
 };
 const names = Object.keys(exactReasons);
-ok("retention inventory is frozen and contains exactly the six account tables",
+ok("retention inventory is frozen and contains exactly the seven account tables",
   Object.isFrozen(retained) && JSON.stringify(Object.keys(retained).sort()) === JSON.stringify([...names].sort()));
 for (const name of names) ok(`${name} has its specific account ownership reason`, exactReasons[name].test(retained[name]));
 

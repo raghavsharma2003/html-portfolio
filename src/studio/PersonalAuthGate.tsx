@@ -43,7 +43,8 @@ export default function PersonalAuthGate({
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [checkingLink, setCheckingLink] = useState(false);
-  const [error, setError] = useState<"linkNotReadyError" | "sendError" | "emailUnavailableError" | "networkError" | "rateLimitError" | "serviceUnavailableError" | "codeMismatchError" | "googleError" | "">("");
+  const [error, setError] = useState<"linkNotReadyError" | "sendError" | "emailUnavailableError" | "emailServiceError" | "networkError" | "rateLimitError" | "serviceUnavailableError" | "codeMismatchError" | "googleError" | "">("");
+  const emailRequestIdRef = useRef(crypto.randomUUID());
   const codeRef = useRef<HTMLInputElement>(null);
   const linkButtonRef = useRef<HTMLButtonElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -100,11 +101,20 @@ export default function PersonalAuthGate({
     setBusy(true);
     try {
       saveBrowserFullPageAuthResume(window.location.search);
-      await sendEmailOtp(email.trim(), "/studio");
+      await sendEmailOtp(email.trim(), "/studio", emailRequestIdRef.current);
+      emailRequestIdRef.current = crypto.randomUUID();
       setStep("code");
     } catch (cause) {
       discardBrowserFullPageAuthResume();
-      setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : isStudioEmailUnavailable(cause) ? "emailUnavailableError" : cause.status >= 500 ? "serviceUnavailableError" : "sendError" : "networkError");
+      setError(cause instanceof StudioAuthError
+        ? cause.status === 429
+          ? "rateLimitError"
+          : isStudioEmailUnavailable(cause)
+            ? "emailUnavailableError"
+            : cause.status === 409 || cause.status >= 500
+              ? "emailServiceError"
+              : "sendError"
+        : "networkError");
     } finally {
       setBusy(false);
     }
@@ -189,6 +199,7 @@ export default function PersonalAuthGate({
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
+                emailRequestIdRef.current = crypto.randomUUID();
                 if (error) setError("");
               }}
               onKeyDown={(event) => {

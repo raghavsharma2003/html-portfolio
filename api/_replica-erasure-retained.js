@@ -10,4 +10,5 @@ export const REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES = Object.freeze({
   vy_org_member: "Organization membership belongs to the owner account and can support other replicas; deleting one AI does not authorize ending that membership.",
   vy_operator_push_subscription: "Operator notification credentials belong to the account's operator role across replicas; deleting one AI does not authorize removing them.",
   vy_creator_push_subscription: "Creator notification credentials belong to the account across replicas; deleting one AI does not authorize removing them.",
+  vy_auth_email_outbox: "Vyakti sign-in delivery belongs to the authenticated account across replicas; deleting one AI must not erase an in-flight account login request.",
 });

@@ -404,7 +404,7 @@ const PERSON_COLUMNS = [
 // tables that were reachable by neither (053/055 declare replica_id and
 // owner_user_id FK-shaped but not FK), which is the whole reason it exists.
 //
-// Six shared account tables are retained by per-replica erasure, each with a
+// Seven shared account tables are retained by per-replica erasure, each with a
 // written ownership reason in the imported inventory. Account erasure needs
 // separate authority; creator export must still cover these records. This is
 // an exact-name partition, never an owner-column or prefix-wide exemption.

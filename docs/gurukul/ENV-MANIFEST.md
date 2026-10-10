@@ -1630,3 +1630,39 @@ compromises both at once. `evals/vyakti-app/run.mjs`'s own negative control
 asserts the `vyakti` flavour block in `build.gradle` never reads Meera's
 names, and that the `vyakti-apk` job's only `secrets.` references are these
 four.
+
+## 39. Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)
+
+This lane is Vyakti-only. It generates one Supabase Admin magic link and sends
+it through native Azure Communication Services Email. It does not configure or
+call the shared Supabase SMTP provider or Send Email hook. Every name below is
+server-only. The lane stays dark unless the provider switch has its exact value;
+partial configuration must refuse rather than fall back to Supabase email.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VYAKTI_AUTH_EMAIL_PROVIDER` | `api/_auth-email-azure.js` | optional; must equal `azure_communication_email` to enable | unset keeps the existing Supabase `/otp` path byte-compatible | any other nonempty value refuses as incomplete provider configuration |
+| `VYAKTI_AUTH_EMAIL_ENDPOINT` | `api/_auth-email-azure.js` | required when enabled; exact `https://<resource>.communication.azure.com` origin | none | Azure send and status reads refuse |
+| `VYAKTI_AUTH_EMAIL_ACCESS_KEY_B64` | `api/_auth-email-azure.js` | required when enabled; canonical base64 32-byte ACS access key | none | HMAC authentication refuses; never expose to browser code or logs |
+| `VYAKTI_AUTH_EMAIL_SENDER` | `api/_auth-email-azure.js` | required when enabled; MailFrom address from the linked verified domain | none | the one-recipient payload cannot be built |
+| `VYAKTI_AUTH_EMAIL_ALLOWED_ORIGINS` | `api/_auth-email-azure.js` | required when enabled; comma-separated exact HTTPS Vercel origins, maximum 10 | none; no wildcard interpretation | redirect binding refuses even if the broader Supabase allow-list would accept it |
+| `VYAKTI_AUTH_EMAIL_KEK_ID` | `api/_auth-email-crypto.js` | required when enabled; stable key identifier | none | recipient, action link and optional OTP cannot be encrypted |
+| `VYAKTI_AUTH_EMAIL_KEK_B64` | `api/_auth-email-crypto.js` | required when enabled; canonical base64 32-byte key | none | outbox payload encryption refuses |
+| `SUPABASE_SERVICE_ROLE_KEY` | `api/_auth-email-azure.js` | already required for private replica storage; also required when this lane is enabled | never fall back to the anon key | Admin generate-link refuses |
+| `CRON_SECRET` | `api/auth-email-sweep.js` | required for pending-status and expiry cleanup | none | the authenticated sweep refuses |
+
+Migration174 creates a global sequence capped at 50 and the encrypted outbox.
+Sequence exhaustion is deliberately conservative: rolled-back or racing attempts
+can consume a slot. Every admission reserves one slot before link creation, and
+the single bounded resend reserves another from the same non-cycling sequence,
+so the pilot cannot attempt more than 50 recipient messages. The count is not
+money and must never be reported as Azure spend. ACS Email is usage billed;
+startup-credit eligibility has not been verified.
+
+Operational setup is separate from application deployment: provision one ACS
+Communication resource, one Email resource and one Azure-managed or verified
+domain; connect the domain; obtain the exact endpoint, MailFrom address and one
+narrow ACS access key; bind the seven Vyakti names above; apply migration174;
+then enable the provider switch. Do not put the broad subscription-Contributor
+service-principal secret in Vercel. A key rotation needs a reviewed read-old/
+write-new envelope plan for any nonterminal outbox payloads.

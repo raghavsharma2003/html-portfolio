@@ -42,6 +42,7 @@ const suites = {
   "studio-media-policy": "studio-media-policy/run.mjs",
   "workspace-notice": "workspace-notice/run.mjs",
   "account-email-redirect": "account-email-redirect.mjs",
+  "auth-email": "auth-email/run.mjs",
   "candidate-binding-recovery": "text-publication-ui/candidate-binding-recovery.mjs",
   "context-claim-grounding": "context-claim-grounding/run.mjs",
   "citation-coordinates": "citation-coordinates.mjs",

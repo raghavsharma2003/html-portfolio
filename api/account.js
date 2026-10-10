@@ -1,7 +1,7 @@
 // Meera accounts — Supabase Auth + synced state + event tracking, all behind
 // this proxy so the database key never reaches the client.
 // POST { op, ... }:
-//   send_otp     { email }               → 6-digit code / magic mail
+//   send_otp     { email, request_id? }  → accepted sign-in email request
 //   verify_otp   { email, token }        → session { access_token, refresh_token, user }
 //   send_sms     { phone }               → sms code (needs an SMS provider configured)
 //   verify_sms   { phone, token }        → session
@@ -24,6 +24,8 @@ import { SB_URL, SB_KEY, authFetch, userFromToken } from "./_auth.js";
 import { emailRedirect, emailOtpPath } from "./_auth-redirect.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 import { forgetTextPublicationAccount } from './_text-publication-store.js';
+import { requestVyaktiAuthEmail } from './_auth-email.js';
+import { forgetAuthEmailAccount } from './_auth-email-store.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── WS-R32: the OTP doors behind vy_public_rate (closes ws-r26-otp-doors-
@@ -99,6 +101,8 @@ async function handler(req, res) {
       // workstream's law 3 ("anything a case finds is fixed").
       if (await refused(res, "otp_send_ip", ipOf(req))) return;
       if (await refused(res, "otp_send_dest", email)) return;
+      const owned = await requestVyaktiAuthEmail(q, { email, redirect_url: redirect, request_id: b.request_id });
+      if (owned) return res.status(202).json(owned);
       return passthrough(res, await authFetch(emailOtpPath(redirect), { email, create_user: true }));
     }
     if (op === "verify_otp") {
@@ -238,6 +242,9 @@ async function handler(req, res) {
       const mode = b.mode === "forget" ? "forget" : "clear";
       if (mode === "forget") {
         await forgetTextPublicationAccount(q, user.id);
+        await forgetAuthEmailAccount(q, user.id).catch((cause) => {
+          if (cause?.code !== "42P01") throw cause;
+        });
         const gone = await q(`delete from meera_state where user_id = $1 returning user_id`, [
           user.id,
         ]).catch(() => []);
@@ -355,7 +362,10 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
     return res.status(400).json({ error: "unknown op" });
-  } catch {
+  } catch (cause) {
+    if (typeof cause?.code === "string" && /^auth_email_[a-z0-9_]{1,90}$/u.test(cause.code)) {
+      return res.status(Number.isInteger(cause.status) ? cause.status : 503).json({ error: cause.code });
+    }
     return res.status(500).json({ error: "account failure" });
   }
 }

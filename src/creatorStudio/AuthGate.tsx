@@ -96,6 +96,7 @@ export default function AuthGate({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const codeRef = useRef<HTMLInputElement>(null);
+  const emailRequestIdRef = useRef(crypto.randomUUID());
 
   useEffect(() => {
     if (step === "code") codeRef.current?.focus();
@@ -105,14 +106,11 @@ export default function AuthGate({
     setError("");
     setBusy(true);
     try {
-      await sendEmailOtp(email.trim(), "/studio");
+      await sendEmailOtp(email.trim(), "/studio", emailRequestIdRef.current);
+      emailRequestIdRef.current = crypto.randomUUID();
       setStep("code");
-    } catch (cause) {
-      // A server-returned error code is not this screen's own copy — the
-      // same "SERVER-COMPUTED PROSE stays English" split `copy.ts`'s own
-      // header draws for `ReadinessPanel.tsx` etc. Only the FALLBACK for a
-      // non-`Error` failure (never server text) is this file's own string.
-      setError(cause instanceof Error ? cause.message.replaceAll("_", " ") : authCopy.genericSendError);
+    } catch {
+      setError(authCopy.genericSendError);
     } finally {
       setBusy(false);
     }
@@ -192,7 +190,7 @@ export default function AuthGate({
               autoComplete="email"
               placeholder={authCopy.emailPlaceholder}
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => { setEmail(event.target.value); emailRequestIdRef.current = crypto.randomUUID(); }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && email.includes("@") && !busy) void sendCode();
               }}

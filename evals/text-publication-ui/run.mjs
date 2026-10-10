@@ -106,7 +106,9 @@ try{
   }
   const visitorContext=await browser.newContext({viewport:{width,height:900}});page=await visitorContext.newPage();
   await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(sharedLink);await page.getByLabel('Email',{exact:true}).fill('visitor@example.test');await page.getByRole('button',{name:'Send a code',exact:true}).click();await page.getByLabel('6-digit code').fill('123456');await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await page.goto(sharedLink);await page.getByLabel('Email',{exact:true}).fill('visitor@example.test');await page.getByRole('button',{name:'Email me a sign-in link',exact:true}).click();
+  const emailRequest=requests.findLast(r=>r.path==='/api/account'&&r.op==='send_otp');assert.match(emailRequest?.body?.request_id||'',/^[0-9a-f-]{36}$/);assert.equal(emailRequest.body.redirect_to,new URL(sharedLink).toString());
+  await page.getByText('Open the sign-in link in the email. If it includes a 6-digit code, you can enter that code here.',{exact:true}).waitFor();await page.getByLabel('6-digit code').fill('123456');await page.getByRole('button',{name:'Continue with code',exact:true}).click();
   await page.getByRole('heading',{name:'Before your first question'}).waitFor();assert(await page.getByRole('button',{name:'Start conversation'}).isDisabled());assert.equal(requests.filter(r=>r.op==='join').length,0);check(width+' actual OTP flow reaches explicit admission');
   await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Start conversation'}).click();await page.getByLabel('Your question',{exact:true}).fill('What is the period?');await page.getByRole('button',{name:'Ask',exact:true}).click();await page.getByText('The period is2seconds:24divided by12.',{exact:true}).waitFor();assert.equal(requests.filter(r=>r.op==='ask').length,1);check(width+' visitor asks after admission');
   await page.screenshot({path:join(out,`visitor-${width}.png`),fullPage:true});

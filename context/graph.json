@@ -17,6 +17,10 @@
     "blocks": "this is blocked on that"
   },
   "nodes": [
+    {"id": "vyakti-auth-email-durable-azure-lane-20261010", "kind": "decision", "title": "Use a flagged durable Azure lane for Vyakti auth email", "at": "2026-10-10"},
+    {"id": "vyakti-auth-email-baseline-20261010", "kind": "measurement", "title": "Shared SMTP restriction and absent ACS resource baseline", "at": "2026-10-10"},
+    {"id": "vyakti-auth-email-azure-infrastructure-verified-20261010", "kind": "measurement", "title": "Vyakti ACS Email resources exist and are linked without runtime activation", "at": "2026-10-10"},
+    {"id": "shared-smtp-and-stateless-mail-retry-20261010", "kind": "rejection", "title": "Shared SMTP and stateless mail retry violate authority or delivery truth", "at": "2026-10-10"},
     {"id": "bounded-source-and-voice-extension-20261010", "kind": "decision", "title": "Bound selected passages and chosen speech to existing authority", "at": "2026-10-10"},
     {"id": "candidate-contract-checks-20261010", "kind": "measurement", "title": "Real SQL proof, focused contracts and remaining CI browser failure", "at": "2026-10-10"},
     {"id": "transient-results-and-confounded-language-tests-20261010", "kind": "rejection", "title": "A transient paragraph and a language instruction cannot prove the intended result", "at": "2026-10-10"},
@@ -21096,6 +21100,21 @@
     }
   ],
   "edges": [
+    {
+      "src": "vyakti-auth-email-durable-azure-lane-20261010",
+      "rel": "measured_by",
+      "dst": "vyakti-auth-email-baseline-20261010"
+    },
+    {
+      "src": "vyakti-auth-email-durable-azure-lane-20261010",
+      "rel": "measured_by",
+      "dst": "vyakti-auth-email-azure-infrastructure-verified-20261010"
+    },
+    {
+      "src": "shared-smtp-and-stateless-mail-retry-20261010",
+      "rel": "caused_by",
+      "dst": "vyakti-auth-email-durable-azure-lane-20261010"
+    },
     {"src": "bounded-source-and-voice-extension-20261010", "rel": "measured_by", "dst": "candidate-contract-checks-20261010"},
     {"src": "transient-results-and-confounded-language-tests-20261010", "rel": "caused_by", "dst": "candidate-contract-checks-20261010"},
     {"src": "text-publication-access-passes-20261010", "rel": "measured_by", "dst": "text-publication-entitlement-baseline-20261010"},

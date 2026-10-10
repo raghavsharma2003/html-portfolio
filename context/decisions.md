@@ -25693,3 +25693,29 @@ Reverse this decision when an actually configured payment provider and a reviewe
 publication-specific charge, refund, renewal and payout contract can replace
 manual entitlement without weakening the atomic visitor binding or legacy open
 publication behavior.
+
+## `vyakti-auth-email-durable-azure-lane-20261010`
+
+Vyakti email sign-in may use a server-only Supabase Admin magic-link followed by
+one native Azure Communication Services Email send, without changing the shared
+Supabase project's SMTP or Auth hooks. The lane is off unless an explicit
+server-side provider flag and exact ACS endpoint, sender and credential are all
+present. Google and the existing Supabase path remain unchanged.
+
+Every request has one client UUID and one durable outbox row before a token or
+provider call. The row binds the normalized email hash, encrypted normalized
+email, approved redirect, encrypted Supabase action link and optional email OTP,
+one stable ACS operation UUID and repeatability timestamp. A retry reuses that
+row and never regenerates a token after provider admission becomes ambiguous.
+The initial pilot attempts at most 50 recipient messages globally: admission
+reserves one non-cycling sequence slot and the single bounded resend reserves a
+second slot from the same sequence. This is a count ceiling, not a cost ledger
+or a claim about Azure credits. Terminal or expired rows erase
+encrypted recipient and token payloads while retaining content-free operational
+evidence. Where Supabase identifies an auth user, account forgetting may remove
+that user's remaining rows.
+
+Reverse this decision if Supabase offers an isolated per-application mail
+provider, ACS repeatability or link semantics change, or measured delivery shows
+a simpler provider can preserve the same one-request, no-duplicate and shared-
+Auth boundaries. Never reverse it merely to avoid adding durable admission.

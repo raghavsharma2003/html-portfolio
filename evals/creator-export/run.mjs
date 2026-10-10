@@ -131,9 +131,9 @@ const followerNames = followerLaneTableNames();
 const retainedAccountNames = Object.keys(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES);
 const exactRetainedAccountNames = [
   "vy_creator_payout", "vy_creator_payout_account", "vy_creator_invite",
-  "vy_org_member", "vy_operator_push_subscription", "vy_creator_push_subscription",
+  "vy_org_member", "vy_operator_push_subscription", "vy_creator_push_subscription", "vy_auth_email_outbox",
 ];
-ok("retained account inventory is frozen and names exactly the six authorized account tables",
+ok("retained account inventory is frozen and names exactly the seven authorized account tables",
   Object.isFrozen(REPLICA_ERASURE_RETAINED_ACCOUNT_TABLES)
   && JSON.stringify([...retainedAccountNames].sort()) === JSON.stringify([...exactRetainedAccountNames].sort()));
 ok("every retained account table has a specific ownership reason",
@@ -151,7 +151,7 @@ ok("OWNER_LANE_TABLES names nothing beyond erasure reach and the exact retained 
   extraInManifest.length === 0, extraInManifest.join(","));
 ok("OWNER_LANE_TABLES carries no duplicate table name",
   manifestSet.size === OWNER_LANE_TABLES.length);
-ok("all six retained account tables remain available in the owner's export",
+ok("all seven retained account tables remain available in the owner's export",
   retainedAccountNames.every((table) => expected.has(table) && manifestSet.has(table)));
 for (const table of retainedAccountNames) {
   const shrunkManifest = new Set([...manifestSet].filter((name) => name !== table));
@@ -272,6 +272,13 @@ function fakeDb(state) {
     }
     if (/select room_id from vy_room where owner_user_id = \$1::uuid/.test(sql)) {
       return (state.vy_room || []).filter((r) => r.owner_user_id === params[0]).map((r) => ({ room_id: r.room_id }));
+    }
+    if (/^select request_id,pilot_slot,state,provider_status,attempt_count,last_error_code,[\s\S]*from vy_auth_email_outbox where owner_user_id = \$1::uuid limit 20000$/.test(sql)) {
+      return (state.vy_auth_email_outbox || []).filter((r) => r.owner_user_id === params[0]).map((r) => ({
+        request_id: r.request_id, pilot_slot: r.pilot_slot, state: r.state, provider_status: r.provider_status,
+        attempt_count: r.attempt_count, last_error_code: r.last_error_code, expires_at: r.expires_at,
+        payload_erased_at: r.payload_erased_at, created_at: r.created_at, updated_at: r.updated_at,
+      }));
     }
     const m = sql.match(/^select \* from (\w+) where (.+?) limit 20000$/s);
     if (!m) throw new Error(`fakeDb: unrecognized query: ${sql}`);
@@ -524,12 +531,22 @@ console.log("\n── layer 3: an owner with nothing yet ──");
   const accountOnly = { vy_replica: [], vy_room: [] };
   for (const table of retainedAccountNames) {
     const key = table === "vy_creator_invite" ? "redeemed_by_user_id" : "owner_user_id";
-    accountOnly[table] = [{ [key]: OWNER_A, marker: `own-${table}` }, { [key]: OWNER_B, marker: `other-${table}` }];
+    accountOnly[table] = table === "vy_auth_email_outbox"
+      ? [
+        { [key]: OWNER_A, request_id: "a0000000-0000-4000-a000-000000000174", pilot_slot: 1, state: "succeeded", provider_status: "Succeeded", attempt_count: 1, last_error_code: "", ciphertext: OWNER_TOKEN },
+        { [key]: OWNER_B, request_id: "b0000000-0000-4000-a000-000000000174", pilot_slot: 2, state: "succeeded", provider_status: "Succeeded", attempt_count: 1, last_error_code: "", ciphertext: "FOREIGN_AUTH_EMAIL" },
+      ]
+      : [{ [key]: OWNER_A, marker: `own-${table}` }, { [key]: OWNER_B, marker: `other-${table}` }];
   }
   const accountDump = await creatorExport(fakeDb(accountOnly), OWNER_A, { tableApplied: async () => true });
   ok("an owner with no remaining replica can still export every retained account table",
     accountDump.replicas.length === 0 && retainedAccountNames.every((table) =>
-      accountDump.tables[table]?.length === 1 && accountDump.tables[table][0].marker === `own-${table}`));
+      accountDump.tables[table]?.length === 1 && (table === "vy_auth_email_outbox"
+        ? accountDump.tables[table][0].request_id === "a0000000-0000-4000-a000-000000000174"
+        : accountDump.tables[table][0].marker === `own-${table}`)));
+  ok("auth-email export includes delivery state but excludes recipient, token, redirect and ciphertext",
+    accountDump.tables.vy_auth_email_outbox?.length === 1
+    && !/ciphertext|email_hash|redirect|payload|FOREIGN_AUTH_EMAIL|OWNER_SOURCE/.test(JSON.stringify(accountDump.tables.vy_auth_email_outbox)));
   ok("retained account exports include no other owner's rows after the final AI is removed",
     !JSON.stringify(accountDump).includes("other-") && !JSON.stringify(accountDump).includes(OWNER_B));
 }

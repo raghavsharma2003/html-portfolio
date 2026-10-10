@@ -171,6 +171,12 @@ function evaluate(def) {
 // ── vercel-app subsystems (docs/gurukul/ENV-MANIFEST.md §1-15) ─────────────
 const VERCEL_APP = [
   {
+    id: "vyakti_auth_email",
+    switch: { var: "VYAKTI_AUTH_EMAIL_PROVIDER", expected: "azure_communication_email" },
+    required: ["VYAKTI_AUTH_EMAIL_ENDPOINT", "VYAKTI_AUTH_EMAIL_ACCESS_KEY_B64", "VYAKTI_AUTH_EMAIL_SENDER", "VYAKTI_AUTH_EMAIL_ALLOWED_ORIGINS", "VYAKTI_AUTH_EMAIL_KEK_ID", "VYAKTI_AUTH_EMAIL_KEK_B64", "SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET"],
+    note: "Vyakti-only Supabase Admin link plus native ACS Email; no shared Supabase SMTP or hook mutation",
+  },
+  {
     id: "claim_extraction_provider",
     variants: [
       { label: "Azure Foundry", required: ["AZURE_FOUNDRY_ENDPOINT", "AZURE_FOUNDRY_API_KEY", "AZURE_FOUNDRY_CLAIM_MODEL"] },

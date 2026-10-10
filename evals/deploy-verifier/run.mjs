@@ -83,7 +83,7 @@ if (!apiHeaders.some(({ key, value }) => key === "Cache-Control" && value === "n
   throw new Error("the shared API no-store/nosniff headers were weakened");
 }
 const REQUIRED_CRONS = [
-  "/api/consolidate-sweep", "/api/replica-erasure-sweep", "/api/replica-liveness-sweep",
+  "/api/consolidate-sweep", "/api/replica-erasure-sweep", "/api/auth-email-sweep", "/api/replica-liveness-sweep",
   "/api/replica-identity-sweep", "/api/replica-face-session-sweep", "/api/replica-voice-identity-sweep",
   "/api/replica-model-build-sweep", "/api/channel-ingest-sweep", "/api/drift-watch-sweep",
   "/api/checkins-sweep", "/api/pulse-sweep", "/api/renewals-sweep", "/api/creator-push-sweep",

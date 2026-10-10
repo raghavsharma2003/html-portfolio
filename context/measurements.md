@@ -19424,3 +19424,40 @@ EXPLAIN nor either race was run here. No migration, provider, model, email,
 payment, network or cloud operation ran. These checks prove local control flow,
 wire compatibility and mounted UI behavior; they do not prove PostgreSQL parser
 or concurrency behavior, delivery email, payment collection or customer value.
+
+## `vyakti-auth-email-baseline-20261010`
+
+2026-10-10, n=1 exact Supabase project dashboard read by root plus n=1 bounded
+Azure Resource Manager list of only resource group `vyakti-voice`. Supabase
+custom SMTP is off; the default magic-link template contains ConfirmationURL
+and no numeric token. Official Supabase documentation says default SMTP refuses
+non-organization-team recipients. The project's redirect wildcard covers Vercel
+Preview origins and Google remains enabled.
+
+The Azure group contained 39 resources and zero `Microsoft.Communication`
+resources. The current operator service principal has inherited subscription
+Contributor at that group. Vercel metadata contains zero Azure Communication
+endpoint, sender, connection-string or Azure client/tenant/secret bindings.
+Official ACS documentation establishes asynchronous 202 admission, operation
+polling, Retry-After handling, five-minute repeatability tracking and pay-as-you-
+go email pricing. Startup-grant eligibility for this meter was not verified.
+No list-keys, send, model, email, user, provisioning, role or configuration call
+ran; cloud writes were zero.
+
+## `vyakti-auth-email-azure-infrastructure-verified-20261010`
+
+2026-10-10, n=1 root-owned exact Azure Resource Manager receipt at
+`OPS/OCT10-ACS-EMAIL-VERIFIED.json`, verified at Unix timestamp
+1791618502.787973. In the existing sponsored subscription and Vyakti resource
+group, Email resource `vyakti-auth-email-service`, its Azure-managed domain and
+Communication resource `vyakti-auth-email-acs` all report `Succeeded`; the
+Communication resource is linked to the Email domain. Both report United States
+data location where applicable.
+
+The bounded provisioning run performed zero access-key reads, zero emails, zero
+Vercel bindings, zero new role assignments and zero shared Supabase changes. All
+four guarded provisioning claims were consumed and must not be replayed. This
+receipt proves resource existence and linkage only. It does not prove the
+application SQL, narrow runtime key, Vercel configuration, Supabase Admin link,
+ACS authentication or email delivery. The application provider flag remains
+unset pending those reviewed steps.

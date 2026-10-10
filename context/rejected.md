@@ -19494,3 +19494,25 @@ RETURNING`, with a separate locked-row branch only when it was already revoked.
 Offline predicate controls pass. The prepared two-session PostgreSQL mint and
 redemption runner is not live evidence until root executes it against the exact
 development schema.
+
+## `shared-smtp-and-stateless-mail-retry-20261010`
+
+**Rejected.** Enabling global Supabase SMTP or a Send Email hook would change
+the shared Auth project for products outside Vyakti. Copying the existing broad
+subscription-Contributor credential into Vercel would turn a narrow mail feature
+into broad Azure authority. Both violate the owner boundary.
+
+**Also rejected.** A stateless handler that calls Admin generate-link and then
+ACS directly can lose the provider acknowledgment. Retrying would generate a new
+Supabase token, potentially invalidating the mailed link, and can send two emails.
+ACS repeatability alone cannot repair this because it tracks only five minutes
+and requires the identical payload, while a regenerated link changes that payload.
+Returning 200 on ACS 202 would also claim delivery before the asynchronous
+operation reaches a terminal state.
+
+**Replacement.** One Vyakti-only flagged lane uses a durable encrypted outbox,
+stable ACS operation and repeatability identifiers, conservative reconciliation
+after the retry horizon, and no automatic fallback. A response says only that
+the request was accepted and the person should check their inbox. Reconsider a
+stateless design only if both token issuance and provider delivery become one
+durable idempotent transaction with externally verifiable terminal status.

@@ -67,10 +67,10 @@ function emailReturnPath(returnPath = "/studio") {
   }
 }
 
-export function sendEmailOtp(email: string, returnPath = "/studio") {
+export function sendEmailOtp(email: string, returnPath = "/studio", requestId?: string) {
   const path = emailReturnPath(returnPath);
   const redirect = `${window.location.origin}${path}`;
-  return accountPost({ op: "send_otp", email, redirect_to: redirect });
+  return accountPost({ op: "send_otp", email, redirect_to: redirect, ...(requestId ? { request_id: requestId } : {}) });
 }
 
 export async function verifyEmailOtp(email: string, token: string) {

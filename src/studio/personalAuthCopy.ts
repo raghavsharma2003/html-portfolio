@@ -34,6 +34,7 @@ export interface PersonalAuthCopy {
   linkNotReadyError: string;
   sendError: string;
   emailUnavailableError: string;
+  emailServiceError: string;
   networkError: string;
   rateLimitError: string;
   serviceUnavailableError: string;

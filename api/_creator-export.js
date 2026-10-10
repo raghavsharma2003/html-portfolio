@@ -271,6 +271,9 @@ export const OWNER_LANE_TABLES = Object.freeze([
   // shape restated for a creator's own device instead of a platform
   // operator's.
   { table: "vy_creator_push_subscription", scope: "owner" },
+  // Content-free delivery evidence only. The scoped query below never exports
+  // encrypted recipient, sign-in link or OTP payloads.
+  { table: "vy_auth_email_outbox", scope: "auth_email" },
 
   // ── WS-R175 (the calibration erasure hazard) ────────────────────────────
   // Four tables api/_replica-full-erasure.js now deletes BY NAME (it used to
@@ -406,6 +409,13 @@ export function scopedQuery(entry, ctx) {
         sql: `select * from ${entry.table} where owner_user_id = $1::uuid limit 20000`,
         params: [ownerUserId],
       };
+    case "auth_email":
+      return {
+        sql: `select request_id,pilot_slot,state,provider_status,attempt_count,last_error_code,
+          expires_at,payload_erased_at,created_at,updated_at
+          from vy_auth_email_outbox where owner_user_id = $1::uuid limit 20000`,
+        params: [ownerUserId],
+      };
     case "invite_redeemed":
       return {
         sql: `select * from ${entry.table} where redeemed_by_user_id = $1::uuid limit 20000`,
@@ -488,8 +498,8 @@ export async function creatorExport(db, ownerUserId, options = {}) {
       if (entry.table === "vy_replica_comparison_preparation" || entry.table === "vy_replica_comparison_dispatch") {
         throw Object.assign(new Error("creator_export_comparison_preparation_unavailable"), {code:"creator_export_comparison_preparation_unavailable",status:503});
       }
-      if (entry.scope === "teacher_sheet" || entry.table === "vy_private_text_rehearsal" || entry.table === "vy_text_publication" || entry.table === "vy_text_publication_access_pass") {
-        const code=entry.scope === "teacher_sheet"?"creator_export_teacher_sheet_unavailable":entry.table === "vy_text_publication"?"creator_export_text_publication_unavailable":entry.table === "vy_text_publication_access_pass"?"creator_export_text_access_unavailable":"creator_export_private_rehearsal_unavailable";
+      if (entry.scope === "teacher_sheet" || entry.table === "vy_private_text_rehearsal" || entry.table === "vy_text_publication" || entry.table === "vy_text_publication_access_pass" || entry.table === "vy_auth_email_outbox") {
+        const code=entry.scope === "teacher_sheet"?"creator_export_teacher_sheet_unavailable":entry.table === "vy_text_publication"?"creator_export_text_publication_unavailable":entry.table === "vy_text_publication_access_pass"?"creator_export_text_access_unavailable":entry.table === "vy_auth_email_outbox"?"creator_export_auth_email_unavailable":"creator_export_private_rehearsal_unavailable";
         throw Object.assign(new Error(code), {
           code, status: 503,
         });

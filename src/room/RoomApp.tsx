@@ -2034,6 +2034,7 @@ function JoinSheet({
   const [age18, setAge18] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const emailRequestIdRef = useRef(crypto.randomUUID());
 
   async function finish(remember: boolean) {
     if (!auth) {
@@ -2100,7 +2101,7 @@ function JoinSheet({
                 autoComplete="email"
                 placeholder={copy.join.emailPlaceholder}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); emailRequestIdRef.current = crypto.randomUUID(); }}
               />
             </label>
             {codeSent && (
@@ -2124,7 +2125,8 @@ function JoinSheet({
                   setError("");
                   try {
                     if (!codeSent) {
-                      await sendEmailOtp(email.trim(), window.location.pathname + window.location.search);
+                      await sendEmailOtp(email.trim(), window.location.pathname + window.location.search, emailRequestIdRef.current);
+                      emailRequestIdRef.current = crypto.randomUUID();
                       setCodeSent(true);
                     } else {
                       onAuth(await verifyEmailOtp(email.trim(), code));

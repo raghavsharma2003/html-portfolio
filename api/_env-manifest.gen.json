@@ -1334,6 +1334,69 @@
     "required": false
   },
   {
+    "name": "VYAKTI_AUTH_EMAIL_ACCESS_KEY_B64",
+    "section": "39",
+    "sectionTitle": "Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "VYAKTI_AUTH_EMAIL_ALLOWED_ORIGINS",
+    "section": "39",
+    "sectionTitle": "Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "VYAKTI_AUTH_EMAIL_ENDPOINT",
+    "section": "39",
+    "sectionTitle": "Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "VYAKTI_AUTH_EMAIL_KEK_B64",
+    "section": "39",
+    "sectionTitle": "Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "VYAKTI_AUTH_EMAIL_KEK_ID",
+    "section": "39",
+    "sectionTitle": "Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "VYAKTI_AUTH_EMAIL_PROVIDER",
+    "section": "39",
+    "sectionTitle": "Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "VYAKTI_AUTH_EMAIL_SENDER",
+    "section": "39",
+    "sectionTitle": "Vyakti auth email through Azure Communication Services (`vercel-app`, 2026-10-10)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
     "name": "VYAKTI_MODEL_SERVING",
     "section": "2",
     "sectionTitle": "LLM spend fencing (`vercel-app`)",

@@ -84,7 +84,7 @@ try {
     const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: "reduce", serviceWorkers: "block" });
     try {
       let sends = 0, verifies = 0, refreshStatus = 503;
-      const calls = [], errors = [], blocked = [];
+      const calls = [], emailRequestIds = [], errors = [], blocked = [];
       const fresh = { access_token: "f".repeat(32), refresh_token: "fresh-refresh", expires_in: 3600, user: { id: "fresh-owner", email: "owner@example.com" } };
       await context.route("**/*", async route => {
         const request = route.request(); const url = new URL(request.url());
@@ -93,6 +93,7 @@ try {
         const body = request.postDataJSON(); calls.push(body.op);
         let status = 500, payload = { error: "PRIVATE_PROVIDER_PAYLOAD" };
         if (body.op === "send_otp") {
+          emailRequestIds.push(body.request_id);
           sends += 1;
           status = sends === 1 ? 400 : sends === 2 ? 503 : 200;
           payload = sends === 1 ? { code: "email_address_not_authorized", error: "Email address not authorized" }
@@ -196,8 +197,10 @@ try {
       await page.locator("#studio-email").fill("owner@example.com");
       await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await expectError(copy.emailUnavailableError);
       assert.equal(await page.getByRole("button", { name: copy.google, exact: true }).isVisible(), true, "Platform email refusal leaves Google available");
-      await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await expectError(copy.serviceUnavailableError);
+      await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await expectError(copy.emailServiceError);
+      assert.equal(await page.getByRole("button", { name: copy.google, exact: true }).isEnabled(), true, "Azure email failure leaves Google actionable");
       await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await page.getByRole("button", { name: copy.openedLink, exact: true }).waitFor();
+      assert.equal(await page.locator(".card-copy").innerText(), copy.inboxBodyTemplate.replace("{email}", "owner@example.com"));
       assert.equal(await page.locator("#studio-code").isVisible(), false, "Numeric code stays collapsed unless the email actually includes one");
       assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), copy.openedLink);
       await page.locator(".auth-code-fallback summary").click(); await page.locator("#studio-code").waitFor();
@@ -210,6 +213,9 @@ try {
       assert.equal(await page.locator("#studio-code").inputValue(), "");
       await page.getByRole("button", { name: copy.differentEmail, exact: true }).click(); await page.locator("#studio-email").waitFor();
       await page.getByRole("button", { name: copy.sendLink, exact: true }).click(); await page.getByRole("button", { name: copy.openedLink, exact: true }).waitFor();
+      assert.match(emailRequestIds[0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      assert.deepEqual(emailRequestIds.slice(0, 3), [emailRequestIds[0], emailRequestIds[0], emailRequestIds[0]], "Failed retries reuse the same email request id");
+      assert.notEqual(emailRequestIds[3], emailRequestIds[0], "An accepted request rotates the email request id before another send");
       assert.equal(await page.locator("#studio-code").isVisible(), false);
       await page.locator(".auth-code-fallback summary").click(); await page.locator("#studio-code").waitFor();
 
@@ -228,7 +234,7 @@ try {
       assert.ok(accepted.every(session => session.userId === "fresh-owner" && session.accessToken === "f".repeat(32)), "Only freshly refreshed sessions authenticate");
       assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("meera.state.v1")).auth.userId), "fresh-owner");
       assert.deepEqual(errors, []); assert.deepEqual(blocked, []);
-      rows.push({ lang, width, theme, loadingStyle, geometry, sceneGeometry, operations: calls, acceptedCount: accepted.length, screenshot: `${lang}-${width}-${theme}.png`, passed: true });
+      rows.push({ lang, width, theme, loadingStyle, geometry, sceneGeometry, operations: calls, requestIdChecks: emailRequestIds.length, acceptedCount: accepted.length, screenshot: `${lang}-${width}-${theme}.png`, passed: true });
       await writeFile(join(receipts, "progress.json"), JSON.stringify(rows, null, 2));
     } finally { await context.close(); }
   }

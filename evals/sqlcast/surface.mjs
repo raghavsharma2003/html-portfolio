@@ -20,6 +20,8 @@
 // mechanical diff with no failure to point at. They remain covered by the
 // conflict rule.
 export const STRICT_SURFACE = [
+  /^api\/_auth-email(?:-[^/]*)?\.js$/,
+  /^api\/auth-email-sweep\.js$/,
   /^api\/_replica[^/]*\.js$/,
   /^api\/_replica-processing\//,
   /^api\/replica[^/]*\.js$/,
