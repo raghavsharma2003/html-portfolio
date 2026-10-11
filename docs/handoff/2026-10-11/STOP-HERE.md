@@ -32,11 +32,14 @@ commit until deliberately rebound and revalidated.
 
 ## Isolated work to preserve
 
-`codex/vyakti-azure-authmail-oct10` contains the native Azure email WIP. Azure
-Email and Communication resources exist, but no resource key or Vercel binding
-has been written, no shared Supabase SMTP/hook has changed and no email has been
-sent. The code remains dark by a server flag. It needs migration174 development
-proof, full release checks and a bounded real delivery test before activation.
+`codex/vyakti-azure-authmail-oct10` is pushed at
+`f7781cc3b64df3fb96d4e445580b84104f680a39`, with its recovery checkpoint at
+`9a8ac6b36fb0d4b9e0f1887f5167dc96c756c393`. It contains the native Azure email
+WIP and the bilingual publication design pass. Azure Email and Communication
+resources exist, but no resource key or Vercel binding has been written, no
+shared Supabase SMTP/hook has changed and no email has been sent. The code
+remains dark by a server flag. It needs migration174 development proof, full
+release checks and a bounded real delivery test before activation.
 
 ## Non-negotiable scope
 
