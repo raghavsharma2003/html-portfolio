@@ -11,13 +11,14 @@ import {
   AUTH_EMAIL_RETRY_DISPATCH_SQL,
   AUTH_EMAIL_RECORD_PENDING_SQL, AUTH_EMAIL_RECORD_TERMINAL_SQL, AUTH_EMAIL_RECORD_RECONCILE_SQL,
   AUTH_EMAIL_EXPIRE_SQL, AUTH_EMAIL_FORGET_SQL, AUTH_EMAIL_SWEEP_ROWS_SQL,
-  admitAuthEmail, claimAuthEmailPreparation, forgetAuthEmailAccount, authEmailSqlCases,
+  admitAuthEmail, claimAuthEmailPreparation, recordAuthEmailTerminal, forgetAuthEmailAccount, authEmailSqlCases,
 } from "../../api/_auth-email-store.js";
 import {
   authEmailAzureConfig, approvedAuthEmailRedirect, generateSupabaseAuthEmailLink, signAcsAuthEmailRequest,
   sendAzureAuthEmail, readAzureAuthEmail, validateAcsOperationLocation, validateAuthEmailPayload,
 } from "../../api/_auth-email-azure.js";
 import { requestVyaktiAuthEmail, runAuthEmailSweep } from "../../api/_auth-email.js";
+import { authEmail174Plan, runAuthEmail174Development } from "../../scripts/auth-email174-development.mjs";
 
 const ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const REQUEST = "10000000-0000-4000-8000-000000000174";
@@ -76,10 +77,10 @@ function fakeDb(options = {}) {
     if (sql === AUTH_EMAIL_RELEASE_PREPARATION_SQL) { record.state = "admitted"; record.preparation_token_hash = null; record.preparation_lease_expires_at = null; record.last_error_code = params[3]; return [copy()]; }
     if (sql === AUTH_EMAIL_RECORD_PREPARATION_UNCERTAIN_SQL) { record.state = "reconcile_required"; record.preparation_token_hash = null; record.preparation_lease_expires_at = null; record.last_error_code = params[3]; return [copy()]; }
     if (sql === AUTH_EMAIL_READ_SQL) return record.request_hash === params[1] ? [copy()] : [];
-    if (sql === AUTH_EMAIL_CLAIM_DISPATCH_SQL) { if (record.state !== "prepared") return []; record.state = "dispatching"; record.attempt_count += 1; return [copy()]; }
-    if (sql === AUTH_EMAIL_RETRY_DISPATCH_SQL) { if (record.state !== "pending" || record.provider_status !== "NotStarted" || record.attempt_count >= 2) return []; if (options.capRetry) throw Object.assign(new Error("maximum value reached for sequence vy_auth_email_pilot_slot_seq"), { code: "2200H" }); sequence += 1; record.state = "dispatching"; record.attempt_count += 1; record.retry_pilot_slot = sequence; return [copy()]; }
+    if (sql === AUTH_EMAIL_CLAIM_DISPATCH_SQL) { if (record.state !== "prepared") return []; record.state = "dispatching"; record.attempt_count += 1; if (typeof options.clock === "function") record.updated_at = new Date(options.clock()).toISOString(); return [copy()]; }
+    if (sql === AUTH_EMAIL_RETRY_DISPATCH_SQL) { if (record.state !== "pending" || record.provider_status !== "NotStarted" || record.attempt_count >= 2) return []; if (options.capRetry) throw Object.assign(new Error("maximum value reached for sequence vy_auth_email_pilot_slot_seq"), { code: "2200H" }); sequence += 1; record.state = "dispatching"; record.attempt_count += 1; record.retry_pilot_slot = sequence; if (typeof options.clock === "function") record.updated_at = new Date(options.clock()).toISOString(); return [copy()]; }
     if (sql === AUTH_EMAIL_RECORD_PENDING_SQL) { Object.assign(record, { state: "pending", operation_location: params[2], provider_status: params[3] }); return [copy()]; }
-    if (sql === AUTH_EMAIL_RECORD_TERMINAL_SQL) { Object.assign(record, { state: params[2], provider_status: params[3], last_error_code: params[4], payload_envelope: null, payload_hash: null, payload_erased_at: new Date().toISOString() }); return [copy()]; }
+    if (sql === AUTH_EMAIL_RECORD_TERMINAL_SQL) { if (!["dispatching", "pending", "reconcile_required"].includes(record.state)) return []; Object.assign(record, { state: params[2], provider_status: params[3], last_error_code: params[4], payload_envelope: null, payload_hash: null, payload_erased_at: new Date().toISOString() }); return [copy()]; }
     if (sql === AUTH_EMAIL_RECORD_RECONCILE_SQL) { record.state = "reconcile_required"; record.last_error_code = params[2]; return [copy()]; }
     if (sql === AUTH_EMAIL_EXPIRE_SQL) { if (options.expire && record.payload_envelope) { record.state = "expired"; record.payload_envelope = null; record.payload_hash = null; return [{ request_id: record.request_id }]; } return []; }
     if (sql === AUTH_EMAIL_FORGET_SQL) { if (record.owner_user_id === params[0]) { const id = record.request_id; record = null; return [{ request_id: id }]; } return []; }
@@ -102,6 +103,7 @@ ok("encrypted outbox payload is bound to request, email and redirect with no pla
 
 assert.equal(approvedAuthEmailRedirect(REDIRECT, CONFIG), REDIRECT);
 assert.equal(approvedAuthEmailRedirect("https://vyakti-replica-lab.vercel.app/r/physics?lang=hi", CONFIG), "https://vyakti-replica-lab.vercel.app/r/physics?lang=hi");
+assert.equal(approvedAuthEmailRedirect("https://vyakti-replica-lab.vercel.app/r/physics/?lang=hi", CONFIG), "https://vyakti-replica-lab.vercel.app/r/physics/?lang=hi");
 for (const bad of ["https://evil.vercel.app/studio", "https://vyakti-replica-lab.vercel.app/admin", "http://vyakti-replica-lab.vercel.app/studio"])
   assert.equal(approvedAuthEmailRedirect(bad, CONFIG), null);
 ok("Azure lane accepts only an exact configured origin and approved Studio or Room path");
@@ -157,6 +159,34 @@ status = "Succeeded"; const complete = await requestVyaktiAuthEmail(fixture.db, 
 assert.equal(complete.state, "succeeded"); assert.equal(fixture.state().payload_envelope, null);
 ok("same request generates and sends once, polls safely, and scrubs payload at terminal success");
 
+const terminalFence = fakeDb();
+await requestVyaktiAuthEmail(terminalFence.db, requestInput(), { ...options, generateLink: async () => ({ ...generated }),
+  sendEmail: async () => ({ state: "pending", operation_location: `${CONFIG.endpoint}/emails/operations/${REQUEST}?api-version=2023-03-31` }),
+  readEmail: async () => ({ status: "Running" }) });
+const storeRequest = { request_id: REQUEST, email_hash: emailHash, redirect_hash: redirectHash, redirect_url: REDIRECT };
+await recordAuthEmailTerminal(terminalFence.db, storeRequest, "succeeded", "Succeeded");
+const staleTerminal = await recordAuthEmailTerminal(terminalFence.db, storeRequest, "failed", "Failed", "auth_email_delivery_failed");
+assert.equal(staleTerminal.state, "succeeded"); assert.equal(terminalFence.state().state, "succeeded");
+terminalFence.mutate(row => { row.state = "expired"; });
+const expiredTerminal = await recordAuthEmailTerminal(terminalFence.db, storeRequest, "succeeded", "Succeeded");
+assert.equal(expiredTerminal.state, "expired"); assert.equal(terminalFence.state().state, "expired");
+ok("terminal and expired delivery states cannot be overwritten by concurrent stale polls");
+
+let preparationRelease, preparationStarted;
+const preparationGate = new Promise(resolve => { preparationRelease = resolve; });
+const preparationStartedGate = new Promise(resolve => { preparationStarted = resolve; });
+const preparationRace = fakeDb(); let preparationLinkCalls = 0;
+const preparationOptions = { ...options,
+  generateLink: async () => { preparationLinkCalls += 1; preparationStarted(); await preparationGate; return { ...generated }; },
+  sendEmail: async () => ({ state: "pending", operation_location: `${CONFIG.endpoint}/emails/operations/${REQUEST}?api-version=2023-03-31` }),
+  readEmail: async () => ({ status: "Running" }) };
+const preparationWinner = requestVyaktiAuthEmail(preparationRace.db, requestInput(), preparationOptions);
+await preparationStartedGate;
+await assert.rejects(requestVyaktiAuthEmail(preparationRace.db, requestInput(), preparationOptions), /auth_email_link_generation_uncertain/);
+assert.equal(preparationLinkCalls, 1); assert.equal(preparationRace.state().state, "preparing");
+preparationRelease(); await preparationWinner;
+ok("a concurrent preparing-row reader retains the same request instead of reporting provider acceptance");
+
 let lateNow = options.now, lateSends = 0;
 const late = fakeDb();
 await assert.rejects(requestVyaktiAuthEmail(late.db, requestInput(), {
@@ -176,24 +206,24 @@ const initialRaceOptions = { ...options, generateLink: async () => ({ ...generat
   sendEmail: async () => { initialRaceSends += 1; initialStarted(); await initialGate; return { state: "pending", operation_location: `${CONFIG.endpoint}/emails/operations/${REQUEST}?api-version=2023-03-31` }; } };
 const initialWinner = requestVyaktiAuthEmail(initialRace.db, requestInput(), initialRaceOptions);
 await initialStartedGate;
-const initialLoser = await requestVyaktiAuthEmail(initialRace.db, requestInput(), initialRaceOptions);
-assert.equal(initialLoser.state, "accepted"); assert.equal(initialRaceSends, 1); assert.equal(initialRace.state().attempt_count, 1);
-await requestVyaktiAuthEmail(initialRace.db, requestInput(), initialRaceOptions);
+await assert.rejects(requestVyaktiAuthEmail(initialRace.db, requestInput(), initialRaceOptions), /auth_email_delivery_uncertain/);
+assert.equal(initialRaceSends, 1); assert.equal(initialRace.state().attempt_count, 1);
+await assert.rejects(requestVyaktiAuthEmail(initialRace.db, requestInput(), initialRaceOptions), /auth_email_delivery_uncertain/);
 assert.equal(initialRaceSends, 1); assert.equal(initialRace.state().state, "dispatching");
 initialRelease(); await initialWinner;
 
 let retryPhase = "initial", retryRelease, retryStarted, retryNow = options.now;
 const retryGate = new Promise(resolve => { retryRelease = resolve; });
 const retryStartedGate = new Promise(resolve => { retryStarted = resolve; });
-const retryRace = fakeDb(); let retryRaceSends = 0;
+const retryRace = fakeDb({ clock: () => retryNow }); let retryRaceSends = 0;
 const retryRaceOptions = { ...options, clock: () => retryNow, generateLink: async () => ({ ...generated }), readEmail: async () => ({ status: "NotStarted" }),
   sendEmail: async () => { retryRaceSends += 1; if (retryPhase === "initial") throw Object.assign(new Error("lost"), { ambiguous: true }); retryStarted(); await retryGate; return { state: "pending", operation_location: `${CONFIG.endpoint}/emails/operations/${REQUEST}?api-version=2023-03-31` }; } };
-await requestVyaktiAuthEmail(retryRace.db, requestInput(), retryRaceOptions);
+await assert.rejects(requestVyaktiAuthEmail(retryRace.db, requestInput(), retryRaceOptions), /auth_email_delivery_uncertain/);
 retryPhase = "retry"; retryNow += 31_000;
 const retryWinner = requestVyaktiAuthEmail(retryRace.db, requestInput(), retryRaceOptions);
 await retryStartedGate;
-const retryLoser = await requestVyaktiAuthEmail(retryRace.db, requestInput(), retryRaceOptions);
-assert.equal(retryLoser.state, "accepted"); assert.equal(retryRaceSends, 2); assert.equal(retryRace.state().attempt_count, 2);
+await assert.rejects(requestVyaktiAuthEmail(retryRace.db, requestInput(), retryRaceOptions), /auth_email_delivery_uncertain/);
+assert.equal(retryRaceSends, 2); assert.equal(retryRace.state().attempt_count, 2);
 retryRelease(); await retryWinner;
 ok("only the initial or retry dispatch claim winner can call ACS");
 
@@ -202,23 +232,27 @@ assert.equal(linkCalls, 1); assert.equal(providerSends, 1);
 ok("request UUID is exactly bound to recipient and redirect before any provider replay");
 
 let ambiguousSends = 0;
-const ambiguous = fakeDb();
+let ambiguousNow = options.now;
+const ambiguous = fakeDb({ clock: () => ambiguousNow });
 const ambiguousOptions = { ...options, generateLink: async () => ({ ...generated }), readEmail: async () => ({ status: "NotStarted" }),
   sendEmail: async () => { ambiguousSends += 1; throw Object.assign(new Error("lost"), { code: "auth_email_delivery_ambiguous", ambiguous: true }); } };
-await requestVyaktiAuthEmail(ambiguous.db, requestInput(), ambiguousOptions);
+await assert.rejects(requestVyaktiAuthEmail(ambiguous.db, requestInput(), { ...ambiguousOptions, clock: () => ambiguousNow }), /auth_email_delivery_uncertain/);
 assert.equal(ambiguous.state().state, "dispatching");
 const fourMinutes = ambiguousOptions.now + 4 * 60 * 1000;
-await requestVyaktiAuthEmail(ambiguous.db, requestInput(), { ...ambiguousOptions, now: fourMinutes, clock: () => fourMinutes });
+ambiguousNow = fourMinutes;
+await assert.rejects(requestVyaktiAuthEmail(ambiguous.db, requestInput(), { ...ambiguousOptions, now: fourMinutes, clock: () => ambiguousNow }), /auth_email_delivery_uncertain/);
 assert.equal(ambiguousSends, 2); assert.equal(ambiguous.state().attempt_count, 2);
 const sixMinutes = ambiguousOptions.now + 6 * 60 * 1000;
 await assert.rejects(requestVyaktiAuthEmail(ambiguous.db, requestInput(), { ...ambiguousOptions, now: sixMinutes, clock: () => sixMinutes }), /auth_email_retry_horizon_elapsed/);
 assert.equal(ambiguousSends, 2); assert.equal(ambiguous.state().state, "reconcile_required");
 ok("ambiguous retry reuses one token and operation inside five minutes, then refuses outside the horizon");
 
-const retryCapped = fakeDb({ capRetry: true });
-await requestVyaktiAuthEmail(retryCapped.db, requestInput(), ambiguousOptions);
+let capNow = options.now;
+const retryCapped = fakeDb({ capRetry: true, clock: () => capNow });
+await assert.rejects(requestVyaktiAuthEmail(retryCapped.db, requestInput(), { ...ambiguousOptions, clock: () => capNow }), /auth_email_delivery_uncertain/);
 const oneMinute = ambiguousOptions.now + 60_000;
-await assert.rejects(requestVyaktiAuthEmail(retryCapped.db, requestInput(), { ...ambiguousOptions, now: oneMinute, clock: () => oneMinute }), /auth_email_pilot_cap_reached/);
+capNow = oneMinute;
+await assert.rejects(requestVyaktiAuthEmail(retryCapped.db, requestInput(), { ...ambiguousOptions, now: oneMinute, clock: () => capNow }), /auth_email_pilot_cap_reached/);
 assert.equal(retryCapped.state().attempt_count, 1);
 ok("the same 50-slot global cap covers resend attempts as well as initial recipients");
 
@@ -277,5 +311,17 @@ ok("schema mirror, account forgetting, per-destination throttle order and per-re
 const dark = fakeDb();
 assert.equal(await requestVyaktiAuthEmail(dark.db, requestInput(), { config: null }), null); assert.equal(dark.calls.length, 0);
 ok("provider flag dark preserves the existing Supabase email caller with zero outbox work");
+
+const developmentPlan = await authEmail174Plan();
+assert.equal(developmentPlan.database, "vyakti_expert_integration_20260906");
+assert.equal(developmentPlan.ddl.length, 5); assert.equal(developmentPlan.explains.length, 14);
+let developmentCalls = 0;
+await assert.rejects(runAuthEmail174Development({ q: async () => { developmentCalls += 1; throw new Error("must_not_query"); },
+  expectedMigrationSha256: "0".repeat(64), writeReceipt: async () => { throw new Error("must_not_write"); } }), /migration174_hash_mismatch/);
+assert.equal(developmentCalls, 0);
+await assert.rejects(runAuthEmail174Development({ q: async sql => { developmentCalls += 1; assert.equal(sql, "select current_database() as name"); return [{ name: "neondb" }]; },
+  expectedMigrationSha256: developmentPlan.migrationSha256, writeReceipt: async () => { throw new Error("must_not_write"); } }), /exact_development_database_required/);
+assert.equal(developmentCalls, 1);
+ok("development migration helper is plan-only by default and refuses wrong hash or database before DDL");
 
 console.log(`PASS ${checks} auth-email groups; offline fakes only, no DB, Supabase, Azure, email, user or key call`);

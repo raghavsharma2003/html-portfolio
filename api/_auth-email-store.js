@@ -71,6 +71,7 @@ export const AUTH_EMAIL_RECORD_TERMINAL_SQL = `update vy_auth_email_outbox
      payload_erased_at=coalesce(payload_erased_at,now()),preparation_token_hash=null,
      preparation_lease_expires_at=null,updated_at=now()
  where request_id=$1::uuid and request_hash=$2 and $3 in('succeeded','failed')
+   and state in('dispatching','pending','reconcile_required')
  returning *`;
 
 export const AUTH_EMAIL_RECORD_RECONCILE_SQL = `update vy_auth_email_outbox
@@ -181,8 +182,10 @@ export async function recordAuthEmailPending(db, input, operationLocation, provi
 export async function recordAuthEmailTerminal(db, input, state, providerStatus, errorCode = "") {
   const shaped = authEmailRequestShape(input);
   const rows = await db(AUTH_EMAIL_RECORD_TERMINAL_SQL, [shaped.request_id, shaped.request_hash, state, providerStatus, errorCode]);
-  if (!rows[0]) fail("auth_email_request_changed");
-  return row(rows[0]);
+  if (rows[0]) return row(rows[0]);
+  const current = await readAuthEmail(db, input);
+  if (["succeeded", "failed", "expired"].includes(current.state)) return current;
+  fail("auth_email_request_changed");
 }
 
 export async function recordAuthEmailReconcile(db, input, code) {

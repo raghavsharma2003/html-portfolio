@@ -129,12 +129,11 @@ export async function requestVyaktiAuthEmail(db, input, options = {}) {
       row = await poll(db, request, row, config, options);
     }
   }
-  if (row.state === "preparing" && liveNow(options) >= new Date(row.preparation_lease_expires_at).getTime()) {
-    fail("auth_email_link_generation_uncertain", 409);
-  }
+  if (row.state === "preparing") fail("auth_email_link_generation_uncertain", 409);
   if (row.state === "failed") fail("auth_email_delivery_failed");
   if (row.state === "expired") fail("auth_email_request_expired", 409);
   if (row.state === "reconcile_required") fail(row.last_error_code || "auth_email_delivery_uncertain", 409);
+  if (["admitted", "prepared", "dispatching"].includes(row.state)) fail("auth_email_delivery_uncertain", 409);
   return publicState(row);
 }
 

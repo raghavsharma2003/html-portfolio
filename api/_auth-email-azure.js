@@ -61,7 +61,7 @@ export async function authEmailAzureConfig(env = process.env) {
 export function approvedAuthEmailRedirect(value, config) {
   try {
     const url = new URL(String(value || ""));
-    const pathAllowed = url.pathname === "/studio" || /^\/r\/[a-z0-9][a-z0-9-]{1,62}$/u.test(url.pathname);
+    const pathAllowed = url.pathname === "/studio" || /^\/r\/[a-z0-9][a-z0-9-]{1,62}\/?$/u.test(url.pathname);
     if (url.protocol !== "https:" || url.username || url.password || url.port || !pathAllowed || url.hash
         || !config.allowedOrigins.includes(url.origin)) return null;
     return url.toString();
