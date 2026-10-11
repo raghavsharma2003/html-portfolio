@@ -24,7 +24,7 @@
 // NOT in evals/run.mjs, and deliberately: it needs a built app and a server on
 // a port, the same by-construction exclusion evals/sync-browser.mjs and
 // evals/burst-browser.mjs carry.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,7 +58,7 @@ const HER_LINES = [
   "haha wo popup band kar pehle",
 ];
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("sharenow-browser");
 const ctx = await browser.newContext();
 const page = await ctx.newPage();
 await page.goto(B, { waitUntil: "domcontentloaded" });

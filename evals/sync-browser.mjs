@@ -22,7 +22,7 @@
 // the client's merge path is built around, and hands back exactly what a
 // client sent. A stub that always says ok would make every assertion below
 // vacuous.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 
 const B = process.env.MEERA_PREVIEW || "http://localhost:4291";
 let fails = 0;
@@ -32,7 +32,7 @@ const ok = (n, c, e = "") => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("sync-browser");
 
 // ── the account server ────────────────────────────────────────────────────
 const server = { state: null, updated_at: null, saves: 0, loads: 0, conflicts: 0 };

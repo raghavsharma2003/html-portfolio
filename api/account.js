@@ -13,26 +13,39 @@
 //                                          the row, "clear" empties the
 //                                          conversation's own fields (P2-1)
 //   track        { device, event, props?, user_id? } → { ok }
+//   consent      { device, granted, at, version, user_id? } → { ok } — the
+//                                          DPDP memory-consent ledger (#148)
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
-
-import { SUPABASE_URL, SUPABASE_KEY } from "./_config.js";
-
-const SB_URL = process.env.SUPABASE_URL || SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_KEY || SUPABASE_KEY;
+import { withDoor } from "./_incidents.js";
+import { SB_URL, SB_KEY, authFetch, userFromToken } from "./_auth.js";
+import { emailRedirect, emailOtpPath } from "./_auth-redirect.js";
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
+import { forgetTextPublicationAccount } from './_text-publication-store.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const authFetch = (path, body, headers = {}) =>
-  fetch(`${SB_URL}/auth/v1/${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      apikey: SB_KEY,
-      "Content-Type": "application/json",
-      ...headers,
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+// ── WS-R32: the OTP doors behind vy_public_rate (closes ws-r26-otp-doors-
+// not-behind-vy-public-rate) ────────────────────────────────────────────────
+//
+// send_sms and verify_sms are the sign-in the Room uses, and until now both
+// were guarded ONLY by the in-memory `otp_dest` throttle below - per WARM
+// LAMBDA INSTANCE, so it resets on every cold start and is invisible to every
+// other instance or region a determined caller can land on next. It stays,
+// as a fast first layer with no database round trip; the calls below add a
+// SECOND, persistent layer in vy_public_rate (WS-R26, api/_rate-limit.js)
+// that survives both. Every limit and its reason lives in that file's
+// DEFAULT_LIMITS, under otp_send_ip/otp_send_dest/otp_verify_ip/
+// otp_verify_dest - named there rather than restated here, same discipline
+// api/room.js's `refused` already keeps.
+async function refused(res, scope, key) {
+  const gate = await consume(q, { scope, key });
+  if (gate.ok) return false;
+  res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+  res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+  return true;
+}
 
 const rest = (path, params, opts = {}) => {
   const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -47,20 +60,12 @@ const rest = (path, params, opts = {}) => {
   });
 };
 
-async function userFromToken(accessToken) {
-  if (typeof accessToken !== "string" || accessToken.length < 20) return null;
-  const res = await authFetch("user", undefined, { Authorization: `Bearer ${accessToken}` });
-  if (!res.ok) return null;
-  const u = await res.json();
-  return u?.id ? u : null;
-}
-
 async function passthrough(res, upstream) {
   const data = await upstream.json().catch(() => ({}));
   return res.status(upstream.ok ? 200 : upstream.status >= 500 ? 502 : upstream.status).json(data);
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -71,34 +76,67 @@ export default async function handler(req, res) {
 
   try {
     const b = req.body || {};
+    // WS-R89: the one shared cap every POST door checks first.
+    if (bodyTooLarge(b, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
     const op = b.op;
 
     if (op === "send_otp") {
       const email = String(b.email || "").trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "valid email required" });
+      const redirect = emailRedirect(b.redirect_to);
+      if (redirect === null) return res.status(400).json({ error: "valid redirect required" });
       // per-DESTINATION throttle (independent of IP): stops email-bombing a
       // victim address through rotating IPs
       if (!allow(email, "otp_dest", 3)) return res.status(429).json({ error: "slow down" });
-      return passthrough(res, await authFetch("otp", { email, create_user: true }));
+      // WS-R51 (evals/room-doors, the door-battery widening): `send_sms`
+      // below has carried the SAME two persistent, cross-instance layers
+      // since WS-R32 (`otp_send_ip`/`otp_send_dest`, this file's own header);
+      // `send_otp` never got them, so a warm-lambda-only in-memory throttle
+      // (`otp_dest` above) was its entire defense, invisible to every other
+      // instance or region a determined caller could land on next -
+      // precisely the gap WS-R32's own header names as the reason
+      // `vy_public_rate` exists at all. Wired here rather than left, per this
+      // workstream's law 3 ("anything a case finds is fixed").
+      if (await refused(res, "otp_send_ip", ipOf(req))) return;
+      if (await refused(res, "otp_send_dest", email)) return;
+      return passthrough(res, await authFetch(emailOtpPath(redirect), { email, create_user: true }));
     }
     if (op === "verify_otp") {
       const email = String(b.email || "").trim().toLowerCase();
+      // WS-R51: `verify_sms` below carries `otp_verify_ip`/`otp_verify_dest`
+      // (WS-R32); `verify_otp` carried NEITHER - the generic per-IP `account`
+      // scope at the top of this handler (20/window, every op on this door)
+      // was the only thing standing between a guessed email OTP and a
+      // successful verify. Wired here, `verify_sms`'s own two-scope shape.
+      if (!email) return res.status(400).json({ error: "valid email required" });
+      if (await refused(res, "otp_verify_ip", ipOf(req))) return;
+      if (await refused(res, "otp_verify_dest", email)) return;
       return passthrough(res, await authFetch("verify", { type: "email", email, token: String(b.token || "") }));
     }
     if (op === "send_sms") {
       const phone = String(b.phone || "").replace(/[^\d+]/g, "");
       if (phone.length < 8) return res.status(400).json({ error: "valid phone required" });
       // per-DESTINATION throttle: SMS pumping is real toll fraud — a number
-      // can be hit at most twice a minute regardless of source IPs
-      if (!allow(phone, "otp_dest", 2)) return res.status(429).json({ error: "slow down" });
+      // can be hit at most a few times a minute regardless of source IPs.
+      // Fast first layer (see the WS-R32 header above); the two persistent
+      // scopes below are the ceiling that survives a cold start.
+      if (!allow(phone, "otp_dest", 3)) return res.status(429).json({ error: "slow down" });
+      if (await refused(res, "otp_send_ip", ipOf(req))) return;
+      if (await refused(res, "otp_send_dest", phone)) return;
       return passthrough(res, await authFetch("otp", { phone, create_user: true }));
     }
     if (op === "verify_sms") {
       const phone = String(b.phone || "").replace(/[^\d+]/g, "");
+      // WS-R32: validate BEFORE gating - a malformed destination is refused
+      // here and never reaches consume(), so it never touches the counter
+      // (evals/rate-limit/run.mjs's own negative control on this point).
+      if (phone.length < 8) return res.status(400).json({ error: "valid phone required" });
+      if (await refused(res, "otp_verify_ip", ipOf(req))) return;
+      if (await refused(res, "otp_verify_dest", phone)) return;
       return passthrough(res, await authFetch("verify", { type: "sms", phone, token: String(b.token || "") }));
     }
     if (op === "google_url") {
-      const redirect = typeof b.redirect === "string" ? b.redirect : "https://meera-silk.vercel.app/chat";
+      const redirect = typeof b.redirect === "string" ? b.redirect : "https://vyakti-replica-lab.vercel.app/studio";
       return res.status(200).json({
         url: `${SB_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirect)}`,
       });
@@ -199,6 +237,7 @@ export default async function handler(req, res) {
       if (!user) return res.status(401).json({ error: "invalid session" });
       const mode = b.mode === "forget" ? "forget" : "clear";
       if (mode === "forget") {
+        await forgetTextPublicationAccount(q, user.id);
         const gone = await q(`delete from meera_state where user_id = $1 returning user_id`, [
           user.id,
         ]).catch(() => []);
@@ -232,6 +271,72 @@ export default async function handler(req, res) {
       ).catch(() => []);
       return res.status(200).json({ ok: true, mode, rows: rows.length });
     }
+    // ── THE MEMORY-CONSENT LEDGER (task #148, DPDP) ────────────────────────
+    //
+    // India's DPDP Act reaches full effect 2027-05-14. Storing cross-session
+    // personal and emotional memory needs its own specific, informed,
+    // unbundled consent, and a fiduciary has to be able to SHOW it was given.
+    // An answer that lives only in the localStorage of the phone that gave it
+    // is not evidence: the user can edit it, a reinstall erases it, and a
+    // second device never sees it.
+    //
+    // APPEND-ONLY, and that is the whole design. Every grant and every
+    // withdrawal is its own row, so the table answers "was consent in force on
+    // the 3rd of March" rather than only "what is it now" — which is the
+    // question a regulator asks and the one an updateable single row cannot
+    // answer. The client reads nothing back; there is no get op, because the
+    // binding copy of the answer is the one on the device (src/engine/
+    // memory.ts's gate).
+    //
+    // UNAUTHENTICATED, exactly like `track` below and for its reason: most of
+    // this product's users are anonymous device ids, and requiring a login to
+    // record a refusal would mean the refusals we could not prove are the ones
+    // from people who never signed up. `user_id` rides along when there is
+    // one. Possession of the device uuid is the whole auth posture, which is
+    // the same posture api/memory.js's forget path runs on.
+    //
+    // FOUR COLUMNS AND NO CONTENT. There is no text field in this table and
+    // there must never be one: a consent ledger that accumulated conversation
+    // would be a second copy of the thing being consented to, in the one place
+    // a refusal must never make larger. Same content law migration 012 states.
+    if (op === "consent") {
+      if (!UUID.test(String(b.device || ""))) return res.status(400).json({ error: "device required" });
+      if (typeof b.granted !== "boolean") return res.status(400).json({ error: "granted required" });
+      // the version of the ASK this answers. Small integer, clamped rather
+      // than trusted: a consent row filed under a version that never existed
+      // is a row nobody can map back to the words a person actually read.
+      const version = Number.isInteger(b.version) && b.version > 0 && b.version < 1000 ? b.version : 1;
+      // the client's clock names the moment the person tapped; the column
+      // default names the moment we heard about it. Both are kept, because a
+      // device that was offline for an hour makes them differ and the honest
+      // record of when consent was GIVEN is the first one.
+      const at = typeof b.at === "string" && !Number.isNaN(Date.parse(b.at)) ? b.at : new Date().toISOString();
+      // awaited for `track`'s reason one op down: a serverless function
+      // freezes the instant the response is sent, so a fire-and-forget insert
+      // dies mid-flight most of the time — and this is the one row in this
+      // file whose absence is a compliance gap rather than a lost metric.
+      try {
+        await q(
+          `insert into meera_consent (device_id, user_id, kind, granted, version, at)
+           values ($1,$2,$3,$4,$5,$6)`,
+          [
+            b.device,
+            UUID.test(String(b.user_id || "")) ? b.user_id : null,
+            "memory",
+            b.granted,
+            version,
+            at,
+          ],
+        );
+        return res.status(200).json({ ok: true });
+      } catch {
+        // The device has already stopped writing memory by the time this
+        // request is made, so a failed ledger insert costs the RECORD of the
+        // decision and never the decision itself. 502 rather than 200 so the
+        // client's own retry logic (and any future one) can tell the two apart.
+        return res.status(502).json({ ok: false });
+      }
+    }
     if (op === "track") {
       // analytics rows are unauthenticated by design — cap them hard so the
       // table can't be bloated with megabyte props or junk event names
@@ -254,3 +359,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "account failure" });
   }
 }
+
+export default withDoor(q, "account.js", handler);

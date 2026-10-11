@@ -1,0 +1,581 @@
+{
+  "$schema": "vyakti/continuous-human-clone-frontier/v1",
+  "as_of": "2026-08-29",
+  "claim_boundary": "This is a preregistered architecture and evaluation contract. It is not evidence that the production call, memory, expression, or voice systems pass these gates.",
+  "scope": [
+    "continuous_call_learning",
+    "relational_memory",
+    "stable_persona",
+    "expression_observation",
+    "controllable_cloned_voice",
+    "runtime_status_truth"
+  ],
+  "hot_path": {
+    "allowed_writes": [
+      "immutable_call_event",
+      "speaker_attributed_turn",
+      "ephemeral_expression_observation",
+      "derived_candidate"
+    ],
+    "forbidden_mutations": [
+      "published_persona",
+      "standing_relationship_state",
+      "approved_fact",
+      "active_voice_artifact",
+      "model_weights"
+    ],
+    "warm_targets_ms": {
+      "call_control_ready_p95": 2000,
+      "final_turn_transcript_p95": 1500,
+      "memory_evidence_p95": 350,
+      "first_audio_after_turn_p95": 1500
+    },
+    "targets_are": "proposed_unmeasured"
+  },
+  "stages": [
+    {
+      "id": "capture",
+      "phase": "hot",
+      "order": 1,
+      "inputs": ["consented_microphone_stream"],
+      "outputs": ["immutable_call_event"],
+      "write_policy": "append_only",
+      "can_mutate_live_persona": false,
+      "required_receipts": ["owner_user_id", "replica_id", "session_id", "participant_consent_scope", "source_sha256", "captured_at", "retention_policy"]
+    },
+    {
+      "id": "perceive",
+      "phase": "hot",
+      "order": 2,
+      "inputs": ["immutable_call_event"],
+      "outputs": ["speaker_attributed_turn", "ephemeral_expression_observation"],
+      "write_policy": "derived_append_only",
+      "can_mutate_live_persona": false,
+      "required_receipts": ["source_event_id", "model_commitment", "speaker_confidence", "transcript_confidence", "observed_at"]
+    },
+    {
+      "id": "retrieve",
+      "phase": "hot",
+      "order": 3,
+      "inputs": ["speaker_attributed_turn"],
+      "outputs": ["source_cited_context_bundle"],
+      "write_policy": "read_only",
+      "can_mutate_live_persona": false,
+      "required_receipts": ["owner_scope", "dyad_scope", "retrieval_query_sha256", "evidence_ids", "retriever_commitment"]
+    },
+    {
+      "id": "respond",
+      "phase": "hot",
+      "order": 4,
+      "inputs": ["speaker_attributed_turn", "ephemeral_expression_observation", "source_cited_context_bundle", "published_persona"],
+      "outputs": ["protected_clone_turn"],
+      "write_policy": "generation_ledger_only",
+      "can_mutate_live_persona": false,
+      "required_receipts": ["persona_version", "voice_artifact_id", "model_commitment", "disclosure_receipt", "watermark_receipt", "source_evidence_ids"]
+    },
+    {
+      "id": "extract_candidates",
+      "phase": "nearline",
+      "order": 5,
+      "inputs": ["speaker_attributed_turn", "immutable_call_event"],
+      "outputs": ["fact_candidate", "relation_candidate", "persona_delta_candidate", "voice_window_candidate"],
+      "write_policy": "candidate_only",
+      "can_mutate_live_persona": false,
+      "required_receipts": ["source_event_ids", "extractor_commitment", "confidence", "valid_from", "valid_to", "contradiction_set", "created_at"]
+    },
+    {
+      "id": "owner_review",
+      "phase": "owner_gate",
+      "order": 6,
+      "inputs": ["fact_candidate", "relation_candidate", "persona_delta_candidate", "voice_window_candidate"],
+      "outputs": ["accepted_candidate", "rejected_candidate", "deferred_candidate"],
+      "write_policy": "explicit_owner_ack",
+      "can_mutate_live_persona": false,
+      "required_receipts": ["owner_user_id", "decision", "decision_at", "candidate_sha256", "supersedes_id"]
+    },
+    {
+      "id": "materialize",
+      "phase": "offline",
+      "order": 7,
+      "inputs": ["accepted_candidate"],
+      "outputs": ["approved_fact", "standing_relationship_state", "published_persona", "active_voice_artifact"],
+      "write_policy": "accepted_candidate_only",
+      "can_mutate_live_persona": true,
+      "required_receipts": ["owner_decision_id", "source_event_ids", "previous_version", "new_version", "reversal_handle", "materialized_at"]
+    },
+    {
+      "id": "evaluate_and_promote",
+      "phase": "offline",
+      "order": 8,
+      "inputs": ["published_persona", "active_voice_artifact", "held_out_evaluation_pack"],
+      "outputs": ["promotion_decision"],
+      "write_policy": "human_reviewed_release",
+      "can_mutate_live_persona": false,
+      "required_receipts": ["baseline_version", "candidate_version", "metric_vector", "blind_human_ratings", "release_decision", "rollback_version"]
+    }
+  ],
+  "artifact_classes": [
+    {
+      "id": "immutable_call_event",
+      "durability": "retention_scoped",
+      "scope": "owner_replica_session",
+      "meaning": "what bytes arrived and when",
+      "may_claim_internal_emotion": false,
+      "requires_source_provenance": true,
+      "requires_consent_receipt": true
+    },
+    {
+      "id": "ephemeral_expression_observation",
+      "durability": "ephemeral",
+      "ttl_hours": 24,
+      "scope": "dyad_session_turn",
+      "meaning": "how observers may interpret vocal expression",
+      "may_claim_internal_emotion": false,
+      "requires_source_provenance": true,
+      "requires_consent_receipt": true
+    },
+    {
+      "id": "fact_candidate",
+      "durability": "review_queue",
+      "scope": "owner_person_dyad",
+      "meaning": "a source-cited bitemporal claim awaiting review",
+      "may_claim_internal_emotion": false,
+      "requires_source_provenance": true,
+      "requires_consent_receipt": true
+    },
+    {
+      "id": "relation_candidate",
+      "durability": "review_queue",
+      "scope": "agent_person_dyad",
+      "meaning": "an observed interaction event, never a diagnosis",
+      "may_claim_internal_emotion": false,
+      "requires_source_provenance": true,
+      "requires_consent_receipt": true
+    },
+    {
+      "id": "persona_delta_candidate",
+      "durability": "review_queue",
+      "scope": "owner_replica",
+      "meaning": "a compact behavioral shape, never a quotable transcript line",
+      "may_claim_internal_emotion": false,
+      "requires_source_provenance": true,
+      "requires_consent_receipt": true
+    },
+    {
+      "id": "voice_window_candidate",
+      "durability": "review_queue",
+      "scope": "verified_owner_speaker",
+      "meaning": "one bounded reference candidate selected by measured quality and identity",
+      "may_claim_internal_emotion": false,
+      "requires_source_provenance": true,
+      "requires_consent_receipt": true
+    }
+  ],
+  "hard_gates": [
+    {
+      "id": "no_silent_persona_update",
+      "invariant": "Only materialize may mutate a live persona and it must consume an accepted candidate with an owner decision receipt.",
+      "negative_control": "Set extract_candidates.can_mutate_live_persona to true. The checker must fail."
+    },
+    {
+      "id": "expression_is_not_inner_state",
+      "invariant": "Expression observations are turn-scoped, expire, and never claim a person's internal emotion.",
+      "negative_control": "Set ephemeral_expression_observation.may_claim_internal_emotion to true. The checker must fail."
+    },
+    {
+      "id": "speaker_consent_binds_voice",
+      "invariant": "Every voice candidate is scoped to a verified owner speaker and carries both source provenance and a consent receipt.",
+      "negative_control": "Remove the voice candidate consent receipt requirement. The checker must fail."
+    },
+    {
+      "id": "relation_is_dyad_scoped",
+      "invariant": "Relational observations are scoped to agent and person, not promoted to a global personality trait.",
+      "negative_control": "Change relation_candidate.scope to global_person. The checker must fail."
+    },
+    {
+      "id": "facts_are_bitemporal",
+      "invariant": "Candidate extraction carries valid_from, valid_to, and contradiction_set before any fact can be approved.",
+      "negative_control": "Remove valid_to from candidate extraction receipts. The checker must fail."
+    },
+    {
+      "id": "voice_learning_is_selection",
+      "invariant": "Call audio creates bounded voice candidates. It never improves a clone merely because pooled duration increased.",
+      "negative_control": "Add pooled_reference_duration as a materialize input. The checker must fail."
+    },
+    {
+      "id": "generation_is_protected",
+      "invariant": "Every clone turn binds persona and voice versions and carries disclosure and watermark receipts.",
+      "negative_control": "Remove disclosure_receipt from respond. The checker must fail."
+    },
+    {
+      "id": "status_has_an_honest_denominator",
+      "invariant": "Percent is shown only for a deterministic finite stage DAG. Every unknown-duration state uses a measured range or says no estimate is available.",
+      "negative_control": "Allow percent for gpu_cold_start. The checker must fail."
+    }
+  ],
+  "status_contract": {
+    "percent_allowed_for": ["enrollment_eight_stage_dag"],
+    "percent_forbidden_for": ["gpu_cold_start", "model_training", "memory_consolidation", "vendor_queue"],
+    "eta": {
+      "minimum_sample_size": 30,
+      "window_days": 30,
+      "required_quantiles": ["p50", "p90"],
+      "coverage_target": 0.85,
+      "fallback": "show_last_measured_range_with_sample_size_or_no_estimate",
+      "must_render": ["current_stage", "waiting_on", "next_check_at", "can_leave_page", "notification_channel"]
+    },
+    "gpu_wake": {
+      "trigger": "before_first_voice_generation_on_connect",
+      "dedupe_key": "replica_id_session_id_runtime_revision",
+      "warmth_source": "signed_remote_runtime_probe",
+      "must_not_use": "serverless_process_local_memory"
+    }
+  },
+  "evaluation_suites": [
+    {
+      "id": "call_interaction",
+      "metrics": ["connect_success", "turn_end_f1", "interruption_success", "false_interruption_rate", "warm_time_to_first_audio", "cold_time_to_first_audio", "caption_audio_alignment", "tool_call_accuracy", "say_do_consistency", "authentication_discipline", "escalation_discipline", "caller_outcome"],
+      "required_slices": ["Hindi", "Hinglish", "Indian_English", "mobile_network", "overlap", "background_noise"],
+      "protocol": {
+        "status": "proposed_unmeasured",
+        "minimum_runs_per_thermal_language_device_network_cell": 30,
+        "thermal_cells": ["warm", "cold"],
+        "device_cells": ["midrange_android", "iphone", "desktop_chromium"],
+        "network_cells": ["stable_wifi", "mobile_with_loss_and_handover"],
+        "report": ["p50", "p90", "p99", "bootstrap_95_percent_ci", "failure_rate"],
+        "promotion_targets": {
+          "warm_time_to_first_audio_p90_ms": 1200,
+          "barge_in_audio_stop_p90_ms": 250,
+          "interruption_success_min": 0.95,
+          "connection_success_min": 0.99
+        }
+      }
+    },
+    {
+      "id": "memory",
+      "metrics": ["single_hop_accuracy", "temporal_accuracy", "multi_hop_accuracy", "knowledge_update_accuracy", "abstention_accuracy", "citation_precision", "retrieval_recall"],
+      "required_slices": ["same_session", "cross_session", "cross_surface", "contradiction", "future_plan", "dyad_boundary"],
+      "protocol": {
+        "status": "proposed_unmeasured",
+        "minimum_histories": 30,
+        "minimum_questions": 300,
+        "construction": "consented_or_synthetic_dyad_event_histories_with_source_receipts_and_time_updates",
+        "judge": "exact_or_rubric_scoring_blinded_to_system_arm_with_manual_audit_of_all_failures",
+        "promotion_targets": {
+          "citation_precision_min": 1,
+          "cross_owner_leakage_max": 0,
+          "cross_dyad_leakage_max": 0,
+          "erasure_residual_artifacts_max": 0
+        }
+      }
+    },
+    {
+      "id": "persona",
+      "metrics": ["action_justification", "expected_action", "linguistic_habits", "persona_consistency", "toxicity_control", "within_session_drift", "cross_session_drift"],
+      "required_slices": ["turn_1", "turn_8", "turn_22", "turn_44", "adversarial_feedback", "mood_shift"],
+      "protocol": {
+        "status": "proposed_unmeasured",
+        "situations": 25,
+        "checkpoints": [1, 8, 22, 44],
+        "seeds_per_situation": 3,
+        "languages": ["Hindi", "Hinglish", "Indian_English"],
+        "raters": ["owner", "blinded_independent_raters"],
+        "promotion_targets": {
+          "unapproved_durable_updates_max": 0,
+          "rollback_byte_mismatch_max": 0,
+          "persona_score_noninferiority_margin_on_five_point_scale": -0.25
+        }
+      }
+    },
+    {
+      "id": "expression",
+      "metrics": ["observer_label_macro_f1", "expected_calibration_error", "response_appropriateness", "false_certain_inner_state_claims"],
+      "required_slices": ["Hindi", "Hinglish", "Indian_English", "sarcasm", "mixed_expression", "neutral", "culture_slice"],
+      "protocol": {
+        "status": "proposed_unmeasured",
+        "minimum_speakers_per_language": 30,
+        "minimum_raters_per_clip": 3,
+        "split": "speaker_disjoint_train_calibration_test",
+        "arms": ["acoustic_features", "self_hosted_representation", "sealed_vendor_shadow"],
+        "gold": "observer_interpretation_with_context_not_claimed_inner_state",
+        "promotion_targets": {
+          "false_certain_inner_state_claims_max": 0,
+          "response_appropriateness_paired_preference_lower_95_ci_min": 0.5,
+          "observer_label_expected_calibration_error_max": 0.1
+        }
+      }
+    },
+    {
+      "id": "voice",
+      "metrics": ["blind_owner_likeness", "blind_abx", "speaker_similarity_with_ceiling", "wer", "cer", "pronunciation_error", "style_instruction_following", "naturalness", "protected_delivery_rate"],
+      "required_slices": ["Hindi", "Hinglish", "Indian_English", "calm", "excited", "concerned", "long_form", "numbers_and_symbols"],
+      "protocol": {
+        "status": "proposed_unmeasured",
+        "exact_text_prompts_per_language": 20,
+        "seeds_per_prompt_candidate": 3,
+        "minimum_blinded_raters_per_stimulus": 5,
+        "reference_policy": "one_verified_owner_reference_per_comparison_cell",
+        "report": ["owner_rating", "blinded_non_owner_abx", "bootstrap_95_percent_ci", "self_self_similarity_ceiling"],
+        "promotion_targets": {
+          "abx_preference_lower_95_ci_min": 0.5,
+          "wer_absolute_noninferiority_margin": 0.02,
+          "protected_delivery_rate_min": 1
+        }
+      }
+    },
+    {
+      "id": "safety_and_provenance",
+      "metrics": ["cross_owner_leakage", "cross_dyad_leakage", "unapproved_update_rate", "unconsented_voice_admission_rate", "disclosure_presence", "watermark_presence", "erasure_reachability"],
+      "required_slices": ["owner", "second_participant", "third_party_upload", "revoked_consent", "minor", "deleted_source"],
+      "protocol": {
+        "status": "proposed_unmeasured",
+        "minimum_adversarial_probes": 1000,
+        "promotion_targets": {
+          "cross_owner_leakage_max": 0,
+          "cross_dyad_leakage_max": 0,
+          "unapproved_update_rate_max": 0,
+          "unconsented_voice_admission_rate_max": 0,
+          "missing_disclosure_or_watermark_max": 0
+        }
+      }
+    },
+    {
+      "id": "operations_and_status",
+      "metrics": ["eta_interval_coverage", "eta_median_absolute_error", "stale_state_rate", "orphan_job_rate", "notification_delivery_rate", "gpu_wake_deduplication"],
+      "required_slices": ["warm", "cold", "provider_failure", "browser_closed", "mobile_backgrounded", "retry"],
+      "protocol": {
+        "status": "proposed_unmeasured",
+        "minimum_completed_jobs_per_runtime_revision_and_thermal_bucket": 30,
+        "fault_injections": ["worker_absent", "worker_crash", "provider_timeout", "browser_close", "duplicate_wake", "stale_lease"],
+        "promotion_targets": {
+          "eta_p90_interval_coverage_min": 0.85,
+          "false_running_state_when_worker_absent_max": 0,
+          "duplicate_gpu_wakes_max": 0,
+          "orphan_jobs_max": 0
+        }
+      }
+    }
+  ],
+  "candidate_matrix": [
+    {
+      "id": "current_chatterbox_v3",
+      "purpose": "protected_multilingual_zero_shot_voice",
+      "license": "MIT",
+      "hindi": "supported",
+      "ship_state": "current_production_candidate_requires_blind_quality_gate",
+      "source_ids": ["chatterbox_model_card", "chatterbox_source"]
+    },
+    {
+      "id": "fish_audio_s2",
+      "purpose": "expressive_inline_control_and_fast_streaming",
+      "license": "research_noncommercial_only_without_separate_commercial_license",
+      "hindi": "claimed_within_50_plus_languages_not_independently_qualified_here",
+      "ship_state": "shadow_eval_only_until_commercial_license_data_terms_and_matched_hindi_pack_pass",
+      "source_ids": ["fish_s2_paper", "fish_s2_release", "fish_s2_license", "fish_api_pricing"]
+    },
+    {
+      "id": "qwen3_tts",
+      "purpose": "three_second_clone_and_instruction_control",
+      "license": "Apache-2.0",
+      "hindi": "not_in_official_ten_language_list",
+      "ship_state": "english_research_arm_not_hindi_production",
+      "source_ids": ["qwen3_tts_paper", "qwen3_tts_repo"]
+    },
+    {
+      "id": "cosyvoice3",
+      "purpose": "zero_shot_cross_lingual_voice_and_prosody",
+      "license": "Apache-2.0",
+      "hindi": "not_in_official_nine_language_list",
+      "ship_state": "research_arm_not_hindi_production",
+      "source_ids": ["cosyvoice3_paper", "cosyvoice_repo"]
+    },
+    {
+      "id": "personaplex",
+      "purpose": "full_duplex_role_and_voice_conditioned_call",
+      "license": "MIT_code_weights_require_separate_license_review",
+      "hindi": "not_claimed_in_official_repo",
+      "ship_state": "offline_research_only_until_hindi_quality_safety_provenance_and_cost_gates_pass",
+      "source_ids": ["personaplex_paper", "personaplex_repo"]
+    },
+    {
+      "id": "sensevoice",
+      "purpose": "asr_expression_and_audio_event_observation",
+      "license": "repository_and_weights_require_exact_artifact_review",
+      "hindi": "asr_claims_50_plus_languages_but_documented_emotion_label_examples_cover_zh_en_yue_ja_ko",
+      "ship_state": "shadow_observer_only_after_license_and_hinglish_calibration",
+      "source_ids": ["sensevoice_repo", "funaudiollm_paper"]
+    },
+    {
+      "id": "hume_evi_and_prosody",
+      "purpose": "vendor_expression_observation_and_expressive_response",
+      "license": "commercial_api_terms",
+      "hindi": "EVI_4_mini_officially_lists_Hindi",
+      "ship_state": "vendor_shadow_eval_only_until_consent_data_residency_cost_and_population_calibration_pass",
+      "source_ids": ["hume_evi_docs", "hume_expression_guidelines", "hume_pricing"]
+    },
+    {
+      "id": "elevenlabs_clone_and_expressive_mode",
+      "purpose": "vendor_clone_fidelity_and_expressive_agent_baseline",
+      "license": "commercial_api_terms",
+      "hindi": "model_dependent",
+      "ship_state": "sealed_vendor_baseline_only_because_expressive_mode_does_not_preserve_PVC_characteristics",
+      "source_ids": ["eleven_voice_clone_docs", "eleven_expressive_docs"]
+    },
+    {
+      "id": "phonellm_alpha_1",
+      "purpose": "low_latency_call_reasoning_and_tool_use_not_speech_or_voice_cloning",
+      "license": "BSD-2-Clause modifications plus NVIDIA Nemotron Open Model License obligations for the base work",
+      "hindi": "not_supported_by_the_official_English_only_model_card",
+      "ship_state": "English_shadow_eval_only_until_Hindi_Hinglish_Indian_English_tool_latency_and_Azure_cost_gates_pass",
+      "revision": "8e76aaa6e8ce4765ac943ba3fb339494d4d48dca",
+      "weights_bytes": 63174634906,
+      "official_language": "English",
+      "recommended_settings": {"temperature": 0, "thinking": false},
+      "benchmark_boundary": "PhoneBench and B200 or Modal numbers are vendor measurements, not Vyakti production results",
+      "vendor_benchmark": {
+        "name": "PhoneBench Alpha 1",
+        "score_percent": 72.3,
+        "p50_time_to_first_answer_token_ms": 331,
+        "p95_time_to_first_answer_token_ms": 600,
+        "estimated_llm_cost_per_conversation_minute_usd": 0.0025,
+        "required_eval_axes": ["telephone_speaking_style", "tool_call_accuracy", "say_do_consistency", "factual_grounding", "conversation_coherence", "authentication_discipline", "escalation_discipline", "caller_outcome"]
+      },
+      "source_ids": ["phonellm_model_card", "phonellm_phonebench", "phonellm_license"]
+    }
+  ],
+  "cost_assumptions": [
+    {
+      "id": "azure_scale_to_zero",
+      "kind": "provider_rule",
+      "value": "no_active_usage_charge_at_zero_replicas; active jobs billed from start to completion",
+      "source_id": "azure_container_apps_pricing"
+    },
+    {
+      "id": "hume_evi_list_price",
+      "kind": "current_vendor_price_not_committed_spend",
+      "value": "$0.04 per minute at the cited tier",
+      "source_id": "hume_pricing"
+    },
+    {
+      "id": "fish_s2_api_list_price",
+      "kind": "current_vendor_price_not_committed_spend",
+      "value": "$15 per million UTF-8 bytes; per-minute cost depends on script and speaking rate",
+      "source_id": "fish_api_pricing"
+    },
+    {
+      "id": "voice_runtime_cost_formula",
+      "kind": "assumption_to_measure",
+      "value": "active_gpu_seconds times the exact regional meter plus active CPU and memory; never infer from a generic VM monthly price",
+      "source_id": "azure_container_apps_pricing"
+    }
+  ],
+  "rollout": [
+    {
+      "stage": 0,
+      "name": "truth_baseline",
+      "writes_live_state": false,
+      "exit_gate": "deployment call contract, signed remote GPU status, and current end-to-end canary are measured"
+    },
+    {
+      "stage": 1,
+      "name": "observation_shadow",
+      "writes_live_state": false,
+      "exit_gate": "speaker, transcript, expression, and event observations are calibrated on consented Hindi, Hinglish, and Indian English calls"
+    },
+    {
+      "stage": 2,
+      "name": "owner_visible_candidates",
+      "writes_live_state": false,
+      "exit_gate": "candidate precision and citation precision pass; accept, reject, defer, undo, and erase are complete"
+    },
+    {
+      "stage": 3,
+      "name": "approved_relational_memory",
+      "writes_live_state": true,
+      "exit_gate": "LongMemEval-style update, abstention, temporal, and dyad-isolation gates pass with rollback"
+    },
+    {
+      "stage": 4,
+      "name": "expression_aware_response",
+      "writes_live_state": true,
+      "exit_gate": "blinded human response-appropriateness improves without more certain inner-state claims or persona drift"
+    },
+    {
+      "stage": 5,
+      "name": "approved_voice_selection",
+      "writes_live_state": true,
+      "exit_gate": "exact-text blind voice pack improves owner likeness or naturalness without Hindi/Hinglish intelligibility regression"
+    },
+    {
+      "stage": 6,
+      "name": "bounded_full_duplex_trial",
+      "writes_live_state": false,
+      "exit_gate": "full-duplex beats cascade on interruption and naturalness while preserving persona, memory, protection, and Hindi quality"
+    }
+  ],
+  "reversal_conditions": [
+    {
+      "decision": "no_hot_path_gradient_updates",
+      "reverse_if": "a versioned per-owner adapter can train inside the latency budget and passes catastrophic-forgetting, owner-approval, provenance, rollback, and spend gates against candidate-only learning"
+    },
+    {
+      "decision": "expression_is_ephemeral_observation",
+      "reverse_if": "validated longitudinal, culture-specific evidence establishes a lawful durable construct that improves outcomes without inferring private internal state"
+    },
+    {
+      "decision": "cascade_before_full_duplex",
+      "reverse_if": "a Hindi/Hinglish full-duplex arm passes the complete call, persona, memory, voice, safety, and operations vector on deployable hardware"
+    },
+    {
+      "decision": "owner_tap_before_persona_or_voice_change",
+      "reverse_if": "the owner explicitly chooses a bounded auto-apply policy per field, with preview, one-tap undo, complete provenance, and an observed lower error rate than manual review"
+    },
+    {
+      "decision": "eta_is_empirical_not_fixed_copy",
+      "reverse_if": "the runtime offers an authoritative completion deadline with stronger calibration than rolling p50 and p90 measurements"
+    },
+    {
+      "decision": "fish_s2_is_not_a_ship_now_self_host",
+      "reverse_if": "Vyakti obtains a commercial license and the exact model passes sealed Hindi, Hinglish, Indian English, protection, latency, and cost gates"
+    }
+  ],
+  "sources": [
+    {"id":"locomo","kind":"paper","url":"https://arxiv.org/abs/2402.17753"},
+    {"id":"longmemeval","kind":"paper","url":"https://arxiv.org/abs/2410.10813"},
+    {"id":"longmemeval_v2","kind":"paper","url":"https://arxiv.org/abs/2605.12493"},
+    {"id":"mem0","kind":"paper","url":"https://arxiv.org/abs/2504.19413"},
+    {"id":"graphiti","kind":"official_repo","url":"https://github.com/getzep/graphiti"},
+    {"id":"letta_memory","kind":"official_repo","url":"https://github.com/letta-ai/letta/blob/main/letta/schemas/memory.py"},
+    {"id":"generative_agents","kind":"paper","url":"https://arxiv.org/abs/2304.03442"},
+    {"id":"coala","kind":"paper","url":"https://arxiv.org/abs/2309.02427"},
+    {"id":"personagym","kind":"paper","url":"https://arxiv.org/abs/2407.18416"},
+    {"id":"chatterbox_model_card","kind":"official_model_card","url":"https://huggingface.co/ResembleAI/chatterbox"},
+    {"id":"chatterbox_source","kind":"official_repo","url":"https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/mtl_tts.py"},
+    {"id":"fish_s2_paper","kind":"paper","url":"https://arxiv.org/abs/2603.08823"},
+    {"id":"fish_s2_release","kind":"official_repo","url":"https://github.com/fishaudio/fish-speech/releases"},
+    {"id":"fish_s2_license","kind":"official_repo","url":"https://github.com/fishaudio/fish-speech/blob/main/LICENSE"},
+    {"id":"fish_api_pricing","kind":"official_product_docs","url":"https://fish.audio/app/developers/"},
+    {"id":"qwen3_tts_paper","kind":"paper","url":"https://arxiv.org/abs/2601.15621"},
+    {"id":"qwen3_tts_repo","kind":"official_repo","url":"https://github.com/QwenLM/Qwen3-TTS"},
+    {"id":"cosyvoice3_paper","kind":"paper","url":"https://arxiv.org/abs/2505.17589"},
+    {"id":"cosyvoice_repo","kind":"official_repo","url":"https://github.com/FunAudioLLM/CosyVoice"},
+    {"id":"personaplex_paper","kind":"paper","url":"https://arxiv.org/abs/2602.06053"},
+    {"id":"personaplex_repo","kind":"official_repo","url":"https://github.com/NVIDIA/personaplex"},
+    {"id":"sensevoice_repo","kind":"official_repo","url":"https://github.com/FunAudioLLM/SenseVoice"},
+    {"id":"funaudiollm_paper","kind":"paper","url":"https://arxiv.org/abs/2407.04051"},
+    {"id":"emotion2vec_paper","kind":"paper","url":"https://arxiv.org/abs/2312.15185"},
+    {"id":"hume_evi_docs","kind":"official_product_docs","url":"https://dev.hume.ai/docs/speech-to-speech-evi/overview"},
+    {"id":"hume_expression_guidelines","kind":"official_product_docs","url":"https://dev.hume.ai/docs/resources/use-case-guidelines"},
+    {"id":"hume_pricing","kind":"official_product_docs","url":"https://www.hume.ai/pricing"},
+    {"id":"eleven_voice_clone_docs","kind":"official_product_docs","url":"https://elevenlabs.io/docs/eleven-api/concepts/voice-cloning"},
+    {"id":"eleven_expressive_docs","kind":"official_product_docs","url":"https://elevenlabs.io/docs/eleven-agents/customization/voice/expressive-mode"},
+    {"id":"phonellm_model_card","kind":"official_model_card","url":"https://huggingface.co/pipecat-ai/phonellm-alpha-1"},
+    {"id":"phonellm_phonebench","kind":"official_product_docs","url":"https://www.pipecat.ai/benchmarks/phonebench-alpha-1"},
+    {"id":"phonellm_license","kind":"official_model_card","url":"https://huggingface.co/pipecat-ai/phonellm-alpha-1/blob/main/LICENSE_NVIDIA.txt"},
+    {"id":"openai_realtime_docs","kind":"official_product_docs","url":"https://platform.openai.com/docs/api-reference/realtime"},
+    {"id":"dpdp_act","kind":"official_law","url":"https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf"},
+    {"id":"eu_ai_act_article_50","kind":"official_law","url":"https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02024R1689-20260727"},
+    {"id":"ftc_voice_cloning","kind":"official_regulator","url":"https://www.ftc.gov/policy/advocacy-research/tech-at-ftc/2024/04/approaches-address-ai-enabled-voice-cloning"},
+    {"id":"azure_container_apps_pricing","kind":"official_product_docs","url":"https://azure.microsoft.com/en-in/pricing/details/container-apps/"}
+  ]
+}

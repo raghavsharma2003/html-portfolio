@@ -87,7 +87,7 @@ const ORDER = {
   vy_india_profile: "person_id",
   vy_embedding: "owner_kind, owner_id",
   vy_derivation: "id",
-  vy_session: "session_id",
+  vy_session: "agent_id, session_id",
   // multiparty v1 (migration 008)
   vy_episode_participant: "episode_id, person_id",
   vy_group_member: "group_id, person_id",

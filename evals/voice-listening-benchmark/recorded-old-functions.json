@@ -1,0 +1,12 @@
+{
+  "loader": {
+    "source": "function loadSourcesFromRecordedPacks(sourcePacks) {\n  const sources = [];\n  for (const pack of sourcePacks) {\n    if (pack.id === \"chatterbox_20260828\") sources.push(...loadChatterbox());\n    else if (pack.id === \"qwen_english_20260828\") sources.push(...loadQwen());\n    else if (pack.id === \"voxcpm2_20260828\") sources.push(...loadVox());\n    else if (pack.id === \"indicf5_20260828\") sources.push(...loadIndicF5(resolve(ROOT, pack.source)));\n    else if (pack.id.startsWith(\"vendor_\")) sources.push(...loadVendorPack(resolve(ROOT, pack.source), pack.id.slice(7)));\n    else fail(\"benchmark_recorded_source_pack_unknown\");\n  }\n  return sources;\n}",
+    "sha256": "878c31d9ec8c4e0ca6475baac89d1c2e5997150b320af76608159d68757158d2",
+    "file": "scripts/voice-listening-benchmark.mjs"
+  },
+  "cells": {
+    "source": "export function buildCells(stimuli) {\n  const cells = new Map();\n  for (const stimulus of stimuli) {\n    const identity = sha256(`${stimulus.language}\\n${stimulus.textSha256}`).slice(0, 16);\n    const cell = cells.get(identity) || {\n      id: identity,\n      language: stimulus.language,\n      textSha256: stimulus.textSha256,\n      stimulusIds: [],\n      candidateIds: new Set(),\n    };\n    cell.stimulusIds.push(stimulus.id);\n    cell.candidateIds.add(stimulus.candidateId);\n    cells.set(identity, cell);\n  }\n  return [...cells.values()].map((cell) => Object.freeze({\n    id: cell.id,\n    language: cell.language,\n    textSha256: cell.textSha256,\n    stimulusIds: Object.freeze([...cell.stimulusIds]),\n    candidateIds: Object.freeze([...cell.candidateIds]),\n    comparison: cell.stimulusIds.length > 1 && cell.candidateIds.size > 1 ? \"matched_text\" : \"unmatched_lane\",\n  }));\n}",
+    "sha256": "85e79c1d8171eac428f3715a333ce03470734bad14b9dc7ad2a8b334077fdd26",
+    "file": "evals/voice-listening-benchmark/lib.mjs"
+  }
+}

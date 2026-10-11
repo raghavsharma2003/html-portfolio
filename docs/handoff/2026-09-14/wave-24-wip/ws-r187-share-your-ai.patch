@@ -1,0 +1,1033 @@
+diff --git a/api/_room-publish.js b/api/_room-publish.js
+index 2f50033..abd126a 100644
+--- a/api/_room-publish.js
++++ b/api/_room-publish.js
+@@ -157,6 +157,32 @@ async function ownedReplica(db, ownerUserId, replicaId) {
+   return rows[0] || null;
+ }
+ 
++/**
++ * WS-R187: the owner's own PUBLISHED sheet kind and person line, keyed by
++ * `agent_id` alone — `ownerRoomShareKit`'s own caller already proved
++ * ownership of this Room (and so this agent) via `ownedRoomRow` before this
++ * ever runs, so no second owner check belongs in this query. Same predicate
++ * `api/_room-card.js`'s `publicRoomCardBySlug` and `api/_room-about.js`'s
++ * `publicRoomAboutBySlug` already use for their own lateral join onto this
++ * exact pair of columns (`status = 'published' and consent_artifact_id is
++ * not null`, most-recently-published wins) — restated here as a standalone
++ * top-level select rather than a second LATERAL, because this caller
++ * already has the room row in hand and needs nothing else `vy_room` carries.
++ */
++async function ownedSheetKindAndLine(db, agentId) {
++  const rows = await db(
++    `select s.sheet_kind, s.sheet ->> 'personLine' as person_line
++       from vy_teacher_sheet s
++      where s.agent_id = ($1)::uuid
++        and s.status = 'published'
++        and s.consent_artifact_id is not null
++      order by s.published_at desc
++      limit 1`,
++    [agentId],
++  );
++  return rows[0] || null;
++}
++
+ /** The owner's own Room row for one replica, or null. Scoped by
+  *  `owner_user_id` INSIDE the predicate — `api/_clonechannel.js`'s rule for
+  *  the identical reason: "not yours" and "does not exist" must be the same
+@@ -1051,6 +1077,11 @@ export async function ownerRoomShareKit(db, ownerUserId, replicaId, { origin = "
+     const whatsappJoinUrl = room.published_at
+       ? await whatsappJoinLink(room.slug, process.env, { db, fetch: fetchImpl })
+       : null;
++    // WS-R187: read only once the Room has actually published — the
++    // identical "nothing would ever use the result" reasoning the
++    // `whatsappJoinUrl` read just above already states for skipping a real
++    // read before publish.
++    const sheet = room.published_at ? await ownedSheetKindAndLine(db, room.agent_id) : null;
+     const kit = buildShareKit({
+       name: room.display_name,
+       slug: room.slug,
+@@ -1058,6 +1089,8 @@ export async function ownerRoomShareKit(db, ownerUserId, replicaId, { origin = "
+       origin,
+       publishedAt: room.published_at,
+       whatsappJoinUrl,
++      sheetKind: sheet?.sheet_kind || "",
++      personLine: sheet?.person_line || "",
+     });
+     // WS-R136: this workstream's own law 2 — "unknown means the share-kit
+     // entry ... is absent by construction and the studio says why". A row
+diff --git a/api/_share-kit.js b/api/_share-kit.js
+index 2aa741a..7d43f35 100644
+--- a/api/_share-kit.js
++++ b/api/_share-kit.js
+@@ -136,6 +136,44 @@ function fillTemplate(template, name, url) {
+     .split("{url}").join(url);
+ }
+ 
++// ─────────────────────────────────────────────────────────────────────────
++// WS-R187 (share your AI): the WhatsApp row's PERSON-KIND text — restated
++// from `src/studio/copy.ts` and `src/studio/hiCopy.ts`'s own
++// `shareYourAi.whatsappTemplate`, byte for byte (`evals/share-kit/run.mjs`'s
++// own parity section proves it against the real bundled export, the SAME
++// technique `SHARE_KIT_COPY` above already uses against
++// `src/creatorStudio/copy.ts`). Lives with the personal studio's own copy
++// rather than the creator studio's `shareKit` section above because a
++// `personLine` is a HumanOS concept (`api/_room-publish.js`'s
++// `personDisclosureLine`) with no teacher equivalent — a teacher Room never
++// reaches this template at all (`buildShareKit`'s own `usePersonLine` guard
++// below).
++//
++// The ONE hole beyond `{url}` is `{personLine}` — the person's OWN one-line
++// (`fromSheet.ts#PERSON_LINE_MAX`, 140 chars, copy-gated at save time by
++// `validateTeacherSheet`), never a fact this file invents. `buildShareKit`
++// uses this template for the "whatsapp" row ONLY, and ONLY when the Room's
++// published sheet is `sheetKind === "person"` AND carries a non-empty
++// `personLine` — every other case (a teacher sheet, no sheet, a person sheet
++// with no personLine yet) falls through to `SHARE_KIT_COPY.whatsapp` above,
++// UNCHANGED, so a teacher's own kit is byte-identical to before this
++// workstream (`evals/share-kit/run.mjs`'s own teacher-byte-identity control).
++export const SHARE_KIT_PERSON_WHATSAPP_COPY = {
++  en: "{personLine}\n\nTry it: {url}",
++  hi: "{personLine}\n\nइसे आज़माएं: {url}",
++};
++
++/** `{personLine}`/`{url}` substitution — `fillTemplate`'s own shape, a
++ *  different pair of holes (never `{name}`: the person's own line already
++ *  carries whatever context it needs, and interpolating a name the person
++ *  did not write themselves into their own words would put words in their
++ *  mouth). */
++function fillPersonWhatsappTemplate(template, personLine, url) {
++  return String(template || "")
++    .split("{personLine}").join(personLine)
++    .split("{url}").join(url);
++}
++
+ /**
+  * The Room's own public row -> `{ channel, text, url, picture }[]`, or
+  * `null` for a Room that has never published (nothing honest to share yet
+@@ -167,7 +205,7 @@ function fillTemplate(template, name, url) {
+  *  workstream's own law 1, and the row is simply not appended. */
+ export const SHARE_KIT_WHATSAPP_JOIN_CHANNEL = "whatsapp_join";
+ 
+-export function buildShareKit({ name, slug, locale, origin, publishedAt, whatsappJoinUrl } = {}) {
++export function buildShareKit({ name, slug, locale, origin, publishedAt, whatsappJoinUrl, sheetKind, personLine } = {}) {
+   if (!publishedAt) return null;
+   const displayName = String(name || "").trim();
+   const cleanSlug = String(slug || "").trim();
+@@ -175,10 +213,16 @@ export function buildShareKit({ name, slug, locale, origin, publishedAt, whatsap
+   const base = String(origin || "").replace(/\/+$/, "");
+   const loc = normalizeLocale(locale);
+   const copy = SHARE_KIT_COPY[loc] || SHARE_KIT_COPY.en;
++  // WS-R187: this file's own header above states the guard and why it
++  // touches the "whatsapp" row alone.
++  const personLineTrimmed = String(personLine || "").trim();
++  const usePersonLine = sheetKind === "person" && personLineTrimmed.length > 0;
+ 
+   const rows = SHARE_KIT_CHANNELS.map((channel) => {
+     const url = base ? `${base}/r/${encodeURIComponent(cleanSlug)}?via=${channel}` : `/r/${encodeURIComponent(cleanSlug)}?via=${channel}`;
+-    const text = fillTemplate(copy[channel], displayName, url);
++    const text = channel === "whatsapp" && usePersonLine
++      ? fillPersonWhatsappTemplate(SHARE_KIT_PERSON_WHATSAPP_COPY[loc] || SHARE_KIT_PERSON_WHATSAPP_COPY.en, personLineTrimmed, url)
++      : fillTemplate(copy[channel], displayName, url);
+     const limit = SHARE_KIT_LIMITS[channel];
+     if (text.length > limit) {
+       throw new ShareKitError("share_kit_text_over_limit", 500, { channel, limit, length: text.length });
+diff --git a/evals/deploy-studio/run.mjs b/evals/deploy-studio/run.mjs
+index 6af1d5f..28323c4 100644
+--- a/evals/deploy-studio/run.mjs
++++ b/evals/deploy-studio/run.mjs
+@@ -28,6 +28,17 @@
+ //    directly from `scripts/check-copy.mjs` rather than re-implemented — plus
+ //    the standard negative control: a hand-built string carrying a banned
+ //    Rooms word fails the SAME scanner that passed on the real files.
++//
++// 6. WS-R187 (share your AI). `DeployStudio.tsx` passes `shareKitVariant=
++//    "person"` straight through to the REAL `RoomStudio` (a literal prop,
++//    static-scanned — `RoomStudio`'s own type only accepts `"person"` or
++//    `undefined`, so this is the one value this screen could ever pass) —
++//    proving the kit's person-kind variant is actually wired for a
++//    personal AI's own Deploy screen, never merely built and left
++//    unreachable. `ShareKitCard.tsx`'s own suite (`evals/share-kit`, the
++//    server-side text) and `evals/rehearsal/person-room.mjs` (the real
++//    browser walk) are what prove the variant WORKS; this section proves
++//    only that this screen is the one that turns it on.
+ import { execSync } from "node:child_process";
+ import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+ import { tmpdir } from "node:os";
+@@ -157,5 +168,33 @@ for (const file of REAL_FILES) {
+   );
+ }
+ 
++// ── 6. WS-R187 (share your AI): shareKitVariant="person" reaches RoomStudio ─
++
++{
++  const deploySrc = readFileSync(join(STUDIO_DIR, "DeployStudio.tsx"), "utf8");
++  ok(
++    'DeployStudio.tsx passes shareKitVariant="person" to the real <RoomStudio>, never a copy of the component',
++    /<RoomStudio\b[^>]*\bshareKitVariant="person"[^>]*\/>/s.test(deploySrc),
++  );
++  // NEGATIVE CONTROL: the same regex does not match a screen that forgot to
++  // pass the prop -- proving this check actually bites rather than matching
++  // any <RoomStudio> tag at all.
++  const forgotten = deploySrc.replace('shareKitVariant="person"', "");
++  ok(
++    'NEGATIVE CONTROL: a DeployStudio.tsx that forgot shareKitVariant="person" fails the same check',
++    !/<RoomStudio\b[^>]*\bshareKitVariant="person"[^>]*\/>/s.test(forgotten),
++  );
++
++  const roomStudioSrc = readFileSync(join(REPO, "src/creatorStudio/RoomStudio.tsx"), "utf8");
++  ok(
++    'RoomStudio.tsx threads shareKitVariant straight to <ShareKitCard variant={shareKitVariant} .../> -- no computed default that could silently diverge',
++    /<ShareKitCard\b[^>]*\bvariant=\{shareKitVariant\}/.test(roomStudioSrc),
++  );
++  ok(
++    "RoomStudio.tsx's own shareKitVariant prop type admits only \"person\" (or undefined) -- teacher call sites cannot accidentally pass anything else",
++    /shareKitVariant\?:\s*"person";/.test(roomStudioSrc),
++  );
++}
++
+ console.log(`\n${pass} passed, ${fail} failed`);
+ process.exit(fail ? 1 : 0);
+diff --git a/evals/rehearsal/person-room.mjs b/evals/rehearsal/person-room.mjs
+index b3ff29d..b8c4eb2 100644
+--- a/evals/rehearsal/person-room.mjs
++++ b/evals/rehearsal/person-room.mjs
+@@ -219,6 +219,30 @@ const FALLBACK_JSON_ROUTES = {
+ //    `doorsDb`, proven by `evals/rehearsal/creator.mjs` and `follower.mjs`
+ //    driving the identical patterns today. ─────────────────────────────────
+ function personRuntimePatterns(state, sql, params, has) {
++  // WS-R187 (share your AI): `api/_room-publish.js#ownedSheetKindAndLine`
++  // (`ownerRoomShareKit`'s own new read) — a standalone top-level select
++  // off `vy_teacher_sheet` keyed by `agent_id`, DISTINCT from the LATERAL
++  // subquery text embedded inside `api/_room-card.js`/`api/_room-about.js`'s
++  // own bigger queries (both contain the identical `sheet ->> 'personLine'
++  // as person_line` fragment, so THAT alone is not a safe matcher — this
++  // file's own precedent above, `evals/room-doors/fixtures.mjs`'s own WS-R72
++  // lesson, restated: checked against a repo-wide grep before being written.
++  // `agent_id = ($1)::uuid` is unique to this shape (the lateral version
++  // reads `s.agent_id = r.agent_id`, never a bound param). Matched here
++  // (`personRuntimePatterns`, tried BEFORE `rehearsalCreatorDb`'s own base
++  // patterns) so the whatsapp row's own person-kind text can actually reach
++  // the browser this walk drives, rather than silently falling back to
++  // `doorsDb`'s generic `[]` (harmless for existing suites, but this one's
++  // own assertions below need the real personLine).
++  if (has("sheet ->> 'personLine' as person_line") && has("agent_id = ($1)::uuid")) {
++    const agentId = String(params[0]);
++    const rows = (state.teacherSheets || [])
++      .filter((s) => s.agent_id === agentId && s.status === "published" && s.consent_artifact_id != null)
++      .slice()
++      .sort((a, b) => String(b.published_at || b.created_at || "").localeCompare(String(a.published_at || a.created_at || "")));
++    const row = rows[0];
++    return row ? [{ sheet_kind: row.sheet?.sheetKind || "", person_line: row.sheet?.personLine ?? null }] : [];
++  }
+   if (has("account_person_matches")) {
+     const [rid, ownerUserId] = params.map(String);
+     const replica = state.replicas.find((r) => r.replica_id === rid && r.owner_user_id === ownerUserId);
+@@ -288,6 +312,15 @@ async function startServer(state) {
+   const roomPublishHandler = (await import(pathToFileURL(join(ROOT, "api/room-publish.js")).href)).default;
+   const roomHandler = (await import(pathToFileURL(join(ROOT, "api/room.js")).href)).default;
+   const roomAboutHandler = (await import(pathToFileURL(join(ROOT, "api/room-about.js")).href)).default;
++  // WS-R187 (share your AI): the REAL room-card door, for the story-card
++  // image `ShareKitCard.tsx`'s "Picture" link and its own WhatsApp/Telegram
++  // rows point at. `api/_room-card.js#publicRoomCardBySlug` goes through
++  // this walk's own fixture `db` seam like every other door (`q` resolves
++  // to `stubs/db.mjs` under `./loader.mjs`, the SAME redirect every door in
++  // this file already relies on), so this proves the wiring end to end —
++  // NOT the pixel content of the rendered card, which `evals/room-card/
++  // run.mjs`'s own unit suite already proves for `_room-card.js` directly.
++  const roomCardHandler = (await import(pathToFileURL(join(ROOT, "api/room-card.js")).href)).default;
+ 
+   const doors = {
+     "/api/replica": replicaHandler,
+@@ -317,6 +350,15 @@ async function startServer(state) {
+         return await roomAboutHandler(req, res);
+       }
+ 
++      // WS-R187: `vercel.json`'s own `/r/:slug/(og|story|poster).png` ->
++      // `api/room-card.js` rewrite, restated the same way the about-page
++      // match just above already restates its own rewrite.
++      const cardMatch = /^\/r\/([^/]+)\/(og|story|poster)\.png$/.exec(pathname);
++      if (cardMatch && (req.method === "GET" || req.method === "HEAD")) {
++        req.query = { slug: decodeURIComponent(cardMatch[1]), kind: cardMatch[2] };
++        return await roomCardHandler(req, res);
++      }
++
+       if (/^\/r\/[^/]+\/?$/.test(pathname) && req.method === "GET") {
+         if (await serveDistFile(res, "room.html")) return;
+       }
+@@ -530,6 +572,41 @@ async function walkLocale(locale) {
+     ok(`${locale}: publish succeeds once the person's own sheet is published (the real predicate clears)`, publishedResponse.status() === 200);
+     ok(`${locale}: publishRoom really set published_at`, Boolean(room.published_at));
+ 
++    // ── WS-R187 (share your AI): the share kit, now that the Room has
++    //    actually published — `ShareKitCard.tsx`'s own `useEffect([load,
++    //    roomPublished])` refetches the instant `room.published` flips true,
++    //    the same state this screen's publish click above just updated, so
++    //    no extra navigation or reload is needed before these rows appear. ──
++    await page.waitForSelector(".vy-room__share-kit-row", { timeout: 15_000 });
++    const kitRowValues = await page.$$eval(".vy-room__share-kit-text", (els) => els.map((el) => el.value));
++    ok(`${locale}: the share kit rendered real rows, not the "not published yet" empty state`,
++      kitRowValues.length >= 4, `${kitRowValues.length} rows`);
++    ok(`${locale}: the whatsapp row carries the PERSON's own personLine, never the generic teacher template`,
++      kitRowValues.some((v) => v.includes(PERSON_LINE)));
++    ok(`${locale}: the kit's own rows carry the real, published link (the slug this Room actually published under)`,
++      kitRowValues.some((v) => v.includes(`/r/${room.slug}?via=`)));
++    ok(`${locale}: NEGATIVE CONTROL — the whatsapp row never recites the generic teacher-kit opening line over a person's own`,
++      !kitRowValues.some((v) => v.includes("I have started") || v.includes("मैंने")));
++
++    // The address card above the kit shows the SAME real link, plainly —
++    // "the kit shows the link", the brief's own law 5, checked at its most
++    // literal (`RoomStudio.tsx`'s own `.vy-room__link` code element, not the
++    // kit's own per-channel `?via=` rows above). ───────────────────────────
++    const addressLinkText = await page.locator(".vy-room__link").innerText();
++    ok(`${locale}: the address card shows the real, published /r/<slug> link`,
++      addressLinkText.includes(`/r/${room.slug}`), addressLinkText);
++
++    // The story card the whatsapp/telegram rows point at — a REAL PNG, the
++    // real `api/room-card.js` door, over the real fixture `db` seam
++    // (`startServer`'s own header names why this is wired end to end here
++    // rather than only in `evals/room-card/run.mjs`'s own unit suite). ─────
++    const storyCardResponse = await page.request.get(`${url}/r/${room.slug}/story.png`);
++    ok(`${locale}: the story card the kit's WhatsApp/Telegram rows link to loads for real (200, image/png)`,
++      storyCardResponse.status() === 200 && (storyCardResponse.headers()["content-type"] || "").includes("image/png"));
++    const storyCardBytes = await storyCardResponse.body();
++    ok(`${locale}: the story card is a real, non-empty PNG (starts with the PNG signature)`,
++      storyCardBytes.length > 100 && storyCardBytes[0] === 0x89 && storyCardBytes[1] === 0x50);
++
+     await personContext.close();
+ 
+     // ── the fake reply seam: `think(engine, compiled, turns)`'s own real
+diff --git a/evals/share-kit/run.mjs b/evals/share-kit/run.mjs
+index 8b4ed4d..25e046a 100644
+--- a/evals/share-kit/run.mjs
++++ b/evals/share-kit/run.mjs
+@@ -38,6 +38,19 @@
+ //      it (the thing this whole workstream exists to make true); (c) a
+ //      drifted copy of one template is caught by the same parity comparator
+ //      §4 already proved bites.
++//   7. WS-R187 (share your AI). A published PERSON sheet's own `personLine`
++//      replaces the "whatsapp" row's text with `SHARE_KIT_PERSON_WHATSAPP_
++//      COPY`'s template (byte-parity proven against the REAL
++//      `src/studio/copy.ts`/`hiCopy.ts#shareYourAi.whatsappTemplate`, the
++//      identical §4 technique aimed at the personal studio's own registry) —
++//      the other three rows, `url`, and `picture` are UNCHANGED. TEACHER
++//      BYTE-IDENTITY CONTROL: a kit built with no `sheetKind` (every
++//      existing caller) is byte-for-byte identical to this suite's own §1
++//      fixture. NEGATIVE CONTROLS: `sheetKind: "person"` with an empty/
++//      missing `personLine` falls back to the generic template, byte-
++//      identical to a teacher's; a `personLine` long enough to push the
++//      whatsapp row over its own limit still THROWS `ShareKitError`, never
++//      truncates (§5's own law, restated for this new input).
+ import { readFileSync, mkdtempSync, writeFileSync } from "node:fs";
+ import { execSync } from "node:child_process";
+ import { tmpdir } from "node:os";
+@@ -62,6 +75,7 @@ const {
+   SHARE_KIT_LIMITS,
+   SHARE_KIT_PICTURE,
+   SHARE_KIT_COPY,
++  SHARE_KIT_PERSON_WHATSAPP_COPY,
+   ShareKitError,
+ } = await import(pathToFileURL(join(API, "_share-kit.js")).href);
+ const { ROOM_ARRIVAL_VIA, resolveArrivalVia } = await import(pathToFileURL(join(API, "_room-surface.js")).href);
+@@ -220,5 +234,97 @@ console.log("\n── 6. the WhatsApp-join entry: a fifth row, only when handed
+     buildShareKit({ name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: null, whatsappJoinUrl: JOIN_URL }) === null);
+ }
+ 
++// ═══ 7. WS-R187: THE PERSON-KIND WHATSAPP LINE ══════════════════════════════
++console.log("\n── 7. WS-R187: a published person's own personLine drives the whatsapp row ──");
++{
++  const PERSON_LINE = "Product designer. Bad puns. Worse badminton.";
++
++  // ── 7a. copy parity: SHARE_KIT_PERSON_WHATSAPP_COPY vs the REAL
++  //        src/studio/copy.ts / hiCopy.ts#shareYourAi.whatsappTemplate ────
++  const OUT = mkdtempSync(join(tmpdir(), "share-kit-person-copy-eval-"));
++  const ENTRY = join(OUT, "entry.ts");
++  writeFileSync(
++    ENTRY,
++    `export { STUDIO_COPY_TABLE, loadStudioCopy } from ${JSON.stringify(join(REPO, "src/studio/copy"))};\n`,
++  );
++  const BUNDLE = join(OUT, "copy.bundle.mjs");
++  execSync(
++    `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
++    { cwd: REPO, stdio: "inherit" },
++  );
++  const { STUDIO_COPY_TABLE: PERSONAL_STUDIO_COPY_TABLE, loadStudioCopy: installPersonalStudioCopy } =
++    await import(pathToFileURL(BUNDLE).href);
++  await installPersonalStudioCopy("hi");
++  for (const locale of ["en", "hi"]) {
++    ok(`SHARE_KIT_PERSON_WHATSAPP_COPY.${locale} matches the REAL src/studio/copy.ts shareYourAi.whatsappTemplate`,
++      SHARE_KIT_PERSON_WHATSAPP_COPY[locale] === PERSONAL_STUDIO_COPY_TABLE[locale].shareYourAi.whatsappTemplate);
++  }
++  const poisonedPersonCopy = { ...SHARE_KIT_PERSON_WHATSAPP_COPY, en: "Submit" };
++  ok("NEGATIVE CONTROL: a drifted copy of the person whatsapp template is caught by the same comparator",
++    poisonedPersonCopy.en !== PERSONAL_STUDIO_COPY_TABLE.en.shareYourAi.whatsappTemplate);
++
++  // ── 7b. a published person sheet's own line replaces the whatsapp row ──
++  const personKit = buildShareKit({
++    name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT,
++    sheetKind: "person", personLine: PERSON_LINE,
++  });
++  const personWhatsapp = personKit.find((r) => r.channel === "whatsapp");
++  ok("person kind: the whatsapp row carries the person's OWN line", personWhatsapp.text.includes(PERSON_LINE));
++  ok("person kind: the whatsapp row still carries the built url", personWhatsapp.text.includes(personWhatsapp.url));
++  ok("person kind: the whatsapp row is still under its own platform limit",
++    personWhatsapp.text.length <= SHARE_KIT_LIMITS.whatsapp);
++  ok("person kind: every OTHER row is untouched (instagram/youtube/telegram keep the generic {name} template)",
++    personKit.find((r) => r.channel === "instagram").text === `${NAME} AI, talk any time: ${personKit.find((r) => r.channel === "instagram").url}`);
++  ok("person kind: url/picture/channel shape is UNCHANGED — four rows, same order, same picture map",
++    personKit.map((r) => r.channel).join(",") === SHARE_KIT_CHANNELS.join(",") &&
++    personKit.every((r) => r.picture === SHARE_KIT_PICTURE[r.channel]));
++
++  // ── 7c. TEACHER BYTE-IDENTITY CONTROL: no sheetKind at all (every
++  //        existing caller) is untouched, byte for byte, by this workstream ─
++  const teacherKit = buildShareKit({ name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT });
++  const teacherWhatsapp = teacherKit.find((r) => r.channel === "whatsapp");
++  ok("TEACHER BYTE-IDENTITY CONTROL: with no sheetKind, the whatsapp row is byte-identical to the generic template",
++    teacherWhatsapp.text === SHARE_KIT_COPY.en.whatsapp
++      .split("{name}").join(NAME).split("{url}").join(teacherWhatsapp.url));
++  ok("TEACHER BYTE-IDENTITY CONTROL: sheetKind='person' but NO personLine falls back to the SAME generic text",
++    buildShareKit({
++      name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT, sheetKind: "person", personLine: "",
++    }).find((r) => r.channel === "whatsapp").text === teacherWhatsapp.text);
++  ok("TEACHER BYTE-IDENTITY CONTROL: sheetKind='person' with a whitespace-only personLine also falls back",
++    buildShareKit({
++      name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT, sheetKind: "person", personLine: "   ",
++    }).find((r) => r.channel === "whatsapp").text === teacherWhatsapp.text);
++  ok("TEACHER BYTE-IDENTITY CONTROL: sheetKind='teacher' with a personLine present (should never happen) still falls back",
++    buildShareKit({
++      name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT, sheetKind: "teacher", personLine: PERSON_LINE,
++    }).find((r) => r.channel === "whatsapp").text === teacherWhatsapp.text);
++
++  // ── 7d. NEGATIVE CONTROL: an over-limit personLine still THROWS, never
++  //        truncates — the whatsapp row's own limit (300) is real. `Try
++  //        it: ` plus a long origin/slug leaves little headroom, so a
++  //        personLine at its own 140-char field maximum, repeated, is what
++  //        actually exercises the throw. ─────────────────────────────────
++  let personThrew = null;
++  try {
++    buildShareKit({
++      name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT,
++      sheetKind: "person", personLine: "A".repeat(140) + "B".repeat(140),
++    });
++  } catch (e) {
++    personThrew = e;
++  }
++  ok("NEGATIVE CONTROL: an over-limit personLine THROWS ShareKitError on the whatsapp row, never truncates",
++    personThrew instanceof ShareKitError && personThrew.code === "share_kit_text_over_limit" && personThrew.details?.channel === "whatsapp");
++
++  // ── 7e. Hindi locale carries the Hindi template ─────────────────────────
++  const personKitHi = buildShareKit({
++    name: NAME, slug: SLUG, locale: "hi", origin: ORIGIN, publishedAt: PUBLISHED_AT,
++    sheetKind: "person", personLine: PERSON_LINE,
++  });
++  const personWhatsappHi = personKitHi.find((r) => r.channel === "whatsapp");
++  ok("hi: person kind whatsapp row uses the Hindi person template (never the English one)",
++    personWhatsappHi.text.includes("इसे आज़माएं") && personWhatsappHi.text.includes(PERSON_LINE));
++}
++
+ console.log(`\n${pass} passed, ${fail} failed`);
+ process.exit(fail ? 1 : 0);
+diff --git a/evals/vyakti-app/run.mjs b/evals/vyakti-app/run.mjs
+index 6113a4c..5ddfbbc 100644
+--- a/evals/vyakti-app/run.mjs
++++ b/evals/vyakti-app/run.mjs
+@@ -663,5 +663,78 @@ const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
+   ok("capacitor.config.ts (Meera's own, tracked): still names app.meera.companion / Maya, untouched after being used transiently to stage the iOS scaffold", /appId:\s*"app\.meera\.companion"/.test(meeraConfig) && /appName:\s*"Maya"/.test(meeraConfig));
+ }
+ 
++// ═══ WS-R187: the share intent, feature-detected ═══════════════════════════
++//
++// `navigator.share` (the Web Share API) IS supported by the Android System
++// WebView this app ships in (Chrome-based, `minSdkVersion 24` per
++// `android/variables.gradle`, section 2 above) on a device whose System
++// WebView is itself current — but WebView updates independently of the OS
++// on real Android 7+ hardware, so a stale or cut-down WebView build without
++// it is a real, unpredictable case this app must survive, not an edge case
++// to assume away. `ShareKitCard.tsx`'s own `canNativeShare` guard
++// (`typeof navigator.share === "function"`) is what makes that survivable:
++// the button simply does not render when the platform lacks it, leaving the
++// EXISTING Copy button (proven since WS-R85) as the one guaranteed path.
++// No Android SDK or real device is needed to prove the code never assumes
++// the API exists; a device-level proof that the button actually opens
++// Android's OWN share sheet is what ONLY a real device (or Gradle CI) can
++// give, named here so it is never implied by omission (this file's own
++// header law).
++console.log("\n── WS-R187: ShareKitCard.tsx's native-share button is feature-detected, never assumed ──");
++{
++  const shareKitSrc = read("src/creatorStudio/ShareKitCard.tsx");
++
++  ok(
++    "ShareKitCard.tsx checks typeof navigator.share === \"function\" before ever rendering the share button (canNativeShare)",
++    /typeof navigator\s*!==\s*"undefined"\s*&&\s*typeof navigator\.share\s*===\s*"function"/.test(shareKitSrc),
++  );
++  ok(
++    "ShareKitCard.tsx's shareRow handler ALSO feature-detects before calling navigator.share (defence in depth: canNativeShare gates the button, this gates the call)",
++    /shareRow[\s\S]{0,400}typeof navigator\.share\s*!==\s*"function"/.test(shareKitSrc),
++  );
++  ok(
++    "the share button itself is gated on canNativeShare in JSX -- never rendered unconditionally",
++    /\{canNativeShare\s*&&[\s\S]{0,200}vy-room__share-kit-native/.test(shareKitSrc),
++  );
++  ok(
++    "navigator.share is called with {text, url}, never a File array (no Web Share Level 2 file-sharing claim this app has not built or tested)",
++    /navigator\.share\(\{\s*text:\s*row\.text,\s*url:\s*row\.url\s*\}\)/.test(shareKitSrc),
++  );
++  // A cancelled or refused share (AbortError, or any platform refusal) must
++  // never surface as an error banner -- the Copy button beside it already
++  // covers the fallback, `shareRow`'s own header states why.
++  ok(
++    "a rejected navigator.share() promise is caught (never left to become an unhandled rejection on a WebView page)",
++    /navigator\.share\(\{\s*text:\s*row\.text,\s*url:\s*row\.url\s*\}\)\.catch\(/.test(shareKitSrc),
++  );
++
++  // NEGATIVE CONTROL: the SAME checks fail on a poisoned fixture that calls
++  // navigator.share unguarded -- proving these regexes actually bite rather
++  // than matching any file that merely mentions "navigator.share" somewhere.
++  const unguardedFixture = `
++    function shareRow(row) {
++      navigator.share({ text: row.text, url: row.url });
++    }
++  `;
++  ok(
++    "NEGATIVE CONTROL: a fixture that calls navigator.share with no feature detection at all fails the canNativeShare check",
++    !/typeof navigator\s*!==\s*"undefined"\s*&&\s*typeof navigator\.share\s*===\s*"function"/.test(unguardedFixture),
++  );
++  ok(
++    "NEGATIVE CONTROL: the same unguarded fixture's call is also uncaught (no .catch) -- both real checks above would have caught this shape",
++    !/navigator\.share\([^)]*\)\.catch\(/.test(unguardedFixture),
++  );
++
++  // WS-R187's OWN variant prop never widens what a TEACHER's kit renders --
++  // `RoomStudio.tsx`'s own default (undefined) means `canNativeShare` is
++  // always false for the teacher/creator studio (`?mode=teacher`), so the
++  // Android app's teacher surface is unaffected by this section.
++  const roomStudioSrc = read("src/creatorStudio/RoomStudio.tsx");
++  ok(
++    "RoomStudio.tsx's shareKitVariant prop is optional (undefined for every teacher call site, canNativeShare stays false there)",
++    /shareKitVariant\?:\s*"person";/.test(roomStudioSrc),
++  );
++}
++
+ console.log(`\n${pass} passed, ${fail} failed`);
+ process.exit(fail ? 1 : 0);
+diff --git a/scripts/check-accessibility.mjs b/scripts/check-accessibility.mjs
+index 9fcbc86..1715761 100644
+--- a/scripts/check-accessibility.mjs
++++ b/scripts/check-accessibility.mjs
+@@ -123,6 +123,32 @@ const TARGETS = [
+     screens: ["deploy"],
+     mounted: ".vx-deploy",
+   },
++  // WS-R187 (share your AI). `check-layout.mjs`'s own `studio:deploy-
++  // published`/`studio-hi:deploy-published` targets, the same fixture and
++  // query shape reused verbatim (this file's own header rule) --
++  // `scenario=room-published-person` is the one fixture state that reaches
++  // ShareKitCard's real four-row, person-kind kit (its own "Share" native-
++  // share button included, feature-detected -- `navigator.share` is absent
++  // in this gate's own headless Chromium, so the button itself does not
++  // render here; `evals/vyakti-app`'s own static section proves the code
++  // never assumes it exists). The two targets above never reach this state
++  // at all (`scenario=voice-ready`'s own `/api/room-publish` answers `{
++  // room: null }`), so this is the first time axe judges the kit's real
++  // rows, their Copy buttons and their WhatsApp deep link together.
++  {
++    name: "studio:deploy-published",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=room-published-person&view=share",
++    screens: ["deploy"],
++    mounted: ".vx-deploy",
++  },
++  {
++    name: "studio-hi:deploy-published",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=room-published-person&view=share&lang=hi",
++    screens: ["deploy"],
++    mounted: ".vx-deploy",
++  },
+   // WS-R155. The blind listening test, `check-layout.mjs`'s own
+   // "studio:listening" target restated for axe plus the keyboard walk: the
+   // fieldsets, radiogroups and labelled scales this screen adds are exactly
+diff --git a/scripts/check-layout.mjs b/scripts/check-layout.mjs
+index c3a68d3..555dd8e 100644
+--- a/scripts/check-layout.mjs
++++ b/scripts/check-layout.mjs
+@@ -223,6 +223,35 @@ const TARGETS = [
+     panels: ".vx-deploy-banner, #room-studio",
+     minPanels: 2,
+   },
++  // WS-R187 (share your AI). `studio:deploy`/`studio-hi:deploy` above never
++  // reach a real published Room (`scenario=voice-ready`'s own base
++  // `/api/room-publish` is `{ room: null, reason: "not_created" }`), so
++  // `ShareKitCard.tsx` has only ever rendered under this gate as its own
++  // "Publish your Room to get your share kit" empty state — this target's
++  // own `scenario=room-published-person` (`layoutFixture.tsx`, this
++  // workstream) is the one place a real 4-row kit, in the person-kind
++  // variant, reaches this gate at all. `minPanels: 4` on `.vy-room__share-
++  // kit-row` (rather than the `#room-studio, .vx-deploy-banner` pair the two
++  // targets above already check) is deliberately narrower: it fails if the
++  // kit renders fewer than its real four rows, the thing genuinely new here.
++  {
++    name: "studio:deploy-published",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=room-published-person&view=share",
++    steps: ["deploy"],
++    mounted: ".vx-deploy",
++    panels: ".vy-room__share-kit-row",
++    minPanels: 4,
++  },
++  {
++    name: "studio-hi:deploy-published",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=room-published-person&view=share&lang=hi",
++    steps: ["deploy"],
++    mounted: ".vx-deploy",
++    panels: ".vy-room__share-kit-row",
++    minPanels: 4,
++  },
+   // WS-R155. The blind listening test, opened straight from the voice room
+   // via `?listening=1` (CloneExperience.tsx's own deep-link for this,
+   // `room:checkins`/`room:handoff`'s own WS-R43 law restated: never a
+diff --git a/src/creatorStudio/RoomStudio.tsx b/src/creatorStudio/RoomStudio.tsx
+index 2e21b76..14cc2c9 100644
+--- a/src/creatorStudio/RoomStudio.tsx
++++ b/src/creatorStudio/RoomStudio.tsx
+@@ -177,6 +177,7 @@ export default function RoomStudio({
+   onGoStep,
+   onStatusChange,
+   onRoomState,
++  shareKitVariant,
+ }: {
+   token: string;
+   replicaId: string;
+@@ -184,6 +185,13 @@ export default function RoomStudio({
+     error: ReplicaApiError | RoomPublishApiError | RoomCohortsApiError | PaymentsApiError | PulseApiError,
+   ) => void;
+   onGoStep: (next: StepId) => void;
++  /** WS-R187 (share your AI). Undefined for every existing caller (this
++   *  screen mounted at `mode=teacher`) — `ShareKitCard.tsx`'s own kit stays
++   *  byte-identical to before this workstream. `DeployStudio.tsx` is the one
++   *  new caller, passing `"person"` straight through, never forking this
++   *  component or `ShareKitCard.tsx` itself (`evals/deploy-studio/run.mjs`'s
++   *  own "no fork" control). */
++  shareKitVariant?: "person";
+   /** Fed up so the wizard rail's Deploy readiness can read it without a
+    *  second fetch of the same endpoint. */
+   onStatusChange?: (published: boolean) => void;
+@@ -875,7 +883,7 @@ export default function RoomStudio({
+       {/* WS-R85 (migration 122). The share kit: WhatsApp/Instagram/YouTube/
+           Telegram text and picture, one tap - self-contained, ShowcaseCard's
+           own "owns its own fetch" precedent. */}
+-      <ShareKitCard token={token} replicaId={replicaId} slug={room.slug} roomPublished={room.published} onAuthError={fail} />
++      <ShareKitCard token={token} replicaId={replicaId} slug={room.slug} roomPublished={room.published} onAuthError={fail} variant={shareKitVariant} />
+ 
+       <article className="teacher-sheet-card vy-room__link-card">
+         <h3>{c.telegramCardTitle}</h3>
+diff --git a/src/creatorStudio/ShareKitCard.tsx b/src/creatorStudio/ShareKitCard.tsx
+index c907b52..b3ecce8 100644
+--- a/src/creatorStudio/ShareKitCard.tsx
++++ b/src/creatorStudio/ShareKitCard.tsx
+@@ -59,15 +59,31 @@ export default function ShareKitCard({
+   slug,
+   roomPublished,
+   onAuthError,
++  variant,
+ }: {
+   token: string;
+   replicaId: string;
+   slug: string;
+   roomPublished: boolean;
+   onAuthError?: (error: ReplicaApiError | RoomPublishApiError) => void;
++  /** WS-R187 (share your AI). `undefined`/omitted (every existing caller,
++   *  `RoomStudio.tsx`'s own default) renders EXACTLY today's teacher kit —
++   *  `"person"` is the one new value, set only by `DeployStudio.tsx`'s own
++   *  hunk through `RoomStudio`'s new `shareKitVariant` prop, and adds a
++   *  native-share-sheet button next to Copy on every row
++   *  (`navigator.share`, feature-detected, `copyRow`'s own clipboard
++   *  feature-detection restated for the phone's share sheet instead of the
++   *  clipboard). Never a copy of this component — this file's own header
++   *  already states "EVERY REAL DECISION LIVES SERVER-SIDE"; a prop is the
++   *  one honest way to vary PRESENTATION without duplicating the component
++   *  that owns it. */
++  variant?: "person";
+ }) {
+   const { t } = useStudioLocale();
+   const c = t.shareKit;
++  const cp = t.shareKitPersonShare;
++  const canNativeShare = variant === "person" &&
++    typeof navigator !== "undefined" && typeof navigator.share === "function";
+   const [kit, setKit] = useState<ShareKitRow[] | null>(null);
+   // WS-R136: the lane-on-but-unverified-number signal — see `ShareKit`'s
+   // own header (roomPublishApi.ts) for why this is a separate field from
+@@ -145,6 +161,23 @@ export default function ShareKitCard({
+     [],
+   );
+ 
++  // WS-R187 (share your AI). `navigator.share`, feature-detected the exact
++  // same way `copyRow`'s own clipboard branch is above — `canNativeShare`
++  // already gates whether this button renders at all, so this handler is
++  // only ever wired to a live button, never called against a browser with
++  // no share sheet to open. A person cancelling their own phone's share
++  // sheet rejects with `AbortError` — not a failure this card has anything
++  // useful to say about, so it is swallowed exactly like `copyRow`'s own
++  // clipboard-write rejection falls back to a selectable textarea rather
++  // than surfacing an error banner for something the person chose to do.
++  const shareRow = useCallback((row: ShareKitRow) => {
++    if (typeof navigator === "undefined" || typeof navigator.share !== "function") return;
++    navigator.share({ text: row.text, url: row.url }).catch(() => {
++      /* cancelled, or the platform refused — the Copy button beside this
++         one already covers the fallback, this card own posture above. */
++    });
++  }, []);
++
+   const orderedKit = kit
+     ? CHANNEL_ORDER.map((channel) => kit.find((row) => row.channel === channel)).filter(
+         (row): row is ShareKitRow => row != null,
+@@ -188,6 +221,15 @@ export default function ShareKitCard({
+                   >
+                     {copiedChannel === row.channel ? c.copied : c.copy}
+                   </button>
++                  {canNativeShare && !isJoinRow && (
++                    <button
++                      className="button secondary-button vy-room__share-kit-native"
++                      type="button"
++                      onPointerDown={() => shareRow(row)}
++                    >
++                      {cp.shareButton}
++                    </button>
++                  )}
+                   {row.channel === "whatsapp" && (
+                     <a
+                       className="button secondary-button"
+diff --git a/src/creatorStudio/copy.ts b/src/creatorStudio/copy.ts
+index 0409af1..7ac516e 100644
+--- a/src/creatorStudio/copy.ts
++++ b/src/creatorStudio/copy.ts
+@@ -1137,6 +1137,20 @@ interface ShareKitWhatsappJoinCopy {
+   button: string;
+   unavailableNote: string;
+ }
++// ── shareKitPersonShare: ShareKitCard.tsx's own PERSON-KIND variant
++//    (WS-R187, share your AI) — one extra button next to Copy on every row,
++//    using the phone's own share sheet (`navigator.share`) where the
++//    platform has it, never shown at all otherwise (the existing Copy
++//    button already covers that case, `ShareKitCard.tsx`'s own feature
++//    detection). A teacher's kit never renders this string — the component
++//    reads it only when `RoomStudio`'s new `shareKitVariant` prop is
++//    `"person"` (`DeployStudio.tsx`'s own hunk), so a teacher's rendered
++//    kit stays byte-identical to before this workstream. Its own closed
++//    section for the identical reason `shareKitWhatsappJoin` above states:
++//    a genuinely separate control, not a rename of an existing key. ───────
++interface ShareKitPersonShareCopy {
++  shareButton: string;
++}
+ 
+ // ── activityPanel: ActivityPanel.tsx (WS-R71, tier 2 wave two). Server-sent
+ //    fields (`job.state_reason`, `lane.label`, `lane.missing`,
+@@ -2264,6 +2278,7 @@ interface StudioCopy {
+   suiteWeeklyNote: SuiteWeeklyNoteCopy;
+   roomStudioMandate: RoomStudioMandateCopy;
+   shareKitWhatsappJoin: ShareKitWhatsappJoinCopy;
++  shareKitPersonShare: ShareKitPersonShareCopy;
+   ops: OpsCopy;
+ }
+ 
+@@ -4266,6 +4281,12 @@ const EN: StudioCopy = {
+     unavailableNote: "WhatsApp join links are on, but we could not confirm your business number yet, so this link is not ready to share. Try again in a few minutes.",
+   },
+ 
++  // WS-R187 (share your AI). ShareKitCard.tsx's own header names why this
++  // is a closed section rather than a new key inside shareKit above.
++  shareKitPersonShare: {
++    shareButton: "Share",
++  },
++
+   ops: {
+     // WS-R135. See this workstream's OpsCopy interface header (above,
+     // before StudioCopy) for the server-computed fields deliberately left
+diff --git a/src/creatorStudio/hiCopy.ts b/src/creatorStudio/hiCopy.ts
+index 5de02f9..87626ba 100644
+--- a/src/creatorStudio/hiCopy.ts
++++ b/src/creatorStudio/hiCopy.ts
+@@ -1945,6 +1945,12 @@ export const HI: StudioRestCopy = {
+     unavailableNote: "WhatsApp जॉइन लिंक चालू है, लेकिन आपका बिज़नेस नंबर अभी कन्फर्म नहीं हो पाया, इसलिए यह लिंक शेयर करने के लिए तैयार नहीं है। कुछ मिनट बाद फिर कोशिश करें।",
+   },
+ 
++  // WS-R187 (share your AI). copy.ts's own ShareKitPersonShareCopy header
++  // states why this is a closed section.
++  shareKitPersonShare: {
++    shareButton: "शेयर करें",
++  },
++
+   ops: {
+     // WS-R135. copy.ts's own OpsCopy interface header names why a sweep's
+     // name, an incident's kind/door, a delivery-state key, a Room's own
+diff --git a/src/creatorStudio/roomStudio.css b/src/creatorStudio/roomStudio.css
+index f81f74c..5b0dc80 100644
+--- a/src/creatorStudio/roomStudio.css
++++ b/src/creatorStudio/roomStudio.css
+@@ -372,6 +372,14 @@
+     flex-wrap: wrap;
+     gap: var(--space-tight);
+   }
++  /* WS-R187 (share your AI): the person-kind variant's native-share-sheet
++     button — `.button.secondary-button` already carries every color/size/
++     focus rule this needs; `.vy-room__share-kit-actions`'s own `flex-wrap`
++     above already gives it room to drop to its own line at phone width, so
++     this is the one thing that is genuinely NEW about it, not a restyle. */
++  .vy-room__share-kit-native {
++    font-weight: var(--weight-strong);
++  }
+ 
+   @media (prefers-reduced-motion: reduce) {
+     .vy-room__cap-pill { transition: none; }
+diff --git a/src/studio/DeployStudio.tsx b/src/studio/DeployStudio.tsx
+index 47e5df1..5ab63ee 100644
+--- a/src/studio/DeployStudio.tsx
++++ b/src/studio/DeployStudio.tsx
+@@ -196,6 +196,7 @@ export default function DeployStudio({
+             onAuthError={onAuthError}
+             onGoStep={handleGoStep}
+             onRoomState={handleRoomState}
++            shareKitVariant="person"
+           />
+         </Suspense>
+       </StudioLocaleProvider>
+diff --git a/src/studio/copy.ts b/src/studio/copy.ts
+index ca6af34..4136b7b 100644
+--- a/src/studio/copy.ts
++++ b/src/studio/copy.ts
+@@ -32,6 +32,27 @@ import type { StudioLocale } from "../creatorStudio/studioLocalePreference";
+ import type { PersonalAuthCopy } from "./personalAuthCopy";
+ import { PERSONAL_AUTH_COPY_TABLE, loadPersonalAuthCopy, personalAuthCopyReady } from "./personalAuthCopyRegistry";
+ 
++// ── shareYourAi: WS-R187 (share your AI). The WhatsApp row's PERSON-KIND
++//    text `src/creatorStudio/ShareKitCard.tsx` renders once a person's own
++//    Room publishes — canonical source here (a person types their own
++//    `personLine` through `HumanOsStudio.tsx`, so the template that carries
++//    it belongs with the personal studio's own copy, `expertSharePanel`'s
++//    own precedent above), restated byte for byte in
++//    `api/_share-kit.js#SHARE_KIT_PERSON_WHATSAPP_COPY`
++//    (`evals/share-kit/run.mjs`'s own parity section proves it against the
++//    real bundled export). This template is never rendered by a component
++//    directly — the server fills it and hands the finished text to
++//    `ShareKitCard.tsx` as plain row data — so it needs no `useStudioLocale`
++//    wiring of its own, `SHARE_KIT_COPY`'s own identical posture in
++//    `src/creatorStudio/copy.ts` one file over. Exactly two holes,
++//    "{personLine}" and "{url}" — never "{name}": the person's own line
++//    already carries whatever context it needs, and interpolating a name
++//    they did not write themselves into their own words would put words in
++//    their mouth (`api/_share-kit.js`'s own header, restated). ────────────
++export interface ShareYourAiCopy {
++  whatsappTemplate: string; // "{personLine}", "{url}"
++}
++
+ export interface ExpertSharePanelCopy {
+   title: string;
+   voiceOtherChannelsSummary: string;
+@@ -997,6 +1018,7 @@ export interface FirstFiveMinutesCopy {
+ 
+ export interface StudioCopy {
+   personalAuth: PersonalAuthCopy;
++  shareYourAi: ShareYourAiCopy;
+   expertSharePanel: ExpertSharePanelCopy;
+   quickVoiceCapture: QuickVoiceCaptureCopy;
+   expertConversation: ExpertConversationCopy;
+@@ -1010,6 +1032,10 @@ export interface StudioCopy {
+   firstFiveMinutes: FirstFiveMinutesCopy;
+ }
+ 
++const EN_SHARE_YOUR_AI: ShareYourAiCopy = {
++  whatsappTemplate: "{personLine}\n\nTry it: {url}",
++};
++
+ const EN_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+   title: "Give your AI a home.",
+   voiceOtherChannelsSummary: "Voice and other channels",
+@@ -2030,6 +2056,7 @@ const EN_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+ 
+ const EN_STUDIO_COPY: StudioCopy = {
+   personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
++  shareYourAi: EN_SHARE_YOUR_AI,
+   expertSharePanel: EN_EXPERT_SHARE_PANEL,
+   quickVoiceCapture: EN_QUICK_VOICE_CAPTURE,
+   expertConversation: EN_EXPERT_CONVERSATION,
+diff --git a/src/studio/hiCopy.ts b/src/studio/hiCopy.ts
+index 79df73f..3c34ef8 100644
+--- a/src/studio/hiCopy.ts
++++ b/src/studio/hiCopy.ts
+@@ -6,7 +6,13 @@
+ // already-reviewed wording wherever this file's English matches it, adapting
+ // only where this screen's own English differs (the nearline nearline-busy
+ // states this file's English adds, and one extra extraction blocker key).
+-import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
++import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, ShareYourAiCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
++
++// WS-R187 (share your AI). `copy.ts#ShareYourAiCopy`'s own header names why
++// this lives here rather than in `src/creatorStudio/hiCopy.ts`.
++const HI_SHARE_YOUR_AI: ShareYourAiCopy = {
++  whatsappTemplate: "{personLine}\n\nइसे आज़माएं: {url}",
++};
+ 
+ const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+   title: "अपने AI को एक ठिकाना दें।",
+@@ -1040,6 +1046,7 @@ const HI_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+ // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
+ // Hindi loader, so this file owns only the sections named above.
+ export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
++  shareYourAi: HI_SHARE_YOUR_AI,
+   expertSharePanel: HI_EXPERT_SHARE_PANEL,
+   quickVoiceCapture: HI_QUICK_VOICE_CAPTURE,
+   expertConversation: HI_EXPERT_CONVERSATION,
+diff --git a/src/studio/layoutFixture.tsx b/src/studio/layoutFixture.tsx
+index b3925eb..e967589 100644
+--- a/src/studio/layoutFixture.tsx
++++ b/src/studio/layoutFixture.tsx
+@@ -243,6 +243,33 @@ const PHRASE_ITEM = {
+   authorship: "mine", owner_speaker: "", consent_scope: "private_context", proposal: "present",
+   created_at: "2026-09-07T00:00:00Z", updated_at: "2026-09-07T00:00:00Z",
+ };
++// WS-R187 (share your AI). Factored out of "voice-ready" below (unchanged
++// value, same object literal) so "room-published-person" can extend it
++// rather than duplicate its four keys — a plain refactor, byte-identical
++// for every existing target that already uses `scenario=voice-ready`.
++const VOICE_READY_OVERRIDES = {
++  "/api/replica-consent": { consents: FIXTURE_CONSENTS },
++  "/api/replica-review": VOICE_DRAFT_REVIEW,
++  "/api/replica-source": { sources: VOICE_DRAFT_REVIEW.review.sources },
++  "/api/replica-runtime": {
++    runtime: {
++      replica_id: FIXTURE_REPLICA.replica_id, lifecycle: "enrolling", active: false,
++      can_activate: false, blockers: ["voice_genome_not_approved"],
++      qualification: { passed: 1, required: 7 },
++      versions: { profile: null, calibration: null, voice_genome: 2 },
++      activated_at: null,
++    },
++  },
++};
++
++// WS-R187. The person's own one-line (`HumanOsStudio.tsx`'s "one line about
++// you", `fromSheet.ts#PERSON_LINE_MAX`, 140 chars) — `evals/rehearsal/
++// person-room.mjs`'s own `PERSON_LINE` fixture constant, restated here (this
++// file's own precedent: a small, proven-correct literal copied per fixture
++// rather than imported across an eval/src boundary neither side should
++// depend on).
++const PERSON_LINE_FIXTURE = "Product designer. Bad puns. Worse badminton.";
++
+ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
+   // Nothing uploaded yet. The base table already is this scenario; listed
+   // for symmetry so `?scenario=empty` and no param at all are the same page.
+@@ -282,18 +309,103 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
+   // The two states a static empty fixture cannot reach. Both mount the real
+   // owner panel with a real draft shape; installStubFetch supplies either the
+   // protected audio receipt or the server's honest 202 warming contract.
+-  "voice-ready": {
+-    "/api/replica-consent": { consents: FIXTURE_CONSENTS },
+-    "/api/replica-review": VOICE_DRAFT_REVIEW,
+-    "/api/replica-source": { sources: VOICE_DRAFT_REVIEW.review.sources },
+-    "/api/replica-runtime": {
+-      runtime: {
+-        replica_id: FIXTURE_REPLICA.replica_id, lifecycle: "enrolling", active: false,
+-        can_activate: false, blockers: ["voice_genome_not_approved"],
+-        qualification: { passed: 1, required: 7 },
+-        versions: { profile: null, calibration: null, voice_genome: 2 },
+-        activated_at: null,
++  "voice-ready": VOICE_READY_OVERRIDES,
++
++  // WS-R187 (share your AI). `voice-ready`'s own overrides, PLUS a real
++  // published person Room carrying a real share kit — `ShareKitCard.tsx`'s
++  // "not published yet" empty state is what every earlier Deploy target
++  // (`studio:deploy`/`studio-hi:deploy`, both `scenario=voice-ready`) has
++  // ever rendered, because the base `ROUTES["/api/room-publish"]` answers
++  // `{ room: null, reason: "not_created" }` for every op (this file's own
++  // comment on that entry). This scenario's `kit` field is a directly-
++  // authored fixture row set, not a real server computation — the SAME
++  // static-per-scenario shape `src/creatorStudio/layoutFixture.tsx`'s own
++  // "showcase-picker" scenario already uses for its own `/api/room-publish`
++  // override (no op-based branching exists anywhere in this fixture file);
++  // `evals/share-kit/run.mjs` and `evals/rehearsal/person-room.mjs` are what
++  // prove a REAL server actually produces text shaped like this. This
++  // scenario touches ONLY `/api/room-publish` — every other route stays
++  // `voice-ready`'s own, so the runtime/voice panels this scenario is also
++  // reachable from render identically to before.
++  "room-published-person": {
++    ...VOICE_READY_OVERRIDES,
++    // `RoomStudio.tsx` reads this the instant `state.room` is truthy
++    // (`readOwnedRoomCohorts`) and renders `cohortReport.cohorts.length`
++    // unguarded — the base fixture's default (an unlisted path falling back
++    // to `{}`) has no `.cohorts` array at all, since no earlier scenario
++    // ever left `room` truthy for this component to reach that render path.
++    // `evals/rehearsal/person-room.mjs`'s own `FALLBACK_JSON_ROUTES` entry
++    // for this same path is the proven-correct empty shape, restated here.
++    "/api/room-cohorts": {
++      cohorts: [],
++      verdict: { verdict: "not_measurable_yet", cohort_week: null, week6_return_share: null },
++      relstate_stage_counts: [],
++    },
++    // `RoomStudio.tsx` mounts these same child cards (`InviteCreatorCard`,
++    // `HandoffCard`, `CheckinsCard`, the Suite line) regardless of whether
++    // it is reached from `?mode=teacher` or this personal studio's own
++    // Deploy screen — `src/creatorStudio/layoutFixture.tsx`'s own base
++    // `ROUTES` table already stubs all four for the identical reason (each
++    // reads an unguarded field the moment a Room is published); restated
++    // here, byte for byte, since this personal-studio fixture's base table
++    // never needed them before a Room could exist here at all.
++    "/api/invites": { invites: [], quota: { max: 3, used: 0, remaining: 3 } },
++    "/api/handoff": {
++      enabled: false, monthly_cap: 0,
++      counts: { drafted: 0, sent: 0, answered: 0, withdrawn: 0 }, next: null,
++    },
++    "/api/checkins": { designs: [] },
++    "/api/org": { org: null },
++    "/api/room-publish": {
++      room: {
++        room_id: "fixture-room-0002", slug: "priya-menon", display_name: FIXTURE_REPLICA.display_name,
++        free_monthly_messages: 20, paid_monthly_messages: 500, paid_monthly_voice_seconds: 1_800,
++        default_locale: "en", one_line_bio: "",
++        listed: false, listed_at: null,
++        published: true, paused: false,
++        published_at: "2026-09-10T09:00:00.000Z", paused_at: null,
++        created_at: "2026-09-01T09:00:00.000Z", updated_at: "2026-09-10T09:00:00.000Z",
++        telegram_deep_link: null,
+       },
++      reason: null,
++      can_publish: true,
++      blockers: { waiting_on_you: [], waiting_on_us: [] },
++      showcase: [],
++      // `ShareKitCard.tsx`'s own `ShareKitRow[]` shape — the whatsapp row
++      // carries the person's own line (`PERSON_LINE_FIXTURE` below), the
++      // other three the generic `{name}` template, the SAME split
++      // `api/_share-kit.js#buildShareKit`'s real "whatsapp row only" guard
++      // produces (`evals/share-kit/run.mjs`'s own §7 proves that split for
++      // real; this is a fixture restatement of its SHAPE for a layout/
++      // accessibility gate, never a claim that this exact text was server-
++      // computed).
++      kit: [
++        {
++          channel: "whatsapp",
++          text: `${PERSON_LINE_FIXTURE}\n\nTry it: https://vyakti-silk.vercel.app/r/priya-menon?via=whatsapp`,
++          url: "https://vyakti-silk.vercel.app/r/priya-menon?via=whatsapp",
++          picture: "story",
++        },
++        {
++          channel: "instagram",
++          text: `${FIXTURE_REPLICA.display_name} AI, talk any time: https://vyakti-silk.vercel.app/r/priya-menon?via=instagram`,
++          url: "https://vyakti-silk.vercel.app/r/priya-menon?via=instagram",
++          picture: null,
++        },
++        {
++          channel: "youtube",
++          text: `${FIXTURE_REPLICA.display_name} AI is here.\n\nI built an AI version of myself so you can ask questions any time, even when I am offline. It is upfront that it is an AI, not ${FIXTURE_REPLICA.display_name}, and it never shares what you say with anyone else.\n\nTalk to it: https://vyakti-silk.vercel.app/r/priya-menon?via=youtube`,
++          url: "https://vyakti-silk.vercel.app/r/priya-menon?via=youtube",
++          picture: "og",
++        },
++        {
++          channel: "telegram",
++          text: `${FIXTURE_REPLICA.display_name} AI is live. Ask anything, any time, right here: https://vyakti-silk.vercel.app/r/priya-menon?via=telegram\n\nIt is an AI built from ${FIXTURE_REPLICA.display_name}'s own material, not ${FIXTURE_REPLICA.display_name} themselves, and it never shares your messages with anyone.`,
++          url: "https://vyakti-silk.vercel.app/r/priya-menon?via=telegram",
++          picture: "story",
++        },
++      ],
++      whatsapp_join_unavailable: false,
+     },
+   },
+   "voice-warming": {

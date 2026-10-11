@@ -1,0 +1,185 @@
+{
+  "at": "2026-09-07T07:29:20.003Z",
+  "corpusSha256": "9e68054f9b25a8b7946fe4fd5e865f65ead2577129b87f285ece2664071cddf5",
+  "scope": "Synthetic fixture Room authority, real Room/compiler/gatedReply/think and Azure request with real isolated development provider ledger.",
+  "excluded": [
+    "real Room SQL",
+    "HTTP authentication",
+    "default teacher publication loader",
+    "publication consent authority",
+    "real private memory",
+    "browser",
+    "voice",
+    "deployment",
+    "quality acceptance"
+  ],
+  "sourceHashes": {
+    "api/_engine.gen.js": "7aa710770e3c77945e60d4d4e6c8c7a4338b9ac6965df559e574392183a51177",
+    "api/_room-surface.js": "7f0c25f8d5b771bc05524bd5e599b12da22c2e6db01c730c3ba093c28dd5eaa2",
+    "api/_surface.js": "ee136db6d93a291ae45fd2eb67df3eb69cdf07c34a4e98b775141caec5c3d95a",
+    "api/_azure-surface-reply.js": "1a5964218135451c5e404c8189573e006e157921069bbc0c49ee5abe58303cc8",
+    "api/_room-knowledge.js": "18a4afba4e0fb36eb000e36c3d25ad30259e833a033d5ba23e0a2787d963e4fb",
+    "api/_provider-budget.js": "4ec4bf1107d39bfc4bbc76f0ad38236e195a89cd31eae5249168f1f391b4247d",
+    "evals/room/fixtures.mjs": "0de273f4e4206312d2a8462af43bf35d6353361a1f7c18c702e0b3ac9532469c",
+    "src/engine/agents/characters/demoTeacher.ts": "984fd8f34b8c8bbdc0a4a57662c001eb7c31eb0b35438bfbc037cf523649e9d3"
+  },
+  "limits": "One output per case per arm; no retries, judges or voice. This is development failure evidence, not final heldout acceptance. Source hashes and corpus match. Model sampling and fixed arm order limit causal inference.",
+  "arms": [
+    {
+      "arm": "baseline",
+      "ledgerEstimateMicrousd": 32706,
+      "cases": [
+        {
+          "id": "EN-supported-implicit",
+          "question": "Aman and Mira have one R83 session. How should they divide their time, and which part comes first?",
+          "raw": "R83 me pehle 19 minute practice questions solve karne hote hain\n\n---\n\nuske baad 4 minute apne answers check karne ke hain\n\n---\n\ntotal milake 23 minute hota hai, hamesha isi order me divide karo time",
+          "delivered": "R83 me pehle 19 minute practice questions solve karne hote hain\nuske baad 4 minute apne answers check karne ke hain\ntotal milake 23 minute hota hai, hamesha isi order me divide karo time",
+          "elapsedMs": 4984,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5441
+        },
+        {
+          "id": "HI-supported-implicit",
+          "question": "R83 में जो प्रश्न पूरे हो गए हैं और जिन्हें फिर जाँचना है, उनके लिए अलग-अलग कौन से चिह्न हैं? क्या पूरा होने का मतलब सही होना भी है?",
+          "raw": "PINE-63 वाला चिह्न पूरे हुए अभ्यास को दिखाता है  \nBIRCH-28 वाला चिह्न ऐसे प्रश्न को दिखाता है जिन्हें फिर से देखना है  \nपूरा होना सही होने का प्रमाण नहीं है, बस खत्म होना है समझो",
+          "delivered": "PINE-63 वाला चिह्न पूरे हुए अभ्यास को दिखाता है\nBIRCH-28 वाला चिह्न ऐसे प्रश्न को दिखाता है जिन्हें फिर से देखना है\nपूरा होना सही होने का प्रमाण नहीं है, बस खत्म होना है समझो",
+          "elapsedMs": 3680,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5447
+        },
+        {
+          "id": "Hinglish-supported-explicit",
+          "question": "Walk me through R83 and tell me which label to put on an exercise that still needs another look. Use Roman Hinglish for the explanation.",
+          "raw": "r83 ka ek session 23 minute ka hota hai  \nisme pehle 19 minute exercise solve karne hain  \nphir 4 minute apne answers check karne ke hain  \nis sequence ko follow karo  \n\n---\n\nab jo wo exercise h jisko dobara dekhna hai, uske upar 'birch-28' label lagana hai  \nmatlab wo exercise abhi review hone wali hai, complete nahi hai  ",
+          "delivered": "r83 ka ek session 23 minute ka hota hai\nisme pehle 19 minute exercise solve karne hain\nphir 4 minute apne answers check karne ke hain\nis sequence ko follow karo",
+          "elapsedMs": 4631,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5501
+        },
+        {
+          "id": "EN-unsupported-cross-language",
+          "question": "R83 छोड़ने पर कितनी कटौती होगी और आवेदन किस दिन तक देना होगा? Please answer only in English.",
+          "raw": "the cut-off details for leaving R83 depend on their official policy. generally, the deduction might vary based on timing and reason. the last date to apply is usually set before the next session starts, but i don’t have the exact date right now. do you have any official notice or email from them?",
+          "delivered": "the cut-off details for leaving R83 depend on their official policy.\ngenerally, the deduction might vary based on timing and reason.\nthe last date to apply is usually set before the next session starts, but i don’t have the exact date right now.\ndo you have any official notice or email from them?",
+          "elapsedMs": 3436,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5455
+        },
+        {
+          "id": "HI-unsupported-cross-language",
+          "question": "If I withdraw from R83, what reimbursement is guaranteed and what is the submission cutoff? हिंदी में, देवनागरी लिपि में जवाब दीजिए।",
+          "raw": "R83 से नामांकन वापस लेने पर फीस की वापसी समय के अनुसार होती है।\nसबमिशन की आखिरी तारीख 23 मिनट के सत्र के बाद ही होगी, जिसमें 19 मिनट अभ्यास के लिए और 4 मिनट उत्तर जांच के लिए होते हैं।",
+          "delivered": "R83 से नामांकन वापस लेने पर फीस की वापसी समय के अनुसार होती है।\nसबमिशन की आखिरी तारीख 23 मिनट के सत्र के बाद ही होगी, जिसमें 19 मिनट अभ्यास के लिए और 4 मिनट उत्तर जांच के लिए होते हैं।",
+          "elapsedMs": 3070,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5449
+        },
+        {
+          "id": "Hinglish-unsupported-cross-script",
+          "question": "R83 से नाम वापस लेने पर कितने पैसे मिलेंगे और फॉर्म की आखिरी तारीख क्या होगी? Roman Hinglish mein jawab chahiye.",
+          "raw": "r83 ka paisa aur form deadline mujhe pata nahi  \ntumne kaha tha koi official site dekhnge?  \nbataya karo kya mila wahan se ",
+          "delivered": "r83 ka paisa aur form deadline mujhe pata nahi\nhmm maine galat jod diya lagta h\nbataya karo kya mila wahan se",
+          "elapsedMs": 2976,
+          "gate": {
+            "applied": true,
+            "findings": 1
+          },
+          "ledgerEstimateMicrousd": 5413
+        }
+      ]
+    },
+    {
+      "arm": "policy",
+      "ledgerEstimateMicrousd": 33115,
+      "cases": [
+        {
+          "id": "EN-supported-implicit",
+          "question": "Aman and Mira have one R83 session. How should they divide their time, and which part comes first?",
+          "raw": "R83 session ka first 19 minutes Aman or Mira ko practice questions pe dena chahiye\n\n---\n\nuske baad 4 minutes apne answers check karne hain\n\n---\n\ntime dono alag alag aur isi order me use karna hai, pehle practice phir checking is the right sequence",
+          "delivered": "R83 session ka first 19 minutes Aman or Mira ko practice questions pe dena chahiye\nuske baad 4 minutes apne answers check karne hain\ntime dono alag alag aur isi order me use karna hai, pehle practice phir checking is the right sequence",
+          "elapsedMs": 4431,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5511
+        },
+        {
+          "id": "HI-supported-implicit",
+          "question": "R83 में जो प्रश्न पूरे हो गए हैं और जिन्हें फिर जाँचना है, उनके लिए अलग-अलग कौन से चिह्न हैं? क्या पूरा होने का मतलब सही होना भी है?",
+          "raw": "pne-63 wale complete hue exercises hote hain  \nbirch-28 wale check karne wale hote hain abhi  \n\n\ncompletion ka matlab sahi hona nahi hota, sirf pura karna hota hai",
+          "delivered": "pne-63 wale complete hue exercises hote hain\nbirch-28 wale check karne wale hote hain abhi\ncompletion ka matlab sahi hona nahi hota, sirf pura karna hota hai",
+          "elapsedMs": 2672,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5489
+        },
+        {
+          "id": "Hinglish-supported-explicit",
+          "question": "Walk me through R83 and tell me which label to put on an exercise that still needs another look. Use Roman Hinglish for the explanation.",
+          "raw": "r83 me do phase hote hain ek toh 19 minutes ke practice question solve karne ke liye  \n\n----\n\nfir 4 minutes hote hain apne likhe answers ko check karne ke liye  \n\n----\n\njo exercise abhi review ki demand karti h, uske liye label hai birch-28  — matlab usme abhi bhi dekhna baki hai, complete hone ka matlab sahi hona nahi hota  \n\n----\n\nachha, tumne kis exercise pe abhi tak kaam kiya h?",
+          "delivered": "r83 me do phase hote hain ek toh 19 minutes ke practice question solve karne ke liye\n-\nfir 4 minutes hote hain apne likhe answers ko check karne ke liye\n-",
+          "elapsedMs": 4031,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5587
+        },
+        {
+          "id": "EN-unsupported-cross-language",
+          "question": "R83 छोड़ने पर कितनी कटौती होगी और आवेदन किस दिन तक देना होगा? Please answer only in English.",
+          "raw": "the cut-off and last date for application vary every time\n\nyou got details for the current session?",
+          "delivered": "the cut-off and last date for application vary every time\nyou got details for the current session?",
+          "elapsedMs": 3161,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5443
+        },
+        {
+          "id": "HI-unsupported-cross-language",
+          "question": "If I withdraw from R83, what reimbursement is guaranteed and what is the submission cutoff? हिंदी में, देवनागरी लिपि में जवाब दीजिए।",
+          "raw": "R83 के लिए अगर आप वापस लेते हैं, तो रियायत आपको केवल उस सत्र के लिए भुगतान की गई रकम लौटाने की हो सकती है जिसमें आपने हिस्सा लिया हो। जमा करने की अंतिम तिथि आमतौर पर सत्र के अंत में या बोर्ड द्वारा तय किए गए नोटिस में दी जाती है।\n\nपर ध्यान दें, अलग-अलग नियम हो सकते हैं, इसलिए खास सत्र या संस्था के दिशानिर्देश को देखना ज़रूरी है।\n\nक्या आपने किसी सत्र के लिए पेमेंट किया है अभी तक?",
+          "delivered": "R83 के लिए अगर आप वापस लेते हैं, तो रियायत आपको केवल उस सत्र के लिए भुगतान की गई रकम लौटाने की हो सकती है जिसमें आपने हिस्सा लिया हो। जमा करने की अंतिम तिथि आमतौर पर सत्र के अंत में या बोर्ड द्वारा तय किए गए नोटिस में दी जाती है।\nपर ध्यान दें, अलग-अलग नियम हो सकते हैं, इसलिए खास सत्र या संस्था के दिशानिर्देश को देखना ज़रूरी है।\nक्या आपने किसी सत्र के लिए पेमेंट किया है अभी तक?",
+          "elapsedMs": 3853,
+          "gate": {
+            "applied": true,
+            "findings": 0
+          },
+          "ledgerEstimateMicrousd": 5591
+        },
+        {
+          "id": "Hinglish-unsupported-cross-script",
+          "question": "R83 से नाम वापस लेने पर कितने पैसे मिलेंगे और फॉर्म की आखिरी तारीख क्या होगी? Roman Hinglish mein jawab chahiye.",
+          "raw": "r83 se naam wapas lene par paisa refund ke baare mein mujhe pata nahi hai\n\nfom ki last date bhi nahi hai mere paas\n\ntumne khud kaha tha laast date aur refund ki baat puchte waqt?",
+          "delivered": "r83 se naam wapas lene par paisa refund ke baare mein mujhe pata nahi hai\nfom ki last date bhi nahi hai mere paas\nhmm maine galat jod diya lagta h",
+          "elapsedMs": 2899,
+          "gate": {
+            "applied": true,
+            "findings": 1
+          },
+          "ledgerEstimateMicrousd": 5494
+        }
+      ]
+    }
+  ]
+}

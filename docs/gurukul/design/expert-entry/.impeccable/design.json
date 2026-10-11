@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-06T18:17:28.8070702Z",
+  "title": "Design System: Vyakti expert sign-in entry",
+  "extensions": {
+    "evidence": {
+      "motion": ".impeccable/review/motion-samples.json",
+      "screenshots": [
+        ".impeccable/review/desktop.png",
+        ".impeccable/review/mobile.png"
+      ],
+      "captureNote": "Mobile is full-page and includes content below initial viewport.",
+      "motionNote": "Six nonempty samples, first 6.61744px and last 0px; 8px is source keyframe, not captured sample.",
+      "viewports": [
+        "1440x900",
+        "390x844"
+      ],
+      "limitations": "No fresh browser, authentication, accessibility, or voice-quality test performed by documentation pass."
+    },
+    "scope": "Expert sign-in entry only; paired with ../DESIGN.md. Does not replace global design metadata.",
+    "motion": [
+      {
+        "purpose": "Once on entry, content visible throughout. Only prefers-reduced-motion: no-preference.",
+        "name": "illustration-settle",
+        "value": "transform: translateY(8px) to translateY(0); 420ms cubic-bezier(.22, 1, .36, 1) both"
+      }
+    ],
+    "authority": "Code-led extraction after parent-reported independent review SHIP, all three findings resolved; no approved visual comp.",
+    "breakpoints": [
+      {
+        "purpose": "Block flow, shallow image crop, full-width form, hidden safeguards strip",
+        "name": "entry-mobile",
+        "value": "800px"
+      },
+      {
+        "purpose": "Centered intro, shorter header, unconstrained form height",
+        "name": "inherited-small",
+        "value": "720px"
+      }
+    ],
+    "shadows": [
+      {
+        "purpose": "Inherited primary action depth",
+        "name": "primary-button",
+        "value": "0 10px 22px rgba(11, 91, 69, 0.17)"
+      }
+    ],
+    "asset": {
+      "role": "Generated fictional Indian educator illustration, not customer testimony.",
+      "source": "public/expert/expert-at-work.png",
+      "runtime": "public/expert/expert-at-work.webp",
+      "provenance": "public/expert/expert-at-work.webp.json",
+      "createdAt": "2026-09-06T18:10:33.376Z"
+    },
+    "typographyMeta": {
+      "display": {
+        "purpose": "Declared weight 500; inherited font-variation-settings wght 570 controls variable face.",
+        "displayName": "Entry headline"
+      },
+      "title": {
+        "purpose": "Declared weight 500; inherited font-variation-settings wght 580 controls variable face.",
+        "displayName": "Sign-in title"
+      }
+    }
+  },
+  "components": [
+    {
+      "description": "Enabled primary email action. Runtime disables it for invalid email or busy state.",
+      "html": "<button class=\"ds-email\">Email me a sign-in link</button>",
+      "css": ".ds-email{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:50px;padding:0 20px;border:1px solid var(--vx-green,#1f6b54);border-radius:14px;background:var(--vx-green,#1f6b54);color:#fff;font:650 14px \"Instrument Sans Variable\",sans-serif;box-shadow:0 10px 22px rgba(11,91,69,.17);cursor:pointer;transition:transform 160ms ease,background 160ms ease,box-shadow 160ms ease,opacity 160ms ease}.ds-email:hover:not(:disabled){background:var(--forest-deep,#0e352a)}.ds-email:focus-visible{outline:3px solid rgba(23,73,59,.28);outline-offset:3px}.ds-email:active:not(:disabled){transform:scale(.97)}.ds-email:disabled{opacity:.6;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-email:active:not(:disabled){transform:none}}",
+      "name": "Email sign-in action",
+      "refersTo": "button-primary",
+      "kind": "button"
+    },
+    {
+      "description": "Secondary provider action with incumbent decorative G badge.",
+      "html": "<button class=\"ds-google\"><span class=\"ds-google-g\" aria-hidden=\"true\">G</span>Continue with Google</button>",
+      "css": ".ds-google{display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:50px;padding:0 20px;border:1px solid var(--vx-line,#d7d7d0);border-radius:14px;background:#fff;color:var(--vx-ink,#0c0e0d);font:650 14px \"Instrument Sans Variable\",sans-serif;cursor:pointer;transition:transform 160ms ease,background 160ms ease,opacity 160ms ease}.ds-google-g{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;color:white;background:conic-gradient(from -45deg,#4285f4 0 25%,#34a853 0 42%,#fbbc05 0 67%,#ea4335 0);font-size:12px;font-weight:800}.ds-google:focus-visible{outline:3px solid rgba(23,73,59,.28);outline-offset:3px}.ds-google:hover{background:#fff}.ds-google:active:not(:disabled){transform:scale(.97)}.ds-google:disabled{opacity:.6;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-google:active:not(:disabled){transform:none}}",
+      "name": "Google sign-in action",
+      "refersTo": "button-google",
+      "kind": "button"
+    },
+    {
+      "description": "Labeled email input with inherited border-only focus treatment.",
+      "html": "<label class=\"ds-label\" for=\"ds-email-input\">Email address</label><input class=\"ds-input\" id=\"ds-email-input\" type=\"email\" inputmode=\"email\" autocomplete=\"email\" placeholder=\"you@example.com\">",
+      "css": ".ds-label{display:block;margin-bottom:7px;color:var(--vx-ink,#0c0e0d);font:620 12px \"Instrument Sans Variable\",sans-serif}.ds-input{width:100%;height:51px;min-height:50px;margin:0 0 10px;padding:0 15px;border:1px solid var(--vx-line,#d7d7d0);border-radius:14px;background:#fff;color:var(--vx-ink,#0c0e0d);font:400 15px \"Instrument Sans Variable\",sans-serif;box-shadow:none;transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease}.ds-input::placeholder{color:#999d94}.ds-input:focus,.ds-input:focus-visible{border-color:var(--vx-green,#1f6b54);outline:0;box-shadow:none}.ds-input:hover:not(:focus){border-color:var(--vx-line,#d7d7d0)}",
+      "name": "Email field",
+      "refersTo": "input-email",
+      "kind": "input"
+    }
+  ],
+  "narrative": {
+    "donts": [
+      "Don't promote this entry composition or font override into whole-product authority.",
+      "Don't infer accessibility, authentication success, or voice fidelity from rendered images."
+    ],
+    "dos": [
+      "Do preserve the warm paper, mineral green actions, ember mark, and concise entry copy.",
+      "Do keep the fictional educator visually illustrative and retain its provenance.",
+      "Do preserve consent timing disclosure and the reduced-motion branch."
+    ],
+    "rules": [],
+    "keyCharacteristics": [
+      "Warm paper, dark ink, mineral green actions, and an ember identity accent.",
+      "One illustrative scene paired with a direct sign-in task.",
+      "Flat composition, restrained control borders, and generous desktop separation."
+    ],
+    "overview": "This document is authoritative only for the built expert sign-in entry. Its direction is the incumbent warm ivory and mineral green Vyakti identity, with the ember Vyakti mark, concise text, and a fictional Indian educator at work. It does not replace a global design system or describe the authenticated product."
+  }
+}

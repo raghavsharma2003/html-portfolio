@@ -50,7 +50,7 @@
 // suites are wired in under.
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -63,7 +63,7 @@ execSync(
     `--outfile=${BUNDLE} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
   { stdio: "inherit", cwd: ROOT },
 );
-const E = await import(BUNDLE);
+const E = await import(pathToFileURL(BUNDLE).href);
 
 let fail = 0;
 let checks = 0;

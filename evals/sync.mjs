@@ -5,9 +5,9 @@
 // see data), and game/tally/momentsFired neither pushed nor merged — a second
 // device lost the chess game and REPLAYED celebrations, because the
 // fired-ledger is precisely the thing that must be a union. These assertions
-// hold the push list, the merge semantics, and the account-switch reset to
-// the same field inventory, so the next AppState field cannot lag silently.
-import { readFileSync } from "node:fs";
+// retain the shared push and merge invariants after the legacy persona app
+// that owned account switching and periodic pulls was removed.
+import { existsSync, readFileSync } from "node:fs";
 import {
   mergeStates,
   mergeGame,
@@ -77,28 +77,10 @@ const base = {
   ok("theme does not sync", !/theme: s\.theme/.test(acct));
 }
 
-// ── the account switch resets everything relational ───────────────────────
-// The bleed the audit caught: a new account inheriting the previous one's
-// chess game, ledger, tallies and her inner life.
-{
-  const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
-  const branch = app.slice(app.indexOf("lastAccountId && s.lastAccountId !== fresh.userId"));
-  const upto = branch.slice(0, branch.indexOf("};"));
-  // recentMoment joined this list the second time the same hole was found:
-  // it survived BOTH the account switch and "make her forget you", so she
-  // brought up a hundred-day milestone in the conversation that starts by not
-  // knowing you — and momentLine feeds sharedVocab, so the honesty layer
-  // scored that invented history as supported. evals/teardown.mjs now checks
-  // this class mechanically; this line is the specific field.
-  for (const f of ["herLife", "herNow", "inner", "game", "activities", "tally", "momentsFired", "callback", "recentMoment"]) {
-    ok(`account switch resets ${f}`, upto.includes(`${f}:`), f);
-  }
-  // the game arrives from the same server row merge.ts shape-guards, and this
-  // branch is the sibling that used to cast it straight in — a malformed
-  // session adopted here is a white screen that then SYNCS
-  ok("account switch shape-guards the game", /game:\s*isGameSession\(/.test(upto));
-  ok("account switch coerces the user", /user:\s*safeUser\(/.test(upto));
-}
+// The standalone surface retired the legacy persona app which owned account
+// switching. Keep that deletion explicit here so this shared-engine suite can
+// never silently resume testing a stale surface file.
+ok("the retired legacy App surface is absent", !existsSync(new URL("../src/App.tsx", import.meta.url)));
 
 // ── THE PULL (WS-SYNC) ────────────────────────────────────────────────────
 //
@@ -181,27 +163,6 @@ const base = {
     );
     ok("local wins on a message both sides have", m.messages[0].status === "read", m.messages[0].status);
   }
-}
-
-// ── the pull's own wiring, read off the source ────────────────────────────
-{
-  const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
-  const num = (name) => Number(new RegExp(`const ${name} = ([0-9_]+);`).exec(app)?.[1].replace(/_/g, ""));
-  const period = num("PULL_PERIOD_MS");
-  const gap = num("PULL_MIN_GAP_MS");
-  const debounce = num("PULL_DEBOUNCE_MS");
-  ok("the pull period is >= the 60s floor", period >= 60_000, String(period));
-  ok("the min gap is below the period", gap > 0 && gap < period, `${gap} / ${period}`);
-  ok("the debounce is below the min gap", debounce > 0 && debounce < gap, `${debounce} / ${gap}`);
-
-  const eff = app.slice(app.indexOf("THE OTHER HALF OF SYNC: THE PULL"));
-  const body = eff.slice(0, eff.indexOf("frontTick]"));
-  ok("the pull merges, never adopts wholesale", /mergeStates\(s, remote\.state\)/.test(body));
-  ok("a hidden tab reads nothing", /visibilityState !== "visible"/.test(body));
-  ok("no pull while a call is up", /if \(!token \|\| inCall\) return;/.test(body));
-  ok("the pull re-bases the revision", /serverRev\.current = remote\?\.updated_at/.test(body));
-  ok("a dead token is surfaced, not retried", /authFailed\(e\)/.test(body));
-  ok("boot's own load stamps the pull clock", /lastPullAt\.current = Date\.now\(\)/.test(app));
 }
 
 // ── what is NOT synced, and why — asserted rather than assumed ────────────

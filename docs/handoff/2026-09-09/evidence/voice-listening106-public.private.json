@@ -1,0 +1,129 @@
+{
+  "planSha256": "c4862a0980ec263b68568a60d9595e221f1ba9dc1c6a6741bdc9c70bc36f5414",
+  "sourceInput": {
+    "kind": "stock106-listening-input/v1",
+    "referencePath": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\processing203-stock-fixture\\stock-hindi-ananya-24khz-mono-corrected.wav",
+    "arms": {
+      "chatterbox": {
+        "status": "collected",
+        "capturePath": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-jobs106-receipts\\stock106-artifacts\\chatterbox.capture.json"
+      },
+      "voxcpm2": {
+        "status": "collected",
+        "capturePath": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-jobs106-receipts\\stock106-artifacts\\voxcpm2.capture.json"
+      }
+    }
+  },
+  "mapping": [
+    {
+      "pair": "hi-pendulum-negation",
+      "label": "A",
+      "clipId": "eec6139a036b641d5a92aae0",
+      "arm": "voxcpm2",
+      "cellId": "voxcpm2:hi-pendulum-negation",
+      "windowId": "968c6269-0271-4d93-a100-67a3e8c97003",
+      "outputSha256": "e7f8030f70d6017b5d54f61a994833a0113c92128e62889afa1481e4d474090a"
+    },
+    {
+      "pair": "hi-pendulum-negation",
+      "label": "B",
+      "clipId": "c46c21f293cfd638d6a3da20",
+      "arm": "chatterbox",
+      "cellId": "chatterbox:hi-pendulum-negation",
+      "windowId": "e5b58f2d-b5e0-4556-b718-6db1654b0b0a",
+      "outputSha256": "819e9fea2f7ba5a22ba9601e2aa1174836a96e8062d43de0d284912b19829ba8"
+    },
+    {
+      "pair": "hi-current-condition",
+      "label": "A",
+      "clipId": "dfaaa471415ba6b714f08bee",
+      "arm": "chatterbox",
+      "cellId": "chatterbox:hi-current-condition",
+      "windowId": "e5b58f2d-b5e0-4556-b718-6db1654b0b0a",
+      "outputSha256": "2a0df34ba54ced646f0e51ed99701e8e0f824f8f670ce8fbb16090e8508109d8"
+    },
+    {
+      "pair": "hi-current-condition",
+      "label": "B",
+      "clipId": "95ddd1609fcba459a08fe6d4",
+      "arm": "voxcpm2",
+      "cellId": "voxcpm2:hi-current-condition",
+      "windowId": "968c6269-0271-4d93-a100-67a3e8c97003",
+      "outputSha256": "b7b1a6b8d3be9a4ba5ce0e14a33b4ac0380d515a3072651037caddea840d14a6"
+    },
+    {
+      "pair": "hinglish-sign-correction",
+      "label": "A",
+      "clipId": "68f71ce5d4dfab70cbbbc8da",
+      "arm": "chatterbox",
+      "cellId": "chatterbox:hinglish-sign-correction",
+      "windowId": "e5b58f2d-b5e0-4556-b718-6db1654b0b0a",
+      "outputSha256": "87f40aa9defe22e3cf2e17cced86fe17f6023af7e00b93b2a95854742c16b3d4"
+    },
+    {
+      "pair": "hinglish-sign-correction",
+      "label": "B",
+      "clipId": "b71cf50c79fc2bd6be2e2ae7",
+      "arm": "voxcpm2",
+      "cellId": "voxcpm2:hinglish-sign-correction",
+      "windowId": "968c6269-0271-4d93-a100-67a3e8c97003",
+      "outputSha256": "e5da7c28b0db55df383b975eee726261d246d98a9d502287fc400881c3f949c0"
+    },
+    {
+      "pair": "hinglish-length-ratio",
+      "label": "A",
+      "clipId": "cf0f38010cdfc8e891f96a13",
+      "arm": "voxcpm2",
+      "cellId": "voxcpm2:hinglish-length-ratio",
+      "windowId": "968c6269-0271-4d93-a100-67a3e8c97003",
+      "outputSha256": "30c8310cbc478f0b874608bdc4938a7144b0ff10c1fc5b1112bed3ce5aa36896"
+    },
+    {
+      "pair": "hinglish-length-ratio",
+      "label": "B",
+      "clipId": "8cd1c2be9169b69250d45011",
+      "arm": "chatterbox",
+      "cellId": "chatterbox:hinglish-length-ratio",
+      "windowId": "e5b58f2d-b5e0-4556-b718-6db1654b0b0a",
+      "outputSha256": "ea6f80708d49c761192b56a4045263feee98bebbcbd0ce924c84c5d1fdfd8c2a"
+    },
+    {
+      "pair": "en-pendulum-negation",
+      "label": "A",
+      "clipId": "97a4340a36c1b1aec7c462e0",
+      "arm": "chatterbox",
+      "cellId": "chatterbox:en-pendulum-negation",
+      "windowId": "e5b58f2d-b5e0-4556-b718-6db1654b0b0a",
+      "outputSha256": "bd4f038beeaf0ab88eeae219e569e99080c3123a54b7155b2b68428495720ce9"
+    },
+    {
+      "pair": "en-pendulum-negation",
+      "label": "B",
+      "clipId": "566ae4b414f4890a02030e1a",
+      "arm": "voxcpm2",
+      "cellId": "voxcpm2:en-pendulum-negation",
+      "windowId": "968c6269-0271-4d93-a100-67a3e8c97003",
+      "outputSha256": "4443584d8591e43c9b162d90bcea933354b0abc95e06fe33851c8f3961602119"
+    },
+    {
+      "pair": "en-names-current",
+      "label": "A",
+      "clipId": "51040b82d3557b04cb492f7c",
+      "arm": "voxcpm2",
+      "cellId": "voxcpm2:en-names-current",
+      "windowId": "968c6269-0271-4d93-a100-67a3e8c97003",
+      "outputSha256": "dc4bf88273610f3abcb2dedcaa91434a61be015223b9ed79122f555a739bc80b"
+    },
+    {
+      "pair": "en-names-current",
+      "label": "B",
+      "clipId": "6d577fe65ecf736cbb5f0b96",
+      "arm": "chatterbox",
+      "cellId": "chatterbox:en-names-current",
+      "windowId": "e5b58f2d-b5e0-4556-b718-6db1654b0b0a",
+      "outputSha256": "a5550fe8328f9cfda678548884a9763c3a202b074ccd38a943c0cd5ab15afebd"
+    }
+  ],
+  "audioTransforms": "44-byte PCM WAV header only; exact PCM preserved, no resampling/normalization/cropping",
+  "modelCalls": 0
+}

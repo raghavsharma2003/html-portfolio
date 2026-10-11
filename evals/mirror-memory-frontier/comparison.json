@@ -1,0 +1,1740 @@
+{
+  "diagnostic": "mirror-memory-frontier/v1",
+  "measuredAt": "2026-09-06T18:44:03.587Z",
+  "scenarios": 52,
+  "synthetic": true,
+  "providerCalls": 0,
+  "writes": 0,
+  "recallSourceSha256": "11e72f676f0d349cc47330ba6492ed0004468cd9d077639187198ada4c035350",
+  "fixtureSha256": "23de891abe3d2c64c4610fe96edf86d36bbc3a1fb982c2e8d14616ee8e7186ff",
+  "disclosureSourceSha256": "2e07cb7e1aa9231eb4dccbd2d823fa66b3ca43e3cc1e2090e7f9080a59c4d2ce",
+  "database": "vyakti_expert_integration_20260906",
+  "realSqlExecuted": true,
+  "method": "shipping-recall-select-over-schema-typed-read-only-PostgreSQL-CTE-fixtures",
+  "status": "KNOWN_RETRIEVAL_LIMITATION",
+  "boundaryFailures": 0,
+  "retrievalLimitations": 7,
+  "queryStrategy": "explicit-lexical-shadow-compared-to-unchanged-default",
+  "promotion": "NOT_PROMOTED: actual Mirror caller remains unchanged; cross-script equivalence and real owner quality remain unproven.",
+  "notProven": [
+    "persisted writes",
+    "foreign-key integrity",
+    "RLS",
+    "authenticated API journey",
+    "provider answer correctness",
+    "human quality",
+    "production behavior"
+  ],
+  "results": [
+    {
+      "id": "crowding-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [
+        1
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "crowding-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [
+        1
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "crowding-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "crowding-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [
+        1,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "crowding-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "crowding-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        1,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "crowding-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "crowding-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [
+        1,
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-owner-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-replica-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-person-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "wrong-agent-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-rejected-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "latest-superseded-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-retracted-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-0",
+      "arm": "baseline",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 1,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-7",
+      "arm": "baseline",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 8,
+      "returnedIds": [
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-8",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-16",
+      "arm": "baseline",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "fact-invalidated-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 17,
+      "returnedIds": [
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11,
+        10
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-0",
+      "arm": "baseline",
+      "inputFacts": 2,
+      "returnedIds": [
+        1000
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-0",
+      "arm": "lexical-shadow",
+      "inputFacts": 2,
+      "returnedIds": [
+        1000
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-7",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        1000,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-7",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        1000,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-8",
+      "arm": "baseline",
+      "inputFacts": 10,
+      "returnedIds": [
+        1000,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-8",
+      "arm": "lexical-shadow",
+      "inputFacts": 10,
+      "returnedIds": [
+        1000,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-16",
+      "arm": "baseline",
+      "inputFacts": 18,
+      "returnedIds": [
+        1000,
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "updated-fact-16",
+      "arm": "lexical-shadow",
+      "inputFacts": 18,
+      "returnedIds": [
+        1000,
+        17,
+        16,
+        15,
+        14,
+        13,
+        12,
+        11
+      ],
+      "requiredIds": [
+        1000
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "hindi",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "hindi",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        1,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "hinglish-roman",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "hinglish-roman",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        1,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "hinglish-mixed",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "hinglish-mixed",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        1,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "cross-script-unresolved",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "cross-script-unresolved",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [
+        1
+      ],
+      "missingIds": [
+        1
+      ],
+      "forbiddenReturnedIds": [],
+      "status": "RETRIEVAL_LIMITATION_OBSERVED"
+    },
+    {
+      "id": "empty-query",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "empty-query",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "no-match",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "no-match",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "stopwords-only",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "stopwords-only",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "consent-expired",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "consent-expired",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "consent-revoked",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "consent-revoked",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "missing-citation",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "missing-citation",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "missing-episode",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "missing-episode",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "missing-participant",
+      "arm": "baseline",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    },
+    {
+      "id": "missing-participant",
+      "arm": "lexical-shadow",
+      "inputFacts": 9,
+      "returnedIds": [
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2
+      ],
+      "requiredIds": [],
+      "missingIds": [],
+      "forbiddenReturnedIds": [],
+      "status": "EXPECTED_RETRIEVAL_OBSERVED"
+    }
+  ]
+}

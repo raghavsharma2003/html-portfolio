@@ -20,14 +20,14 @@
 // model as ONE user turn" is proven rather than asserted.
 //
 // Runtime ~2 minutes, most of it the 24s adversarial typing run.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 
 const B = process.env.MEERA_PREVIEW || "http://localhost:4287";
 let fails = 0;
 const ok = (n, c, e = "") => { console.log(`${c ? "ok  " : "FAIL"} ${n}${e ? " — " + e : ""}`); if (!c) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("burst-browser");
 
 const BASE_STATE = {
   onboarded: true,

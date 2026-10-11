@@ -60,7 +60,8 @@ const {
   newGame, play, assessLast, assessMove, legalMoves,
   openingName, OPENING_NAMES,
   chessActivity, chessRecord, moveFact, exchangeFact, threatFacts,
-  renderActivity, ACTIVITY_BUDGET, RECORD_OPENING_PLIES,
+  chessGameState, chessIdea, chessPlanClause,
+  renderActivity, ACTIVITY_BUDGET, ACTIVITY_BLOCK_MAX, RECORD_OPENING_PLIES,
 } = C;
 
 let fail = 0;
@@ -443,11 +444,18 @@ for (const [label, sans] of QUIET) {
   // Mid-opening: the name is there, and the block still fits.
   const g = replay(["e4", "e5", "Nf3", "Nc6", "Bc4"]);
   const act = chessActivity(g, "b", NOW - 4 * 60_000, assessLast(g));
-  ok("the opening is named in the facts",
-    act.facts.includes("the opening is the italian game"), JSON.stringify(act.facts));
+  // THE NAME REACHES HER — and where it reaches her from moved in
+  // WS-GAMEFEEL. It used to be a `facts` row, which is droppable; it is now
+  // the head of the UNDROPPABLE `idea` line, which says strictly more ("the
+  // italian game, getting the pieces out, king safe first") and cannot be
+  // popped when the block is busy. The fact row is suppressed when the idea
+  // already carries the name, because a block that says the same thing twice
+  // is her reading a file out loud.
+  ok("she is told which opening this is", /the italian game/.test(act.idea), String(act.idea));
   const block = renderActivity(act, NOW);
   ok("the opening name survives the budget", /the italian game/.test(block), block);
-  ok("block is inside its budget", block.length <= ACTIVITY_BUDGET, String(block.length));
+  ok("…and is not said twice", (block.match(/the italian game/g) || []).length === 1, block);
+  ok("block is inside its budget", block.length <= ACTIVITY_BLOCK_MAX, String(block.length));
   ok("whose move it is survives", /(her|his) move/.test(block), block);
   for (const f of act.facts) shapelint("italian activity", f);
   collected.push(...act.facts);
@@ -470,15 +478,23 @@ for (const [label, sans] of QUIET) {
   // mate, the move and whose turn it is all have to coexist inside 420 bytes.
   const g = replay(["e4", "e5", "Bc4", "Bc5", "Qh5", "Nf6"]);
   const act = chessActivity(g, "b", NOW - 2 * 60_000, assessLast(g));
+  // THE ONE BOOK NAME THAT STAYS A FACT ROW. It describes what ONE player is
+  // trying to do, and here that player is HIM — so `chessIdea` excludes it by
+  // name (`SCHOLARS_NAME`) rather than claiming it as hers, and the neutral
+  // "the opening is …" row is what carries it. Getting this backwards would
+  // put "her idea: the four-move checkmate try" on the board where she is the
+  // one about to be mated.
   ok("she is told what shape this is",
     act.facts.includes("the opening is the four-move checkmate try"),
     JSON.stringify(act.facts));
+  ok("…and her idea does NOT claim his plan as hers",
+    !/four-move checkmate/.test(act.idea ?? ""), String(act.idea));
   ok("she is told the mate is coming",
     act.facts.some((f) => /mate is threatened on her king/.test(f)) ||
     act.facts.some((f) => /mate is threatened on her king/.test(f)),
     JSON.stringify(act.facts));
   const block = renderActivity(act, NOW);
-  ok("scholar block is inside its budget", block.length <= ACTIVITY_BUDGET, String(block.length));
+  ok("scholar block is inside its budget", block.length <= ACTIVITY_BLOCK_MAX, String(block.length));
   for (const f of act.facts) shapelint("scholar activity", f);
   collected.push(...act.facts);
 }
@@ -625,8 +641,111 @@ for (const f of collected) {
     ok("the activity carries a record", Array.isArray(act.record) && act.record.length > 0);
     const rendered = renderActivity(act, 0);
     ok("…and renderActivity renders none of it", !act.record.some((f) => rendered.includes(f)), rendered);
-    ok("…so the live block still fits its budget", rendered.length <= ACTIVITY_BUDGET, `${rendered.length}`);
+    ok("…so the live block still fits its budget", rendered.length <= ACTIVITY_BLOCK_MAX, `${rendered.length}`);
   }
+}
+
+
+// ══ BOARD TRUTH AND HER IDEA (WS-GAMEFEEL, tester wave 2026-08-25) ════════
+//
+// Two reports, one absence. She declared checkmate in the middle of a live
+// game, and asked what her idea behind the opening was she said "mai bhul
+// gayi". The block carried the board and neither (a) a fact she could not talk
+// past about whether the game was over, nor (b) one byte about what she was
+// trying to do with it.
+{
+  const live = (sans) => { let g = newGame(); for (const m of sans) g = play(g, m) ?? g; return g; };
+
+  // ── the state line is MACHINE-DERIVED and has exactly two shapes ────────
+  const mid = live(["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5"]);
+  ok("a live game says in progress, with a move number",
+    chessGameState(mid, "b") === "in progress, move 3", chessGameState(mid, "b"));
+  ok("a live game NEVER names a result",
+    !/(checkmate|stalemate|draw|won)/.test(chessGameState(mid, "b")), chessGameState(mid, "b"));
+
+  const mate = live(["f3", "e5", "g4", "Qh4#"]);
+  ok("checkmate names its winner, from HER side",
+    chessGameState(mate, "b") === "checkmate, she won", chessGameState(mate, "b"));
+  ok("…and the same board from the other colour names him",
+    chessGameState(mate, "w") === "checkmate, he won", chessGameState(mate, "w"));
+
+  // A board he put away is OVER and has no result. "the game ended" with
+  // nobody named is exactly what lets her fill a winner in, so the line says
+  // so out loud and `STATE_LAW` has a clause that bites on it.
+  const early = chessGameState(mid, "b", true);
+  ok("an early end says it ended AND that nobody won",
+    /ended early/.test(early) && /nobody won/.test(early), early);
+
+  // ── it reaches the prompt, undroppable ─────────────────────────────────
+  // The whole point of it not being a `fact` row: the drop policy takes rows
+  // from the END when the block is busy, which is exactly when a false
+  // terminal claim is most likely.
+  const act = chessActivity(mid, "b", 0, assessLast(mid));
+  ok("the activity carries the state line", act.state === "in progress, move 3", String(act.state));
+  const block = renderActivity(act, 0);
+  ok("…and it renders", block.includes("\nstate: in progress, move 3\n"), block);
+  ok("…with the terminal fence under it", /you may not claim checkmate/.test(block), block);
+  ok("…and the fence names the cross-game rule too", /MEMORY, never the board in front of you/.test(block));
+
+  // THE FENCE SURVIVES A BUSY BLOCK. Six facts, a threat and an opening name —
+  // rows get dropped and the fence does not.
+  const busy = chessActivity(live(["e4", "e5", "Qh5", "Nc6", "Bc4", "Nf6", "Qxf7"]), "w", 0, null);
+  const busyBlock = renderActivity({ ...busy, facts: [...busy.facts, ...busy.facts] }, 0);
+  ok("a block over budget still carries the state line", /\nstate: /.test(busyBlock), busyBlock);
+  ok("…and still carries the fence", /you may not claim checkmate/.test(busyBlock));
+
+  // ── CROSS-GAME BLEED: a new game's note carries no trace of the old one ──
+  // The structural half. `chessActivity` is a pure function of the ONE game it
+  // is handed, so there is no path by which a previous session's moves reach
+  // it — asserted rather than assumed, because "there is no path" is the kind
+  // of claim that stops being true quietly.
+  const old = live(["d4", "d5", "c4", "e6", "Nc3", "Nf6"]);
+  const oldAct = chessActivity(old, "b", 0, assessLast(old));
+  const fresh = chessActivity(newGame(), "b", 0, null);
+  ok("a fresh board names no move at all", fresh.nameable.length === 0, JSON.stringify(fresh.nameable));
+  ok("…and its block carries none of the previous game's moves",
+    !oldAct.nameable.some((m) => renderActivity(fresh, 0).includes(m)),
+    renderActivity(fresh, 0));
+  ok("…and its state line is the fresh board's", fresh.state === "in progress, move 1", String(fresh.state));
+
+  // ── HER IDEA ───────────────────────────────────────────────────────────
+  const idea = chessIdea(mid, "b");
+  ok("she has an idea in the opening", idea.length > 0, idea);
+  ok("…which names the book line when the book knows it", /italian/.test(idea), idea);
+  ok("…and says what she is trying to do", idea.split(", ").length >= 2, idea);
+  ok("…inside the 14-word row contract", idea.split(/\s+/).length <= 14, idea);
+  ok("…third person, never first", !/^(i\b|i'm\b|main\b|mai\b|mujhe\b|meri\b|mera\b)/i.test(idea), idea);
+  ok("…not sentence-shaped", !/^[A-Z][^.?!]*[.?!]$/.test(idea), idea);
+  ok("…and carries no dialogue", !/(arre|yaar|nice|good luck)/i.test(idea), idea);
+
+  // An UNKNOWN opening still gets a plan — the fallback is the whole reason
+  // "bhul gayi" stops being the only answer.
+  const offbook = live(["a3", "h6", "h3", "a6"]);
+  const offIdea = chessIdea(offbook, "b");
+  ok("an off-book game still has an idea", offIdea.length > 0, offIdea);
+  ok("…and does NOT invent an opening name", !/opening|defence|gambit|system/.test(offIdea), offIdea);
+
+  // It REFRESHES as the game moves — a plan frozen at move three is a plan she
+  // is wrong about by move thirty.
+  const endgame = live([
+    "e4", "e5", "Qh5", "Qh4", "Qxh4", "Nf6", "Qxf6", "gxf6", "Nf3", "Bb4",
+    "Nxe5", "fxe5", "Bc4", "Bxd2+", "Kxd2", "Rf8", "Rf1", "Rg8",
+  ]);
+  ok("the plan changes as the position does",
+    chessPlanClause(endgame, "w") !== chessPlanClause(mid, "b"),
+    `${chessPlanClause(mid, "b")} | ${chessPlanClause(endgame, "w")}`);
+
+  // A game that has not started, and one that is over, have no plan: inventing
+  // one is the defect wearing a nicer hat.
+  ok("no moves means no idea", chessIdea(newGame(), "b") === "");
+  ok("a finished game has no live plan", chessIdea(mate, "b") === "");
+
+  // NEGATIVE CONTROL — `bold-eats-words`. Each of the absences above has to be
+  // reachable, or it proves nothing.
+  ok("NEGATIVE CONTROL: the fence is absent when there is no state line",
+    !/you may not claim checkmate/.test(renderActivity({ ...act, state: undefined }, 0)));
+  ok("NEGATIVE CONTROL: the idea line is absent when there is no idea",
+    !/her idea:/.test(renderActivity({ ...act, idea: "" }, 0)));
 }
 
 console.log(fail ? `${fail} FAILURES of ${count}` : `ALL ${count} PASS`);

@@ -1,0 +1,32 @@
+{
+  "source": "200daa3fa775cafdb61618ac4c7c39827538f1ab",
+  "input_sha256": "114abe8bf25b3dec65aba82c3ac80c4208d26d0beccd7043e2f6059f9624e7e7",
+  "kind": "offline_full_answer_parser_replay",
+  "new_provider_calls": 0,
+  "rows": [
+    {
+      "call": 3,
+      "raw": "SN1 ka rate sirf substrate concentration par depend karta hai:\n\n\\[\n\\text{Rate} = k[\\text{R–X}]\n\\]\n\nSlow step = leaving group ka departure aur carbocation formation. Nucleophile concentration rate ko affect nahi karti.",
+      "old_delivered": "SN1 ka rate sirf substrate concentration par depend karta hai:\n\\[ \\text{Rate} = k[\\text{R X}] \\]\nSlow step = leaving group ka departure aur carbocation formation.\nNucleophile concentration rate ko affect nahi karti.",
+      "baseline_replay": "SN1 ka rate sirf substrate concentration par depend karta hai:\n\\[ \\text{Rate} = k[\\text{R X}] \\]\nSlow step = leaving group ka departure aur carbocation formation.\nNucleophile concentration rate ko affect nahi karti.",
+      "fixed_replay": "SN1 ka rate sirf substrate concentration par depend karta hai:\n\\[ \\text{Rate} = k[\\text{R-X}] \\]\nSlow step = leaving group ka departure aur carbocation formation.\nNucleophile concentration rate ko affect nahi karti.",
+      "baseline_matches_actual": true,
+      "only_change": "R X → R-X",
+      "exact_full_answer_assertion": true
+    },
+    {
+      "call": 6,
+      "raw": "The rate of an **SN1 reaction** is controlled by the concentration of the **substrate only**:\n\n\\[\n\\text{Rate} = k[\\text{substrate}]\n\\]\n\nThe slow, rate-determining step is **C–leaving group bond ionisation** to form a carbocation. The nucleophile attacks afterward, so its concentration does not affect the SN1 rate.\n\nA substrate that forms a more stable carbocation generally undergoes SN1 faster:\n\n\\[\n3^\\circ > 2^\\circ \\gg 1^\\circ\n\\]\n\nBenzylic and allylic substrates can also react quickly because resonance stabilises the carbocation.",
+      "old_delivered": "The rate of an **SN1 reaction** is controlled by the concentration of the **substrate only**:\n\\[ \\text{Rate} = k[\\text{substrate}] \\]\nThe slow, rate-determining step is **C leaving group bond ionisation** to form a carbocation.\nThe nucleophile attacks afterward, so its concentration does not affect the SN1 rate.\nA substrate that forms a more stable carbocation generally undergoes SN1 faster:\n\\[ 3^\\circ > 2^\\circ \\gg 1^\\circ \\]\nBenzylic and allylic substrates can also react quickly because resonance stabilises the carbocation.",
+      "baseline_replay": "The rate of an **SN1 reaction** is controlled by the concentration of the **substrate only**:\n\\[ \\text{Rate} = k[\\text{substrate}] \\]\nThe slow, rate-determining step is **C leaving group bond ionisation** to form a carbocation.\nThe nucleophile attacks afterward, so its concentration does not affect the SN1 rate.\nA substrate that forms a more stable carbocation generally undergoes SN1 faster:\n\\[ 3^\\circ > 2^\\circ \\gg 1^\\circ \\]\nBenzylic and allylic substrates can also react quickly because resonance stabilises the carbocation.",
+      "fixed_replay": "The rate of an **SN1 reaction** is controlled by the concentration of the **substrate only**:\n\\[ \\text{Rate} = k[\\text{substrate}] \\]\nThe slow, rate-determining step is **C-leaving group bond ionisation** to form a carbocation.\nThe nucleophile attacks afterward, so its concentration does not affect the SN1 rate.\nA substrate that forms a more stable carbocation generally undergoes SN1 faster:\n\\[ 3^\\circ > 2^\\circ \\gg 1^\\circ \\]\nBenzylic and allylic substrates can also react quickly because resonance stabilises the carbocation.",
+      "baseline_matches_actual": true,
+      "only_change": "C leaving group → C-leaving group",
+      "exact_full_answer_assertion": true
+    }
+  ],
+  "status": "passed_two_actual_full_answers",
+  "limitations": [
+    "Offline parser plus existing dash gate only; no new provider, SQL or full Room execution."
+  ]
+}

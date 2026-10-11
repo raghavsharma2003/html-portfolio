@@ -1,0 +1,303 @@
+/* readiness.css — the readiness screen's own stylesheet. WS-R3.
+ *
+ * A SEPARATE FILE for activity.css's mechanical reason: `studio.css` is 2 700
+ * lines and contended by several workstreams, and a shared file is where a
+ * concurrent diff goes to lose a merge. Everything here is namespaced under
+ * `.vy-readiness`.
+ *
+ * Every value comes from `design/tokens.css` and studio.css's palette layer.
+ * There is not one ad-hoc px or colour in this file (DESIGN-LAW §3: "ad-hoc
+ * values are the defect this replaces").
+ *
+ * MOBILE 390 FIRST. The five parts are a two-column grid at 390 and a row of
+ * five from 760 up. They are NOT a horizontally scrolling strip on a phone:
+ * this screen's whole job is that a creator sees all five at once, and a strip
+ * that hides two of them behind a swipe hides exactly the two that are usually
+ * the problem.
+ *
+ * MOTION. Only transform and opacity animate, nothing exceeds --motion-enter,
+ * and the loading skeleton pulses opacity rather than sweeping a gradient
+ * (which repaints the whole cell). `prefers-reduced-motion` stops the pulse
+ * entirely, because a looping oscillation is precisely what that setting asks
+ * us not to do.
+ *
+ * NO PROGRESS BARS ANYWHERE IN THIS FILE. There is no `.vy-readiness__track`
+ * and there must not be one: a part is a measurement or it is an absence, and
+ * a bar drawn at 0 for an absence is the exact fake number DESIGN-LAW §1 bans.
+ */
+
+@layer components {
+  .vy-readiness {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-item);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-pad);
+    background: rgba(255, 255, 255, 0.46);
+  }
+
+  .vy-readiness__eyebrow {
+    margin: 0;
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--forest);
+  }
+
+  .vy-readiness__headline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-tight);
+    margin: 0;
+    max-width: var(--measure);
+    font-size: var(--text-heading);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-heading);
+    font-weight: var(--weight-strong);
+    color: var(--ink);
+  }
+
+  /* The number is the largest thing on the screen ONLY when there is one. */
+  .vy-readiness__score {
+    font-size: var(--text-display);
+    line-height: var(--leading-display);
+    letter-spacing: var(--tracking-display);
+    font-weight: var(--weight-strong);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .vy-readiness__score-note {
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    letter-spacing: var(--tracking-body);
+    font-weight: var(--weight-normal);
+    color: var(--ink-soft);
+  }
+
+  .vy-readiness__lede {
+    margin: 0;
+    max-width: var(--measure);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    color: var(--ink-soft);
+  }
+
+  /* ── the five ─────────────────────────────────────────────────────────── */
+
+  .vy-readiness__parts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-row);
+  }
+
+  .vy-readiness__part {
+    min-width: 0;
+    border: var(--hairline) solid var(--line);
+    border-left: var(--focus-width) solid var(--state-running);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+  }
+
+  /* The mark is a colour AND a word (the word lives in the markup), never a
+   * colour alone. DESIGN-SYSTEM §5 rule 2. */
+  .vy-readiness__part--measured { border-left-color: var(--state-done); }
+  .vy-readiness__part--low { border-left-color: var(--state-waiting); }
+  .vy-readiness__part--unmeasured { border-left-color: var(--state-running); }
+
+  .vy-readiness__part > summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    padding: var(--space-row);
+    cursor: pointer;
+    list-style: none;
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .vy-readiness__part > summary::-webkit-details-marker { display: none; }
+
+  /* Press feedback on pointer-down, without taking click semantics away from a
+   * keyboard. DESIGN-LAW §2: "feedback fires on pointerdown, never on release". */
+  .vy-readiness__part > summary:active { transform: scale(0.97); }
+
+  .vy-readiness__part > summary:focus-visible {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--focus-offset);
+    border-radius: var(--radius-sm);
+  }
+
+  .vy-readiness__part-label {
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-snug);
+    color: var(--ink-soft);
+  }
+
+  .vy-readiness__part-value {
+    font-size: var(--text-heading);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-heading);
+    font-weight: var(--weight-strong);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+
+  /* Deliberately NOT the size of a number. An absence that is typeset like a
+   * score reads as a score, and the one thing this screen must never do is let
+   * "we have not measured this" look like a measurement. */
+  .vy-readiness__part-absent {
+    font-size: var(--text-body);
+    line-height: var(--leading-snug);
+    font-weight: var(--weight-medium);
+    color: var(--state-running);
+  }
+
+  .vy-readiness__part-help {
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+    color: var(--ink-soft);
+  }
+
+  .vy-readiness__part-body {
+    border-top: var(--hairline) solid var(--line);
+    padding: var(--space-row);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-tight);
+  }
+
+  .vy-readiness__part-detail {
+    margin: 0;
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+    color: var(--ink);
+  }
+
+  .vy-readiness__part-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    margin: 0;
+  }
+
+  .vy-readiness__part-meta > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight);
+  }
+
+  .vy-readiness__part-meta dt {
+    flex: 0 0 auto;
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--forest);
+  }
+
+  .vy-readiness__part-meta dd {
+    flex: 1 1 12ch;
+    margin: 0;
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+    color: var(--ink-soft);
+  }
+
+  /* ── WS-R101: the "Measure now" control on knows_your_material ─────────── */
+
+  .vy-readiness__measure-now {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    padding-top: var(--space-hair);
+  }
+
+  .vy-readiness__measure-status {
+    margin: 0;
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+    color: var(--ink-soft);
+  }
+
+  /* ── the lock, and the one action ─────────────────────────────────────── */
+
+  .vy-readiness__lock {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-row);
+    border-radius: var(--radius-sm);
+    padding: var(--space-item);
+    background: var(--state-waiting-soft);
+  }
+
+  .vy-readiness__lock--open { background: var(--state-done-soft); }
+
+  .vy-readiness__lock-state {
+    margin: 0;
+    font-size: var(--text-lead);
+    line-height: var(--leading-snug);
+    font-weight: var(--weight-strong);
+    color: var(--ink);
+  }
+
+  .vy-readiness__lock-why {
+    margin: var(--space-hair) 0 0;
+    max-width: var(--measure);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+    color: var(--ink-soft);
+  }
+
+  .vy-readiness__act { align-self: flex-start; }
+
+  .vy-readiness__trust {
+    margin: 0;
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+    color: var(--ink-soft);
+  }
+
+  /* ── loading ──────────────────────────────────────────────────────────── */
+
+  .vy-readiness__skeleton {
+    min-height: 92px;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    opacity: 0.6;
+    animation: vy-readiness-pulse 1200ms var(--ease-standard) infinite alternate;
+  }
+
+  @keyframes vy-readiness-pulse {
+    from { opacity: 0.45; }
+    to { opacity: 0.75; }
+  }
+}
+
+@layer responsive {
+  @media (min-width: 760px) {
+    .vy-readiness__parts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+    .vy-readiness__lock {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .vy-readiness__act { align-self: auto; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vy-readiness__skeleton { animation: none; }
+    .vy-readiness__part > summary { transition: none; }
+  }
+
+  /* A translucent panel over a blurred ground is unreadable at high contrast,
+   * and this is the screen a creator makes a publishing decision on. */
+  @media (prefers-contrast: more) {
+    .vy-readiness { background: var(--paper); border-color: var(--line-strong); }
+  }
+}

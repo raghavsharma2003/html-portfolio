@@ -1,0 +1,7 @@
+.teacher-sheet-publication { margin-block-start: 1.5rem; padding: 1.25rem; border: 1px solid var(--border, #d7d7d2); border-radius: 16px; display: grid; gap: 0.9rem; overflow-wrap: anywhere; }
+.teacher-sheet-publication h3, .teacher-sheet-publication p { margin: 0; }
+.teacher-sheet-publication > button, .teacher-sheet-publication > a { justify-self: start; min-height: 44px; white-space: normal; max-width: 100%; }
+.teacher-sheet-publication label { display: flex; align-items: center; gap: 0.75rem; min-height: 44px; }
+.teacher-sheet-publication input[type="checkbox"] { flex-shrink: 0; width: 20px; height: 20px; }
+.teacher-sheet-publication div[role="status"] { display: grid; gap: 0.5rem; }
+.teacher-sheet-publication summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }

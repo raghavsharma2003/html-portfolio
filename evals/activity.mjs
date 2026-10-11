@@ -9,6 +9,8 @@ import {
   renderActivity,
   activityNote,
   ACTIVITY_BUDGET,
+  ACTIVITY_BLOCK_MAX,
+  STATE_LAW,
   chessActivity,
   moveFact,
   exchangeFact,
@@ -45,7 +47,19 @@ const act = chessActivity(g, "w", NOW - 8 * 60_000, last);
 const block = renderActivity(act, NOW);
 
 ok("a live game renders", block.length > 0);
-ok("budget respected", block.length <= ACTIVITY_BUDGET, String(block.length));
+// The DROPPABLE half is the one 420 bounds — WS-GAMEFEEL added an
+// undroppable state/idea/law block on top of it, deliberately outside the
+// drop loop so that which fact rows survive is decided by exactly the
+// arithmetic it always was. Both halves are asserted: the whole block against
+// its own ceiling, and the head+rows against the number the adapters' row
+// order is written for.
+ok("budget respected", block.length <= ACTIVITY_BLOCK_MAX, String(block.length));
+ok(
+  "the droppable half is still bounded at 420",
+  block.replace(STATE_LAW, "").replace(/\nstate: [^\n]*/, "").replace(/\nher idea: [^\n]*/, "").length <=
+    ACTIVITY_BUDGET + 1,
+  block,
+);
 ok("says how long they have been at it", /min in/.test(block), block.slice(0, 80));
 ok("names the last move", /Qxf7/.test(block), block);
 ok("carries whose turn it is", /(her|his) move/.test(block), block);
@@ -280,7 +294,17 @@ ok("chat lane imports the single derivation", /from "\.\.\/state\/game"/.test(ch
 
 const call = src("components/useCallEngine.ts");
 ok("call lane passes activity at connect", /activity:\s*activityOf\(/.test(call));
-ok("call lane pokes per move", /activityNote\(fact\)/.test(call));
+ok("call lane pokes per move", /activityNote\(fact, /.test(call));
+// …and the poke carries BOARD TRUTH. The live prompt is frozen at connect, so
+// a game that starts, moves and ends inside one call reaches her ONLY through
+// these notes: a terminal fence living in the tail block alone would be absent
+// for exactly the window in which she declared a checkmate that had not
+// happened (tester, 2026-08-25). Read off `activityOf` — the single derivation
+// — rather than re-derived at the send site.
+ok("the poke carries the machine state line",
+  /activityNote\(fact, truth \? \{ state: truth\.state, idea: truth\.idea \}/.test(call));
+ok("the poke's truth comes from the single derivation",
+  /const truth = activityOf\(stateRef\.current\.game\);/.test(call));
 // The live prompt is frozen at connect, so a mid-call move CANNOT ride a
 // recompile. If this ever becomes a second compile() the `liveAssemblies === 1`
 // invariant breaks and the call gets a fresh prompt mid-sentence.

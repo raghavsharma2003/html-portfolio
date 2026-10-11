@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-10",
+  "method": "Exact dedicated-development PostgreSQL migration, EXPLAIN without ANALYZE, two-session blocking races, independent read-only cleanup observer",
+  "database": "vyakti_expert_integration_20260906",
+  "tested_commit": "dadde8a7f9db2edfde5e9594ff0534c93c722cd5",
+  "equivalent_application_api_schema_commit": "03c285b0fae32468c290818eae4a7310f7fece8e",
+  "api_schema_git_diff_exit": 0,
+  "migration": 173,
+  "migration_sha256": "40018bc0f77cf918bfdd50c18380fce4b04435a1b57a4aac0f358d016e8223da",
+  "production_migration_applied": false,
+  "explained_shapes": 29,
+  "races": [
+    {
+      "case": "issuance99to100",
+      "blocked_transaction_witness": true,
+      "losing_mint_refused": true
+    },
+    {
+      "case": "one_pass_two_visitors",
+      "blocked_transaction_witness": true,
+      "one_bound_visitor": true
+    }
+  ],
+  "revocation": {
+    "response_revoked": true,
+    "list_redacted": true,
+    "rejoin_refused": true
+  },
+  "cleanup": {
+    "synthetic_fixtures": 2,
+    "independent_observer": true,
+    "tables_per_fixture": 15,
+    "private_rows_remaining": 0,
+    "retired_content_free_ids_per_fixture": 1
+  },
+  "queries_in_commit_race": 211,
+  "provider_calls": 0,
+  "global_cleanup_calls": 0,
+  "receipt_sha256": "63ddab81aaf3cba5222764f295b27794eb0fa9310d3f075d0c37776fa4379979",
+  "limitations": [
+    "Not a production schema or endpoint test.",
+    "No paid customer, email delivery, voice, likeness or competitor comparison.",
+    "No payment processing is added by access passes."
+  ]
+}

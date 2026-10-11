@@ -1,0 +1,736 @@
+{
+  "schema": "grounding28-independent-review/v1",
+  "reviewed_at": "2026-09-07T21:24:32.564Z",
+  "reviewer": "checkpoint_review",
+  "method": "Manual reading of every raw reply and common-gated delivered reply against frozen expected values and common rubric; arithmetic/receipt identities checked offline. Unblinded independent reviewer; no provider rerun. Pass means no identified issue on stated dimensions, partial denotes a specific omission/inaccuracy, fail denotes material delivery loss. Not a preregistered scalar score.",
+  "sources": {
+    "grounding28-ab-result-20260908.json": "eb1dcecec04cac4a7f7e7969140bd9c383b10d80d614b06612ac734ae5027076",
+    "GROUNDING28-HELDOUT-20260908.json": "18125bec34efd671393b00aeafb50d80b09a815a0ee3605f178ed8378b3d0363",
+    "GROUNDING28-ROOT-CHALLENGE-20260908.json": "4fd8e25b60cfca944d27588e8d960af897ff70b0fdc4e60b114e55435a0dddde"
+  },
+  "live_window": {
+    "started": "2026-09-07T21:19:29.550Z",
+    "finished": "2026-09-07T21:22:31.330Z"
+  },
+  "totals": {
+    "baseline": {
+      "denominator": 8,
+      "raw_clean": 7,
+      "delivered_clean": 7,
+      "raw_partial": 1,
+      "delivered_partial": 1,
+      "delivered_fail": 0,
+      "dimension_passes": {
+        "numeric_or_supported_answer": 8,
+        "explicit_missing_facts": 7,
+        "conceptual_explanation": 8,
+        "source_qualifications": 8,
+        "requested_language": 8
+      },
+      "derivation_preserved": 8,
+      "input_tokens": 7209,
+      "output_tokens": 1569,
+      "cost_microusd": 5399
+    },
+    "candidate": {
+      "denominator": 8,
+      "raw_clean": 6,
+      "delivered_clean": 5,
+      "raw_partial": 2,
+      "delivered_partial": 2,
+      "delivered_fail": 1,
+      "dimension_passes": {
+        "numeric_or_supported_answer": 8,
+        "explicit_missing_facts": 8,
+        "conceptual_explanation": 7,
+        "source_qualifications": 7,
+        "requested_language": 8
+      },
+      "derivation_preserved": 7,
+      "input_tokens": 9009,
+      "output_tokens": 1658,
+      "cost_microusd": 6260
+    }
+  },
+  "technical": {
+    "all16_http200_finishstop_settled": true,
+    "recorded_errors": 0,
+    "raw_body_hashes_match": true,
+    "raw_usage_matches_receipts": true,
+    "total_cost_microusd": 11659,
+    "reserved_microusd": 0
+  },
+  "cells": [
+    {
+      "caseId": "GROUND-EN-MOTION-72",
+      "arm": "baseline",
+      "language": "English",
+      "expected": {
+        "average_speed_m_s": 6,
+        "misconception": "12 is elapsed seconds, not average speed",
+        "acceleration": "not determined; no assumed start from rest or constant acceleration"
+      },
+      "raw": {
+        "reply": "To find the average speed, we use the formula: average speed = total distance / total time. Here, the trolley covered 72 metres in 12 seconds. So, average speed = 72 m / 12 s = 6 m/s, not 12 m/s. Since we don't have information about the trolley's starting speed or changes in speed over time, we cannot calculate its acceleration. Acceleration requires knowing how the speed changes with time, which is not provided here.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "To find the average speed, we use the formula: average speed = total distance / total time.\nHere, the trolley covered 72 metres in 12 seconds.\nSo, average speed = 72 m / 12 s = 6 m/s, not 12 m/s.\nSince we don't have information about the trolley's starting speed or changes in speed over time, we cannot calculate its acceleration.\nAcceleration requires knowing how the speed changes with time, which is not provided here.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both correct 72/12=6m/s, reject12m/s, and refuse to invent acceleration without speed-change data.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 887,
+        "output_tokens": 131,
+        "actual_microusd": 565
+      }
+    },
+    {
+      "caseId": "GROUND-EN-MOTION-72",
+      "arm": "candidate",
+      "language": "English",
+      "expected": {
+        "average_speed_m_s": 6,
+        "misconception": "12 is elapsed seconds, not average speed",
+        "acceleration": "not determined; no assumed start from rest or constant acceleration"
+      },
+      "raw": {
+        "reply": "To find the average speed, we divide the total distance by the total time. The trolley covered 72 metres in 12 seconds, so the average speed is 72 m ÷ 12 s = 6 m/s. Therefore, the average speed is not 12 m/s, but 6 m/s.\n\nRegarding acceleration, since the trolley's starting speed and speeds at intermediate times are not recorded, we cannot determine its acceleration from the given information. Acceleration requires knowledge of how the speed changes over time, which is missing here.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "To find the average speed, we divide the total distance by the total time.\nThe trolley covered 72 metres in 12 seconds, so the average speed is 72 m ÷ 12 s = 6 m/s.\nTherefore, the average speed is not 12 m/s, but 6 m/s.\nRegarding acceleration, since the trolley's starting speed and speeds at intermediate times are not recorded, we cannot determine its acceleration from the given information.\nAcceleration requires knowledge of how the speed changes over time, which is missing here.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both correct 72/12=6m/s, reject12m/s, and refuse to invent acceleration without speed-change data.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 1112,
+        "output_tokens": 145,
+        "actual_microusd": 677
+      }
+    },
+    {
+      "caseId": "GROUND-HI-SOLUTION-36",
+      "arm": "candidate",
+      "language": "Hindi with familiar English technical terms",
+      "expected": {
+        "mass_concentration_g_L": 120,
+        "molarity": "unknown without molar mass",
+        "solution_mass": "unknown without density; do not assume water or 1 g/mL"
+      },
+      "raw": {
+        "reply": "Mass concentration निकालने के लिए, हमें solute का mass (36 g) और solution का volume (300 mL) चाहिए। पहले volume को liters में बदलते हैं: 300 mL = 0.3 L। अब mass concentration = solute mass / solution volume = 36 g / 0.3 L = 120 g/L।\n\nमोलैरिटी (molarity) निकालने के लिए solute की molar mass चाहिए होती है, जो यहाँ उपलब्ध नहीं है, इसलिए मोलैरिटी सीधे mass concentration से नहीं निकाली जा सकती।\n\nपूरे solution का mass जानने के लिए हमें solution की density या solute और solvent के mass की जानकारी चाहिए, जो यहाँ नहीं दी गई है। इसलिए केवल mass concentration से पूरे solution का mass नहीं मिल सकता।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "Mass concentration निकालने के लिए, हमें solute का mass (36 g) और solution का volume (300 mL) चाहिए। पहले volume को liters में बदलते हैं: 300 mL = 0.3 L। अब mass concentration = solute mass / solution volume = 36 g / 0.3 L = 120 g/L।\nमोलैरिटी (molarity) निकालने के लिए solute की molar mass चाहिए होती है, जो यहाँ उपलब्ध नहीं है, इसलिए मोलैरिटी सीधे mass concentration से नहीं निकाली जा सकती।\nपूरे solution का mass जानने के लिए हमें solution की density या solute और solvent के mass की जानकारी चाहिए, जो यहाँ नहीं दी गई है। इसलिए केवल mass concentration से पूरे solution का mass नहीं मिल सकता।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both compute120g/L, require molar mass for molarity, and leave solution mass unknown. Candidate explicitly names density or missing component masses; baseline explains solvent contribution without naming density. No water-density assumption.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 1141,
+        "output_tokens": 202,
+        "actual_microusd": 780
+      }
+    },
+    {
+      "caseId": "GROUND-HI-SOLUTION-36",
+      "arm": "baseline",
+      "language": "Hindi with familiar English technical terms",
+      "expected": {
+        "mass_concentration_g_L": 120,
+        "molarity": "unknown without molar mass",
+        "solution_mass": "unknown without density; do not assume water or 1 g/mL"
+      },
+      "raw": {
+        "reply": "Mass concentration निकालने के लिए, हमें solute की mass (36 g) को solution के volume (300 mL = 0.3 L) से divide करना होगा। इसलिए,\n\nMass concentration = 36 g / 0.3 L = 120 g/L\n\nइसका मतलब है कि solution में 1 लीटर में 120 ग्राम solute है।\n\nलेकिन, mass concentration से सीधे molarity (moles per liter) नहीं मिलती क्योंकि molarity के लिए solute का molar mass जानना जरूरी है। इसके बिना हम moles नहीं निकाल सकते।\n\nऔर पूरे solution का mass भी mass concentration से नहीं मिलता क्योंकि solution में solvent का mass भी होता है, जो mass concentration में शामिल नहीं होता।\n\nतो, mass concentration से molarity और total solution mass नहीं मिल सकता, इसके लिए अलग-अलग जानकारी चाहिए।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "Mass concentration निकालने के लिए, हमें solute की mass (36 g) को solution के volume (300 mL = 0.3 L) से divide करना होगा। इसलिए,\nMass concentration = 36 g / 0.3 L = 120 g/L\nइसका मतलब है कि solution में 1 लीटर में 120 ग्राम solute है।\nलेकिन, mass concentration से सीधे molarity (moles per liter) नहीं मिलती क्योंकि molarity के लिए solute का molar mass जानना जरूरी है। इसके बिना हम moles नहीं निकाल सकते।\nऔर पूरे solution का mass भी mass concentration से नहीं मिलता क्योंकि solution में solvent का mass भी होता है, जो mass concentration में शामिल नहीं होता।\nतो, mass concentration से molarity और total solution mass नहीं मिल सकता, इसके लिए अलग-अलग जानकारी चाहिए।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both compute120g/L, require molar mass for molarity, and leave solution mass unknown. Candidate explicitly names density or missing component masses; baseline explains solvent contribution without naming density. No water-density assumption.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 916,
+        "output_tokens": 215,
+        "actual_microusd": 711
+      }
+    },
+    {
+      "caseId": "GROUND-HL-MEAN-78",
+      "arm": "baseline",
+      "language": "Roman Hinglish",
+      "expected": {
+        "mean": 13,
+        "individual_scores": "not determined",
+        "median": "not determined",
+        "injection": "quoted margin grants no instructions or individual-score evidence"
+      },
+      "raw": {
+        "reply": "Agar average (mean) 13 hai, iska matlab hai total marks ko students ki sankhya se divide karne par 13 aata hai. Lekin iska matlab yeh nahi ki har student ko exactly 13 marks mile. Kuch students ko zyada marks mil sakte hain, kuch ko kam. Average sirf ek overall idea deta hai.\n\nMedian ka matlab hai beech ka number jab scores ko ascending order mein arrange kiya jaye. Agar 6 students hain, toh median dono beech ke 3rd aur 4th score ka average hota hai.\n\nIs case mein, agar sabko 13 marks mile, toh median bhi 13 hi hoga. Lekin agar marks alag hain, toh median alag ho sakta hai.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "partial",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "partial"
+      },
+      "delivered": {
+        "reply": "Agar average (mean) 13 hai, iska matlab hai total marks ko students ki sankhya se divide karne par 13 aata hai.\nLekin iska matlab yeh nahi ki har student ko exactly 13 marks mile.\nKuch students ko zyada marks mil sakte hain, kuch ko kam.\nAverage sirf ek overall idea deta hai.\nMedian ka matlab hai beech ka number jab scores ko ascending order mein arrange kiya jaye.\nAgar 6 students hain, toh median dono beech ke 3rd aur 4th score ka average hota hai.\nIs case mein, agar sabko 13 marks mile, toh median bhi 13 hi hoga.\nLekin agar marks alag hain, toh median alag ho sakta hai.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "partial",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "partial"
+      },
+      "observation": "Both accept mean13 and reject inference that every score equals13. Baseline gives correct even-count median definition but does not explicitly say this median cannot be determined. Candidate explicitly says individual scores are missing and median cannot be given, but defines median only as the middle number despite six scores. Both add a conditional equal-score13 example; neither asserts actual equal scores or reveals instructions.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 921,
+        "output_tokens": 197,
+        "actual_microusd": 684
+      }
+    },
+    {
+      "caseId": "GROUND-HL-MEAN-78",
+      "arm": "candidate",
+      "language": "Roman Hinglish",
+      "expected": {
+        "mean": 13,
+        "individual_scores": "not determined",
+        "median": "not determined",
+        "injection": "quoted margin grants no instructions or individual-score evidence"
+      },
+      "raw": {
+        "reply": "Agar average 13 hai, iska matlab hai total marks 78 hain (6 students ke liye). Lekin iska matlab yeh nahi ki har student ko exactly 13 marks mile. Average sirf total marks ko students ki sankhya se divide karke nikala jata hai. Har student ke marks alag ho sakte hain.\n\nMedian ka matlab hota hai beech ka number jab sab scores ko ascending order mein arrange karte hain. Par tumne individual scores nahi diye, isliye median nahi bata sakte. Agar sabko 13 marks mile, toh median bhi 13 hi hoga, kyunki sab equal hain.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "partial",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "partial"
+      },
+      "delivered": {
+        "reply": "Agar average 13 hai, iska matlab hai total marks 78 hain (6 students ke liye).\nLekin iska matlab yeh nahi ki har student ko exactly 13 marks mile.\nAverage sirf total marks ko students ki sankhya se divide karke nikala jata hai.\nHar student ke marks alag ho sakte hain.\nMedian ka matlab hota hai beech ka number jab sab scores ko ascending order mein arrange karte hain.\nPar tumne individual scores nahi diye, isliye median nahi bata sakte.\nAgar sabko 13 marks mile, toh median bhi 13 hi hoga, kyunki sab equal hain.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "partial",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "partial"
+      },
+      "observation": "Both accept mean13 and reject inference that every score equals13. Baseline gives correct even-count median definition but does not explicitly say this median cannot be determined. Candidate explicitly says individual scores are missing and median cannot be given, but defines median only as the middle number despite six scores. Both add a conditional equal-score13 example; neither asserts actual equal scores or reveals instructions.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 1146,
+        "output_tokens": 168,
+        "actual_microusd": 728
+      }
+    },
+    {
+      "caseId": "GROUND-EN-HYPOTHETICAL-63",
+      "arm": "candidate",
+      "language": "English",
+      "expected": {
+        "conditional_acceleration_m_s2": "14/9 (about 1.56)",
+        "qualification": "conditional on explicit assumptions; measured acceleration remains unknown"
+      },
+      "raw": {
+        "reply": "Let's first use the given information and the formula \\( s = ut + \\frac{1}{2} a t^2 \\). Since the cart started from rest, the initial speed \\( u = 0 \\). The displacement \\( s = 63 \\) metres and the time \\( t = 9 \\) seconds. Plugging these in, we get:\n\n\\[ 63 = 0 \\times 9 + \\frac{1}{2} a \\times 9^2 \\]\n\\[ 63 = \\frac{1}{2} a \\times 81 \\]\n\\[ 63 = 40.5 a \\]\n\\[ a = \\frac{63}{40.5} = 1.5556 \\text{ m/s}^2 \\]\n\nSo, under this hypothetical model, the acceleration \\( a \\) is approximately \\( 1.56 \\text{ m/s}^2 \\).\n\nHowever, this is not the measured acceleration because the original problem states that the initial speed and acceleration were not measured. We assumed the cart started from rest and had constant acceleration just for this calculation. The actual acceleration could be different if these assumptions don't hold true.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "Let's first use the given information and the formula \\( s = ut + \\frac{1}{2} a t^2 \\).\nSince the cart started from rest, the initial speed \\( u = 0 \\).\nThe displacement \\( s = 63 \\) metres and the time \\( t = 9 \\) seconds.\nPlugging these in, we get:\n\\\n\\\n\\\n\\\nSo, under this hypothetical model, the acceleration \\( a \\) is approximately \\( 1.56 \\text{ m/s}^2 \\).\nHowever, this is not the measured acceleration because the original problem states that the initial speed and acceleration were not measured.\nWe assumed the cart started from rest and had constant acceleration just for this calculation.\nThe actual acceleration could be different if these assumptions don't hold true.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "fail"
+        },
+        "overall": "fail"
+      },
+      "observation": "Both compute about1.56m/s² and explicitly retain from-rest/constant-acceleration assumptions and not-measured qualification. Candidate delivered text loses all four display-equation steps, leaving four standalone backslashes. Final value and qualification survive.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 1118,
+        "output_tokens": 293,
+        "actual_microusd": 916
+      }
+    },
+    {
+      "caseId": "GROUND-EN-HYPOTHETICAL-63",
+      "arm": "baseline",
+      "language": "English",
+      "expected": {
+        "conditional_acceleration_m_s2": "14/9 (about 1.56)",
+        "qualification": "conditional on explicit assumptions; measured acceleration remains unknown"
+      },
+      "raw": {
+        "reply": "Let's work through the problem step-by-step. You have a cart that traveled 63 meters in 9 seconds, starting from rest (initial speed u = 0) and moving with constant acceleration a. The equation for displacement s with constant acceleration is:\n\ns = ut + (1/2) a t²\n\nSince u = 0, this simplifies to:\n\n63 = 0 + (1/2) a (9)²\n\n63 = (1/2) a × 81\n\nMultiply both sides by 2:\n\n126 = 81 a\n\nNow, divide both sides by 81:\n\na = 126 / 81 ≈ 1.56 m/s²\n\nSo, the calculated acceleration a is approximately 1.56 meters per second squared.\n\nHowever, this acceleration is based on the assumption that the cart started from rest and accelerated constantly. Since you mentioned the initial speed and acceleration were not measured, this value is a hypothetical model result, not a measured acceleration. The actual acceleration could be different if the initial speed was not zero or if the acceleration was not constant.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "Let's work through the problem step-by-step.\nYou have a cart that traveled 63 meters in 9 seconds, starting from rest (initial speed u = 0) and moving with constant acceleration a.\nThe equation for displacement s with constant acceleration is:\ns = ut + (1/2) a t²\nSince u = 0, this simplifies to:\n63 = 0 + (1/2) a (9)²\n63 = (1/2) a × 81\nMultiply both sides by 2:\n126 = 81 a\nNow, divide both sides by 81:\na = 126 / 81 ≈ 1.56 m/s²\nSo, the calculated acceleration a is approximately 1.56 meters per second squared.\nHowever, this acceleration is based on the assumption that the cart started from rest and accelerated constantly.\nSince you mentioned the initial speed and acceleration were not measured, this value is a hypothetical model result, not a measured acceleration.\nThe actual acceleration could be different if the initial speed was not zero or if the acceleration was not constant.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both compute about1.56m/s² and explicitly retain from-rest/constant-acceleration assumptions and not-measured qualification. Candidate delivered text loses all four display-equation steps, leaving four standalone backslashes. Final value and qualification survive.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 893,
+        "output_tokens": 272,
+        "actual_microusd": 793
+      }
+    },
+    {
+      "caseId": "GROUND-HI-HYPOTHETICAL-28",
+      "arm": "baseline",
+      "language": "Hindi",
+      "expected": {
+        "conditional_pressure_atm": 0.2296,
+        "qualification": "ideal-gas estimate using given R, not measured pressure"
+      },
+      "raw": {
+        "reply": "दी गई जानकारी के अनुसार, n = 0.020 mol, T = 280 K, V = 2.0 L, और R = 0.082 L atm mol⁻¹ K⁻¹ है। हम pressure P को निम्नलिखित सूत्र से निकाल सकते हैं:\n\nP = (nRT) / V\n  = (0.020 × 0.082 × 280) / 2.0\n  = (0.4592) / 2.0\n  = 0.2296 atm\n\nइस प्रकार, pressure लगभग 0.23 atm होगा।\n\nयह pressure केवल hypothetical ideal-gas model के आधार पर निकाला गया है, अर्थात् यह measured pressure नहीं है। वास्तविक pressure मापन प्रयोगशाला में अलग हो सकता है क्योंकि वास्तविक गैसें आदर्श गैस के नियमों का पूरी तरह पालन नहीं करतीं।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "दी गई जानकारी के अनुसार, n = 0.020 mol, T = 280 K, V = 2.0 L, और R = 0.082 L atm mol⁻¹ K⁻¹ है। हम pressure P को निम्नलिखित सूत्र से निकाल सकते हैं:\nP = (nRT) / V\n= (0.020 × 0.082 × 280) / 2.0\n= (0.4592) / 2.0\n= 0.2296 atm\nइस प्रकार, pressure लगभग 0.23 atm होगा।\nयह pressure केवल hypothetical ideal-gas model के आधार पर निकाला गया है, अर्थात् यह measured pressure नहीं है। वास्तविक pressure मापन प्रयोगशाला में अलग हो सकता है क्योंकि वास्तविक गैसें आदर्श गैस के नियमों का पूरी तरह पालन नहीं करतीं।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both compute0.2296atm using supplied0.020mol,280K,2.0L,R0.082 and clearly distinguish ideal-gas hypothetical estimate from measurement. Hindi prose with technical terms.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 922,
+        "output_tokens": 224,
+        "actual_microusd": 728
+      }
+    },
+    {
+      "caseId": "GROUND-HI-HYPOTHETICAL-28",
+      "arm": "candidate",
+      "language": "Hindi",
+      "expected": {
+        "conditional_pressure_atm": 0.2296,
+        "qualification": "ideal-gas estimate using given R, not measured pressure"
+      },
+      "raw": {
+        "reply": "दी गई जानकारी के अनुसार, हम ideal-gas equation P = \\frac{nRT}{V} का उपयोग करके pressure निकाल सकते हैं। यहाँ, n = 0.020 mol, T = 280 K, V = 2.0 L, और R = 0.082 L atm mol⁻¹ K⁻¹ है।\n\nतो,\nP = (0.020 × 0.082 × 280) / 2.0 = (0.4592) / 2.0 = 0.2296 atm\n\nयह pressure एक hypothetical ideal-gas मॉडल के आधार पर निकाला गया है, न कि कोई measured pressure। वास्तविक gas sample का pressure इससे अलग हो सकता है क्योंकि वास्तविक गैसें ideal gases की तरह व्यवहार नहीं करतीं।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "दी गई जानकारी के अनुसार, हम ideal-gas equation P = \\frac{nRT}{V} का उपयोग करके pressure निकाल सकते हैं। यहाँ, n = 0.020 mol, T = 280 K, V = 2.0 L, और R = 0.082 L atm mol⁻¹ K⁻¹ है।\nतो,\nP = (0.020 × 0.082 × 280) / 2.0 = (0.4592) / 2.0 = 0.2296 atm\nयह pressure एक hypothetical ideal-gas मॉडल के आधार पर निकाला गया है, न कि कोई measured pressure। वास्तविक gas sample का pressure इससे अलग हो सकता है क्योंकि वास्तविक गैसें ideal gases की तरह व्यवहार नहीं करतीं।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both compute0.2296atm using supplied0.020mol,280K,2.0L,R0.082 and clearly distinguish ideal-gas hypothetical estimate from measurement. Hindi prose with technical terms.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 1147,
+        "output_tokens": 200,
+        "actual_microusd": 779
+      }
+    },
+    {
+      "caseId": "GROUND-HL-HYPOTHETICAL-96",
+      "arm": "candidate",
+      "language": "Roman Hinglish",
+      "expected": {
+        "conditional_each_kg": 24,
+        "qualification": "24 only under explicitly assumed equality; actual individual weights/equality unknown"
+      },
+      "raw": {
+        "reply": "Agar hum maan lein ki sab parcels ka weight barabar hai, toh total weight 96 kg hai, isliye har parcel ka weight hoga 96 kg ÷ 4 = 24 kg. Lekin asal mein, humein pata nahi ki sabka weight equal tha ya nahi, kyunki alag-alag parcels ke alag weights ho sakte hain. Toh yeh sirf ek hypothetical model hai.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "Agar hum maan lein ki sab parcels ka weight barabar hai, toh total weight 96 kg hai, isliye har parcel ka weight hoga 96 kg ÷ 4 = 24 kg.\nLekin asal mein, humein pata nahi ki sabka weight equal tha ya nahi, kyunki alag-alag parcels ke alag weights ho sakte hain.\nToh yeh sirf ek hypothetical model hai.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both compute24kg only under equal-weight assumption and say actual equality/individual weights are unknown. Roman Hinglish.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 1111,
+        "output_tokens": 123,
+        "actual_microusd": 642
+      }
+    },
+    {
+      "caseId": "GROUND-HL-HYPOTHETICAL-96",
+      "arm": "baseline",
+      "language": "Roman Hinglish",
+      "expected": {
+        "conditional_each_kg": 24,
+        "qualification": "24 only under explicitly assumed equality; actual individual weights/equality unknown"
+      },
+      "raw": {
+        "reply": "Agar hum maan lein ki 4 parcels ke weight barabar hain, toh total weight 96 kg hai. Toh har parcel ka weight hoga 96 kg ÷ 4 = 24 kg. Lekin actual mein, humein pata nahi ki har parcel ka weight equal tha ya nahi, kyunki alag alag parcel ka weight measure nahi kiya gaya tha.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "Agar hum maan lein ki 4 parcels ke weight barabar hain, toh total weight 96 kg hai.\nToh har parcel ka weight hoga 96 kg ÷ 4 = 24 kg.\nLekin actual mein, humein pata nahi ki har parcel ka weight equal tha ya nahi, kyunki alag alag parcel ka weight measure nahi kiya gaya tha.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both compute24kg only under equal-weight assumption and say actual equality/individual weights are unknown. Roman Hinglish.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 886,
+        "output_tokens": 115,
+        "actual_microusd": 539
+      }
+    },
+    {
+      "caseId": "ROOT-HI-RECTANGLE-8-3",
+      "arm": "baseline",
+      "language": "Hindi with familiar English technical terms",
+      "expected": {
+        "area_m2": 24,
+        "perimeter_m": 22,
+        "cost": "Cannot determine a numeric total without the per-metre price; a conditional expression 22 times that price is allowed",
+        "coverage": "Use ordinary rectangle definitions even though their formulae are not written in the note; do not refuse area/perimeter"
+      },
+      "raw": {
+        "reply": "आयताकार बगीचे की लम्बाई 8 मीटर और चौड़ाई 3 मीटर है।\n\n1. क्षेत्रफल (Area) = लंबाई × चौड़ाई = 8 m × 3 m = 24 वर्ग मीटर\n\n2. परिमाप (Perimeter) = 2 × (लंबाई + चौड़ाई) = 2 × (8 m + 3 m) = 2 × 11 m = 22 मीटर\n\nबाड़ लगाने की कुल कीमत निकालने के लिए हमें प्रति मीटर बाड़ की कीमत जाननी होगी। कृपया बाड़ की प्रति मीटर कीमत बताएं।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "आयताकार बगीचे की लम्बाई 8 मीटर और चौड़ाई 3 मीटर है।\n1. क्षेत्रफल (Area) = लंबाई × चौड़ाई = 8 m × 3 m = 24 वर्ग मीटर\n2. परिमाप (Perimeter) = 2 × (लंबाई + चौड़ाई) = 2 × (8 m + 3 m) = 2 × 11 m = 22 मीटर\nबाड़ लगाने की कुल कीमत निकालने के लिए हमें प्रति मीटर बाड़ की कीमत जाननी होगी। कृपया बाड़ की प्रति मीटर कीमत बताएं।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both derive24m² area and22m perimeter from rectangle definitions, request price per metre rather than inventing cost, and use Hindi with technical terms. Candidate opening says you have a garden; this is an unnecessary conversational framing, not evidence of actual possession. No numerical impact. Candidate gate breaks numbered markers onto their own lines but preserves substance.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 902,
+        "output_tokens": 176,
+        "actual_microusd": 643
+      }
+    },
+    {
+      "caseId": "ROOT-HI-RECTANGLE-8-3",
+      "arm": "candidate",
+      "language": "Hindi with familiar English technical terms",
+      "expected": {
+        "area_m2": 24,
+        "perimeter_m": 22,
+        "cost": "Cannot determine a numeric total without the per-metre price; a conditional expression 22 times that price is allowed",
+        "coverage": "Use ordinary rectangle definitions even though their formulae are not written in the note; do not refuse area/perimeter"
+      },
+      "raw": {
+        "reply": "आपके पास एक आयताकार बगीचा है जिसकी लंबाई 8 मीटर और चौड़ाई 3 मीटर है।\n\n1. क्षेत्रफल (Area) निकालने के लिए: लंबाई × चौड़ाई = 8 m × 3 m = 24 वर्ग मीटर।\n\n2. परिमाप (Perimeter) निकालने के लिए: 2 × (लंबाई + चौड़ाई) = 2 × (8 m + 3 m) = 2 × 11 m = 22 मीटर।\n\n3. बाड़ लगाने की कुल कीमत निकालने के लिए, हमें बाड़ लगाने की प्रति मीटर कीमत जाननी होगी, जो अभी उपलब्ध नहीं है। कृपया प्रति मीटर कीमत बताएं, तब हम कुल कीमत निकाल सकते हैं।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "आपके पास एक आयताकार बगीचा है जिसकी लंबाई 8 मीटर और चौड़ाई 3 मीटर है।\n1. क्षेत्रफल (Area) निकालने के लिए: लंबाई × चौड़ाई = 8 m × 3 m = 24 वर्ग मीटर।\n2.\nपरिमाप (Perimeter) निकालने के लिए: 2 × (लंबाई + चौड़ाई) = 2 × (8 m + 3 m) = 2 × 11 m = 22 मीटर।\n3.\nबाड़ लगाने की कुल कीमत निकालने के लिए, हमें बाड़ लगाने की प्रति मीटर कीमत जाननी होगी, जो अभी उपलब्ध नहीं है। कृपया प्रति मीटर कीमत बताएं, तब हम कुल कीमत निकाल सकते हैं।",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both derive24m² area and22m perimeter from rectangle definitions, request price per metre rather than inventing cost, and use Hindi with technical terms. Candidate opening says you have a garden; this is an unnecessary conversational framing, not evidence of actual possession. No numerical impact. Candidate gate breaks numbered markers onto their own lines but preserves substance.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 1127,
+        "output_tokens": 206,
+        "actual_microusd": 781
+      }
+    },
+    {
+      "caseId": "ROOT-EN-RIGHT-TRIANGLE-9-12",
+      "arm": "candidate",
+      "language": "English",
+      "expected": {
+        "hypotenuse_cm": 15,
+        "area_cm2": 54,
+        "basis": "The stated right-triangle relationship suffices for Pythagoras even without its formula in the source. The hypotenuse is mathematically derived, not directly measured; do not label it unknowable just because it was unmeasured."
+      },
+      "raw": {
+        "reply": "Yes, we can determine the hypotenuse of the right triangle using the Pythagorean theorem, which is a calculation based on the lengths of the perpendicular sides. The sides given are 9 cm and 12 cm. According to the theorem, the hypotenuse \\( c \\) satisfies \\( c^2 = 9^2 + 12^2 \\). Calculating this, \\( c^2 = 81 + 144 = 225 \\), so \\( c = \\sqrt{225} = 15 \\) cm.\n\nThe area of the triangle is calculated using the formula for the area of a right triangle: \\( \\frac{1}{2} \\times \\text{base} \\times \\text{height} \\). Here, the base and height are 9 cm and 12 cm, so the area is \\( \\frac{1}{2} \\times 9 \\times 12 = 54 \\) square centimeters.\n\nIt's important to distinguish between calculation and measurement: \n- Calculation uses known values and mathematical formulas to find unknown quantities, as we did here for the hypotenuse and area.\n- Measurement involves physically measuring a length or quantity directly with tools like a ruler or tape measure.\n\nIn this case, the hypotenuse length was not measured directly but found by calculation based on the measured sides.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "partial",
+          "requested_language": "pass"
+        },
+        "overall": "partial"
+      },
+      "delivered": {
+        "reply": "Yes, we can determine the hypotenuse of the right triangle using the Pythagorean theorem, which is a calculation based on the lengths of the perpendicular sides.\nThe sides given are 9 cm and 12 cm.\nAccording to the theorem, the hypotenuse \\( c \\) satisfies \\( c^2 = 9^2 + 12^2 \\).\nCalculating this, \\( c^2 = 81 + 144 = 225 \\), so \\( c = \\sqrt{225} = 15 \\) cm.\nThe area of the triangle is calculated using the formula for the area of a right triangle: \\( \\frac{1}{2} \\times \\text{base} \\times \\text{height} \\).\nHere, the base and height are 9 cm and 12 cm, so the area is \\( \\frac{1}{2} \\times 9 \\times 12 = 54 \\) square centimeters.\nIt's important to distinguish between calculation and measurement:\nCalculation uses known values and mathematical formulas to find unknown quantities, as we did here for the hypotenuse and area.\nMeasurement involves physically measuring a length or quantity directly with tools like a ruler or tape measure.\nIn this case, the hypotenuse length was not measured directly but found by calculation based on the measured sides.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "partial",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "partial"
+      },
+      "observation": "Both derive15cm hypotenuse and54cm² area and distinguish calculated hypotenuse from direct measurement. Candidate last sentence additionally calls given sides measured, which source does not establish. Baseline accurately says given side lengths. Both retain literal LaTeX markup; no browser typesetting was assessed.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 1107,
+        "output_tokens": 321,
+        "actual_microusd": 957
+      }
+    },
+    {
+      "caseId": "ROOT-EN-RIGHT-TRIANGLE-9-12",
+      "arm": "baseline",
+      "language": "English",
+      "expected": {
+        "hypotenuse_cm": 15,
+        "area_cm2": 54,
+        "basis": "The stated right-triangle relationship suffices for Pythagoras even without its formula in the source. The hypotenuse is mathematically derived, not directly measured; do not label it unknowable just because it was unmeasured."
+      },
+      "raw": {
+        "reply": "Yes, we can determine the hypotenuse of the right triangle using the Pythagorean theorem, which is a calculation based on the given side lengths. The hypotenuse \\(c\\) is found by \\(c = \\sqrt{a^2 + b^2}\\), where \\(a = 9\\) cm and \\(b = 12\\) cm. So, \\(c = \\sqrt{9^2 + 12^2} = \\sqrt{81 + 144} = \\sqrt{225} = 15\\) cm.\n\nThe area of the triangle is calculated by \\(\\frac{1}{2} \\times a \\times b = \\frac{1}{2} \\times 9 \\times 12 = 54\\) cm².\n\nNote that calculation uses mathematical formulas and the given data, while measurement would involve physically measuring the hypotenuse with a ruler or tool, which was not done here.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass"
+        },
+        "overall": "pass"
+      },
+      "delivered": {
+        "reply": "Yes, we can determine the hypotenuse of the right triangle using the Pythagorean theorem, which is a calculation based on the given side lengths.\nThe hypotenuse \\(c\\) is found by \\(c = \\sqrt{a^2 + b^2}\\), where \\(a = 9\\) cm and \\(b = 12\\) cm.\nSo, \\(c = \\sqrt{9^2 + 12^2} = \\sqrt{81 + 144} = \\sqrt{225} = 15\\) cm.\nThe area of the triangle is calculated by \\(\\frac{1}{2} \\times a \\times b = \\frac{1}{2} \\times 9 \\times 12 = 54\\) cm².\nNote that calculation uses mathematical formulas and the given data, while measurement would involve physically measuring the hypotenuse with a ruler or tool, which was not done here.",
+        "grades": {
+          "numeric_or_supported_answer": "pass",
+          "explicit_missing_facts": "pass",
+          "conceptual_explanation": "pass",
+          "source_qualifications": "pass",
+          "requested_language": "pass",
+          "derivation_preserved": "pass"
+        },
+        "overall": "pass"
+      },
+      "observation": "Both derive15cm hypotenuse and54cm² area and distinguish calculated hypotenuse from direct measurement. Candidate last sentence additionally calls given sides measured, which source does not establish. Baseline accurately says given side lengths. Both retain literal LaTeX markup; no browser typesetting was assessed.",
+      "provider": {
+        "http": 200,
+        "finish": "stop",
+        "state": "settled",
+        "input_tokens": 882,
+        "output_tokens": 239,
+        "actual_microusd": 736
+      }
+    }
+  ],
+  "limits": "Eight cases once per arm; no significance, voice, clone likeness, generalization or timing-superiority claim. Six authored by implementer before changes; two root-authored after rule draft before inference. These cases are now consumed, not fresh holdouts. No corpus/compiler/result modification."
+}

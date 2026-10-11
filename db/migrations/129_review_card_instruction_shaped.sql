@@ -1,0 +1,44 @@
+-- Migration 129 - review card kind widened to admit 'instruction_shaped'
+-- (WS-R112).
+--
+-- WS-R105 built a pure, offline-measured detector for creator material that
+-- reads as an instruction aimed at the AI rather than teaching material aimed
+-- at a student (recall and false-positive rate both measured against a real
+-- corpus, `evals/room-adversarial-creator`) and could not ship it: migration
+-- 074's `kind` CHECK on `vy_review_card` is a closed four-value list
+-- ('question','claim','delta','follower_declined'). A creator who pastes a
+-- forwarded chain with a prompt-injection footer should see ONE CARD that
+-- says so and decide, in the same queue where they already decide what
+-- sounds right — never a silent mine, never a silent block
+-- (`context/decisions.md#ws-r112-instruction-shaped-is-a-review-card-not-a-
+-- runtime-filter`).
+--
+-- Two statements, ONE PER REQUEST (Neon's SQL-over-HTTP endpoint, 001's law
+-- restated by 009/051/058/059/074 and every migration since), no DO blocks,
+-- both idempotent: drop-then-add on the SAME constraint name Postgres
+-- already gave this unnamed, single-column, inline CHECK —
+-- `<table>_<column>_check` — the exact convention migration 096 used one
+-- migration family over for `vy_room_checkin_delivery`'s channel CHECK
+-- (`vy_room_checkin_delivery_channel_check`, read back from `pg_constraint`
+-- and confirmed before 096 applied live,
+-- `context/measurements.md#rooms-migration-085-live-verification-2026-09-04`).
+--
+-- THIS WORKSTREAM HAS NO `NEON_URL` IN ITS ENVIRONMENT and has never read the
+-- name back itself. The main loop MUST read `vy_review_card_kind_check` back
+-- from `pg_constraint` (the catalog, not this comment) before applying this
+-- file, exactly as 096's own header asked for the channel CHECK, and treat a
+-- mismatch as a stop, never a guess: if the catalog names something else,
+-- drop THAT name instead and file the mismatch as a `context/rejected.md`
+-- entry rather than silently adapting the ALTER to fit.
+--
+-- No new table, no new column, no new PERSON_TABLES entry and no new
+-- OWNER_LANE_TABLES entry: `vy_review_card` is already in every manifest
+-- that matters (migration 074's own header), and a new KIND VALUE on an
+-- existing owner-scoped table changes none of them. `vy_context_item`
+-- (migration used by `api/_context-locker.js`) needs no schema change either
+-- — 'refused' and a non-empty `refusal_reason` are already legal
+-- (`vy_context_item_refusal_named`), and `refusal_reason='instruction_shaped'`
+-- is just a new VALUE in an already-open text column, not a new shape.
+alter table vy_review_card drop constraint if exists vy_review_card_kind_check;
+alter table vy_review_card add constraint vy_review_card_kind_check
+  check (kind in ('question','claim','delta','follower_declined','instruction_shaped'));

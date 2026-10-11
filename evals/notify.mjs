@@ -22,15 +22,20 @@
 //
 // Offline, deterministic, no model, no network, no DB, $0, ~2s.
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
 const src = (p) => readFileSync(join(ROOT, p), "utf8");
+const NPX_COMMAND = process.platform === "win32" ? process.execPath : "npx";
+const NPX_ARGS = process.platform === "win32"
+  ? [join(dirname(process.execPath), "node_modules/npm/bin/npx-cli.js")]
+  : [];
+const modulePath = (path) => path.replaceAll("\\", "/");
 
 let fail = 0;
 const ok = (name, cond, extra = "") => {
@@ -47,23 +52,27 @@ const ENTRY = join(tmp, "entry.ts");
 const BUNDLE = join(tmp, "bundle.mjs");
 writeFileSync(
   ENTRY,
-  `export * from "${join(ROOT, "src/notify/copy")}";
-export * from "${join(ROOT, "src/notify/story")}";
-export { configureNotifier, NOTIFY_ID, post, postAt, cancel, cancelAll, notifyAvailable, permissionState } from "${join(ROOT, "src/notify/local")}";
-export { shouldExplain, postReply, postMissedCall, scheduleStory, clearReachability } from "${join(ROOT, "src/notify/index")}";
-export { pushConfigured } from "${join(ROOT, "src/notify/config")}";
-export { registerForPush, submitPushToken } from "${join(ROOT, "src/notify/push")}";
-export { slotForStory, slotStartedAt, activeStories } from "${join(ROOT, "src/engine/storyCatalog")}";
-export { HER_NAME } from "${join(ROOT, "src/engine/persona")}";
+  `export * from ${JSON.stringify(modulePath(join(ROOT, "src/notify/copy")))};
+export * from ${JSON.stringify(modulePath(join(ROOT, "src/notify/story")))};
+export { configureNotifier, NOTIFY_ID, post, postAt, cancel, cancelAll, notifyAvailable, permissionState } from ${JSON.stringify(modulePath(join(ROOT, "src/notify/local")))};
+export { shouldExplain, postReply, postMissedCall, scheduleStory, clearReachability } from ${JSON.stringify(modulePath(join(ROOT, "src/notify/index")))};
+export { pushConfigured } from ${JSON.stringify(modulePath(join(ROOT, "src/notify/config")))};
+export { registerForPush, submitPushToken } from ${JSON.stringify(modulePath(join(ROOT, "src/notify/push")))};
+export { slotForStory, slotStartedAt, activeStories } from ${JSON.stringify(modulePath(join(ROOT, "src/engine/storyCatalog")))};
+export { HER_NAME } from ${JSON.stringify(modulePath(join(ROOT, "src/engine/persona")))};
 `,
 );
-execSync(
-  `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} ` +
-    `--log-level=error --alias:@capacitor/core=${join(HERE, "stubs/capacitor.mjs")} ` +
+execFileSync(
+  NPX_COMMAND,
+  [
+    ...NPX_ARGS, "esbuild", ENTRY, "--bundle", "--format=esm", "--platform=node",
+    `--outfile=${BUNDLE}`, "--log-level=error",
+    `--alias:@capacitor/core=${join(HERE, "stubs/capacitor.mjs")}`,
     `--alias:@capacitor/local-notifications=${join(HERE, "stubs/local-notifications.mjs")}`,
+  ],
   { stdio: "inherit", cwd: ROOT },
 );
-const M = await import(BUNDLE);
+const M = await import(pathToFileURL(BUNDLE).href);
 
 // ══ 1. HER VOICE — what a lock screen is allowed to say ═══════════════════
 {
@@ -432,7 +441,7 @@ const M = await import(BUNDLE);
   // The README half of the slot. Six named fields and a numbered list, so
   // turning push on is a paste rather than a workstream — and the check is that
   // the instructions NAME the console and every field, not that they read well.
-  const flat = cfg.replace(/\n\/\/\s*/g, " ");
+  const flat = cfg.replace(/\r?\n\/\/\s*/g, " ");
   ok(
     "…and says exactly what the owner must paste",
     /console\.firebase\.google\.com/.test(flat) &&

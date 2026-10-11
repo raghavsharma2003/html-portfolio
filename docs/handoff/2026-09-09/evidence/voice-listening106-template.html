@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vyakti blind voice comparison</title>
+<style>
+/* EXISTING_LISTENING_CSS */
+main{width:min(820px,100%);padding-bottom:40px}
+.intro{margin-bottom:18px}.intro .lede{margin-bottom:8px}.intro .notice{margin-top:8px}
+.reference{margin:0 0 20px;border:1px solid var(--line);border-radius:12px;background:var(--paper-raised)}
+.reference summary{min-height:48px;padding:12px 16px;font-weight:700;cursor:pointer;display:flex;align-items:center}
+.reference-body{padding:0 16px 16px}.reference audio{width:100%;margin:0 0 8px}
+.pair-progress{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:8px;font-size:14px;font-weight:700}
+progress{width:100%;height:7px;margin:0 0 18px;accent-color:var(--forest)}
+.pair-card{padding:clamp(18px,4vw,28px)}.pair-card h2{margin:0 0 6px;font-size:22px}.prompt{margin-bottom:12px}.critical{margin:0 0 20px;line-height:1.5}
+.clips{display:grid;grid-template-columns:1fr 1fr;gap:14px}.clip{min-width:0;border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
+.clip h3{margin:0 0 8px;font-size:18px}.clip audio{display:block;width:100%;margin:0}
+label{display:block}select{width:100%;min-height:46px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:#fff;color:var(--ink);font:inherit}
+.preference{margin-top:20px}.preference>label{font-weight:700}.preference select{margin-top:7px;font-weight:400}
+.details{margin-top:18px;border-top:1px solid var(--line);padding-top:4px}.details>summary{min-height:48px;display:flex;align-items:center;font-weight:700;cursor:pointer}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.detail-clip{min-width:0}.detail-clip h3{margin:10px 0 4px;font-size:16px}
+.detail-clip label{margin:10px 0}.detail-clip textarea{min-height:72px}
+.pair-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}.pair-actions .save{grid-column:1/-1}
+.pair-actions button{width:100%}.pair-actions button:disabled{visibility:hidden}
+.save-status{min-height:22px;margin:8px 0 0;text-align:center}
+@media(max-width:650px){.clips,.detail-grid{grid-template-columns:1fr}.pair-card{border-radius:14px}.intro .notice{padding:10px 12px}}
+</style>
+</head>
+<body>
+<main>
+  <header class="intro"><div><p class="eyebrow">Vyakti voice check</p><h1>Listen and compare</h1></div></header>
+  <p class="lede">Compare one A/B pair at a time. A and B stay blind, and ties are welcome.</p>
+  <details class="reference"><summary>Stock reference and test limits</summary><div class="reference-body"><audio controls preload="metadata" src="reference.wav"></audio><p class="notice">The reference is a synthetic stock voice. Judge clarity, naturalness and accent. This does not test whether the voice sounds like its human owner. Each text was generated once per system.</p><p class="quiet">Full stock reference. Generated clips also include a spoken AI disclosure.</p><p id="counts" class="quiet"></p></div></details>
+  <div class="pair-progress"><span id="pair-count"></span><span id="rating-state" class="quiet"></span></div>
+  <progress id="progress" max="6" value="1"></progress>
+  <div id="pair"></div>
+  <div class="pair-actions" aria-label="Pair navigation"><button id="back" type="button">Back</button><button id="next" type="button" class="primary">Next</button><button id="save" type="button" class="save">Download my ratings</button></div>
+  <p id="save-status" role="status" class="quiet save-status">Ratings stay in this browser. Download them when finished.</p>
+</main>
+<script>
+const pack=/* PUBLIC_MANIFEST */;
+const answers={};let playbackErrors=new Set(),currentPair=0;
+try{Object.assign(answers,JSON.parse(localStorage.getItem('stock106:'+pack.id)||'{}'));}catch{}
+const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
+function persist(){try{localStorage.setItem('stock106:'+pack.id,JSON.stringify(answers));}catch{document.getElementById('save-status').textContent='Browser storage unavailable. Download your ratings before closing.';}}
+function counts(){document.getElementById('counts').textContent=`${pack.counts.verified} of ${pack.counts.expected} clips verified. ${pack.counts.unavailable} unavailable. ${playbackErrors.size} playback errors.`;}
+function select(key,title,choices,disabled=false){const label=el('label',title),s=el('select');s.setAttribute('aria-label',title);s.disabled=disabled;for(const [value,text]of [['','Choose after listening'],...choices]){const o=el('option',text);o.value=value;s.append(o);}s.value=answers[key]||'';s.onchange=()=>{answers[key]=s.value;persist();updateRatingState();};label.append(s);return label;}
+function detailFields(clip){const box=el('div');box.className='detail-clip';box.append(el('h3','Clip '+clip.label));for(const [axis,title]of [['naturalness','Naturalness'],['indian_accent','Accent fit for this language'],['pronunciation','Pronunciation and clarity']])box.append(select(clip.id+':'+axis,title,[[1,'1 · Poor'],[2,'2'],[3,'3'],[4,'4'],[5,'5 · Excellent']],clip.status!=='ready'));box.append(select(clip.id+':disclosure','Spoken AI disclosure',[['full','Full'],['partial','Partial or unclear'],['absent','Absent']],clip.status!=='ready'));const label=el('label','Words, numbers, negation or language switches that sounded wrong'),notes=el('textarea');notes.value=answers[clip.id+':notes']||'';notes.disabled=clip.status!=='ready';notes.oninput=()=>{answers[clip.id+':notes']=notes.value;persist();};label.append(notes);box.append(label);return box;}
+function updateRatingState(){const pair=pack.pairs[currentPair],rated=Boolean(answers[pair.id+':preference']);document.getElementById('rating-state').textContent=rated?'Choice saved':'Not rated yet';}
+function renderPair({focus=false}={}){const pair=pack.pairs[currentPair],section=el('section');section.className='card pair-card';const heading=el('h2',pair.language);heading.id='pair-heading';heading.tabIndex=-1;section.setAttribute('aria-labelledby',heading.id);section.append(heading);const prompt=el('p',pair.text);prompt.className='prompt';prompt.lang=pair.language==='English'?'en':'hi';section.append(prompt);const critical=el('p','Listen for: '+pair.criticalUnits.join(' · '));critical.className='critical quiet';section.append(critical);const clips=el('div');clips.className='clips';for(const clip of pair.clips){const col=el('div');col.className='clip';col.append(el('h3','Clip '+clip.label));if(clip.status==='ready'){const player=el('audio');player.controls=true;player.preload='metadata';player.src=clip.src;player.setAttribute('aria-label','Clip '+clip.label);player.onplay=()=>{document.querySelectorAll('audio').forEach(a=>{if(a!==player)a.pause();});};player.onended=()=>{answers[clip.id+':heardToEnd']=true;persist();};player.onerror=()=>{playbackErrors.add(clip.id);counts();};col.append(player);}else col.append(el('p','Output unavailable. Keep this failure in the comparison.'));clips.append(col);}section.append(clips);const preference=el('div');preference.className='preference';preference.append(select(pair.id+':preference','Which clip would you prefer for this text?',[['A','A'],['B','B'],['tie','Tie'],['cannot_judge','Cannot judge']],pair.clips.some(c=>c.status!=='ready')));section.append(preference);const details=el('details');details.className='details';details.append(el('summary','More detailed ratings'));const grid=el('div');grid.className='detail-grid';for(const clip of pair.clips)grid.append(detailFields(clip));details.append(grid);section.append(details);document.getElementById('pair').replaceChildren(section);document.getElementById('pair-count').textContent=`Pair ${currentPair+1} of ${pack.pairs.length}`;const progress=document.getElementById('progress');progress.max=pack.pairs.length;progress.value=currentPair+1;document.getElementById('back').disabled=currentPair===0;document.getElementById('next').textContent=currentPair===pack.pairs.length-1?'Review first pair':'Next';updateRatingState();counts();if(focus)heading.focus();}
+document.getElementById('back').onclick=()=>{if(currentPair===0)return;currentPair--;renderPair({focus:true});};
+document.getElementById('next').onclick=()=>{currentPair=currentPair===pack.pairs.length-1?0:currentPair+1;renderPair({focus:true});};
+document.querySelector('.reference audio').onplay=(event)=>{document.querySelectorAll('audio').forEach(a=>{if(a!==event.currentTarget)a.pause();});};
+document.getElementById('save').onclick=()=>{const result={contract:'stock106-human-listening-response/v1',packId:pack.id,at:new Date().toISOString(),counts:pack.counts,playbackErrors:[...playbackErrors],answers,automaticWinner:null,ownerLikenessAssessed:false};const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));const link=el('a');link.href=url;link.download='voice-ratings-'+pack.id+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);document.getElementById('save-status').textContent='Ratings downloaded. No winner was calculated.';};
+renderPair();
+</script>
+</body>
+</html>

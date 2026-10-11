@@ -1,0 +1,151 @@
+{
+  "source": "relational31-gpu-check-diagnosis-1788850824112-result.json",
+  "database": "vyakti_expert_integration_20260906",
+  "started_at": "2026-09-08T07:00:24.112Z",
+  "checks": [
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_accounting_basis_check",
+      "validated": true,
+      "definition": "CHECK ((accounting_basis = ANY (ARRAY['verified_bound'::text, 'planning_estimate'::text])))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_actual_microusd_check",
+      "validated": true,
+      "definition": "CHECK (((actual_microusd IS NULL) OR (actual_microusd >= 0)))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_check",
+      "validated": true,
+      "definition": "CHECK (((actual_microusd >= 0) AND (actual_microusd <= reserved_microusd)))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_check1",
+      "validated": true,
+      "definition": "CHECK (((state <> 'settled'::text) OR ((usage_sha256 IS NOT NULL) AND (actual_microusd IS NOT NULL) AND (finished_at IS NOT NULL))))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_check2",
+      "validated": true,
+      "definition": "CHECK (((state <> 'accounting_pending'::text) OR (response_sha256 IS NOT NULL)))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_contract_sha256_check",
+      "validated": true,
+      "definition": "CHECK ((contract_sha256 ~ '^[0-9a-f]{64}$'::text))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_max_allocation_seconds_check",
+      "validated": true,
+      "definition": "CHECK (((max_allocation_seconds >= 1) AND (max_allocation_seconds <= 3600)))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_provider_request_sha256_check",
+      "validated": true,
+      "definition": "CHECK ((provider_request_sha256 ~ '^[0-9a-f]{64}$'::text))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_request_sha256_check",
+      "validated": true,
+      "definition": "CHECK ((request_sha256 ~ '^[0-9a-f]{64}$'::text))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_reserved_microusd_check",
+      "validated": true,
+      "definition": "CHECK ((reserved_microusd > 0))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_resource_sha256_check",
+      "validated": true,
+      "definition": "CHECK ((resource_sha256 ~ '^[0-9a-f]{64}$'::text))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_response_sha256_check",
+      "validated": true,
+      "definition": "CHECK (((response_sha256 IS NULL) OR (response_sha256 ~ '^[0-9a-f]{64}$'::text)))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_revision_sha256_check",
+      "validated": true,
+      "definition": "CHECK ((revision_sha256 ~ '^[0-9a-f]{64}$'::text))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_state_check",
+      "validated": true,
+      "definition": "CHECK ((state = ANY (ARRAY['reserved'::text, 'in_flight'::text, 'accounting_pending'::text, 'uncertain'::text, 'settled'::text, 'released'::text])))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_allocation_window_usage_sha256_check",
+      "validated": true,
+      "definition": "CHECK (((usage_sha256 IS NULL) OR (usage_sha256 ~ '^[0-9a-f]{64}$'::text)))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_job_control_check",
+      "validated": true,
+      "definition": "CHECK (((job_control_state IS NULL) OR ((job_control_state = ANY (ARRAY['start_claimed'::text, 'start_unknown'::text, 'running'::text, 'stop_requested'::text, 'stop_pending'::text, 'observation_unknown'::text, 'terminal_observed'::text])) AND (azure_job_id IS NOT NULL) AND (azure_job_id ~~ '/subscriptions/%/providers/Microsoft.App/jobs/%'::text) AND (job_configuration_sha256 IS NOT NULL) AND (job_configuration_sha256 ~ '^[0-9a-f]{64}$'::text) AND (job_runtime_seconds IS NOT NULL) AND ((job_runtime_seconds >= 1) AND (job_runtime_seconds <= 3600)))))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_start_inventory_check",
+      "validated": true,
+      "definition": "CHECK (((job_prestart_inventory IS NULL) OR ((jsonb_typeof(job_prestart_inventory) = 'array'::text) AND (job_start_requested_at IS NOT NULL) AND (job_execution_template_sha256 IS NOT NULL) AND (job_execution_template_sha256 ~ '^[0-9a-f]{64}$'::text))))"
+    },
+    {
+      "table_name": "vy_gpu_allocation_window",
+      "constraint_name": "vy_gpu_start_recovery_check",
+      "validated": true,
+      "definition": "CHECK (((job_recovery_sha256 IS NULL) OR ((job_recovery_sha256 ~ '^[0-9a-f]{64}$'::text) AND (azure_execution_name IS NOT NULL) AND (job_prestart_inventory IS NOT NULL) AND (job_start_requested_at IS NOT NULL))))"
+    },
+    {
+      "table_name": "vy_provider_budget",
+      "constraint_name": "vy_provider_budget_currency_check",
+      "validated": true,
+      "definition": "CHECK ((currency = 'USD'::text))"
+    },
+    {
+      "table_name": "vy_provider_budget",
+      "constraint_name": "vy_provider_budget_limit_microusd_check",
+      "validated": true,
+      "definition": "CHECK ((limit_microusd > 0))"
+    },
+    {
+      "table_name": "vy_provider_budget",
+      "constraint_name": "vy_provider_budget_reserved_microusd_check",
+      "validated": true,
+      "definition": "CHECK ((reserved_microusd >= 0))"
+    },
+    {
+      "table_name": "vy_provider_budget",
+      "constraint_name": "vy_provider_budget_spent_microusd_check",
+      "validated": true,
+      "definition": "CHECK ((spent_microusd >= 0))"
+    },
+    {
+      "table_name": "vy_provider_budget",
+      "constraint_name": "vy_provider_budget_state_check",
+      "validated": true,
+      "definition": "CHECK ((state = ANY (ARRAY['active'::text, 'paused'::text, 'exhausted'::text])))"
+    },
+    {
+      "table_name": "vy_provider_budget",
+      "constraint_name": "vy_provider_budget_total_check",
+      "validated": true,
+      "definition": "CHECK ((((spent_microusd + reserved_microusd) <= limit_microusd) OR (state = ANY (ARRAY['paused'::text, 'exhausted'::text]))))"
+    }
+  ]
+}

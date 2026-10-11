@@ -13,7 +13,7 @@
 // Also invoked from scripts/check-prompt-budget.mjs so it rides the same
 // gate `verify-release.mjs` already runs (db-free, no network).
 import { execSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -26,7 +26,7 @@ execSync(
   { stdio: "inherit", cwd: ROOT },
 );
 
-const { compile, compileOld, FIXTURES, checkCoreByteStable } = await import(BUNDLE);
+const { compile, compileOld, FIXTURES, checkCoreByteStable } = await import(pathToFileURL(BUNDLE).href);
 
 // Freeze the wall clock for the whole comparison. Both sides stamp her phone
 // clock to the MINUTE (persona.ts nowContext()) at their own call time, so a

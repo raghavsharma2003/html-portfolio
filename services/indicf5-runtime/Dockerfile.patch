@@ -1,0 +1,13 @@
+# syntax=docker/dockerfile:1.7
+# Bounded runtime-only repair over the fully offline, pinned IndicF5 image.
+# No model weights or dependencies are downloaded or replaced here.
+FROM vyaktivoiceacr.azurecr.io/vyakti/indicf5-eval@sha256:22c4477cb70fdb3d3c43feab7b70e36a6948ed8c1933da63b13a829b4289e71c
+
+USER 0:0
+WORKDIR /srv/indicf5
+COPY contract.py ./contract.py
+COPY pronunciation_normalizer.py ./pronunciation_normalizer.py
+COPY app.py ./app.py
+RUN chown indicf5:indicf5 /srv/indicf5/contract.py /srv/indicf5/pronunciation_normalizer.py /srv/indicf5/app.py
+
+USER 10007:10007

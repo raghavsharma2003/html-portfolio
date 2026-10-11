@@ -1,0 +1,1590 @@
+{
+  "state": "committed162_verified_independently",
+  "started_at": "2026-09-09T04:35:34.297Z",
+  "packet_sha256": "e8c2c44fdba413ffdcc74f353fcd72694c406204eb39de8c698c37ce3dbf1ad5",
+  "source_head": "76f1db59186b4217ad858678697ed792264ff54b",
+  "sql_calls": 23,
+  "sql_acknowledged": 23,
+  "ddl_acknowledged": 1,
+  "commit_attempts": 1,
+  "commit_acknowledged": 1,
+  "fact_dml": 0,
+  "provider_calls": 0,
+  "statements": [
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "a8402858d4f1e1d27afee976520485ebb4b96a5387355b823f0d0b8079729032",
+      "state": "acknowledged",
+      "command": "BEGIN"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "8d5bf843cdc4cfc096e7173c920388628550541ddf5f7f61d27eff4868c2bbad",
+      "state": "acknowledged",
+      "command": "SET"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "cea9f42bb983b8f5fcac64ba0178dd95deb19e841e9be0baf352f818054b1798",
+      "state": "acknowledged",
+      "command": "SET"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "7f3acf448a5612f6bd684b411a7bf72add21652f3489f59ebb5f4725650b9c40",
+      "state": "acknowledged",
+      "command": "SET"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "90badd01321d7fde007ff29da9b66084fbf73bb46c1e63b8c0fdc561855a7763",
+      "state": "acknowledged",
+      "command": "SET"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "c4b93fe66a11402a4b8f4d7aaeb213bd3b41635d90954d5b1950258819dcc001",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "875bbe71cc4a726e70e54f2f0b287efbd4ef655b066c37b908e022c17a048b9d",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "206cb978823209233f5a56a7f633dad4a7f00534423787c69633895fcc22fffb",
+      "state": "acknowledged",
+      "command": "LOCK"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "c30324589be19c76e0b8a45e4e552fdd0c39f20e8aafc0b59cc42288741974a3",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "locked_preflight",
+      "session": "primary",
+      "sql_sha256": "facaf3730600dbfcb9cf03174ff6848f7f76bc6dd476ff769c09cbdf94c9087d",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "one_additive_alter",
+      "session": "primary",
+      "sql_sha256": "211d32d901871c09da64d73f213300f06a9c674e4343eb704edb48e8f150cd3a",
+      "state": "acknowledged",
+      "command": "ALTER"
+    },
+    {
+      "phase": "precommit_postflight",
+      "session": "primary",
+      "sql_sha256": "c30324589be19c76e0b8a45e4e552fdd0c39f20e8aafc0b59cc42288741974a3",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "precommit_postflight",
+      "session": "primary",
+      "sql_sha256": "facaf3730600dbfcb9cf03174ff6848f7f76bc6dd476ff769c09cbdf94c9087d",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "commit",
+      "session": "primary",
+      "sql_sha256": "79663c1d3b43ceaf9ee728e501c64b57ae2e4d6cb36ff5c65eddcda1de27342f",
+      "state": "acknowledged",
+      "command": "COMMIT"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "d85f85aa1fb0cac606e5d5ab004b27bd78e8fd5137b504e2ba5878975e620cf4",
+      "state": "acknowledged",
+      "command": "BEGIN"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "8d5bf843cdc4cfc096e7173c920388628550541ddf5f7f61d27eff4868c2bbad",
+      "state": "acknowledged",
+      "command": "SET"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "cea9f42bb983b8f5fcac64ba0178dd95deb19e841e9be0baf352f818054b1798",
+      "state": "acknowledged",
+      "command": "SET"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "7f3acf448a5612f6bd684b411a7bf72add21652f3489f59ebb5f4725650b9c40",
+      "state": "acknowledged",
+      "command": "SET"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "90badd01321d7fde007ff29da9b66084fbf73bb46c1e63b8c0fdc561855a7763",
+      "state": "acknowledged",
+      "command": "SET"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "c4b93fe66a11402a4b8f4d7aaeb213bd3b41635d90954d5b1950258819dcc001",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "c30324589be19c76e0b8a45e4e552fdd0c39f20e8aafc0b59cc42288741974a3",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "facaf3730600dbfcb9cf03174ff6848f7f76bc6dd476ff769c09cbdf94c9087d",
+      "state": "acknowledged",
+      "command": "SELECT"
+    },
+    {
+      "phase": "independent_postcheck",
+      "session": "observer",
+      "sql_sha256": "587fa628a9fe4642ac0e22825a97e81d388af674f7251a9fb699f96901dcb710",
+      "state": "acknowledged",
+      "command": "ROLLBACK"
+    }
+  ],
+  "snapshots": {
+    "locked_before": {
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "bigint",
+          "attnum": 1,
+          "default": null,
+          "identity": "a",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "person_id",
+          "type": "uuid",
+          "attnum": 2,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "kind",
+          "type": "text",
+          "attnum": 3,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "name",
+          "type": "text",
+          "attnum": 4,
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "body",
+          "type": "text",
+          "attnum": 5,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "feel",
+          "type": "text",
+          "attnum": 6,
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "provenance",
+          "type": "text",
+          "attnum": 7,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "confidence",
+          "type": "real",
+          "attnum": 8,
+          "default": "0.8",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "citations",
+          "type": "bigint[]",
+          "attnum": 9,
+          "default": "'{}'::bigint[]",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "t_valid",
+          "type": "timestamp with time zone",
+          "attnum": 10,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "t_invalid",
+          "type": "timestamp with time zone",
+          "attnum": 11,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "superseded_by",
+          "type": "bigint",
+          "attnum": 12,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "correction_surfaced",
+          "type": "boolean",
+          "attnum": 13,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "sensitive",
+          "type": "boolean",
+          "attnum": 14,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "time_bound",
+          "type": "boolean",
+          "attnum": 15,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "need_p",
+          "type": "real",
+          "attnum": 16,
+          "default": "1.0",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "provisional",
+          "type": "boolean",
+          "attnum": 17,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "retracted_at",
+          "type": "timestamp with time zone",
+          "attnum": 18,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "attnum": 19,
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "group_id",
+          "type": "bigint",
+          "attnum": 20,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "disclosure_deny",
+          "type": "uuid[]",
+          "attnum": 21,
+          "default": "'{}'::uuid[]",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": true
+        },
+        {
+          "acl": null,
+          "name": "agent_id",
+          "type": "uuid",
+          "attnum": 22,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "valid_from",
+          "type": "timestamp with time zone",
+          "attnum": 23,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "valid_to",
+          "type": "timestamp with time zone",
+          "attnum": 24,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        }
+      ],
+      "indexes": [
+        {
+          "oid": "707838",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX vy_fact_pkey ON public.vy_fact USING btree (id)"
+        },
+        {
+          "oid": "707840",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_person_ix ON public.vy_fact USING btree (person_id, kind, need_p DESC) WHERE ((t_invalid IS NULL) AND (retracted_at IS NULL))"
+        },
+        {
+          "oid": "707841",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_cit_ix ON public.vy_fact USING gin (citations)"
+        },
+        {
+          "oid": "708444",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_group_ix ON public.vy_fact USING btree (group_id, need_p DESC) WHERE ((group_id IS NOT NULL) AND (t_invalid IS NULL) AND (retracted_at IS NULL))"
+        },
+        {
+          "oid": "708499",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_agent_person_ix ON public.vy_fact USING btree (agent_id, person_id)"
+        },
+        {
+          "oid": "710540",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_validity_ix ON public.vy_fact USING btree (person_id, valid_to) WHERE ((valid_to IS NOT NULL) AND (t_invalid IS NULL) AND (retracted_at IS NULL))"
+        }
+      ],
+      "relation": {
+        "acl": null,
+        "oid": "707820",
+        "rls": false,
+        "owner": "16391",
+        "checks": 4,
+        "relkind": "r",
+        "filenode": "707820",
+        "force_rls": false,
+        "partition": false,
+        "can_select": true,
+        "persistence": "p",
+        "owner_member": true
+      },
+      "triggers": [
+        {
+          "oid": "712703",
+          "name": "RI_ConstraintTrigger_c_712703",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_712703\" AFTER INSERT ON vy_fact FROM vy_agent NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_ins\"()"
+        },
+        {
+          "oid": "712704",
+          "name": "RI_ConstraintTrigger_c_712704",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_712704\" AFTER UPDATE ON vy_fact FROM vy_agent NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_upd\"()"
+        }
+      ],
+      "constraints": [
+        {
+          "oid": "712700",
+          "keys": [
+            22
+          ],
+          "name": "vy_fact_agent_fk",
+          "type": "f",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (agent_id) REFERENCES vy_agent(agent_id) ON DELETE CASCADE",
+          "expression": null,
+          "inherited_count": 0
+        },
+        {
+          "oid": "707835",
+          "keys": [
+            7,
+            9
+          ],
+          "name": "vy_fact_cite_or_authored",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((provenance = ANY (ARRAY['authored'::text, 'legacy'::text])) OR cardinality(citations) >= 1)",
+          "expression": "{BOOLEXPR :boolop or :args ({SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 97 117 116 104 111 114 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 108 101 103 97 99 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 525 :opfuncid 150 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({FUNCEXPR :funcid 3179 :funcresulttype 23 :funcretset false :funcvariadic false :funcformat 0 :funccollid 0 :inputcollid 0 :args ({VAR :varno 1 :varattno 9 :vartype 1016 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 9 :location -1}) :location -1} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location -1 :constvalue 4 [ 1 0 0 0 0 0 0 0 ]}) :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "707833",
+          "keys": [
+            3
+          ],
+          "name": "vy_fact_kind_check",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (kind = ANY (ARRAY['user'::text, 'world'::text, 'self_in_relation'::text, 'relationship'::text, 'india'::text, 'meera'::text]))",
+          "expression": "{SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 3 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 117 115 101 114 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 119 111 114 108 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 115 101 108 102 95 105 110 95 114 101 108 97 116 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 16 [ 64 0 0 0 114 101 108 97 116 105 111 110 115 104 105 112 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 105 110 100 105 97 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 109 101 101 114 97 ]}) :multidims false :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "707839",
+          "keys": [
+            1
+          ],
+          "name": "vy_fact_pkey",
+          "type": "p",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "expression": null,
+          "inherited_count": 0
+        },
+        {
+          "oid": "707834",
+          "keys": [
+            7
+          ],
+          "name": "vy_fact_provenance_check",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (provenance = ANY (ARRAY['user_said'::text, 'extracted'::text, 'derived'::text, 'authored'::text, 'legacy'::text]))",
+          "expression": "{SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 117 115 101 114 95 115 97 105 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 101 120 116 114 97 99 116 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 100 101 114 105 118 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 97 117 116 104 111 114 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 108 101 103 97 99 121 ]}) :multidims false :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "710539",
+          "keys": [
+            23,
+            24
+          ],
+          "name": "vy_fact_validity_order",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_to >= valid_from)",
+          "expression": "{BOOLEXPR :boolop or :args ({NULLTEST :arg {VAR :varno 1 :varattno 23 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 23 :location -1} :nulltesttype 0 :argisrow false :location -1} {NULLTEST :arg {VAR :varno 1 :varattno 24 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 24 :location -1} :nulltesttype 0 :argisrow false :location -1} {OPEXPR :opno 1325 :opfuncid 1156 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({VAR :varno 1 :varattno 24 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 24 :location -1} {VAR :varno 1 :varattno 23 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 23 :location -1}) :location -1}) :location -1}",
+          "inherited_count": 0
+        }
+      ]
+    },
+    "before_commit": {
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "bigint",
+          "attnum": 1,
+          "default": null,
+          "identity": "a",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "person_id",
+          "type": "uuid",
+          "attnum": 2,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "kind",
+          "type": "text",
+          "attnum": 3,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "name",
+          "type": "text",
+          "attnum": 4,
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "body",
+          "type": "text",
+          "attnum": 5,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "feel",
+          "type": "text",
+          "attnum": 6,
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "provenance",
+          "type": "text",
+          "attnum": 7,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "confidence",
+          "type": "real",
+          "attnum": 8,
+          "default": "0.8",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "citations",
+          "type": "bigint[]",
+          "attnum": 9,
+          "default": "'{}'::bigint[]",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "t_valid",
+          "type": "timestamp with time zone",
+          "attnum": 10,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "t_invalid",
+          "type": "timestamp with time zone",
+          "attnum": 11,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "superseded_by",
+          "type": "bigint",
+          "attnum": 12,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "correction_surfaced",
+          "type": "boolean",
+          "attnum": 13,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "sensitive",
+          "type": "boolean",
+          "attnum": 14,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "time_bound",
+          "type": "boolean",
+          "attnum": 15,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "need_p",
+          "type": "real",
+          "attnum": 16,
+          "default": "1.0",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "provisional",
+          "type": "boolean",
+          "attnum": 17,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "retracted_at",
+          "type": "timestamp with time zone",
+          "attnum": 18,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "attnum": 19,
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "group_id",
+          "type": "bigint",
+          "attnum": 20,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "disclosure_deny",
+          "type": "uuid[]",
+          "attnum": 21,
+          "default": "'{}'::uuid[]",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": true
+        },
+        {
+          "acl": null,
+          "name": "agent_id",
+          "type": "uuid",
+          "attnum": 22,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "valid_from",
+          "type": "timestamp with time zone",
+          "attnum": 23,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "valid_to",
+          "type": "timestamp with time zone",
+          "attnum": 24,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "communication",
+          "type": "jsonb",
+          "attnum": 25,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        }
+      ],
+      "indexes": [
+        {
+          "oid": "707838",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX vy_fact_pkey ON public.vy_fact USING btree (id)"
+        },
+        {
+          "oid": "707840",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_person_ix ON public.vy_fact USING btree (person_id, kind, need_p DESC) WHERE ((t_invalid IS NULL) AND (retracted_at IS NULL))"
+        },
+        {
+          "oid": "707841",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_cit_ix ON public.vy_fact USING gin (citations)"
+        },
+        {
+          "oid": "708444",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_group_ix ON public.vy_fact USING btree (group_id, need_p DESC) WHERE ((group_id IS NOT NULL) AND (t_invalid IS NULL) AND (retracted_at IS NULL))"
+        },
+        {
+          "oid": "708499",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_agent_person_ix ON public.vy_fact USING btree (agent_id, person_id)"
+        },
+        {
+          "oid": "710540",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_validity_ix ON public.vy_fact USING btree (person_id, valid_to) WHERE ((valid_to IS NOT NULL) AND (t_invalid IS NULL) AND (retracted_at IS NULL))"
+        }
+      ],
+      "relation": {
+        "acl": null,
+        "oid": "707820",
+        "rls": false,
+        "owner": "16391",
+        "checks": 5,
+        "relkind": "r",
+        "filenode": "707820",
+        "force_rls": false,
+        "partition": false,
+        "can_select": true,
+        "persistence": "p",
+        "owner_member": true
+      },
+      "triggers": [
+        {
+          "oid": "712703",
+          "name": "RI_ConstraintTrigger_c_712703",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_712703\" AFTER INSERT ON vy_fact FROM vy_agent NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_ins\"()"
+        },
+        {
+          "oid": "712704",
+          "name": "RI_ConstraintTrigger_c_712704",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_712704\" AFTER UPDATE ON vy_fact FROM vy_agent NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_upd\"()"
+        }
+      ],
+      "constraints": [
+        {
+          "oid": "712700",
+          "keys": [
+            22
+          ],
+          "name": "vy_fact_agent_fk",
+          "type": "f",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (agent_id) REFERENCES vy_agent(agent_id) ON DELETE CASCADE",
+          "expression": null,
+          "inherited_count": 0
+        },
+        {
+          "oid": "707835",
+          "keys": [
+            7,
+            9
+          ],
+          "name": "vy_fact_cite_or_authored",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((provenance = ANY (ARRAY['authored'::text, 'legacy'::text])) OR cardinality(citations) >= 1)",
+          "expression": "{BOOLEXPR :boolop or :args ({SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 97 117 116 104 111 114 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 108 101 103 97 99 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 525 :opfuncid 150 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({FUNCEXPR :funcid 3179 :funcresulttype 23 :funcretset false :funcvariadic false :funcformat 0 :funccollid 0 :inputcollid 0 :args ({VAR :varno 1 :varattno 9 :vartype 1016 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 9 :location -1}) :location -1} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location -1 :constvalue 4 [ 1 0 0 0 0 0 0 0 ]}) :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "715585",
+          "keys": [
+            25,
+            3,
+            4,
+            7
+          ],
+          "name": "vy_fact_communication_check",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (communication IS NULL OR kind = 'user'::text AND name = 'preference'::text AND provenance = 'user_said'::text AND jsonb_typeof(communication) = 'object'::text AND communication ?& ARRAY['version'::text, 'state'::text, 'scope'::text, 'language'::text, 'script'::text, 'brevity'::text] AND (communication - ARRAY['version'::text, 'state'::text, 'scope'::text, 'language'::text, 'script'::text, 'brevity'::text]) = '{}'::jsonb AND (communication -> 'version'::text) = '1'::jsonb AND ((communication -> 'state'::text) = ANY (ARRAY['\"classified\"'::jsonb, '\"unclassified\"'::jsonb, '\"no_preference\"'::jsonb])) AND jsonb_typeof(communication -> 'scope'::text) = 'object'::text AND (communication -> 'scope'::text) ?& ARRAY['language'::text, 'script'::text, 'brevity'::text] AND ((communication -> 'scope'::text) - ARRAY['language'::text, 'script'::text, 'brevity'::text]) = '{}'::jsonb AND jsonb_typeof((communication -> 'scope'::text) -> 'language'::text) = 'boolean'::text AND jsonb_typeof((communication -> 'scope'::text) -> 'script'::text) = 'boolean'::text AND jsonb_typeof((communication -> 'scope'::text) -> 'brevity'::text) = 'boolean'::text AND (((communication -> 'scope'::text) -> 'language'::text) = 'true'::jsonb OR ((communication -> 'scope'::text) -> 'script'::text) = 'true'::jsonb OR ((communication -> 'scope'::text) -> 'brevity'::text) = 'true'::jsonb) AND ((communication -> 'language'::text) = ANY (ARRAY['null'::jsonb, '\"english\"'::jsonb, '\"hindi\"'::jsonb, '\"hinglish\"'::jsonb])) AND ((communication -> 'script'::text) = ANY (ARRAY['null'::jsonb, '\"roman\"'::jsonb, '\"devanagari\"'::jsonb])) AND ((communication -> 'brevity'::text) = ANY (ARRAY['null'::jsonb, '\"short\"'::jsonb, '\"detailed\"'::jsonb])) AND ((communication -> 'language'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'language'::text) = 'true'::jsonb) AND ((communication -> 'script'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'script'::text) = 'true'::jsonb) AND ((communication -> 'brevity'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'brevity'::text) = 'true'::jsonb) AND ((communication ->> 'state'::text) = 'classified'::text AND ((communication -> 'language'::text) <> 'null'::jsonb OR (communication -> 'script'::text) <> 'null'::jsonb OR (communication -> 'brevity'::text) <> 'null'::jsonb) OR ((communication ->> 'state'::text) = ANY (ARRAY['unclassified'::text, 'no_preference'::text])) AND (communication -> 'language'::text) = 'null'::jsonb AND (communication -> 'script'::text) = 'null'::jsonb AND (communication -> 'brevity'::text) = 'null'::jsonb))",
+          "expression": "{BOOLEXPR :boolop or :args ({NULLTEST :arg {VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} :nulltesttype 0 :argisrow false :location -1} {BOOLEXPR :boolop and :args ({OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 3 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 117 115 101 114 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 4 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 4 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 14 [ 56 0 0 0 112 114 101 102 101 114 101 110 99 101 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 117 115 101 114 95 115 97 105 100 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 111 98 106 101 99 116 ]}) :location -1} {OPEXPR :opno 3249 :opfuncid 4049 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3398 :opfuncid 3343 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 0 0 0 32 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -112 32 0 0 0 0 -128 1 0 ]}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 22 [ 88 0 0 0 1 0 0 80 10 0 0 -128 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 24 [ 96 0 0 0 1 0 0 80 12 0 0 -128 117 110 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 25 [ 100 0 0 0 1 0 0 80 13 0 0 -128 110 111 95 112 114 101 102 101 114 101 110 99 101 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 111 98 106 101 99 116 ]}) :location -1} {OPEXPR :opno 3249 :opfuncid 4049 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3398 :opfuncid 3343 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 0 0 0 32 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 19 [ 76 0 0 0 1 0 0 80 7 0 0 -128 101 110 103 108 105 115 104 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 104 105 110 100 105 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -128 104 105 110 103 108 105 115 104 ]}) :multidims false :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 114 111 109 97 110 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 22 [ 88 0 0 0 1 0 0 80 10 0 0 -128 100 101 118 97 110 97 103 97 114 105 ]}) :multidims false :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 115 104 111 114 116 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -128 100 101 116 97 105 108 101 100 ]}) :multidims false :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({BOOLEXPR :boolop and :args ({OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3477 :opfuncid 3214 :opresulttype 25 :opretset false :opcollid 100 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 14 [ 56 0 0 0 99 108 97 115 115 105 102 105 101 100 ]}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1}) :location -1}) :location -1} {BOOLEXPR :boolop and :args ({SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({OPEXPR :opno 3477 :opfuncid 3214 :opresulttype 25 :opretset false :opcollid 100 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 16 [ 64 0 0 0 117 110 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 110 111 95 112 114 101 102 101 114 101 110 99 101 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1}) :location -1}) :location -1}) :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "707833",
+          "keys": [
+            3
+          ],
+          "name": "vy_fact_kind_check",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (kind = ANY (ARRAY['user'::text, 'world'::text, 'self_in_relation'::text, 'relationship'::text, 'india'::text, 'meera'::text]))",
+          "expression": "{SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 3 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 117 115 101 114 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 119 111 114 108 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 115 101 108 102 95 105 110 95 114 101 108 97 116 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 16 [ 64 0 0 0 114 101 108 97 116 105 111 110 115 104 105 112 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 105 110 100 105 97 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 109 101 101 114 97 ]}) :multidims false :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "707839",
+          "keys": [
+            1
+          ],
+          "name": "vy_fact_pkey",
+          "type": "p",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "expression": null,
+          "inherited_count": 0
+        },
+        {
+          "oid": "707834",
+          "keys": [
+            7
+          ],
+          "name": "vy_fact_provenance_check",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (provenance = ANY (ARRAY['user_said'::text, 'extracted'::text, 'derived'::text, 'authored'::text, 'legacy'::text]))",
+          "expression": "{SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 117 115 101 114 95 115 97 105 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 101 120 116 114 97 99 116 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 100 101 114 105 118 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 97 117 116 104 111 114 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 108 101 103 97 99 121 ]}) :multidims false :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "710539",
+          "keys": [
+            23,
+            24
+          ],
+          "name": "vy_fact_validity_order",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_to >= valid_from)",
+          "expression": "{BOOLEXPR :boolop or :args ({NULLTEST :arg {VAR :varno 1 :varattno 23 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 23 :location -1} :nulltesttype 0 :argisrow false :location -1} {NULLTEST :arg {VAR :varno 1 :varattno 24 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 24 :location -1} :nulltesttype 0 :argisrow false :location -1} {OPEXPR :opno 1325 :opfuncid 1156 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({VAR :varno 1 :varattno 24 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 24 :location -1} {VAR :varno 1 :varattno 23 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 23 :location -1}) :location -1}) :location -1}",
+          "inherited_count": 0
+        }
+      ]
+    },
+    "independent_after": {
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "bigint",
+          "attnum": 1,
+          "default": null,
+          "identity": "a",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "person_id",
+          "type": "uuid",
+          "attnum": 2,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "kind",
+          "type": "text",
+          "attnum": 3,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "name",
+          "type": "text",
+          "attnum": 4,
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "body",
+          "type": "text",
+          "attnum": 5,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "feel",
+          "type": "text",
+          "attnum": 6,
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "provenance",
+          "type": "text",
+          "attnum": 7,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "confidence",
+          "type": "real",
+          "attnum": 8,
+          "default": "0.8",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "citations",
+          "type": "bigint[]",
+          "attnum": 9,
+          "default": "'{}'::bigint[]",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "t_valid",
+          "type": "timestamp with time zone",
+          "attnum": 10,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "t_invalid",
+          "type": "timestamp with time zone",
+          "attnum": 11,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "superseded_by",
+          "type": "bigint",
+          "attnum": 12,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "correction_surfaced",
+          "type": "boolean",
+          "attnum": 13,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "sensitive",
+          "type": "boolean",
+          "attnum": 14,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "time_bound",
+          "type": "boolean",
+          "attnum": 15,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "need_p",
+          "type": "real",
+          "attnum": 16,
+          "default": "1.0",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "provisional",
+          "type": "boolean",
+          "attnum": 17,
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "retracted_at",
+          "type": "timestamp with time zone",
+          "attnum": 18,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "attnum": 19,
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "group_id",
+          "type": "bigint",
+          "attnum": 20,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "disclosure_deny",
+          "type": "uuid[]",
+          "attnum": 21,
+          "default": "'{}'::uuid[]",
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": true
+        },
+        {
+          "acl": null,
+          "name": "agent_id",
+          "type": "uuid",
+          "attnum": 22,
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "valid_from",
+          "type": "timestamp with time zone",
+          "attnum": 23,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "valid_to",
+          "type": "timestamp with time zone",
+          "attnum": 24,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        },
+        {
+          "acl": null,
+          "name": "communication",
+          "type": "jsonb",
+          "attnum": 25,
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": "",
+          "has_missing": false
+        }
+      ],
+      "indexes": [
+        {
+          "oid": "707838",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX vy_fact_pkey ON public.vy_fact USING btree (id)"
+        },
+        {
+          "oid": "707840",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_person_ix ON public.vy_fact USING btree (person_id, kind, need_p DESC) WHERE ((t_invalid IS NULL) AND (retracted_at IS NULL))"
+        },
+        {
+          "oid": "707841",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_cit_ix ON public.vy_fact USING gin (citations)"
+        },
+        {
+          "oid": "708444",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_group_ix ON public.vy_fact USING btree (group_id, need_p DESC) WHERE ((group_id IS NOT NULL) AND (t_invalid IS NULL) AND (retracted_at IS NULL))"
+        },
+        {
+          "oid": "708499",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_agent_person_ix ON public.vy_fact USING btree (agent_id, person_id)"
+        },
+        {
+          "oid": "710540",
+          "live": true,
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX vy_fact_validity_ix ON public.vy_fact USING btree (person_id, valid_to) WHERE ((valid_to IS NOT NULL) AND (t_invalid IS NULL) AND (retracted_at IS NULL))"
+        }
+      ],
+      "relation": {
+        "acl": null,
+        "oid": "707820",
+        "rls": false,
+        "owner": "16391",
+        "checks": 5,
+        "relkind": "r",
+        "filenode": "707820",
+        "force_rls": false,
+        "partition": false,
+        "can_select": true,
+        "persistence": "p",
+        "owner_member": true
+      },
+      "triggers": [
+        {
+          "oid": "712703",
+          "name": "RI_ConstraintTrigger_c_712703",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_712703\" AFTER INSERT ON vy_fact FROM vy_agent NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_ins\"()"
+        },
+        {
+          "oid": "712704",
+          "name": "RI_ConstraintTrigger_c_712704",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_712704\" AFTER UPDATE ON vy_fact FROM vy_agent NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_upd\"()"
+        }
+      ],
+      "constraints": [
+        {
+          "oid": "712700",
+          "keys": [
+            22
+          ],
+          "name": "vy_fact_agent_fk",
+          "type": "f",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (agent_id) REFERENCES vy_agent(agent_id) ON DELETE CASCADE",
+          "expression": null,
+          "inherited_count": 0
+        },
+        {
+          "oid": "707835",
+          "keys": [
+            7,
+            9
+          ],
+          "name": "vy_fact_cite_or_authored",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((provenance = ANY (ARRAY['authored'::text, 'legacy'::text])) OR cardinality(citations) >= 1)",
+          "expression": "{BOOLEXPR :boolop or :args ({SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 97 117 116 104 111 114 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 108 101 103 97 99 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 525 :opfuncid 150 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({FUNCEXPR :funcid 3179 :funcresulttype 23 :funcretset false :funcvariadic false :funcformat 0 :funccollid 0 :inputcollid 0 :args ({VAR :varno 1 :varattno 9 :vartype 1016 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 9 :location -1}) :location -1} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location -1 :constvalue 4 [ 1 0 0 0 0 0 0 0 ]}) :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "715585",
+          "keys": [
+            25,
+            3,
+            4,
+            7
+          ],
+          "name": "vy_fact_communication_check",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (communication IS NULL OR kind = 'user'::text AND name = 'preference'::text AND provenance = 'user_said'::text AND jsonb_typeof(communication) = 'object'::text AND communication ?& ARRAY['version'::text, 'state'::text, 'scope'::text, 'language'::text, 'script'::text, 'brevity'::text] AND (communication - ARRAY['version'::text, 'state'::text, 'scope'::text, 'language'::text, 'script'::text, 'brevity'::text]) = '{}'::jsonb AND (communication -> 'version'::text) = '1'::jsonb AND ((communication -> 'state'::text) = ANY (ARRAY['\"classified\"'::jsonb, '\"unclassified\"'::jsonb, '\"no_preference\"'::jsonb])) AND jsonb_typeof(communication -> 'scope'::text) = 'object'::text AND (communication -> 'scope'::text) ?& ARRAY['language'::text, 'script'::text, 'brevity'::text] AND ((communication -> 'scope'::text) - ARRAY['language'::text, 'script'::text, 'brevity'::text]) = '{}'::jsonb AND jsonb_typeof((communication -> 'scope'::text) -> 'language'::text) = 'boolean'::text AND jsonb_typeof((communication -> 'scope'::text) -> 'script'::text) = 'boolean'::text AND jsonb_typeof((communication -> 'scope'::text) -> 'brevity'::text) = 'boolean'::text AND (((communication -> 'scope'::text) -> 'language'::text) = 'true'::jsonb OR ((communication -> 'scope'::text) -> 'script'::text) = 'true'::jsonb OR ((communication -> 'scope'::text) -> 'brevity'::text) = 'true'::jsonb) AND ((communication -> 'language'::text) = ANY (ARRAY['null'::jsonb, '\"english\"'::jsonb, '\"hindi\"'::jsonb, '\"hinglish\"'::jsonb])) AND ((communication -> 'script'::text) = ANY (ARRAY['null'::jsonb, '\"roman\"'::jsonb, '\"devanagari\"'::jsonb])) AND ((communication -> 'brevity'::text) = ANY (ARRAY['null'::jsonb, '\"short\"'::jsonb, '\"detailed\"'::jsonb])) AND ((communication -> 'language'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'language'::text) = 'true'::jsonb) AND ((communication -> 'script'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'script'::text) = 'true'::jsonb) AND ((communication -> 'brevity'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'brevity'::text) = 'true'::jsonb) AND ((communication ->> 'state'::text) = 'classified'::text AND ((communication -> 'language'::text) <> 'null'::jsonb OR (communication -> 'script'::text) <> 'null'::jsonb OR (communication -> 'brevity'::text) <> 'null'::jsonb) OR ((communication ->> 'state'::text) = ANY (ARRAY['unclassified'::text, 'no_preference'::text])) AND (communication -> 'language'::text) = 'null'::jsonb AND (communication -> 'script'::text) = 'null'::jsonb AND (communication -> 'brevity'::text) = 'null'::jsonb))",
+          "expression": "{BOOLEXPR :boolop or :args ({NULLTEST :arg {VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} :nulltesttype 0 :argisrow false :location -1} {BOOLEXPR :boolop and :args ({OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 3 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 117 115 101 114 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 4 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 4 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 14 [ 56 0 0 0 112 114 101 102 101 114 101 110 99 101 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 117 115 101 114 95 115 97 105 100 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 111 98 106 101 99 116 ]}) :location -1} {OPEXPR :opno 3249 :opfuncid 4049 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3398 :opfuncid 3343 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 0 0 0 32 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -112 32 0 0 0 0 -128 1 0 ]}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 22 [ 88 0 0 0 1 0 0 80 10 0 0 -128 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 24 [ 96 0 0 0 1 0 0 80 12 0 0 -128 117 110 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 25 [ 100 0 0 0 1 0 0 80 13 0 0 -128 110 111 95 112 114 101 102 101 114 101 110 99 101 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 111 98 106 101 99 116 ]}) :location -1} {OPEXPR :opno 3249 :opfuncid 4049 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3398 :opfuncid 3343 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 0 0 0 32 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 19 [ 76 0 0 0 1 0 0 80 7 0 0 -128 101 110 103 108 105 115 104 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 104 105 110 100 105 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -128 104 105 110 103 108 105 115 104 ]}) :multidims false :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 114 111 109 97 110 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 22 [ 88 0 0 0 1 0 0 80 10 0 0 -128 100 101 118 97 110 97 103 97 114 105 ]}) :multidims false :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 115 104 111 114 116 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -128 100 101 116 97 105 108 101 100 ]}) :multidims false :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({BOOLEXPR :boolop and :args ({OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3477 :opfuncid 3214 :opresulttype 25 :opretset false :opcollid 100 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 14 [ 56 0 0 0 99 108 97 115 115 105 102 105 101 100 ]}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1}) :location -1}) :location -1} {BOOLEXPR :boolop and :args ({SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({OPEXPR :opno 3477 :opfuncid 3214 :opresulttype 25 :opretset false :opcollid 100 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 16 [ 64 0 0 0 117 110 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 110 111 95 112 114 101 102 101 114 101 110 99 101 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1}) :location -1}) :location -1}) :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "707833",
+          "keys": [
+            3
+          ],
+          "name": "vy_fact_kind_check",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (kind = ANY (ARRAY['user'::text, 'world'::text, 'self_in_relation'::text, 'relationship'::text, 'india'::text, 'meera'::text]))",
+          "expression": "{SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 3 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 117 115 101 114 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 119 111 114 108 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 115 101 108 102 95 105 110 95 114 101 108 97 116 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 16 [ 64 0 0 0 114 101 108 97 116 105 111 110 115 104 105 112 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 105 110 100 105 97 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 109 101 101 114 97 ]}) :multidims false :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "707839",
+          "keys": [
+            1
+          ],
+          "name": "vy_fact_pkey",
+          "type": "p",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "expression": null,
+          "inherited_count": 0
+        },
+        {
+          "oid": "707834",
+          "keys": [
+            7
+          ],
+          "name": "vy_fact_provenance_check",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (provenance = ANY (ARRAY['user_said'::text, 'extracted'::text, 'derived'::text, 'authored'::text, 'legacy'::text]))",
+          "expression": "{SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 117 115 101 114 95 115 97 105 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 101 120 116 114 97 99 116 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 100 101 114 105 118 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 97 117 116 104 111 114 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 108 101 103 97 99 121 ]}) :multidims false :location -1}) :location -1}",
+          "inherited_count": 0
+        },
+        {
+          "oid": "710539",
+          "keys": [
+            23,
+            24
+          ],
+          "name": "vy_fact_validity_order",
+          "type": "c",
+          "local": true,
+          "deferred": false,
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_to >= valid_from)",
+          "expression": "{BOOLEXPR :boolop or :args ({NULLTEST :arg {VAR :varno 1 :varattno 23 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 23 :location -1} :nulltesttype 0 :argisrow false :location -1} {NULLTEST :arg {VAR :varno 1 :varattno 24 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 24 :location -1} :nulltesttype 0 :argisrow false :location -1} {OPEXPR :opno 1325 :opfuncid 1156 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({VAR :varno 1 :varattno 24 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 24 :location -1} {VAR :varno 1 :varattno 23 :vartype 1184 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 23 :location -1}) :location -1}) :location -1}",
+          "inherited_count": 0
+        }
+      ]
+    }
+  },
+  "errors": [],
+  "projection_before": [
+    {
+      "row_count": "0",
+      "projection_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "added_constraint": {
+    "oid": "715585",
+    "keys": [
+      25,
+      3,
+      4,
+      7
+    ],
+    "name": "vy_fact_communication_check",
+    "type": "c",
+    "local": true,
+    "deferred": false,
+    "validated": true,
+    "deferrable": false,
+    "definition": "CHECK (communication IS NULL OR kind = 'user'::text AND name = 'preference'::text AND provenance = 'user_said'::text AND jsonb_typeof(communication) = 'object'::text AND communication ?& ARRAY['version'::text, 'state'::text, 'scope'::text, 'language'::text, 'script'::text, 'brevity'::text] AND (communication - ARRAY['version'::text, 'state'::text, 'scope'::text, 'language'::text, 'script'::text, 'brevity'::text]) = '{}'::jsonb AND (communication -> 'version'::text) = '1'::jsonb AND ((communication -> 'state'::text) = ANY (ARRAY['\"classified\"'::jsonb, '\"unclassified\"'::jsonb, '\"no_preference\"'::jsonb])) AND jsonb_typeof(communication -> 'scope'::text) = 'object'::text AND (communication -> 'scope'::text) ?& ARRAY['language'::text, 'script'::text, 'brevity'::text] AND ((communication -> 'scope'::text) - ARRAY['language'::text, 'script'::text, 'brevity'::text]) = '{}'::jsonb AND jsonb_typeof((communication -> 'scope'::text) -> 'language'::text) = 'boolean'::text AND jsonb_typeof((communication -> 'scope'::text) -> 'script'::text) = 'boolean'::text AND jsonb_typeof((communication -> 'scope'::text) -> 'brevity'::text) = 'boolean'::text AND (((communication -> 'scope'::text) -> 'language'::text) = 'true'::jsonb OR ((communication -> 'scope'::text) -> 'script'::text) = 'true'::jsonb OR ((communication -> 'scope'::text) -> 'brevity'::text) = 'true'::jsonb) AND ((communication -> 'language'::text) = ANY (ARRAY['null'::jsonb, '\"english\"'::jsonb, '\"hindi\"'::jsonb, '\"hinglish\"'::jsonb])) AND ((communication -> 'script'::text) = ANY (ARRAY['null'::jsonb, '\"roman\"'::jsonb, '\"devanagari\"'::jsonb])) AND ((communication -> 'brevity'::text) = ANY (ARRAY['null'::jsonb, '\"short\"'::jsonb, '\"detailed\"'::jsonb])) AND ((communication -> 'language'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'language'::text) = 'true'::jsonb) AND ((communication -> 'script'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'script'::text) = 'true'::jsonb) AND ((communication -> 'brevity'::text) = 'null'::jsonb OR ((communication -> 'scope'::text) -> 'brevity'::text) = 'true'::jsonb) AND ((communication ->> 'state'::text) = 'classified'::text AND ((communication -> 'language'::text) <> 'null'::jsonb OR (communication -> 'script'::text) <> 'null'::jsonb OR (communication -> 'brevity'::text) <> 'null'::jsonb) OR ((communication ->> 'state'::text) = ANY (ARRAY['unclassified'::text, 'no_preference'::text])) AND (communication -> 'language'::text) = 'null'::jsonb AND (communication -> 'script'::text) = 'null'::jsonb AND (communication -> 'brevity'::text) = 'null'::jsonb))",
+    "expression": "{BOOLEXPR :boolop or :args ({NULLTEST :arg {VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} :nulltesttype 0 :argisrow false :location -1} {BOOLEXPR :boolop and :args ({OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 3 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 117 115 101 114 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 4 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 4 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 14 [ 56 0 0 0 112 114 101 102 101 114 101 110 99 101 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 7 :vartype 25 :vartypmod -1 :varcollid 100 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 7 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 13 [ 52 0 0 0 117 115 101 114 95 115 97 105 100 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 111 98 106 101 99 116 ]}) :location -1} {OPEXPR :opno 3249 :opfuncid 4049 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3398 :opfuncid 3343 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 0 0 0 32 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 118 101 114 115 105 111 110 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -112 32 0 0 0 0 -128 1 0 ]}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 22 [ 88 0 0 0 1 0 0 80 10 0 0 -128 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 24 [ 96 0 0 0 1 0 0 80 12 0 0 -128 117 110 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 25 [ 100 0 0 0 1 0 0 80 13 0 0 -128 110 111 95 112 114 101 102 101 114 101 110 99 101 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 111 98 106 101 99 116 ]}) :location -1} {OPEXPR :opno 3249 :opfuncid 4049 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3398 :opfuncid 3343 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :multidims false :location -1}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 8 [ 32 0 0 0 0 0 0 32 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({FUNCEXPR :funcid 3210 :funcresulttype 25 :funcretset false :funcvariadic false :funcformat 0 :funccollid 100 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 111 111 108 101 97 110 ]}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 19 [ 76 0 0 0 1 0 0 80 7 0 0 -128 101 110 103 108 105 115 104 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 104 105 110 100 105 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -128 104 105 110 103 108 105 115 104 ]}) :multidims false :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 114 111 109 97 110 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 22 [ 88 0 0 0 1 0 0 80 10 0 0 -128 100 101 118 97 110 97 103 97 114 105 ]}) :multidims false :location -1}) :location -1} {SCALARARRAYOPEXPR :opno 3240 :opfuncid 4043 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {ARRAYEXPR :array_typeid 3807 :array_collid 0 :element_typeid 3802 :elements ({CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 1 0 0 80 5 0 0 -128 115 104 111 114 116 ]} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 20 [ 80 0 0 0 1 0 0 80 8 0 0 -128 100 101 116 97 105 108 101 100 ]}) :multidims false :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 99 111 112 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -80 ]}) :location -1}) :location -1} {BOOLEXPR :boolop or :args ({BOOLEXPR :boolop and :args ({OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({OPEXPR :opno 3477 :opfuncid 3214 :opresulttype 25 :opretset false :opcollid 100 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 14 [ 56 0 0 0 99 108 97 115 115 105 102 105 101 100 ]}) :location -1} {BOOLEXPR :boolop or :args ({OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3241 :opfuncid 4038 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1}) :location -1}) :location -1} {BOOLEXPR :boolop and :args ({SCALARARRAYOPEXPR :opno 98 :opfuncid 67 :hashfuncid 0 :negfuncid 0 :useOr true :inputcollid 100 :args ({OPEXPR :opno 3477 :opfuncid 3214 :opresulttype 25 :opretset false :opcollid 100 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 9 [ 36 0 0 0 115 116 97 116 101 ]}) :location -1} {ARRAYEXPR :array_typeid 1009 :array_collid 100 :element_typeid 25 :elements ({CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 16 [ 64 0 0 0 117 110 99 108 97 115 115 105 102 105 101 100 ]} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 17 [ 68 0 0 0 110 111 95 112 114 101 102 101 114 101 110 99 101 ]}) :multidims false :location -1}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 108 97 110 103 117 97 103 101 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 10 [ 40 0 0 0 115 99 114 105 112 116 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1} {OPEXPR :opno 3240 :opfuncid 4043 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({OPEXPR :opno 3211 :opfuncid 3478 :opresulttype 3802 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 25 :vartype 3802 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 25 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 11 [ 44 0 0 0 98 114 101 118 105 116 121 ]}) :location -1} {CONST :consttype 3802 :consttypmod -1 :constcollid 0 :constlen -1 :constbyval false :constisnull false :location -1 :constvalue 12 [ 48 0 0 0 1 0 0 80 0 0 0 -64 ]}) :location -1}) :location -1}) :location -1}) :location -1}) :location -1}",
+    "inherited_count": 0
+  },
+  "projection_precommit": [
+    {
+      "row_count": "0",
+      "projection_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "projection_independent": [
+    {
+      "row_count": "0",
+      "projection_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "sessions": [
+    {
+      "name": "primary",
+      "closed": true,
+      "transaction": "commit_acknowledged",
+      "close": "acknowledged"
+    },
+    {
+      "name": "observer",
+      "closed": true,
+      "transaction": "rollback_acknowledged",
+      "close": "acknowledged"
+    }
+  ],
+  "finished_at": "2026-09-09T04:35:42.367Z"
+}

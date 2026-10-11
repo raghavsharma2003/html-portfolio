@@ -38,7 +38,7 @@
 // $0. NOT wired into evals/run.mjs, for the reason every other *-browser.mjs
 // states: it needs a built app and a server on a port.
 
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,7 +68,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let browser;
 try {
-  browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+  browser = await launchSuiteBrowser("zorder-browser");
 } catch (e) {
   dead(`chromium would not start (${String(e.message).slice(0, 160)})`);
 }

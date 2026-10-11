@@ -213,7 +213,7 @@ client-triggered and has effectively never run (§0). Phase E makes it
 **scheduled and idempotent**:
 
 1. A sweep endpoint that selects persons with un-consolidated log spans
-   (`meera_log.id > coalesce(max(vy_episode.log_to), 0)` per person) and
+   (`meera_log.id > coalesce(max(vy_episode.log_to), 0)` per agent/person) and
    processes them oldest-first under a per-run budget.
 2. A cron entry in `vercel.json` (hourly), plus the existing client trigger kept
    as a latency optimisation, not as the mechanism.

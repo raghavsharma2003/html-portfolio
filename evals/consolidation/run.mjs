@@ -33,7 +33,7 @@
 //       a presence is worth nothing (evals/self/texture.mjs's own G9 rule).
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -74,7 +74,7 @@ execSync(
   `npx esbuild ${join(HERE, "_entry.ts")} --bundle --format=esm --platform=node --outfile=${out} --log-level=error`,
   { stdio: "inherit", cwd: ROOT },
 );
-const E = await import(out);
+const E = await import(pathToFileURL(out).href);
 
 const SRC_CONSOLIDATE = readFileSync(join(ROOT, "api/consolidate.js"), "utf8");
 const SRC_SWEEP = readFileSync(join(ROOT, "api/consolidate-sweep.js"), "utf8");
@@ -498,8 +498,14 @@ console.log("\n── G6  agent parity (Law E1) ──");
   const branchy = SRC_CONSOLIDATE.split("\n")
     .map((l, i) => ({ l, i }))
     .filter(({ l }) => /(===|!==|==|!=)\s*MEERA_AGENT_ID|MEERA_AGENT_ID\s*(===|!==|==|!=)/.test(l));
-  assert(branchy.length === 0, "G6.4 no comparison against MEERA_AGENT_ID anywhere in consolidate.js",
+  // 159 refuses legacy full-chain entry for clone agents until that chain has
+  // source authority. The dedicated Room runner remains agent-independent.
+  assert(branchy.length === 1 && branchy[0].l.includes('throw new Error("room_memory_source_authority_required")'), "G6.4 only the explicit source-authority refusal branches on incumbent agent",
     branchy.map((b) => `line ${b.i + 1}: ${b.l.trim()}`).join("\n      "));
+  let sourceRefused=false;
+  try { await C.runFullChainForPerson(PERSON,{agentId:AGENT_B}); }
+  catch(e) { sourceRefused=e.message==='room_memory_source_authority_required'; }
+  assert(sourceRefused,"G6.4b clone entry refuses before database or provider work");
   const personaWords = SRC_CONSOLIDATE.split("\n")
     .map((l, i) => ({ l, i }))
     .filter(({ l }) => /\bif\s*\(.*\b(meera|hinglish|india_?only)\b/i.test(l));

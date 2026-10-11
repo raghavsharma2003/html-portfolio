@@ -28,7 +28,7 @@
 import { Capacitor } from "@capacitor/core";
 import { diag } from "./diag";
 
-const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform() ? "https://vyakti-replica-lab.vercel.app" : "";
 const LS_KEY = "meera.culture.v1";
 const REFRESH_MS = 6 * 3600_000; // the row changes once a day; this is slack
 const MAX_AGE_MS = 60 * 3600_000; // matches the endpoint's own staleness ceiling

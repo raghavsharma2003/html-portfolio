@@ -1,134 +1,71 @@
-# Meera — working notes for whoever picks this up next
+# Vyakti — Claude Code entry point
 
-Meera is a premium Hinglish AI companion: a warm, funny, chronically-online
-24-year-old Indian woman who texts, takes voice calls, and watches your screen
-during a call. Web at `meera-silk.vercel.app` (landing `/`, app `/chat`) plus an
-Android APK via Capacitor.
+This repository builds Vyakti only. Read `AGENTS.md` first and follow its
+reading order. `context/STATE.md`'s dated START HERE block wins over older
+prose, followed by `context/rejected.md`, `context/decisions.md`,
+`context/measurements.md`, and `context/graph.json`.
 
-**The product is whether she feels like a real person.** Every technical
-decision in this repo is downstream of that. Speed and quality are never traded
-away — that is an explicit standing instruction from the owner, not a
-preference.
+Vyakti turns a creator's own archive into an AI version of them. The studio is
+**Feed it, Meet it, Deploy it**. A follower's Room lives at `/r/<slug>` and
+must keep creator material, each follower's private words, and aggregate
+creator insights in their separate scopes.
 
----
+Before anything ships, run:
 
-## Read this before you change anything
-
-`context/` is this project's memory. It exists because a year-long project
-cannot re-derive its own decisions every session, and because the most expensive
-knowledge here is **what was already tried and did not work**.
-
-| file | what it holds |
-|---|---|
-| `context/graph.json` | the index: nodes + edges, machine-readable |
-| `context/decisions.md` | what was decided, why, and what would reverse it |
-| `context/measurements.md` | every measured number, with n and method |
-| `context/rejected.md` | what was tried and failed — read this FIRST |
-| `context/architecture.md` | the components and how they connect |
-
-Start with `rejected.md`. Several obviously-good ideas in this codebase are
-obviously good and also measurably wrong, and the reasons are not guessable.
-
-Query the graph with `node scripts/context.mjs` (no args lists everything;
-`--node <id>` shows one with its edges; `--check` validates it).
-
-### Logging context at the end of a session
-
-When the owner says to log the session, append what was learned to the files
-above and re-run `node scripts/context.mjs --check`. The rule for what belongs:
-
-- A **decision** needs its rationale AND what evidence would reverse it. A
-  decision without a reversal condition is dogma and will outlive its reason.
-- A **measurement** needs n, method, and date. A number without those cannot be
-  compared against a future one, which is the only thing numbers are for.
-- A **rejection** needs what was tried and what specifically broke. This is the
-  highest-value entry type and the one most often skipped.
-- Anything superseded gets a `supersedes` edge rather than deletion. The history
-  of a wrong turn is what stops it being taken twice.
-
----
-
-## How to work in this repo
-
-**Gates — all must pass before anything ships:**
-
-```
-node scripts/verify-release.mjs                    # tsc + prompt budget + build
-node scripts/verify-release.mjs --live <base-url>   # + production probes (costs money)
+```text
+node scripts/verify-release.mjs
+node scripts/context.mjs --check
 ```
 
-The persona invariants and the parser cases run INSIDE `verify-release`'s eval
-suite — they are `evals/persona-invariants.mjs` and `evals/parse.mjs`, and
-`evals/run.mjs` re-bundles from the real source on every run, so they gate the
-tree being shipped rather than a frozen copy. They protect the crisis helplines,
-the never-deny-being-an-AI rule, NEVER MANIPULATE, and the spoken-register
-bullets. **If your change trips them, your change is wrong, not the test.**
+Trust `scripts/verify-release.mjs` for the current gate count. `npx vite build`
+alone is insufficient because it can succeed with type errors. The relational
+database checks run only when `NEON_URL` is available; say when they did not
+run.
 
-> This paragraph used to say to run `parsetest.bundle.mjs` and `verify-v3.mjs`
-> "from the session scratchpad". That was stale and quietly dangerous: the
-> scratchpad is an ephemeral container directory, and both of those files import
-> a FROZEN persona snapshot (`./peout/final3.mjs`), so following the instruction
-> would have verified a months-old bundle while reporting a pass on today's
-> tree. Both are kept in `evals/archive/` for provenance and are NOT gates. See
-> `context/rejected.md#gates-that-live-nowhere`.
+The deployment contract has one product: `vyakti-clone`. `/` serves the Vyakti
+landing, `/studio` serves the creator studio, and `/r/<slug>` serves a Room.
+The build has no branch-selected product and no `STUDIO_ROOT` switch. Preserve
+all 23 verified Vercel cron entries and the API no-store and nosniff headers.
+Automatic Git deployment is disabled for every branch; only the complete-gate
+Vercel CLI workflow releases.
+After a real deploy, probe the real URL with `scripts/probe-live.mjs` and
+`scripts/verify-deploy.mjs`; a local build is not evidence of live state.
 
-**The audio floor** lives at `evals/echosim/` — `node evals/echosim/build.mjs`
-transpiles the REAL `liveCall.ts` standalone, then `node evals/echosim/exp1.mjs`
-runs 5 couplings x 8 seeds x 2 arms = 80 simulated calls. Run it before and
-after any change that touches `liveCall.ts`, and diff the tables. This is the
-only thing that can prove the floor did not move, and it is why `liveCall.ts`
-may import nothing beyond `./level` and `../engine/diag`.
+These laws bind every change:
 
-`npx vite build` alone is NOT a gate — it exits 0 with type errors. That is why
-`tsc` is separate and why CI runs both.
+- Never claim a command, measurement, deployment, or live state you did not
+  observe.
+- Offline mocks prove control flow only. Use `EXPLAIN` against the real
+  database to validate SQL types and referential behavior.
+- Trace every capability to a caller. A complete function without a caller or
+  schedule is dead.
+- Prefer a clear failure to a plausible fallback value.
+- Separate blockers into waiting on the user and waiting on the platform.
+- Keep the spoken AI disclosure, PerTh watermark, SQL consent predicates, and
+  explicit human approval before persona updates.
+- Write prompt shapes rather than recitable sentences. Position is mechanism;
+  decision instructions that must win belong at the end.
+- Keep user-visible copy free of em dashes, en dashes, and the AI tells enforced
+  by `scripts/check-copy.mjs`.
+- Never commit or print a secret. `api/_config.js` is gitignored and generated
+  only from environment variables.
+- Migrations are idempotent, one statement per request, free of DO blocks,
+  explicit about `::uuid` casts, mirrored in `db/schema.sql`, and wired into
+  erasure and relational checks. Read `AGENTS.md` for the current applied and
+  unused number ranges before choosing a number.
 
-**Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an
-assembled prompt exceeds the cap `api/chat.js` slices it at. This exists because
-truncation is silent and eats the END of the prompt, where the newest and most
-safety-relevant text sits. It has already cost us the crisis helplines once.
+The Room vocabulary gate forbids `clone`, `replica`, `model`, `fine-tune`,
+`train`, `training`, `weights`, `embedding`, `LoRA`, and `genome` in the
+user-visible Room and studio surfaces except the narrowly named legal-text
+allowlist. An incomplete AI is an apprentice.
 
-**Secrets:** `api/_config.js` is gitignored and holds every key. It is deployed
-as part of the Vercel payload. Never commit it, never print a key.
+The measured open product problem remains voice likeness. Bandwidth repair is
+not speaker similarity, and no owner-clone similarity score exists. The
+processing Job rebuild, paid residential YouTube proxy, warm GPU spend, and key
+rotation remain owner-controlled work described in `context/STATE.md` and
+`AGENTS.md`.
 
-**Deploying:** the Vercel build pulls the full source from the GitHub branch, so
-**push before you deploy** or you will ship the previous tree with new API files.
-
----
-
-## Where her personality actually lives
-
-`src/engine/persona.ts` is ~45k characters and it is the product. Two rules
-learned the hard way:
-
-1. **Anything sentence-shaped in a prompt gets recited.** Her own example
-   quotes acted as a phrase bank (recited 4/5 → 0 after removal). Later, taste
-   written as polished English sentences was read out verbatim twice, eight
-   turns apart. Write shapes and notes, never lines she could say.
-2. **Position is mechanism, not style.** A rule buried mid-brief fired 0 times
-   in 8; the identical rule appended last fired 8 in 8. `SEARCH_DECISION` and
-   `FORGET_DECISION` are appended last for exactly this reason.
-
----
-
-## The thing that makes this project unusual
-
-Almost every claim in `context/` is measured, and several widely-held
-assumptions in it turned out to be false when tested. Prefer measuring to
-reasoning, and when you cannot measure something, say so in the commit rather
-than implying coverage you do not have.
-
-## Model policy (owner directive, 2026-08-13)
-
-**Fable runs the main loop and everything important**: phase reviews, judge
-synthesis, architecture decisions, anything that becomes a `context/` entry or
-a commit. **Sonnet/Opus run the rest**: build workstreams, research sweeps,
-verification fan-outs, mechanical batteries. Rationale: the main loop hit
-Fable's usage limit mid-build once (two workstreams died in flight); important
-judgment is worth the scarce budget, bulk execution is not.
-
-## Logging is not optional
-
-This is a long, deep project. Every phase output, measurement, rejection and
-decision goes to `context/` (and `docs/` for full corpora) BEFORE the next
-phase starts — the graph is what stops tokens being spent re-deriving what a
-previous session already paid for. If it isn't logged, it didn't happen.
+Before the next phase, append a decision with a reversal condition, a
+measurement with n/method/date, and a rejection with the specific failure.
+Then run `node scripts/context.mjs --check`. Preserve superseded history with
+graph edges rather than deleting it.

@@ -1,0 +1,17 @@
+.expert-conversation__setup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border: 1px solid #173e32;
+  border-radius: 10px;
+  background: #173e32;
+  color: #fff;
+  font: inherit;
+  text-align: center;
+  text-decoration: none;
+}
+.expert-conversation__setup:hover { background: #24573f; }
+.expert-conversation__setup:focus-visible { outline: 2px solid #416f57; outline-offset: 4px; }

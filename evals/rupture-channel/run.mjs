@@ -21,7 +21,7 @@
 // source on every run for `gates-that-live-nowhere`'s reason.
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -42,7 +42,7 @@ const {
   GAP_ENTRY_MS,
   RUPTURE_STANCE_LAPSE_DAYS,
   RUPTURE_STANCE_LAPSE_WARM_EPISODES,
-} = await import(BUNDLE);
+} = await import(pathToFileURL(BUNDLE).href);
 
 let fail = 0;
 const ok = (name, cond, extra = "") => {
@@ -328,7 +328,7 @@ console.log("\n── 7. nothing from this feature reaches a surface ──");
 console.log("\n── 8. the warm-episode count is scoped like every other episode query ──");
 {
   const src = readFileSync(join(ROOT, "api/consolidate.js"), "utf8");
-  const fn = src.match(/async function ruptureStanceLapsedFor[\s\S]*?\n}\n/);
+  const fn = src.match(/async function ruptureStanceLapsedFor[\s\S]*?\r?\n}\r?\n/);
   ok("ruptureStanceLapsedFor still exists", Boolean(fn));
   const warm = fn && fn[0].match(/select count\(\*\)::int as c from vy_episode[\s\S]*?\`/);
   ok("its warm-episode count is a vy_episode count", Boolean(warm));

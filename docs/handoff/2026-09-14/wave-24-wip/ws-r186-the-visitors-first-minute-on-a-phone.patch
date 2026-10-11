@@ -1,0 +1,858 @@
+diff --git a/context/decisions.md b/context/decisions.md
+index 95230b9..d9c6e12 100644
+--- a/context/decisions.md
++++ b/context/decisions.md
+@@ -25144,3 +25144,11 @@ maintaining two step-rail components in the same product long-term.
+ **Why.** Six of the ten workstreams reported new SQL they could not run against Postgres (no `NEON_URL` in a worktree), and `rejected.md#offline-mocks-cannot-type-check-sql` is exactly the failure a plan-only EXPLAIN catches for free: WS-R172's agent mint (four write nodes, cost 236), WS-R175's erasure chain (116 delete nodes including the six newly ordered ones, cost 1310), WS-R173's card read, WS-R179's two reads and WS-R180's sheet read all planned first time. The marker rule exists because a follow-up commit that rewrites its own earlier paragraph is a legitimate thing for a workstream to do and the union tool refuses it correctly; the failure was the main loop chaining `git add` behind the refusal.
+ 
+ **Reversal.** If a plan-only EXPLAIN ever passes a statement that then fails live (a runtime-only error such as a constraint the plan cannot see), the live apply of a seeded fixture becomes the merge-time check for write statements; if a context-union refusal is ever resolved wrongly by hand twice in one wave, the union tool gains a `--replace-paragraph` mode instead.
++
++## `ws-r186-join-sheet-primary-buttons-pinned-with-sticky-not-trimmed` (2026-09-14, WS-R186)
++
++**Decision.** `src/room/room.css`'s `.room-join .room-actions` (scoped to the join sheet only, never the shared `.room-actions` class the account page, cap card and gone screen also use) gets `position: sticky; bottom: 0` plus a background/blur/border matching `.room-composer`'s own already-shipped pattern, rather than shrinking the vertical spacing or line-height of the disclosure card, the about link, the age line, or the memory explanation (three kept items, three sentences of fine print) that precede it.
++
++**Why.** `evals/rehearsal/visitor-first-minute.mjs`'s own fold check measured the real, signed-in join sheet at 390x844: the primary "Yes, remember me"/"Not now" buttons rendered with their own bottom edge at 937-993px against an 844px viewport — 93-149px past the fold, meaning a real visitor's phone would need to scroll to find them, the exact defect this workstream's brief law 4 names ("nothing below the fold that must be tapped"). This file's own law (and CLAUDE.md's) says copy stays as it is unless a line fails the read-aloud test — none of the preceding content failed that test, so shortening it was never a candidate fix. Trimming only the SPACING between blocks (margins/gaps, never the text itself) was considered and rejected as insufficient without being built and measured: the actual per-block margins available to cut (`--space-block`/`--space-item`/`--space-tight`, `room.css`'s own token comments) sum to roughly 40-50px of recoverable space across every block on this screen, nowhere near the ~150px gap, because the real cost is the TEXT's own line-height (roughly 15-20 lines of body/small copy at `--leading-body: 1.6`), not the gaps between paragraphs — see `context/rejected.md#ws-r186-margin-trimming-alone-cannot-close-a-150px-fold-overflow` for the arithmetic this reasoning rests on. Sticky positioning was verified EMPIRICALLY, not assumed from the CSS spec, before it was applied to the real component: a throwaway fixture (a 1200px div followed by a `position: sticky; bottom: 0` footer) read the footer's own `getBoundingClientRect()` at `scrollTop: 0` in the real Chromium this repo already uses, and its bottom edge read exactly at the viewport's own bottom (844px) on the FIRST paint, never requiring a scroll to "catch" it first — settling, before touching product code, the one part of sticky's behavior that was not obvious from reading the spec alone.
++
++**Reversal condition.** If a future change to the join sheet's own copy (a shorter disclosure card, say) closes the gap on its own, this override becomes a no-op and can be deleted once `evals/rehearsal/visitor-first-minute.mjs`'s own fold check still passes without it — never removed speculatively without re-running that check. If the "no means" note that follows `.room-actions` in the DOM (WS-R27's own "stated where 'no' is chosen") is ever found to be visually obscured by the pinned row during a real scroll-through (not observed in this session's own layout-gate screenshots, `node scripts/check-layout.mjs --only room`, `evals/room-browser/shots`), the fix is to give the note its own `scroll-margin-bottom` equal to the pinned row's height, never to unpin the row again.
+diff --git a/context/rejected.md b/context/rejected.md
+index 6206f67..a573ec7 100644
+--- a/context/rejected.md
++++ b/context/rejected.md
+@@ -18805,3 +18805,17 @@ never clicks there would have shipped the same defect silently.
+ **What replaced it.** `awaitPending(n)`: a Node-side poll of `pending.length` bounded by `boundedWaitMs(5000)` from `evals/lib/bounded-wait.mjs` (WS-R181's shared core, so the bound scales with load), then the same `assert.equal`. The bounded poll is a wait for the fact the assertion needs, never a sleep; when the request genuinely never arrives the assertion still fails by name after the bound.
+ 
+ **The rule.** A browser-side `waitForFunction` proves only what the page rendered; any assertion on a Node-side counter that a request fills (a fake server's `pending`, `posts`, `reads`) needs its own bounded wait for that counter. This is the third suite this wave with the shape (`candidate-activation-ui` in WS-R181's gate run, `feedback-dataset-ui` in WS-R173's registry run), so a sweep of `evals/**/mounted.mjs` for `waitForFunction(...); assert.equal(<node array>.length` is wave twenty-four's to do at the cause rather than one suite at a time.
++
++## `ws-r186-margin-trimming-alone-cannot-close-a-150px-fold-overflow` (2026-09-14, WS-R186)
++
++**Reasoned about, not built or measured — named as reasoning rather than presented as a measurement, `CLAUDE.md`'s own "prefer measuring to reasoning, and when you cannot measure something, say so" restated for a path not taken.** Before choosing the sticky-footer fix (`context/decisions.md#ws-r186-join-sheet-primary-buttons-pinned-with-sticky-not-trimmed`), considered tightening the join sheet's own vertical spacing tokens instead — never touching the copy itself, only the gaps between blocks. `room.css`'s own token comments give every candidate a number: h3's own `margin: var(--space-block) 0 var(--space-tight)` (24px top, 8px bottom, one heading on this screen); `.room-lede`/`.room-fine`'s shared `margin: 0 0 var(--space-item)` (16px, roughly four occurrences on this screen — the join lede, the age line's own "why" sentence, the memory lede, the "only/private/undo" fine print); `.room-check`'s `margin-bottom: var(--space-item)` (16px); `.room-keeps`'s `margin: 0 0 var(--space-item)` (16px) plus `--space-hair` (4px) between its own three list items; `.room-note`'s `margin: var(--space-item) 0 0` (16px). Trimming each of these to the next-smaller token in this repo's own scale (`--space-item` 16px down to `--space-row` 12px, say) sums to roughly 40-50px of recoverable space across the whole screen — a real, plausible tenth of the ~150px the join sheet's own primary buttons overran the fold by (937-993px against an 844px viewport, `context/measurements.md#ws-r186-join-sheet-actions-past-the-fold-before-the-pin`). The remaining ~100px was never going to come from spacing: `room.css`'s own body/small text sits at `--leading-body: 1.6`, and this screen carries roughly 15-20 lines of real, meaningful copy across the disclosure card, the about link, the join lede, the age line, the memory lede, three kept items and three sentences of fine print — line-height, not inter-block margin, is the dominant cost, and none of that text failed the read-aloud test this file's own law reserves for a copy change. Abandoned in favor of pinning the actions row instead, which needs no copy or spacing change at all and was verified empirically before being applied (that decision's own header).
++
++## `ws-r186-room-forget-rate-limited-to-3-per-minute-per-identity-broke-a-naive-reset-between-runs`
++
++**Tried.** `evals/rehearsal/visitor-first-minute.mjs`'s own n=3-per-locale timed measurement needed each of the three cold contexts to be a genuinely fresh follower at the SERVER layer too, not only a fresh browser `localStorage` (this file's own header explains why — a returning follower's second device skips the join sheet entirely). The obvious approach was calling the real `POST /api/room {op:"forget"}` door after EVERY run and EVERY structural check that joins (three timed runs, the fold/keyboard/install-prompt check) — one call per boundary, four total for one locale.
++
++**What specifically broke.** `api/room.js`'s own in-memory rate limiter (`allow(authUserId, \`room_${op}_user\`, 3)`, `api/_ratelimit.js`, a 60-second sliding window) refuses a FOURTH `forget` for the same identity inside one minute with `429 slow_down` — a real product ceiling (three forgets/exports a minute is already generous for a human, and exists to stop a script draining the door), not a fixture gap. The suite's own fourth call, from a dedicated `checkJoinSheetAndKeyboardSafety` function called right after the three timed runs' own two inter-run forgets plus one more before it, hit this exactly.
++
++**Fix.** The fold check, the keyboard-safety check, and the install-prompt negative control were merged into ONE walk (`checkJoinSheetKeyboardAndInstallPrompt`) sharing a single join — the install-prompt control's own "visit 2" is a second navigation in the SAME context rather than a second join, so it needs no forget of its own. Total forgets per locale: exactly 3 (between run 1 and 2, between run 2 and 3, and once more before the merged structural/install check), inside the door's own 3/minute ceiling with nothing to spare — the paused-Room and never-published negative controls that follow reuse the same identity's now-intentionally-left-behind follower row, which their own predicates (`published_at`/`paused_at`) never consult anyway.
++
++**The rule.** A suite that resets follower state between runs through the product's own real "forget me" door, rather than reaching into fixture arrays by hand, gets the product's own real rate limits along with the realism — worth knowing before designing how many resets a walk needs, not after hitting a `429` mid-run. The next suite that wants more than 3 server-side resets for one identity inside a minute either spreads them further apart, uses a second fixture-recognized identity (today only `USER_A`/`USER_B` and the two owner tokens exist, `evals/rehearsal/stubs/auth-with-fake-user.mjs`'s own fixed `KNOWN` map), or accepts the ceiling as the real, product-correct behavior it is.
+diff --git a/evals/rehearsal/visitor-first-minute.mjs b/evals/rehearsal/visitor-first-minute.mjs
+new file mode 100644
+index 0000000..0eec6dc
+--- /dev/null
++++ b/evals/rehearsal/visitor-first-minute.mjs
+@@ -0,0 +1,702 @@
++// WS-R186 (wave twenty-four) — THE VISITOR'S FIRST MINUTE ON A PHONE.
++//
++//   node evals/rehearsal/visitor-first-minute.mjs           the English walk (gate budget)
++//   node evals/rehearsal/visitor-first-minute.mjs --full   + the Hindi walk
++//
++// WS-R164 (`evals/first-five-minutes/run.mjs`) measured the PERSON's own
++// first five minutes, landing to Meet, with no throttling. WS-R174
++// (`evals/rehearsal/person-room.mjs`) walked a stranger into a published
++// person's Room in Chromium, at desktop width, with no clock. Neither one is
++// this file's own subject: a FRIEND taps a WhatsApp link on a PHONE, on the
++// network India actually has, and every screen between that tap and the
++// first reply is a place they leave (this workstream's own brief). This walk
++// times that, at 390x844, under the exact CPU/network throttle
++// `scripts/check-performance.mjs` already uses for the Room's own layout
++// target ("Fast 3G": 4x CPU, 1.6 Mbps down, 750 Kbps up, 150 ms RTT — that
++// file's own header on why those three numbers are the honest stand-in for a
++// busy Indian tower, not a bespoke guess), and adds the ONE thing that gate
++// does not: the install prompt's own real, product-defined visibility law
++// (`src/room/installPrompt.ts`), proven against the REAL `/r/<slug>`
++// production door rather than the layout fixture's `fixtureInstallPrompt`
++// short-circuit.
++//
++// ── WHAT IS DRIVEN THROUGH THE BROWSER, AND WHAT THROUGH A FIXTURE SHORTCUT
++//    (named here rather than left to be inferred) ──────────────────────────
++//
++// Real, through the browser, against the REAL built `dist/room.html` and the
++// REAL `api/room.js`/`api/room-about.js` handlers over a fixture `db`: every
++// screen a visitor's own phone renders — the taste screen, the join sheet
++// (age attestation, memory consent), the about page, the composer, the
++// reply bubble, the install card — under real CDP throttling, cold context
++// per timed run (`check-performance.mjs`'s own "a fresh context has never
++// fetched anything" reasoning, restated here for a stateful walk rather than
++// a static asset).
++//
++// A FIXTURE SHORTCUT, named rather than silently taken (`person-room.mjs`'s
++// own precedent, restated): the OWNER side of getting a person's Room
++// published — sign-in, HumanOS approval, Readiness, runtime activation — is
++// WS-R174's own already-proven subject, not this brief's. This walk mints
++// the published Room directly through the REAL `/api/replica` and
++// `/api/room-publish` doors (create, then publish) with the SAME
++// already-passing fixture shortcuts `freshRehearsalCreatorState()` seeds by
++// default (`rehearsalRuntimeActive`/`rehearsalDisclosureApproved`, that
++// file's own header: "out of this rehearsal's scope"), plus a published
++// person `vy_teacher_sheet` row seeded directly onto the fixture state (the
++// same shape `person-room.mjs` proved loads through the REAL
++// `loadTeacherAgent` validation). No browser ever drives the owner half of
++// this walk — this workstream's own subject starts the moment a stranger
++// has a link.
++//
++// ── WHY THREE INDEPENDENT "COLD" MEASURED RUNS NEED A SERVER-SIDE RESET,
++//    NOT ONLY A FRESH BROWSER CONTEXT ───────────────────────────────────────
++//
++// A fresh Playwright context has empty `localStorage` (the browser side of
++// "cold"), but `openRoom` decides whether to show the join sheet at all off
++// the SERVER's own follower row for this (person, room) pair — a real
++// returning follower's second device skips straight to `talking`
++// (`RoomApp.tsx`'s own `opened.joined` branch). Only two fixture-recognized
++// follower identities exist in this repo
++// (`evals/rehearsal/stubs/auth-with-fake-user.mjs`'s own fixed `KNOWN` map,
++// a SHARED file this brief does not list and this suite does not touch), so
++// three genuinely independent "first-ever visitor" measurements on the SAME
++// identity need the follower row cleared between them. Rather than inventing
++// a second reset mechanism, this file calls the REAL `POST /api/room
++// {op:"forget"}` door between runs — the product's own real cleanup,
++// already proven end to end by `follower.mjs`'s own forget step — so each
++// timed run starts from a state a genuine stranger's phone would actually be
++// in, not a hand-rolled approximation of one.
++//
++// ── THE INSTALL PROMPT'S OWN LAW, PROVEN RATHER THAN SHORT-CIRCUITED ───────
++//
++// `installPrompt.ts`'s `shouldShowInstallCard` never shows the card on a
++// browser's FIRST visit to a Room at all (`readyBySecondVisit`), and gates a
++// working button on a captured `beforeinstallprompt` — an event headless
++// Chromium does not reliably fire against a plain-HTTP loopback server with
++// no real installability signal. iOS is the one branch `shouldShowInstallCard`
++// admits WITHOUT that event (`RoomApp.tsx`'s own `isIOS`, read straight off
++// `navigator.userAgent`), rendered as static "Add to Home Screen"
++// instructions rather than a button — the deterministic, real path this
++// suite drives with an iPhone-shaped `userAgent` on its own dedicated
++// context, never a synthetic `beforeinstallprompt` dispatch standing in for
++// a real one. Two navigations in ONE context (same `localStorage`, so the
++// visit counter genuinely increments): the FIRST proves the negative control
++// the brief's law 5 names — never before the first reply, because visit 1 is
++// never "ready by second visit" regardless of phase — and the SECOND proves
++// the card appears once the product's own real second-visit rule is
++// satisfied, never earlier and never later.
++//
++// ── NEGATIVE CONTROLS (ws-common's law: at least one; this suite ships
++//    three, matching the brief's own law 5) ────────────────────────────────
++//
++// 1. A signed-out visitor's cold open of a slug that was never published
++//    (created or not — `roomBySlug`'s own predicate treats both alike, and
++//    `copy.ts`'s own `unavailable.body` deliberately never says which) is
++//    refused with the honest, deliberately vague `room_unavailable` — never
++//    reachable, never a stack.
++// 2. A creator PAUSING their Room mid-life (`op:"pause"`, unconditional per
++//    `api/_room-publish.js`'s own header) makes the exact SAME honest,
++//    vague page render for a cold visitor — `copy.ts`'s own comment on why
++//    "paused" and "never published" must read identically to a stranger —
++//    inside the SAME budget a real "about page readable" visit gets, never
++//    a slower path because something failed.
++// 3. The install card never appears on a Room's first visit even when every
++//    OTHER condition (signed in, talking, a captured-equivalent iOS signal)
++//    already holds — see the install-prompt section above.
++import { createServer } from "node:http";
++import { execSync } from "node:child_process";
++import { dirname, join, extname } from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { randomUUID } from "node:crypto";
++import { register } from "node:module";
++import { readFile } from "node:fs/promises";
++
++const HERE = dirname(fileURLToPath(import.meta.url));
++const ROOT = join(HERE, "..", "..");
++const DIST = join(ROOT, "dist");
++const FULL = process.env.REHEARSAL_FULL === "1" || process.argv.includes("--full");
++const VIEWPORT = { width: 390, height: 844 };
++const RUNS = 3;
++
++// The exact throttle shape `scripts/check-performance.mjs` uses for every
++// public entry point — restated here (not imported: that file has no
++// exported constant, only a module-scoped one) rather than invented, per
++// that file's own comment on WHY these three numbers are the honest
++// standard rather than a bespoke guess.
++const THROTTLE = {
++  latencyMs: 150,
++  downloadBps: (1.6 * 1024 * 1024) / 8,
++  uploadBps: (750 * 1024) / 8,
++  cpuRate: 4,
++};
++
++// Law 3, this workstream's own brief. Never lowered to pass; a miss is
++// investigated and fixed at its cause, logged as a rejection.
++const BUDGETS = {
++  tapToAboutMs: 3000,
++  joinToFirstReplyMs: 8000,
++  totalMs: 20000,
++};
++
++let pass = 0;
++let fail = 0;
++const failures = [];
++function ok(name, cond, extra = "") {
++  if (cond) { pass++; console.log(`  ok  ${name}${extra ? `   ${extra}` : ""}`); }
++  else { fail++; failures.push(name); console.log(`FAIL  ${name}${extra ? `   ${extra}` : ""}`); }
++}
++
++// The one launch every rehearsal in this repo shares.
++const { launchRehearsalBrowser } = await import(pathToFileURL(join(ROOT, "evals/rehearsal/browser.mjs")).href);
++{
++  const probe = await launchRehearsalBrowser();
++  if (!probe.browser) {
++    console.log(`SKIP: ${probe.reason} — the release gate runs this walk with a real Chromium`);
++    process.exit(0);
++  }
++  await probe.browser.close();
++}
++
++// MUST happen before any dynamic import of api/*.js — every sibling
++// rehearsal's own law, repeated here.
++register("./loader.mjs", import.meta.url);
++process.env.ROOM_SESSION_SECRET = process.env.ROOM_SESSION_SECRET || "y".repeat(48);
++
++const { setFixtureDb } = await import("./stubs/db.mjs");
++const { setFakeReply } = await import("./stubs/surface-with-fake-model.mjs");
++const { REHEARSAL_OWNER_TOKEN, REHEARSAL_OWNER } = await import("./stubs/auth-with-fake-user.mjs");
++const { freshRehearsalCreatorState, rehearsalCreatorDb, loadFixtureAgent } = await import(
++  pathToFileURL(join(ROOT, "evals/room-doors/fixtures.mjs")).href
++);
++const { USER_A, USER_B } = await import(pathToFileURL(join(ROOT, "evals/room/fixtures.mjs")).href);
++const { READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } = await import(pathToFileURL(join(ROOT, "api/_readiness.js")).href);
++
++let builtOnce = false;
++function ensureBuilt() {
++  if (builtOnce) return;
++  execSync("npx vite build", { cwd: ROOT, stdio: "inherit" });
++  builtOnce = true;
++}
++
++const CONTENT_TYPES = {
++  ".html": "text/html; charset=utf-8", ".js": "application/javascript; charset=utf-8",
++  ".mjs": "application/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
++  ".json": "application/json; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml",
++  ".ico": "image/x-icon", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json",
++  ".txt": "text/plain; charset=utf-8",
++};
++
++function withVercelShims(res) {
++  res.status = (code) => { res.statusCode = code; return res; };
++  res.json = (body) => { if (!res.hasHeader("content-type")) res.setHeader("content-type", "application/json; charset=utf-8"); res.end(JSON.stringify(body)); return res; };
++  res.send = (body) => {
++    if (Buffer.isBuffer(body) || typeof body === "string") res.end(body);
++    else { if (!res.hasHeader("content-type")) res.setHeader("content-type", "application/json; charset=utf-8"); res.end(JSON.stringify(body)); }
++    return res;
++  };
++  return res;
++}
++
++async function readJsonBody(req) {
++  const chunks = [];
++  for await (const chunk of req) chunks.push(chunk);
++  const raw = Buffer.concat(chunks).toString("utf8");
++  if (!raw) return {};
++  try { return JSON.parse(raw); } catch { return {}; }
++}
++
++async function serveDistFile(res, relPath) {
++  try {
++    const bytes = await readFile(join(DIST, relPath));
++    res.writeHead(200, { "content-type": CONTENT_TYPES[extname(relPath)] || "application/octet-stream" });
++    res.end(bytes);
++    return true;
++  } catch { return false; }
++}
++
++/** One loopback server: the owner's two setup doors (`/api/replica`,
++ *  `/api/room-publish`) and the visitor's own real surface (`/api/room`,
++ *  `/r/<slug>/about`, `dist/room.html`) — this walk's own subject is the
++ *  visitor half, but the owner doors are what mint the Room it visits, so
++ *  one server answers both rather than two racing over the same fixture
++ *  `state`. */
++async function startServer(state) {
++  const db = rehearsalCreatorDb(state);
++  setFixtureDb(db);
++
++  const replicaHandler = (await import(pathToFileURL(join(ROOT, "api/replica.js")).href)).default;
++  const roomPublishHandler = (await import(pathToFileURL(join(ROOT, "api/room-publish.js")).href)).default;
++  const roomHandler = (await import(pathToFileURL(join(ROOT, "api/room.js")).href)).default;
++  const roomAboutHandler = (await import(pathToFileURL(join(ROOT, "api/room-about.js")).href)).default;
++
++  const server = createServer(async (req, res) => {
++    withVercelShims(res);
++    try {
++      const url = new URL(req.url, "http://127.0.0.1");
++      const pathname = url.pathname;
++      req.query = Object.fromEntries(url.searchParams);
++      if (req.method !== "GET" && req.method !== "HEAD") req.body = await readJsonBody(req);
++
++      if (pathname === "/api/replica" && (req.method === "POST" || req.method === "OPTIONS")) {
++        return await replicaHandler(req, res);
++      }
++      if (pathname === "/api/room-publish" && (req.method === "POST" || req.method === "GET" || req.method === "OPTIONS")) {
++        return await roomPublishHandler(req, res);
++      }
++      if (pathname === "/api/room" && (req.method === "POST" || req.method === "OPTIONS")) {
++        return await roomHandler(req, res);
++      }
++
++      const aboutMatch = /^\/r\/([^/]+)\/about\/?$/.exec(pathname);
++      if (aboutMatch && (req.method === "GET" || req.method === "HEAD")) {
++        req.query = { slug: decodeURIComponent(aboutMatch[1]), lang: url.searchParams.get("lang") || "" };
++        return await roomAboutHandler(req, res);
++      }
++
++      if (/^\/r\/[^/]+\/?$/.test(pathname) && (req.method === "GET" || req.method === "HEAD")) {
++        if (await serveDistFile(res, "room.html")) return;
++      }
++
++      if (pathname.startsWith("/api/")) {
++        res.status(404).json({ error: "not_modelled_by_this_walk" });
++        return;
++      }
++
++      if (req.method === "GET" || req.method === "HEAD") {
++        const rel = pathname === "/" ? "room.html" : pathname.replace(/^\//, "");
++        if (await serveDistFile(res, rel)) return;
++      }
++      res.writeHead(404, { "content-type": "text/plain" });
++      res.end("not found");
++    } catch (error) {
++      res.writeHead(500, { "content-type": "text/plain" });
++      res.end(String(error && error.stack ? error.stack : error));
++    }
++  });
++  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
++  const bound = server.address();
++  return { server, url: `http://127.0.0.1:${bound.port}`, stop: async () => new Promise((r) => server.close(r)) };
++}
++
++const FOLLOWER_COPY = {
++  en: {
++    tasteJoin: "Join to keep talking", memoryYes: "Yes, remember me", age: "I am 18 or older.",
++    aboutHeading: "What this AI knows about you",
++    unavailableTitle: "This room is not open",
++  },
++  hi: {
++    tasteJoin: "बात जारी रखने के लिए जुड़ें", memoryYes: "हां, मुझे याद रखें", age: "मेरी उम्र 18 साल या उससे ज़्यादा है।",
++    aboutHeading: "यह AI आपके बारे में क्या जानता है",
++    unavailableTitle: "This room is not open",
++  },
++};
++
++const PERSON_LINE = "Runs a bakery. Terrible at small talk. Great at remembering birthdays.";
++
++/** Publishes ONE person's Room through the REAL owner doors — this walk's
++ *  own header explains why no browser ever drives this half. Returns the
++ *  replica id and the fixture's own room row (mutated for the follow-up
++ *  `room_id` fix below). */
++async function publishPersonRoom(url, state, { displayName }) {
++  const created = await fetch(`${url}/api/replica`, {
++    method: "POST",
++    headers: { "content-type": "application/json", authorization: `Bearer ${REHEARSAL_OWNER_TOKEN}` },
++    body: JSON.stringify({ op: "create", display_name: displayName }),
++  });
++  const createdBody = await created.json().catch(() => ({}));
++  if (created.status !== 201) throw new Error(`replica create failed: ${created.status} ${JSON.stringify(createdBody)}`);
++  const rid = createdBody.replica.replica_id;
++  const replica = state.replicas.find((r) => r.replica_id === rid);
++  // Minted opaquely at real runtime activation in production, out of this
++  // walk's own scope (`person-room.mjs`'s own identical shortcut, cited in
++  // this file's own header).
++  replica.agent_id = replica.agent_id || randomUUID();
++
++  const createdRoom = await fetch(`${url}/api/room-publish`, {
++    method: "POST",
++    headers: { "content-type": "application/json", authorization: `Bearer ${REHEARSAL_OWNER_TOKEN}` },
++    body: JSON.stringify({ op: "create", replica_id: rid }),
++  });
++  const createdRoomBody = await createdRoom.json().catch(() => ({}));
++  if (createdRoom.status !== 201) throw new Error(`room create failed: ${createdRoom.status} ${JSON.stringify(createdRoomBody)}`);
++  const room = state.rooms.find((r) => r.owner_user_id === REHEARSAL_OWNER && r.replica_id === rid);
++  // `evals/room-doors/fixtures.mjs`'s own `insert into vy_room` matcher mints
++  // a non-UUID `room_id` for a truly new room ("its own INSERT never fires
++  // in this battery" — its own comment), which `_room-surface.js`'s real UUID
++  // validator refuses the moment a follower actually speaks. The SAME real
++  // gap `person-room.mjs` found and fixed on its own fixture state, restated
++  // here rather than edited into the shared fixture file (ws-common's
++  // append-only law for a file nine siblings also touch this wave).
++  room.room_id = randomUUID();
++
++  const { SHEET } = await loadFixtureAgent(ROOT);
++  const personSheet = {
++    ...SHEET, sheetKind: "person", slug: room.slug, name: displayName, personLine: PERSON_LINE,
++    boundaryParagraph: "", stageEarly: "", stageGettingClose: "", stageEstablished: "",
++    personValues: ["warmth", "punctuality", "curiosity", "loyalty to friends", "dry humor"],
++    personNeverSay: ["never discusses another customer's order", "no unsolicited health advice", "never claims expertise it lacks"],
++    personTalk: { register: "mixed", scriptBaseline: "roman-hinglish" },
++  };
++  const now = new Date().toISOString();
++  state.teacherSheets.push({
++    sheet_id: randomUUID(), agent_id: replica.agent_id, version: SHEET.version, sheet: personSheet,
++    status: "published", consent_artifact_id: randomUUID(), published_at: now, created_at: now,
++    slug: room.slug,
++  });
++  state.rehearsalReadinessLast = { unmeasured_count: 0, overall: READINESS_OVERALL_FLOOR, min_part: READINESS_PART_FLOOR };
++
++  const published = await fetch(`${url}/api/room-publish`, {
++    method: "POST",
++    headers: { "content-type": "application/json", authorization: `Bearer ${REHEARSAL_OWNER_TOKEN}` },
++    body: JSON.stringify({ op: "publish", replica_id: rid }),
++  });
++  const publishedBody = await published.json().catch(() => ({}));
++  if (published.status !== 200 || !publishedBody?.room?.published_at) {
++    throw new Error(`room publish failed: ${published.status} ${JSON.stringify(publishedBody)}`);
++  }
++
++  return { rid, room, displayName };
++}
++
++function authInitScript(bearer) {
++  return ({ token }) => {
++    window.localStorage.setItem("meera.state.v1", JSON.stringify({
++      auth: { userId: token, accessToken: token, refreshToken: "fixture-refresh-token", expiresAt: Date.now() + 6 * 3_600_000 },
++    }));
++  };
++}
++
++/** ONE measured, cold visit: taste dismiss -> about page (timed) -> join
++ *  (age + memory, minimum taps) -> ask one question -> the fake seam's reply
++ *  (timed), all under the real 4G throttle. Returns the three wall clocks
++ *  and leaves a real follower row behind, which the caller forgets before
++ *  the next run so the NEXT cold context is genuinely a stranger's first
++ *  visit at the server layer too (this file's own header, "why a server-side
++ *  reset"). */
++async function measuredVisit(browser, url, room, locale, bearer, runIndex) {
++  const c = FOLLOWER_COPY[locale];
++  const context = await browser.newContext({ viewport: VIEWPORT });
++  await context.addInitScript(authInitScript(bearer), { token: bearer });
++  const page = await context.newPage();
++  page.on("pageerror", (error) => console.log(`  [visitor ${locale} run${runIndex}] page error: ${error.message}`));
++  const cdp = await context.newCDPSession(page);
++  await cdp.send("Network.enable");
++  await cdp.send("Network.emulateNetworkConditions", {
++    offline: false, latency: THROTTLE.latencyMs, downloadThroughput: THROTTLE.downloadBps, uploadThroughput: THROTTLE.uploadBps,
++  });
++  await cdp.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE.cpuRate });
++
++  const t0 = Date.now();
++  await page.goto(`${url}/r/${room.slug}?via=search`, { waitUntil: "domcontentloaded" });
++
++  if (locale === "hi") {
++    await page.locator('.room-lang-switch button[lang="hi"]').click({ timeout: 15_000 });
++    await page.waitForFunction(
++      () => document.querySelector('.room-lang-switch button[lang="hi"]')?.getAttribute("aria-pressed") === "true",
++      null, { timeout: 10_000 },
++    );
++  }
++  await page.getByRole("button", { name: c.tasteJoin }).click({ timeout: 15_000 });
++  await page.waitForSelector(".room-join", { timeout: 10_000 });
++
++  // ── tap to about page readable (<3s, law 3) ────────────────────────────
++  const aboutHref = await page.locator(".room-about-link").getAttribute("href");
++  const tAboutStart = Date.now();
++  const aboutPage = await context.newPage();
++  await aboutPage.goto(`${url}${aboutHref}`, { waitUntil: "domcontentloaded" });
++  await aboutPage.locator("h1").first().waitFor({ state: "visible", timeout: 10_000 });
++  const tapToAboutMs = Date.now() - tAboutStart;
++  const aboutHeading = await aboutPage.locator("h1").first().innerText().catch(() => "");
++  ok(`${locale} run${runIndex}: the about page opens for real and reads within ${BUDGETS.tapToAboutMs}ms`,
++    aboutHeading === c.aboutHeading && tapToAboutMs < BUDGETS.tapToAboutMs, `${tapToAboutMs}ms heading=${JSON.stringify(aboutHeading)}`);
++  const aboutBodyText = await aboutPage.locator("body").innerText().catch(() => "");
++  ok(`${locale} run${runIndex}: the about page carries the person's own disclosure line`, aboutBodyText.includes(PERSON_LINE));
++  await aboutPage.close();
++
++  // ── join sheet: age attest + memory consent, minimum taps ──────────────
++  const tJoinStart = Date.now();
++  await page.locator('input[type="checkbox"]').check();
++  const [joinResponse] = await Promise.all([
++    page.waitForResponse((r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "join", { timeout: 15_000 }),
++    page.getByRole("button", { name: c.memoryYes }).click(),
++  ]);
++  const joinBody = await joinResponse.json().catch(() => ({}));
++  ok(`${locale} run${runIndex}: the visitor joins for real, a real session minted`,
++    joinResponse.status() === 200 && typeof joinBody.session === "string" && joinBody.session.length > 20);
++
++  await page.waitForSelector(".room-composer textarea", { timeout: 15_000 });
++  const beforeCount = await page.locator(".room-bubble.from-them").count();
++  await page.locator(".room-composer textarea").fill(locale === "hi" ? "आप कौन हैं?" : "Who are you?");
++  const [sayResponse] = await Promise.all([
++    page.waitForResponse((r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "say", { timeout: 15_000 }),
++    page.locator(".room-send").click(),
++  ]);
++  const sayBody = await sayResponse.json().catch(() => ({}));
++  await page.waitForFunction((n) => document.querySelectorAll(".room-bubble.from-them").length > n, beforeCount, { timeout: 15_000 });
++  const joinToFirstReplyMs = Date.now() - tJoinStart;
++  const totalMs = Date.now() - t0;
++  ok(`${locale} run${runIndex}: join sheet to first reply under ${BUDGETS.joinToFirstReplyMs}ms`,
++    sayResponse.status() === 200 && joinToFirstReplyMs < BUDGETS.joinToFirstReplyMs, `${joinToFirstReplyMs}ms`);
++  ok(`${locale} run${runIndex}: the reply carries the person's own AI, never a teacher's`,
++    typeof sayBody?.reply === "string" && sayBody.reply.includes(room.displayName || ""));
++  ok(`${locale} run${runIndex}: total, cold tap to first reply, under ${BUDGETS.totalMs}ms`, totalMs < BUDGETS.totalMs, `${totalMs}ms`);
++
++  await context.close();
++  return { tapToAboutMs, joinToFirstReplyMs, totalMs, session: joinBody.session, bearer };
++}
++
++/** Real cleanup between measured runs — this file's own header on why a
++ *  fresh browser context alone is not enough. */
++async function forgetFollower(url, bearer, session) {
++  const resp = await fetch(`${url}/api/room`, {
++    method: "POST",
++    headers: { "content-type": "application/json", authorization: `Bearer ${bearer}` },
++    body: JSON.stringify({ op: "forget", session }),
++  });
++  if (resp.status !== 200) {
++    const body = await resp.json().catch(() => ({}));
++    throw new Error(`forget between runs failed: ${resp.status} ${JSON.stringify(body)}`);
++  }
++}
++
++function median(nums) {
++  const s = [...nums].sort((a, b) => a - b);
++  const n = s.length;
++  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
++}
++
++/** Law 4 (one screen, nothing below the fold, the keyboard never covers the
++ *  primary button) and law 5's third negative control (the install card
++ *  never appears before the first reply) — ONE combined walk, one identity,
++ *  one join. Combined deliberately rather than three separate contexts:
++ *  `POST /api/room {op:"forget"}` is rate-limited to 3 calls/minute per
++ *  identity (`api/room.js`'s own `room_forget_user` bucket) and this walk
++ *  already spends its budget resetting the THREE timed runs in
++ *  `walkLocale` below; splitting this check into further contexts would
++ *  need a forget between each one this file has no budget left for. One
++ *  join here answers all four checks instead:
++ *
++ *   1. the fold check, the moment `.room-join` is reached;
++ *   2. the keyboard-safety check, the moment the composer is reached;
++ *   3. NEGATIVE CONTROL — no install card right after the first reply
++ *      (never ready by second visit, `installPrompt.ts`'s own rule, true
++ *      regardless of phase);
++ *   4. a second navigation in the SAME context (so the visit counter this
++ *      file's own header explains genuinely increments) — the product's own
++ *      real second-visit rule now allows the card.
++ *
++ *  An iPhone-shaped `userAgent` is the one deterministic path
++ *  `shouldShowInstallCard` admits without a captured `beforeinstallprompt` —
++ *  headless Chromium does not reliably fire that event against a
++ *  plain-HTTP loopback server with no real installability signal, this
++ *  file's own header on why a synthetic dispatch is not used instead.
++ *
++ *  THE KEYBOARD CHECK'S OWN HONEST LIMIT, named rather than silently
++ *  assumed: headless Chromium has no real on-screen software keyboard, so
++ *  no focus event here ever produces the genuine divergence a live OS
++ *  keyboard causes (the visual viewport shrinking while the layout
++ *  viewport does not). What this DOES prove, faithfully:
++ *  `page.setViewportSize` genuinely changes the CSS viewport Chromium lays
++ *  out against, and `.room-composer` is `position: sticky; bottom: 0`
++ *  (`room.css`) — so shrinking the viewport by a phone-keyboard-sized
++ *  amount (340px, a large Android keyboard plus a suggestion bar) and
++ *  reading `window.visualViewport.height` back against the send button's
++ *  own real bounding rect is the closest a headless environment can get to
++ *  the real question, and is exactly what would catch a regression to
++ *  `position: fixed` pinned to a stale height, or an ancestor with
++ *  `overflow: hidden` clipping the composer out of the visible area. A
++ *  live-device measurement that disagrees is what should change this
++ *  check, never the other way around. */
++async function checkJoinSheetKeyboardAndInstallPrompt(browser, url, room, locale, bearer) {
++  const c = FOLLOWER_COPY[locale];
++  const context = await browser.newContext({
++    viewport: VIEWPORT,
++    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
++  });
++  await context.addInitScript(authInitScript(bearer), { token: bearer });
++  const page = await context.newPage();
++  await page.goto(`${url}/r/${room.slug}?via=search`, { waitUntil: "domcontentloaded" });
++  if (locale === "hi") {
++    await page.locator('.room-lang-switch button[lang="hi"]').click({ timeout: 15_000 });
++    await page.waitForFunction(
++      () => document.querySelector('.room-lang-switch button[lang="hi"]')?.getAttribute("aria-pressed") === "true",
++      null, { timeout: 10_000 },
++    );
++  }
++  await page.getByRole("button", { name: c.tasteJoin }).click({ timeout: 15_000 });
++  await page.waitForSelector(".room-join", { timeout: 10_000 });
++
++  // Law 4, first half: nothing below the fold that must be tapped.
++  const foldCheck = await page.evaluate(() => {
++    const vh = window.innerHeight;
++    const rects = Array.from(document.querySelectorAll(
++      '.room-join input[type="checkbox"], .room-join button',
++    )).map((el) => ({ text: (el.textContent || "").trim().slice(0, 40), bottom: el.getBoundingClientRect().bottom }));
++    return { vh, rects, fits: rects.length > 0 && rects.every((r) => r.bottom <= vh) };
++  });
++  ok(`${locale}: the join sheet's every interactive control fits inside the 390x844 viewport, nothing below the fold`,
++    foldCheck.fits, JSON.stringify(foldCheck));
++
++  await page.locator('input[type="checkbox"]').check();
++  await Promise.all([
++    page.waitForResponse((r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "join", { timeout: 15_000 }),
++    page.getByRole("button", { name: c.memoryYes }).click(),
++  ]);
++  await page.waitForSelector(".room-composer textarea", { timeout: 15_000 });
++
++  // Law 4, second half: the keyboard never covers the primary button.
++  await page.locator(".room-composer textarea").focus();
++  await page.setViewportSize({ width: VIEWPORT.width, height: VIEWPORT.height - 340 });
++  const afterShrink = await page.evaluate(() => {
++    const vvh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
++    const send = document.querySelector(".room-send");
++    return { vvh, sendBottom: send ? send.getBoundingClientRect().bottom : null };
++  });
++  ok(`${locale}: the composer's send button stays inside the visual viewport once a phone keyboard's own height is taken from it`,
++    afterShrink.sendBottom !== null && afterShrink.sendBottom <= afterShrink.vvh + 1, JSON.stringify(afterShrink));
++  await page.setViewportSize(VIEWPORT);
++
++  // ── visit 1 continues: ask, get a reply — the install card must stay
++  //    absent even though `talking` and `isIOS` both already hold. ────────
++  const beforeCount = await page.locator(".room-bubble.from-them").count();
++  await page.locator(".room-composer textarea").fill(locale === "hi" ? "आप कौन हैं?" : "Who are you?");
++  await Promise.all([
++    page.waitForResponse((r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "say", { timeout: 15_000 }),
++    page.locator(".room-send").click(),
++  ]);
++  await page.waitForFunction((n) => document.querySelectorAll(".room-bubble.from-them").length > n, beforeCount, { timeout: 15_000 });
++  ok(`${locale}: NEGATIVE CONTROL — the install card never appears on a Room's first visit, even right after the first reply`,
++    (await page.locator(".room-cap[role=note]").count()) === 0);
++
++  // ── visit 2: same identity, same browser (same localStorage, so the
++  //    visit counter genuinely increments), the product's OWN real
++  //    second-visit rule now allows the card. ─────────────────────────────
++  await page.goto(`${url}/r/${room.slug}?via=search`, { waitUntil: "domcontentloaded" });
++  await page.waitForSelector(".room-composer textarea, .room-cap[role=note]", { timeout: 15_000 });
++  const cardVisible = await page.locator(".room-cap[role=note]").count();
++  ok(`${locale}: after the first reply, on the visit the product's own rule allows, the install card appears (iOS variant, static instructions)`,
++    cardVisible > 0);
++
++  await context.close();
++}
++
++/** Law 5's first two negative controls: a slug that was never published,
++ *  and the SAME room after its owner pauses it, both collapse to the
++ *  identical honest, deliberately vague page — never a distinct "paused"
++ *  message that would tell a stranger which creators took their Room down
++ *  (`copy.ts`'s own comment). Fetch-based for the never-published case
++ *  (a stranger's browser never even reaches a rendered page worth
++ *  screenshotting — the door itself is what refuses); a real cold browser
++ *  visit for the paused case, since the brief's own law 5 asks specifically
++ *  for the rendered page, inside the SAME budget a working visit gets. */
++async function checkUnreachableNegativeControls(browser, url, room, rid, locale, bearer) {
++  const c = FOLLOWER_COPY[locale];
++
++  const neverPublished = await fetch(`${url}/api/room`, {
++    method: "POST", headers: { "content-type": "application/json" },
++    body: JSON.stringify({ op: "open", room: "nobody-here-yet-xyz" }),
++  });
++  const neverPublishedBody = await neverPublished.json().catch(() => ({}));
++  ok(`${locale}: NEGATIVE CONTROL — a slug with no published sheet is not reachable`,
++    neverPublished.status === 404 && neverPublishedBody.error === "room_unavailable", JSON.stringify(neverPublishedBody));
++
++  const paused = await fetch(`${url}/api/room-publish`, {
++    method: "POST",
++    headers: { "content-type": "application/json", authorization: `Bearer ${REHEARSAL_OWNER_TOKEN}` },
++    body: JSON.stringify({ op: "pause", replica_id: rid }),
++  });
++  const pausedBody = await paused.json().catch(() => ({}));
++  ok(`${locale}: the owner's own pause door really sets paused_at`, paused.status === 200 && Boolean(pausedBody?.room?.paused_at));
++
++  const context = await browser.newContext({ viewport: VIEWPORT });
++  await context.addInitScript(authInitScript(bearer), { token: bearer });
++  const page = await context.newPage();
++  const t0 = Date.now();
++  await page.goto(`${url}/r/${room.slug}?via=search`, { waitUntil: "domcontentloaded" });
++  await page.locator(".room-gone h2").first().waitFor({ state: "visible", timeout: 10_000 });
++  const wallMs = Date.now() - t0;
++  const heading = await page.locator(".room-gone h2").first().innerText().catch(() => "");
++  const body = await page.locator(".room-gone .room-lede").first().innerText().catch(() => "");
++  ok(`${locale}: NEGATIVE CONTROL — a paused Room shows the SAME honest, deliberately vague page, inside the about-page budget (${BUDGETS.tapToAboutMs}ms)`,
++    heading === c.unavailableTitle && wallMs < BUDGETS.tapToAboutMs, `${wallMs}ms heading=${JSON.stringify(heading)}`);
++  ok(`${locale}: the honest page never claims a different reason for a paused Room than for one that was never published`,
++    /paused/i.test(body) && /old/i.test(body));
++  await context.close();
++}
++
++async function walkLocale(locale) {
++  console.log(`\n── the visitor's first minute on a phone (${locale}) ──`);
++  const bearer = locale === "hi" ? USER_B : USER_A;
++  const displayName = locale === "hi" ? "Rhea Kapoor" : "Maya Iyer";
++
++  const state = freshRehearsalCreatorState();
++  const { url, stop } = await startServer(state);
++  const { rid, room } = await publishPersonRoom(url, state, { displayName });
++  setFakeReply(() => `Hi, I am ${displayName}'s AI. Rehearsal reply, standing in for a real model call.`);
++
++  const launched = await launchRehearsalBrowser();
++  if (!launched.browser) { await stop(); throw new Error(`chromium launched for the probe above but not for the ${locale} walk: ${launched.reason}`); }
++  const browser = launched.browser;
++  const timings = [];
++  try {
++    for (let i = 1; i <= RUNS; i++) {
++      const timing = await measuredVisit(browser, url, room, locale, bearer, i);
++      timings.push(timing);
++      // A server-side reset before the NEXT cold context — this file's own
++      // header on why localStorage alone is not enough. Skipped after the
++      // LAST run: the negative controls that follow want this identity's
++      // history intact, matching a real returning stranger.
++      if (i < RUNS) await forgetFollower(url, timing.bearer, timing.session);
++    }
++
++    console.log(`\n  ${locale} wall clocks (ms), n=${RUNS}:`);
++    console.log(`  ${"run".padEnd(6)}${"tapToAbout".padStart(14)}${"joinToReply".padStart(14)}${"total".padStart(10)}`);
++    timings.forEach((t, i) => {
++      console.log(`  ${String(i + 1).padEnd(6)}${String(Math.round(t.tapToAboutMs)).padStart(14)}${String(Math.round(t.joinToFirstReplyMs)).padStart(14)}${String(Math.round(t.totalMs)).padStart(10)}`);
++    });
++    const medians = {
++      tapToAboutMs: median(timings.map((t) => t.tapToAboutMs)),
++      joinToFirstReplyMs: median(timings.map((t) => t.joinToFirstReplyMs)),
++      totalMs: median(timings.map((t) => t.totalMs)),
++    };
++    console.log(`  ${"median".padEnd(6)}${String(Math.round(medians.tapToAboutMs)).padStart(14)}${String(Math.round(medians.joinToFirstReplyMs)).padStart(14)}${String(Math.round(medians.totalMs)).padStart(10)}\n`);
++
++    // Between the timed runs above and the checks below, this identity's
++    // last follower row (from the final timed run, never forgotten) is
++    // still live — deliberate, `measuredVisit`'s own comment.
++    await forgetFollower(url, bearer, timings[timings.length - 1].session);
++
++    await checkJoinSheetKeyboardAndInstallPrompt(browser, url, room, locale, bearer);
++    // Pauses the Room — must run LAST, since every check above needs it
++    // published.
++    await checkUnreachableNegativeControls(browser, url, room, rid, locale, bearer);
++  } finally {
++    await browser.close();
++    await stop();
++  }
++  return timings;
++}
++
++ensureBuilt();
++
++const started = Date.now();
++const clocks = {};
++{
++  const t = Date.now();
++  await walkLocale("en");
++  clocks.walkEnMs = Date.now() - t;
++}
++if (FULL) {
++  const t = Date.now();
++  await walkLocale("hi");
++  clocks.walkHiMs = Date.now() - t;
++} else {
++  console.log("\n(Hindi walk skipped — set REHEARSAL_FULL=1 or pass --full to run it too. The English walk alone is what evals/run.mjs registers.)");
++}
++const wallMs = Date.now() - started;
++console.log(`\nwall clocks (ms): ${JSON.stringify(clocks)}, total ${wallMs}ms`);
++
++console.log(`\n${pass + fail} checks, ${pass} passed, ${fail} failed`);
++if (fail) {
++  console.error(`failed: ${failures.join(", ")}`);
++  process.exit(1);
++}
+diff --git a/evals/run.mjs b/evals/run.mjs
+index 7befd80..bac91e5 100644
+--- a/evals/run.mjs
++++ b/evals/run.mjs
+@@ -3495,6 +3495,41 @@ const suites = {
+   // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
+   // real source on every run, the same as `person-sheet` above.
+   "person-sheet-draft": "person-sheet-draft/run.mjs",
++  // WS-R186 (wave twenty-four). THE VISITOR'S FIRST MINUTE ON A PHONE: a
++  // real Chromium at 390x844, under `scripts/check-performance.mjs`'s own
++  // 4G throttle (4x CPU, 1.6 Mbps down, 750 Kbps up, 150 ms RTT), walks a
++  // stranger's cold `/r/<slug>` open through the real `dist/room.html` and
++  // the real `api/room.js`/`api/room-about.js` doors: the taste screen, the
++  // about page (timed, <3s), the join sheet (age attest, memory consent,
++  // minimum taps), one question, the fake seam's reply (join-to-reply
++  // timed, <8s; total cold-to-reply, <20s), and the install prompt's own
++  // real visibility law (`src/room/installPrompt.ts`) proven against the
++  // production door rather than the layout fixture's short-circuit. n=3
++  // measured runs per locale (English registered here; `--full` or
++  // `REHEARSAL_FULL=1` adds Hindi), each run reset at the server through
++  // the REAL `POST /api/room {op:"forget"}` door so three "cold" contexts
++  // are also three genuinely fresh followers, not one returning across
++  // browser contexts. A real, measured over-budget finding fixed at its
++  // cause: the join sheet's own primary buttons rendered ~150px past the
++  // 844px fold before this workstream (real content, never trimmed —
++  // `context/measurements.md#ws-r186-join-sheet-actions-past-the-fold-
++  // before-the-pin`); `src/room/room.css`'s `.room-join .room-actions` now
++  // pins them with `position: sticky; bottom: 0` (`.room-composer`'s own
++  // established pattern, restated), verified empirically to read at the
++  // viewport's own bottom edge from the FIRST paint, not only once a scroll
++  // catches it. THREE negative controls: a never-published slug is not
++  // reachable; a creator's own `pause` makes an already-published Room
++  // collapse to the SAME honest, deliberately vague page inside the same
++  // budget; the install card never appears on a Room's first visit, proven
++  // both on the visit the first reply happens (never ready by second
++  // visit, true regardless of phase) and on the later visit the product's
++  // own rule does allow it, so the control is falsifiable rather than
++  // trivially true.
++  //
++  // Offline, deterministic, $0, no DB, no network beyond 127.0.0.1, no
++  // model call, no GPU. Chromium only; gracefully skips (exit 0) if none is
++  // found.
++  "visitor-first-minute": "rehearsal/visitor-first-minute.mjs",
+ };
+ 
+ const argv = process.argv.slice(2);
+diff --git a/evals/runner-lib.mjs b/evals/runner-lib.mjs
+index 18be751..f6277f5 100644
+--- a/evals/runner-lib.mjs
++++ b/evals/runner-lib.mjs
+@@ -71,7 +71,12 @@ import { loadRatio } from "./lib/bounded-wait.mjs";
+ // `ensureBuilt()`), the identical hazard this file's own header already
+ // names for every other rehearsal that builds, so it belongs here for the
+ // same reason, not a new one.
+-export const PRE_POOL_SUITES = ["rehearsal-follower", "rehearsal-creator", "rehearsal-personal", "first-five-minutes", "rehearsal-person-room"];
++// WS-R186: "visitor-first-minute" added — it runs its own `npx vite build`
++// into the same shared `dist/` (`evals/rehearsal/visitor-first-minute.mjs`'s
++// own `ensureBuilt()`), the identical hazard this file's own header already
++// names for every other rehearsal that builds, so it belongs here for the
++// same reason, not a new one.
++export const PRE_POOL_SUITES = ["rehearsal-follower", "rehearsal-creator", "rehearsal-personal", "first-five-minutes", "rehearsal-person-room", "visitor-first-minute"];
+ 
+ /** Suites that bind one FIXED loopback port. Never run two of these at once
+  * even though their ports differ today — the lane, not the port numbers, is
+diff --git a/src/room/room.css b/src/room/room.css
+index bce15bc..2af239f 100644
+--- a/src/room/room.css
++++ b/src/room/room.css
+@@ -827,6 +827,43 @@
+     gap: var(--space-tight);
+   }
+ 
++  /* WS-R186: the join sheet's own primary buttons, pinned so a phone never
++   * has to scroll to find something it needs to TAP — the brief's own law 4,
++   * "nothing below the fold that must be tapped." Measured on a real,
++   * signed-in visitor's join sheet at 390x844: the disclosure card, the
++   * about link, the age line, and the memory explanation (three kept items,
++   * three sentences of fine print) are real, meaningful copy this file's own
++   * law keeps untouched ("copy stays as it is unless a line fails the
++   * read-aloud test") — together they run the actions row ~150px past the
++   * fold in normal flow (`context/measurements.md
++   * #ws-r186-join-sheet-actions-past-the-fold-before-the-pin`). `position:
++   * sticky; bottom: 0` is `.room-composer`'s own established pattern
++   * (further up this file) restated here: it pins the row to the bottom of
++   * the viewport from the FIRST paint (verified empirically — a sticky
++   * `bottom: 0` element already reads at the viewport's own bottom edge on
++   * initial load, scrollTop 0, not only once a scroll "catches" it), while
++   * everything ABOVE it — including the "no means" note that already
++   * follows it in the DOM, `.room-join`'s own JSX order, WS-R27's own
++   * "stated where 'no' is chosen" — still scrolls into view exactly as
++   * before; nothing is removed, reordered, or hidden, only the tap targets
++   * are guaranteed reachable without a scroll. Scoped to `.room-join`
++   * alone: the account page's OWN `.room-account .room-actions` override
++   * (further down this file) is untouched, and neither is the cap card's or
++   * the gone screen's shared `.room-actions`, both short enough already
++   * that this problem never reaches them. */
++  .room-join .room-actions {
++    position: sticky;
++    bottom: 0;
++    z-index: 1;
++    box-sizing: border-box;
++    margin: var(--space-block) calc(-1 * var(--space-pad)) calc(-1 * var(--space-pad));
++    padding: var(--space-row) var(--space-pad) calc(var(--space-pad) + env(safe-area-inset-bottom, 0px));
++    background: color-mix(in srgb, var(--panel-solid) 94%, transparent);
++    backdrop-filter: blur(12px);
++    border-top: var(--hairline) solid var(--line);
++    border-radius: 0 0 var(--radius) var(--radius);
++  }
++
+   .room-btn {
+     min-height: 48px;
+     border: var(--hairline) solid var(--line-strong);

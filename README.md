@@ -89,3 +89,97 @@ website is the product.
 Stack: React 19 + TypeScript + Vite, framer-motion, Capacitor 8 (Android
 shell), Anthropic SDK. Rename her in `src/engine/persona.ts` (`HER_NAME`) —
 everything follows from there.
+
+## Replica Lab (`voice-cloning` branch)
+
+This branch also contains the first product slice of Vyakti Replica Lab at
+`/studio`: an authenticated, private self-replica workspace. It is separate
+from Meera and does not change her current chat or call lanes.
+
+Implemented now:
+
+- owner-derived replica lifecycle and immediate revoke/erasure queue;
+- granular source capture, transcription and storage consent;
+- browser-side incremental SHA-256 and direct signed upload to a verified
+  private bucket, followed by quarantine and a retryable processing queue;
+- randomized, expiring microphone/video challenge capture that an owner cannot
+  self-pass, with an explicit pending-verifier boundary;
+- immutable integrity, diarization, separation, enhancement, ASR and
+  multi-embedding adapter contracts that build only reviewable VoiceGenome
+  drafts, plus a real Azure Speech fast-transcription HTTP adapter that has
+  been tested against mocked responses but not live quality data;
+- owner-only processing review with privacy-safe evidence summaries,
+  append-only accept/reject/supersede decisions, and an idempotent draft-only
+  VoiceGenome build queue;
+- an evidence-backed Person Model that turns cited, owner-reviewed claims into
+  deterministic versioned identity, speech, behaviour, values, boundaries,
+  autobiography and relationship-mode profiles while retaining uncertainty;
+- a private cited-claim extraction lane for accepted target-speaker
+  transcripts: direct identifiers are masked before a strict Azure Foundry
+  structured-output request, citations are independently revalidated, and all
+  results remain owner-review proposals; the adapter is protocol-tested only
+  and stays blocked until verified training consent is live;
+- a typed owner calibration lab with safe server-owned contrasts,
+  append-only revisions, deterministic policy builds and exact runtime/eval/
+  generation version binding instead of free-text prompt accretion;
+- hard `agent_id` isolation for raw logs, graph memory, suppressions and
+  consolidation cursors, plus strict default-removal/natural-key migrations
+  gated for a second agent; production migrations remain unapplied;
+- provider-neutral VoiceGenome and streamed PCM synthesis contracts;
+- a non-bypassable output-protection contract: audible prefix, streaming
+  watermark proof, signed 240 ms segment hash chain, final C2PA-bound asset
+  receipt, revocation-aware authorization, and production refusal of fake
+  adapters;
+- an immutable private runtime capability that freezes the exact approved
+  Person Model, calibration policy, VoiceGenome, provider voice and
+  seven-suite qualification set; it resolves agent/person ownership server-side, scopes every
+  RelationalOS read to that pair, and routes cloned speech only through the
+  protected cascade endpoint with no wrong-voice fallback;
+- a private replica dialogue path that actually compiles that frozen Person
+  Model, typed calibration, isolated relationship state and recent session
+  history into strict Azure Foundry structured output; conversation text is
+  stored once in the erasable raw log, and protected voice accepts only the
+  exact server-issued turn rather than arbitrary client text;
+- an exact-version owner feedback loop that grades wording, behavior,
+  relationship, memory, delivery and heard voice separately; optional owner
+  corrections use per-exemplar envelope encryption and become auditable
+  preference evidence rather than automatic prompt mutations;
+- a content-free feedback dataset compiler that freezes whole conversations
+  into immutable train/development/test splits, uses only latest revisions,
+  forces unsafe new sessions into holdout, and emits draft-only readiness;
+- a blinded paired candidate gate that demands target-layer improvement,
+  cross-layer noninferiority, zero critical safety failures, bounded false
+  memories and exact artifact/dataset/baseline commitments without activation;
+- an owner-facing blind fidelity lab with cryptographically balanced A/B order,
+  envelope-encrypted held-out text, replay-safe exact-layer judgments and no
+  candidate identity or presentation mapping in the browser;
+- a production Neon provenance ledger that rechecks active replica capability
+  before each signed PCM segment is released, making revocation a streaming
+  delivery fence rather than only a UI state;
+- offline enrollment, IDOR, lifecycle, disclosure and provider-contract gates;
+- a researched Azure Foundry spend plan below the $2,000 grant ceiling;
+- an atomic, content-free paid-provider ledger that reserves conservative
+  Azure Foundry token cost or per-request-rounded Azure Speech duration before network
+  I/O, settles measured usage, and locks ambiguous outcomes for reconciliation
+  instead of risking double spend;
+- an approval-gated Azure Personal Voice adapter that verifies private audio
+  hashes, keeps provider consent separate from liveness, pins the synthesis
+  model, emits the existing 24 kHz PCM contract, deletes provider copies, and
+  meters profile creation plus multilingual synthesis under the same ceiling.
+
+Biometric consent, identity/age verification, anti-replay, live Personal Voice
+approval/enrollment, production watermark/C2PA/signing adapters, and live runtime
+activation remain closed until their explicit live gates pass. The full architecture is in
+[`docs/SPEC-REPLICA-PLATFORM.md`](docs/SPEC-REPLICA-PLATFORM.md), frontier
+research in [`docs/research/REPLICA-FRONTIER-2026.md`](docs/research/REPLICA-FRONTIER-2026.md),
+provenance in [`docs/REPLICA-PROVENANCE.md`](docs/REPLICA-PROVENANCE.md), and
+runtime isolation in [`docs/REPLICA-RUNTIME.md`](docs/REPLICA-RUNTIME.md).
+Dialogue serving is in [`docs/REPLICA-DIALOGUE.md`](docs/REPLICA-DIALOGUE.md).
+The Person Model contract is in [`docs/PERSON-MODEL.md`](docs/PERSON-MODEL.md).
+Private cited extraction is in [`docs/CLAIM-EXTRACTION.md`](docs/CLAIM-EXTRACTION.md).
+Calibration is specified in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
+Turn-level fidelity learning is in [`docs/TURN-FEEDBACK.md`](docs/TURN-FEEDBACK.md).
+Leakage-safe dataset construction is in [`docs/FEEDBACK-DATASET.md`](docs/FEEDBACK-DATASET.md).
+Candidate statistics and promotion boundaries are in [`docs/CANDIDATE-QUALIFICATION.md`](docs/CANDIDATE-QUALIFICATION.md).
+Azure allocation is in [`docs/AZURE-FOUNDRY-PLAN.md`](docs/AZURE-FOUNDRY-PLAN.md).
+The enforced application ceiling is in [`docs/PROVIDER-BUDGET.md`](docs/PROVIDER-BUDGET.md).

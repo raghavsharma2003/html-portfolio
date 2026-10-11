@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {writeFileSync} from 'node:fs';
+import {intelligibility} from './voice-asr106-screen.mjs';
+assert.equal(intelligibility('This is AI. Gravity matters.','this is ai gravity matters','This is AI.').wer,0);
+assert(intelligibility('This is AI. Gravity matters.','gravity matters','This is AI.').wer>0);
+assert.equal(intelligibility('This is AI. Gravity matters.','gravity matters','This is AI.').disclosure_exact_normalized_prefix,false);
+assert.equal(intelligibility('यह आवाज़ है','यह आवाज़ है','यह').wer,0);
+assert.equal(intelligibility('यह आवाज़ है','yah aawaz hai','यह').wer,null);
+assert.equal(intelligibility('यह sign सही है','यह sign सही है','यह').wer,null);
+assert.equal(intelligibility('The answer is not ten.','The answer is ten.','').edit_count,1);
+const result={groups:7,provider_calls:0,sql_calls:0,scope:'Script-aware ASR scoring negatives, not acoustic quality'};writeFileSync(new URL('./voice-asr106-controls-result.json',import.meta.url),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));

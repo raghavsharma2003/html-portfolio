@@ -1,0 +1,1756 @@
+diff --git a/api/_handoff.js b/api/_handoff.js
+index 1c52f51..f21676f 100644
+--- a/api/_handoff.js
++++ b/api/_handoff.js
+@@ -257,6 +257,27 @@ export async function handoffQueue(db, ownerUserId, replicaId) {
+   };
+ }
+ 
++/**
++ * WS-R183 ("RelationOS for the person"). The person's own Relationships
++ * screen wants "handoffs waiting" as ONE NUMBER, never the queue itself
++ * (`handoffQueue`'s own `next.payload_text` is exactly the follower content
++ * that screen must never carry). A bare `count(*)`, scoped by room_id+state,
++ * so `api/_room-publish.js` never has to name `vy_room_handoff` in its own
++ * source at all - this file stays Handoff's one lane
++ * (`evals/room-leak/run.mjs`'s own layer 6a, "no file outside Handoff's own
++ * lane reads or writes vy_room_handoff").
++ */
++export async function handoffsWaitingCount(db, ownerUserId, replicaId) {
++  assertOwnerScope(ownerUserId, replicaId);
++  const room = await ownedRoomHandle(db, ownerUserId, replicaId);
++  if (!room) return null;
++  const rows = await db(
++    `select count(*)::int as n from vy_room_handoff where room_id = ($1)::uuid and state = 'sent'`,
++    [room.room_id],
++  );
++  return Number(rows[0]?.n || 0);
++}
++
+ /**
+  * Write once, answer once. The UPDATE carries the SAME hash-match predicate
+  * `handoffQueue` reads by, so a tampered or already-answered row cannot be
+diff --git a/api/_quiet-hours.js b/api/_quiet-hours.js
+index c77e6d6..6d02271 100644
+--- a/api/_quiet-hours.js
++++ b/api/_quiet-hours.js
+@@ -144,6 +144,44 @@ export function quietHoursOkForFollowerSql(followerAlias, paramIndex = 1) {
+   )`;
+ }
+ 
++/**
++ * WS-R183 ("RelationOS for the person", migration 174). The ROOM's own
++ * default window - `vy_room.timezone`/`quiet_from`/`quiet_to`, the
++ * agent-level counterpart to `quietHoursOkForFollowerRowSql`'s follower-
++ * level pair, added because quiet hours in this schema had never had an
++ * agent-level default at all before this workstream (the brief's own
++ * words: "if it is per-follower only, add the agent-level default with the
++ * smallest change"). SAME wall-clock math, SAME "NULL, never FALSE, when
++ * unset" contract, so a future caller can `coalesce()` this in exactly the
++ * way `quietHoursOkForFollowerSql` already coalesces the follower's own row
++ * against the check-in proxy below - a third layer, not a fork of the
++ * pattern.
++ *
++ * HONEST ABOUT WHAT THIS DOES NOT DO YET: no existing due-select
++ * (`_renewals.js`, `_dormancy.js`, `_checkins.js`'s sweep) calls this
++ * function as of this workstream - wiring any one of them in touches that
++ * sender's own suite's fixture world (`evals/renewals/run.mjs`,
++ * `evals/room-dormancy/run.mjs`, `evals/checkins/run.mjs`) and was judged
++ * out of this workstream's own scope (a Relationships SCREEN and its
++ * controls, not a rollout across every proactive sender). The column this
++ * writes is real and the fragment that reads it is real and tested
++ * (`evals/relations-studio/run.mjs`) - only the wiring into a live
++ * due-select is the open step, named here rather than left implicit.
++ */
++export function quietHoursOkForRoomDefaultSql(roomAlias, paramIndex = 1) {
++  const p = `$${paramIndex}`;
++  return `${QUIET_HOURS_MARKER} (
++    case when ${roomAlias}.quiet_from is not null and ${roomAlias}.quiet_to is not null and ${roomAlias}.timezone is not null then not (
++      case when ${roomAlias}.quiet_from <= ${roomAlias}.quiet_to
++        then ((${p})::timestamptz at time zone ${roomAlias}.timezone)::time >= ${roomAlias}.quiet_from
++             and ((${p})::timestamptz at time zone ${roomAlias}.timezone)::time < ${roomAlias}.quiet_to
++        else ((${p})::timestamptz at time zone ${roomAlias}.timezone)::time >= ${roomAlias}.quiet_from
++             or ((${p})::timestamptz at time zone ${roomAlias}.timezone)::time < ${roomAlias}.quiet_to
++      end
++    ) end
++  )`;
++}
++
+ /**
+  * Pure JS mirror of `quietHoursOkSql`, for a caller (a fake-`db` test
+  * harness, or a future in-process check) that already has the three values
+diff --git a/api/_room-publish.js b/api/_room-publish.js
+index 2f50033..0d3bf21 100644
+--- a/api/_room-publish.js
++++ b/api/_room-publish.js
+@@ -54,7 +54,19 @@ import { randomUUID } from "node:crypto";
+ import { readinessPasses } from "./_clonechannel.js";
+ import { READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } from "./_readiness.js";
+ import { ownedRuntimeStatus } from "./_replica-runtime.js";
+-import { monthKeyOf } from "./_room-surface.js";
++import { monthKeyOf, isKnownTimeZone, QUIET_HOURS_TIME_RE } from "./_room-surface.js";
++// WS-R183 ("RelationOS for the person"). `roomRelStateStageCounts` is
++// DELEGATED whole, never re-derived here — the n>=5 floor and the owner-
++// dyad exclusion both live in that one function, `roomCohortsApi.ts`'s own
++// "a decision in a handler is a decision no offline eval can reach"
++// precedent restated for a second caller.
++import { roomRelStateStageCounts } from "./_room-relstate.js";
++// `handoffsWaitingCount` is DELEGATED to Handoff's own lane rather than
++// queried here directly — `vy_room_handoff` has exactly one owning file
++// (`evals/room-leak/run.mjs`'s own layer 6a, a hard allowlist, not the
++// generic aggregateOnly mechanism `vy_room_checkin_delivery` uses below),
++// so this file never names that table at all.
++import { handoffsWaitingCount } from "./_handoff.js";
+ // WS-R86 (migration 123). `ownerRoomStats` below is the one caller — the
+ // Room Studio's own "Friends brought this week" card, `api/_funnel.js`'s
+ // own per-room aggregate read, imported rather than re-derived.
+@@ -999,6 +1011,133 @@ export async function ownerRoomStats(db, ownerUserId, replicaId, { now = Date.no
+   };
+ }
+ 
++// ─────────────────────────────────────────────────────────────────────────
++// OP: relations (WS-R183, "RelationOS for the person") — the owner's own
++// "how my AI is treating people" read. Every statement below is count-
++// shaped, WS-R167's own law restated for a new op: "a creator-lane
++// statement never reads a row" (`api/_room-relstate.js`'s own
++// `roomRelStateStageCounts` header). Composed from several SEPARATE,
++// ordinary statements — `ownerRoomStats` above's own precedent
++// (`friends_brought_this_week` is its own separate read for the identical
++// reason) — rather than one wide join, so each stays the simple shape
++// `evals/room-leak/run.mjs`'s own scan can check on its own terms.
++//
++// FLOORED AT n>=5: the stage buckets (delegated whole to
++// `roomRelStateStageCounts`, unchanged) and the two "how many people"
++// counts below — the same n>=5 protection every other creator-facing count
++// over individually-identifiable followers already carries in this file
++// (`friendsBroughtThisWeek`, `api/_funnel.js`). NOT floored: check-ins sent
++// and handoffs waiting are OPERATIONAL counts about the AI's OWN activity,
++// never about which or how many followers hold some property — the same
++// unfloored shape `ownerRoomStats`'s own `messages_this_month`/
++// `followers_active_24h` already carry, restated here for the same reason
++// (the workstream brief's own list names these two without the "(n>=5 or
++// absent)" qualifier it gives the other two, matching this precedent).
++// ─────────────────────────────────────────────────────────────────────────
++
++const RELATIONS_PEOPLE_FLOOR = 5;
++const RELATIONS_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
++const RELATIONS_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
++
++/** `{n, below_floor}` — `n` is `null` whenever the raw count is under the
++ *  floor, never a rounded or partial number: `friendsBroughtThisWeek`'s own
++ *  shape (`api/_funnel.js`) restated for a distinct-followers count. */
++function floorPeopleCount(raw) {
++  const n = Number(raw || 0);
++  const belowFloor = n < RELATIONS_PEOPLE_FLOOR;
++  return { n: belowFloor ? null : n, below_floor: belowFloor };
++}
++
++/**
++ * The whole screen's read, in one call: stage buckets, people-this-week/
++ * month, check-ins sent this week, handoffs waiting, the room's own quiet-
++ * hours default, and whether the Room is currently paused. `null` for "not
++ * this owner's replica" or "no Room yet" — `ownerRoomStats`'s own contract,
++ * restated.
++ */
++export async function ownerRoomRelations(db, ownerUserId, replicaId, { now = Date.now() } = {}) {
++  assertOwnerScope(ownerUserId, replicaId);
++  const room = await ownedRoomRow(db, ownerUserId, replicaId);
++  if (!room) return null;
++
++  const weekSince = new Date(now - RELATIONS_WEEK_MS).toISOString();
++  const monthSince = new Date(now - RELATIONS_MONTH_MS).toISOString();
++
++  const [stageCounts, peopleRows, checkinRows, handoffsWaiting, quietRows] = await Promise.all([
++    roomRelStateStageCounts(db, { agentId: room.agent_id }),
++    db(
++      `select
++          count(*) filter (where f.last_seen_at >= ($2)::timestamptz)::int as week_n,
++          count(*) filter (where f.last_seen_at >= ($3)::timestamptz)::int as month_n
++         from vy_room_follower f
++        where f.room_id = ($1)::uuid`,
++      [String(room.room_id), weekSince, monthSince],
++    ),
++    db(
++      `select count(*)::int as n
++         from vy_room_checkin_delivery d
++        where d.room_id = ($1)::uuid and d.state = 'delivered' and d.created_at >= ($2)::timestamptz`,
++      [String(room.room_id), weekSince],
++    ),
++    // Delegated whole to Handoff's own lane — see the import's own comment.
++    handoffsWaitingCount(db, ownerUserId, replicaId),
++    db(
++      `select timezone, quiet_from, quiet_to from vy_room where room_id = ($1)::uuid limit 1`,
++      [String(room.room_id)],
++    ),
++  ]);
++
++  const peopleRow = peopleRows[0] || {};
++  const quietRow = quietRows[0] || {};
++  return {
++    stage_counts: stageCounts,
++    people_this_week: floorPeopleCount(peopleRow.week_n),
++    people_this_month: floorPeopleCount(peopleRow.month_n),
++    checkins_sent_this_week: Number(checkinRows[0]?.n || 0),
++    handoffs_waiting: Number(handoffsWaiting || 0),
++    quiet_hours_default: {
++      timezone: quietRow.timezone ?? null,
++      quiet_from: quietRow.quiet_from ?? null,
++      quiet_to: quietRow.quiet_to ?? null,
++    },
++    paused: Boolean(room.paused_at),
++  };
++}
++
++// ─────────────────────────────────────────────────────────────────────────
++// OP: set_quiet_hours_default (WS-R183, migration 174) — the Room's own
++// agent-level quiet-hours default, `api/_room-surface.js`'s own
++// `roomSetQuietHours` (the follower-level pair) mirrored onto the owner
++// door: same validation, same both-or-neither pair, same IANA-shape probe
++// (`isKnownTimeZone`, imported rather than restated — the identical reason
++// `readinessPasses` above is imported).
++// ─────────────────────────────────────────────────────────────────────────
++
++export async function setRoomQuietHoursDefault(db, ownerUserId, replicaId, { timezone, quietFrom = null, quietTo = null } = {}) {
++  assertOwnerScope(ownerUserId, replicaId);
++  const tz = timezone == null || timezone === "" ? null : String(timezone).trim();
++  const qf = quietFrom == null || quietFrom === "" ? null : String(quietFrom);
++  const qt = quietTo == null || quietTo === "" ? null : String(quietTo);
++
++  if ((qf == null) !== (qt == null)) throw new RoomPublishError("room_quiet_hours_invalid", 400);
++  if (qf != null && (!QUIET_HOURS_TIME_RE.test(qf) || !QUIET_HOURS_TIME_RE.test(qt) || qf === qt)) {
++    throw new RoomPublishError("room_quiet_hours_invalid", 400);
++  }
++  // A window with no timezone to read it in is meaningless — never written.
++  if (qf != null && tz == null) throw new RoomPublishError("room_timezone_invalid", 400);
++  if (tz != null && !isKnownTimeZone(tz)) throw new RoomPublishError("room_timezone_invalid", 400);
++
++  const rows = await db(
++    `update vy_room
++        set timezone = $3, quiet_from = ($4)::time, quiet_to = ($5)::time, updated_at = now()
++      where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
++      returning timezone, quiet_from, quiet_to`,
++    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), tz, qf, qt],
++  );
++  if (!rows[0]) return null;
++  return { timezone: rows[0].timezone, quiet_from: rows[0].quiet_from, quiet_to: rows[0].quiet_to };
++}
++
+ // ─────────────────────────────────────────────────────────────────────────
+ // OP: share_kit (WS-R85, migration 122) — the exact text and picture for
+ // WhatsApp, Instagram, YouTube and Telegram, one tap
+diff --git a/api/_room-surface.js b/api/_room-surface.js
+index ddd921f..62ac93f 100644
+--- a/api/_room-surface.js
++++ b/api/_room-surface.js
+@@ -4104,7 +4104,10 @@ export async function roomSettingsReviewed(db, { session }, deps = {}) {
+ // OP: set_quiet_hours — WS-R131 (migration 134)
+ // ─────────────────────────────────────────────────────────────────────────
+ 
+-const QUIET_HOURS_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
++// Exported (WS-R183) for the identical reason `isKnownTimeZone` above now
++// is - `api/_room-publish.js`'s room-level default setter reuses this exact
++// shape check rather than retyping it.
++export const QUIET_HOURS_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+ 
+ /**
+  * `Intl.DateTimeFormat` construction is the check used here — the SAME
+@@ -4120,7 +4123,12 @@ const QUIET_HOURS_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  * `context/rejected.md#ws-r131-supportedvaluesof-timezone-rejects-asia-
+  * kolkata`.
+  */
+-function isKnownTimeZone(tz) {
++// Exported (WS-R183) so `api/_room-publish.js`'s own room-level default
++// setter (`setRoomQuietHoursDefault`, migration 174) can reuse the SAME
++// probe rather than a second hand-rolled one that could drift from it -
++// `readinessPasses`'s own precedent for why a real gate is imported, never
++// restated, one file over.
++export function isKnownTimeZone(tz) {
+   try {
+     new Intl.DateTimeFormat("en-US", { timeZone: tz });
+     return true;
+diff --git a/api/room-publish.js b/api/room-publish.js
+index 5c9b02e..e036d78 100644
+--- a/api/room-publish.js
++++ b/api/room-publish.js
+@@ -35,6 +35,17 @@
+ //                                                    a null kit if the Room
+ //                                                    has never published
+ //                                                    (WS-R85)
++//   POST /api/room-publish {op:"relations"}      RelationOS for the person:
++//                                                    stage counts, people
++//                                                    this week/month, check-
++//                                                    ins sent, handoffs
++//                                                    waiting, the quiet-
++//                                                    hours default and
++//                                                    paused state (WS-R183)
++//   POST /api/room-publish {op:"set_quiet_hours_default"} the Room's own
++//                                                    agent-level quiet-hours
++//                                                    default (WS-R183,
++//                                                    migration 174)
+ //
+ // Thin by construction, `api/clone-channel.js`'s own shape: cors, rate limit,
+ // auth, dispatch, error shape. Every decision lives in `api/_room-publish.js`,
+@@ -63,6 +74,9 @@ import {
+   setRoomShowcase,
+   removeRoomShowcase,
+   ownerRoomShareKit,
++  // WS-R183 ("RelationOS for the person").
++  ownerRoomRelations,
++  setRoomQuietHoursDefault,
+ } from "./_room-publish.js";
+ import { withDoor } from "./_incidents.js";
+ import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
+@@ -235,6 +249,23 @@ async function handler(req, res) {
+       return res.status(200).json({ showcase: result.showcase });
+     }
+ 
++    if (op === "relations") {
++      const result = await ownerRoomRelations(q, user.id, replicaId);
++      if (!result) return notFound(res);
++      return res.status(200).json(result);
++    }
++
++    if (op === "set_quiet_hours_default") {
++      const result = await setRoomQuietHoursDefault(q, user.id, replicaId, {
++        timezone: body.timezone,
++        quietFrom: body.quiet_from,
++        quietTo: body.quiet_to,
++      });
++      if (!result) return notFound(res);
++      obsBestEffort("room_publish.set_quiet_hours_default", { has_window: result.quiet_from != null });
++      return res.status(200).json(result);
++    }
++
+     if (op === "showcase_remove") {
+       const result = await removeRoomShowcase(q, user.id, replicaId, body.id);
+       if (!result) return notFound(res);
+diff --git a/db/migrations/174_room_quiet_hours_default.sql b/db/migrations/174_room_quiet_hours_default.sql
+new file mode 100644
+index 0000000..c480e6e
+--- /dev/null
++++ b/db/migrations/174_room_quiet_hours_default.sql
+@@ -0,0 +1,47 @@
++-- Migration 174 - the Room's own agent-level default quiet hours for what
++-- the person's AI initiates (WS-R183, "RelationOS for the person").
++--
++-- Quiet hours today (migration 134, WS-R131) live ONE row per FOLLOWER
++-- (`vy_room_follower.timezone`/`quiet_from`/`quiet_to`) - a follower sets
++-- their own window, or inherits nothing at all. There has never been an
++-- AGENT-level default the Room's OWNER can set for every follower who has
++-- not set one of their own - WS-R183's own brief names this gap directly
++-- ("reuse the Room's own quiet-hours setting if it is per-agent; if it is
++-- per-follower only, add the agent-level default with the smallest
++-- change"). This migration is that smallest change: the identical column
++-- set migration 134 added to `vy_room_follower`, mirrored onto `vy_room`
++-- instead - same nullable, both-or-neither pair, same IANA-zone SHAPE
++-- check (not a real zone-database lookup, migration 134's own header on
++-- why a shape check is what this schema can afford), same reasoning.
++--
++-- `api/_quiet-hours.js`'s new `quietHoursOkForRoomDefaultSql` reads these
++-- three columns with the SAME wall-clock math and the SAME "NULL, never
++-- FALSE, when unset" contract `quietHoursOkForFollowerRowSql` already uses
++-- for the follower-level pair, so a future caller can `coalesce()` this
++-- room default in as a middle layer between a follower's own window and
++-- any narrower proxy - see that file's own header for exactly which
++-- senders consult it as of this workstream and which do not yet (honestly
++-- named there, not left implicit).
++--
++-- Idempotent, one statement per request (Neon SQL-over-HTTP), no DO
++-- blocks, no functions - 009's law, restated by every migration since.
++-- Both new columns are nullable and default to null, so an existing `vy_
++-- room` row is unaffected the moment this migration lands - migration
++-- 134's own precedent for the identical pair, restated on a different
++-- table. Written as `drop constraint if exists` then `add constraint` -
++-- migration 134's own reason: an unnamed multi-column CHECK cannot be
++-- re-added under a name Postgres would choose for it, so this migration
++-- names both explicitly, and a run interrupted between any two of these
++-- five statements is recovered by running this same file again, every
++-- earlier statement already a no-op.
++alter table vy_room add column if not exists timezone text;
++alter table vy_room add column if not exists quiet_from time;
++alter table vy_room add column if not exists quiet_to time;
++
++alter table vy_room drop constraint if exists vy_room_quiet_hours_pairing_check;
++alter table vy_room add constraint vy_room_quiet_hours_pairing_check
++  check ((quiet_from is null and quiet_to is null) or (quiet_from is not null and quiet_to is not null));
++
++alter table vy_room drop constraint if exists vy_room_timezone_shape_check;
++alter table vy_room add constraint vy_room_timezone_shape_check
++  check (timezone is null or timezone ~ '^[A-Za-z_]+(/[A-Za-z_+-]+)*$');
+diff --git a/db/schema.sql b/db/schema.sql
+index 245e918..2072513 100644
+--- a/db/schema.sql
++++ b/db/schema.sql
+@@ -9113,3 +9113,20 @@ alter table meera_nodes add constraint meera_nodes_validity_order
+ create index if not exists meera_nodes_validity_ix
+   on meera_nodes (device_id, valid_to)
+   where valid_to is not null;
++
++-- Migration 174 - the Room's own agent-level default quiet hours for what
++-- the person's AI initiates (WS-R183, "RelationOS for the person"). See
++-- db/migrations/174_room_quiet_hours_default.sql for the full argument:
++-- migration 134's own column set (nullable, both-or-neither quiet pair,
++-- IANA-shaped timezone) mirrored from `vy_room_follower` onto `vy_room`,
++-- the smallest column set that gives the Room's owner an agent-level
++-- default for followers who never set one of their own.
++alter table vy_room add column if not exists timezone text;
++alter table vy_room add column if not exists quiet_from time;
++alter table vy_room add column if not exists quiet_to time;
++alter table vy_room drop constraint if exists vy_room_quiet_hours_pairing_check;
++alter table vy_room add constraint vy_room_quiet_hours_pairing_check
++  check ((quiet_from is null and quiet_to is null) or (quiet_from is not null and quiet_to is not null));
++alter table vy_room drop constraint if exists vy_room_timezone_shape_check;
++alter table vy_room add constraint vy_room_timezone_shape_check
++  check (timezone is null or timezone ~ '^[A-Za-z_]+(/[A-Za-z_+-]+)*$');
+diff --git a/evals/relations-studio/run.mjs b/evals/relations-studio/run.mjs
+new file mode 100644
+index 0000000..109f709
+--- /dev/null
++++ b/evals/relations-studio/run.mjs
+@@ -0,0 +1,383 @@
++// evals/relations-studio/run.mjs — WS-R183, "RelationOS for the person".
++//
++//   node evals/relations-studio/run.mjs
++//
++// Offline, deterministic, $0, no DB, no network, no browser. Drives the REAL
++// `api/_room-publish.js#ownerRoomRelations`/`setRoomQuietHoursDefault`
++// through a fake `db`, and the REAL `api/_quiet-hours.js#
++// quietHoursOkForRoomDefaultSql`, so the code path a browser reaches is the
++// code path this suite reaches — `evals/room-publish/run.mjs`'s own header,
++// restated for this workstream's two new ops.
++//
++// ── what this suite is actually guarding ──────────────────────────────────
++//
++// 1. STAGE COUNTS ARE DELEGATED, NEVER RE-DERIVED. `ownerRoomRelations` calls
++//    the SAME `roomRelStateStageCounts` the creator's ops board already
++//    uses — the n>=5 floor and the owner-dyad exclusion are proven once,
++//    over there (`evals/room-relstate/run.mjs`, `evals/room-leak/run.mjs`'s
++//    own layer 19); this suite only proves the DELEGATION, not the floor
++//    math a second time.
++// 2. PEOPLE-THIS-WEEK/MONTH ARE FLOORED AT n>=5, WITH A NEGATIVE CONTROL: a
++//    fixture with exactly 4 active-this-week followers reports `n: null,
++//    below_floor: true`, never a raw 4 — and a fixture with 5 reports the
++//    real number.
++// 3. CHECK-INS SENT AND HANDOFFS WAITING ARE NEVER FLOORED — the workstream
++//    brief's own distinction (operational counts about the AI's own
++//    activity, not about which followers hold a property), proven with a
++//    fixture count of 2 (under the people floor) surviving unfloored.
++// 4. OWNERSHIP SCOPING: a stranger owner's id against another owner's
++//    replica_id gets `null` — never that owner's counts — for BOTH new ops.
++// 5. THE QUIET-HOURS DEFAULT WRITE validates exactly like the follower-level
++//    `roomSetQuietHours` it mirrors: both-or-neither on the time pair, a
++//    real time shape, a real (probe-checked) time zone, and clears cleanly.
++// 6. THE COPY GATE, on the real files this workstream wrote, imported
++//    directly from `scripts/check-copy.mjs` — `evals/deploy-studio/run.mjs`'s
++//    own §4, restated for this screen's two new files.
++// 7. THE FLOOR IS HONEST ON SCREEN: `RelationsStudio.tsx`'s own source never
++//    renders `people_this_week.n`/`people_this_month.n` without its
++//    `below_floor` guard — a source-level property check, `evals/deploy-
++//    studio/run.mjs`'s own "no fork" §5 restated for a rendering rule
++//    instead of an import.
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++import { dirname, join } from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { scanSource } from "../../scripts/check-copy.mjs";
++
++const HERE = dirname(fileURLToPath(import.meta.url));
++const REPO = join(HERE, "..", "..");
++const STUDIO_DIR = join(REPO, "src/studio");
++
++let pass = 0;
++let fail = 0;
++const ok = (name, cond, extra = "") => {
++  if (cond) pass++;
++  else fail++;
++  console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
++};
++
++const ROOM_PUBLISH = await import(pathToFileURL(join(REPO, "api/_room-publish.js")).href);
++const { ownerRoomRelations, setRoomQuietHoursDefault, RoomPublishError } = ROOM_PUBLISH;
++const QUIET_HOURS = await import(pathToFileURL(join(REPO, "api/_quiet-hours.js")).href);
++const { quietHoursOkForRoomDefaultSql, QUIET_HOURS_MARKER, isQuietHoursOk } = QUIET_HOURS;
++
++// ── the fixture world ───────────────────────────────────────────────────
++const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
++const OWNER_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
++const REPLICA = "c1000000-0000-4000-8000-000000000001";
++const AGENT = "b1000000-0000-4000-8000-000000000001";
++const REPLICA_B = "c1000000-0000-4000-8000-000000000002";
++const AGENT_B = "b1000000-0000-4000-8000-000000000002";
++const NOW = Date.parse("2026-09-14T12:00:00Z");
++const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
++
++function freshState() {
++  return {
++    rooms: [
++      {
++        room_id: "d1000000-0000-4000-8000-000000000001", slug: "arjun", replica_id: REPLICA, agent_id: AGENT,
++        owner_user_id: OWNER, display_name: "Arjun", free_monthly_messages: 20,
++        paid_monthly_messages: 400, paid_monthly_voice_seconds: 600, default_locale: "en",
++        dormancy_days: null, listed_at: null, one_line_bio: "", taste_enabled: false,
++        published_at: "2026-09-01T00:00:00Z", paused_at: null,
++        created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:00:00Z",
++        timezone: null, quiet_from: null, quiet_to: null,
++      },
++      {
++        room_id: "d1000000-0000-4000-8000-000000000002", slug: "priya", replica_id: REPLICA_B, agent_id: AGENT_B,
++        owner_user_id: OWNER_B, display_name: "Priya", free_monthly_messages: 20,
++        paid_monthly_messages: 400, paid_monthly_voice_seconds: 600, default_locale: "en",
++        dormancy_days: null, listed_at: null, one_line_bio: "", taste_enabled: false,
++        published_at: "2026-09-01T00:00:00Z", paused_at: null,
++        created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:00:00Z",
++        timezone: null, quiet_from: null, quiet_to: null,
++      },
++    ],
++    relstate: [], // { agent_id, person_id, trust, rupture_open }
++    followers: [], // { room_id, last_seen_at }
++    checkinDeliveries: [], // { room_id, state, created_at }
++    handoffs: [], // { room_id, state }
++  };
++}
++
++function makeDb(state) {
++  return async (sql, params = []) => {
++    const p = (params || []).map((v) => (v == null ? null : String(v)));
++
++    if (sql.includes("from vy_room") && sql.includes("limit 1") && sql.includes("owner_user_id = ($1)::uuid and replica_id")) {
++      const [ownerId, replicaId] = p;
++      const r = state.rooms.find((x) => x.owner_user_id === ownerId && x.replica_id === replicaId);
++      return r ? [{ ...r }] : [];
++    }
++
++    // roomRelStateStageCounts's own aggregate — agent_id ALONE, never person_id.
++    if (sql.includes("having count(*) >= 5") && sql.includes("from vy_rel_state")) {
++      const [agentId] = p;
++      const buckets = {};
++      for (const row of state.relstate) {
++        if (row.agent_id !== agentId) continue;
++        let stage;
++        if (row.rupture_open) stage = row.trust < 0.45 ? "new" : "warming";
++        else if (row.trust < 0.2) stage = "new";
++        else if (row.trust < 0.45) stage = "warming";
++        else if (row.trust < 0.7) stage = "settled";
++        else if (row.trust < 0.88) stage = "close";
++        else stage = "deep";
++        buckets[stage] = (buckets[stage] || 0) + 1;
++      }
++      return Object.entries(buckets).filter(([, n]) => n >= 5).map(([stage, n]) => ({ stage, n }));
++    }
++    // the owner-dyad exclusion's two follow-up statements (`_room-relstate.js`) —
++    // this fixture world never seeds an owner's own dyad row, so both are no-ops.
++    if (sql.includes("select p.subject_person_id from vy_replica")) return [];
++    if (sql.includes("from vy_rel_state r") && sql.includes("case")) return [{ n: 0 }];
++
++    if (sql.includes("select\n          count(*) filter") || (sql.includes("week_n") && sql.includes("month_n"))) {
++      const [roomId, weekSince, monthSince] = p;
++      const rows = state.followers.filter((f) => f.room_id === roomId);
++      const weekN = rows.filter((f) => f.last_seen_at >= weekSince).length;
++      const monthN = rows.filter((f) => f.last_seen_at >= monthSince).length;
++      return [{ week_n: weekN, month_n: monthN }];
++    }
++
++    if (sql.includes("from vy_room_checkin_delivery")) {
++      const [roomId, weekSince] = p;
++      const n = state.checkinDeliveries.filter(
++        (d) => d.room_id === roomId && d.state === "delivered" && d.created_at >= weekSince,
++      ).length;
++      return [{ n }];
++    }
++
++    if (sql.includes("from vy_room_handoff")) {
++      const [roomId] = p;
++      const n = state.handoffs.filter((h) => h.room_id === roomId && h.state === "sent").length;
++      return [{ n }];
++    }
++
++    if (sql.includes("select timezone, quiet_from, quiet_to from vy_room where room_id")) {
++      const [roomId] = p;
++      const r = state.rooms.find((x) => x.room_id === roomId);
++      return r ? [{ timezone: r.timezone, quiet_from: r.quiet_from, quiet_to: r.quiet_to }] : [];
++    }
++
++    if (sql.includes("set timezone = $3")) {
++      const [ownerId, replicaId, tz, qf, qt] = p;
++      const r = state.rooms.find((x) => x.owner_user_id === ownerId && x.replica_id === replicaId);
++      if (!r) return [];
++      r.timezone = tz === "null" ? null : params[2];
++      r.quiet_from = params[3];
++      r.quiet_to = params[4];
++      return [{ timezone: r.timezone, quiet_from: r.quiet_from, quiet_to: r.quiet_to }];
++    }
++
++    throw new Error(`relations-studio fake db: unmodelled statement: ${sql.slice(0, 120)}`);
++  };
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++console.log("── §1: ownerRoomRelations — stage delegation, floors, scoping ──");
++// ═════════════════════════════════════════════════════════════════════════
++{
++  const state = freshState();
++  const db = makeDb(state);
++
++  // Seed OWNER's own agent with 6 "deep" (trust >= 0.88) dyads — clears the
++  // floor — and 3 "new" dyads — under it.
++  for (let i = 0; i < 6; i++) state.relstate.push({ agent_id: AGENT, person_id: `p-deep-${i}`, trust: 0.95, rupture_open: false });
++  for (let i = 0; i < 3; i++) state.relstate.push({ agent_id: AGENT, person_id: `p-new-${i}`, trust: 0.05, rupture_open: false });
++
++  const result = await ownerRoomRelations(db, OWNER, REPLICA, { now: NOW });
++  ok("ownerRoomRelations returns a result for the real owner", result !== null);
++  ok("the 6-strong deep bucket clears the floor and reports exactly 6", result.stage_counts.find((b) => b.stage === "deep")?.n === 6);
++  ok("NEGATIVE CONTROL: the 3-strong new bucket is under the floor and is completely ABSENT (never a raw 3)",
++    result.stage_counts.every((b) => b.stage !== "new"));
++
++  ok("checkins_sent_this_week/handoffs_waiting start at 0 with no fixture rows seeded", result.checkins_sent_this_week === 0 && result.handoffs_waiting === 0);
++  ok("quiet_hours_default is null/null/null with nothing set yet",
++    result.quiet_hours_default.timezone === null && result.quiet_hours_default.quiet_from === null && result.quiet_hours_default.quiet_to === null);
++  ok("paused reads false for a published, unpaused Room", result.paused === false);
++
++  ok("NEGATIVE CONTROL: a stranger owner's id against ANOTHER owner's replica_id gets null, never that owner's counts",
++    await ownerRoomRelations(db, OWNER_B, REPLICA, { now: NOW }) === null);
++  ok("NEGATIVE CONTROL: an owner's own id against a replica that does not exist gets null",
++    await ownerRoomRelations(db, OWNER, "c1000000-0000-4000-8000-0000000000ff", { now: NOW }) === null);
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── §2: people-this-week/month — floored at n>=5, unfloored operational counts ──");
++// ═════════════════════════════════════════════════════════════════════════
++{
++  const state = freshState();
++  const db = makeDb(state);
++  const weekAgoIso = new Date(NOW - WEEK_MS + 3600_000).toISOString(); // inside the week window
++  const overAWeekAgoIso = new Date(NOW - WEEK_MS - 3600_000).toISOString(); // just outside it
++
++  // 4 followers active this week — UNDER the n>=5 floor.
++  for (let i = 0; i < 4; i++) state.followers.push({ room_id: state.rooms[0].room_id, last_seen_at: weekAgoIso });
++  // 2 more, active only within the month (not the week).
++  for (let i = 0; i < 2; i++) state.followers.push({ room_id: state.rooms[0].room_id, last_seen_at: overAWeekAgoIso });
++
++  state.checkinDeliveries.push(
++    { room_id: state.rooms[0].room_id, state: "delivered", created_at: weekAgoIso },
++    { room_id: state.rooms[0].room_id, state: "delivered", created_at: weekAgoIso },
++  );
++  state.handoffs.push({ room_id: state.rooms[0].room_id, state: "sent" });
++
++  const under = await ownerRoomRelations(db, OWNER, REPLICA, { now: NOW });
++  ok("NEGATIVE CONTROL: 4 people this week is UNDER the floor — n is null, below_floor is true, never a raw 4",
++    under.people_this_week.n === null && under.people_this_week.below_floor === true);
++  ok("6 people this month (4 + 2) clears the floor and reports exactly 6",
++    under.people_this_month.n === 6 && under.people_this_month.below_floor === false);
++  ok("checkins_sent_this_week is a raw, UNFLOORED count (2, under the people floor, still reported)", under.checkins_sent_this_week === 2);
++  ok("handoffs_waiting is a raw, UNFLOORED count (1)", under.handoffs_waiting === 1);
++
++  // A 5th follower this week clears the floor.
++  state.followers.push({ room_id: state.rooms[0].room_id, last_seen_at: weekAgoIso });
++  const cleared = await ownerRoomRelations(db, OWNER, REPLICA, { now: NOW });
++  ok("5 people this week clears the floor and reports exactly 5", cleared.people_this_week.n === 5 && cleared.people_this_week.below_floor === false);
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── §3: setRoomQuietHoursDefault — validation, write, scoping ──");
++// ═════════════════════════════════════════════════════════════════════════
++{
++  const state = freshState();
++  const db = makeDb(state);
++
++  async function throws(fn) {
++    try { await fn(); return null; } catch (e) { return e; }
++  }
++
++  const mismatched = await throws(() => setRoomQuietHoursDefault(db, OWNER, REPLICA, { timezone: "Asia/Kolkata", quietFrom: "22:00", quietTo: null }));
++  ok("NEGATIVE CONTROL: quiet_from set with no quiet_to is refused (room_quiet_hours_invalid)",
++    mismatched instanceof RoomPublishError && mismatched.code === "room_quiet_hours_invalid");
++
++  const badShape = await throws(() => setRoomQuietHoursDefault(db, OWNER, REPLICA, { timezone: "Asia/Kolkata", quietFrom: "25:99", quietTo: "07:00" }));
++  ok("NEGATIVE CONTROL: a malformed time (25:99) is refused", badShape instanceof RoomPublishError && badShape.code === "room_quiet_hours_invalid");
++
++  const sameTime = await throws(() => setRoomQuietHoursDefault(db, OWNER, REPLICA, { timezone: "Asia/Kolkata", quietFrom: "22:00", quietTo: "22:00" }));
++  ok("NEGATIVE CONTROL: an identical from/to (a zero-width window) is refused", sameTime instanceof RoomPublishError && sameTime.code === "room_quiet_hours_invalid");
++
++  const noTz = await throws(() => setRoomQuietHoursDefault(db, OWNER, REPLICA, { timezone: null, quietFrom: "22:00", quietTo: "07:00" }));
++  ok("NEGATIVE CONTROL: a window with no time zone to read it in is refused", noTz instanceof RoomPublishError && noTz.code === "room_timezone_invalid");
++
++  const badTz = await throws(() => setRoomQuietHoursDefault(db, OWNER, REPLICA, { timezone: "Not/AZone", quietFrom: "22:00", quietTo: "07:00" }));
++  ok("NEGATIVE CONTROL: an unrecognised time zone name is refused", badTz instanceof RoomPublishError && badTz.code === "room_timezone_invalid");
++
++  const saved = await setRoomQuietHoursDefault(db, OWNER, REPLICA, { timezone: "Asia/Kolkata", quietFrom: "22:00", quietTo: "07:00" });
++  ok("a valid window is written and read back exactly", saved.timezone === "Asia/Kolkata" && saved.quiet_from === "22:00" && saved.quiet_to === "07:00");
++
++  const cleared = await setRoomQuietHoursDefault(db, OWNER, REPLICA, { timezone: null, quietFrom: null, quietTo: null });
++  ok("all-null clears the default cleanly", cleared.timezone === null && cleared.quiet_from === null && cleared.quiet_to === null);
++
++  const stolen = await setRoomQuietHoursDefault(db, OWNER_B, REPLICA, { timezone: "Asia/Kolkata", quietFrom: "22:00", quietTo: "07:00" });
++  ok("NEGATIVE CONTROL: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never a write", stolen === null);
++  ok("OWNER's own room is UNCHANGED by OWNER_B's attempt", state.rooms[0].timezone === null);
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── §4: quietHoursOkForRoomDefaultSql — the fragment, marker and math ──");
++// ═════════════════════════════════════════════════════════════════════════
++{
++  const frag = quietHoursOkForRoomDefaultSql("r", 1);
++  ok("carries the shared quiet-hours marker (`evals/quiet-hours/run.mjs`'s own scan hook)", frag.includes(QUIET_HOURS_MARKER));
++  ok("reads the room alias's own three columns, never a follower's", /r\.quiet_from/.test(frag) && /r\.quiet_to/.test(frag) && /r\.timezone/.test(frag));
++  ok("names no follower table at all", !/vy_room_follower/.test(frag));
++
++  // Same wall-clock formula `isQuietHoursOk` already proves at the four
++  // boundary instants (`evals/quiet-hours/run.mjs` §1) — reused here rather
++  // than re-typed, since `quietHoursOkForRoomDefaultSql`'s CASE expression is
++  // byte-identical to `quietHoursOkForFollowerRowSql`'s, just over a
++  // different alias.
++  const IST = "Asia/Kolkata";
++  const t2201 = Date.parse("2026-09-05T16:31:00.000Z"); // 22:01 IST
++  const t0659 = Date.parse("2026-09-06T01:29:00.000Z"); // 06:59 IST
++  ok("22:01 IST is INSIDE a 22:00-07:00 default window (the same math the fragment expresses)", isQuietHoursOk(t2201, IST, "22:00", "07:00") === false);
++  ok("06:59 IST is still inside the same window", isQuietHoursOk(t0659, IST, "22:00", "07:00") === false);
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── §5: the copy gate, on the real files this workstream wrote ──");
++// ═════════════════════════════════════════════════════════════════════════
++{
++  const REAL_FILES = [
++    ["src/studio/RelationsStudio.tsx", join(STUDIO_DIR, "RelationsStudio.tsx")],
++    ["src/studio/relations-studio.css", join(STUDIO_DIR, "relations-studio.css")],
++  ];
++  for (const [rel, abs] of REAL_FILES) {
++    const src = readFileSync(abs, "utf8");
++    const hits = scanSource(rel, src, { rules: "full", codename: true, roomsVocab: true });
++    ok(`copy gate: ${rel} carries zero offences`, hits.length === 0, hits.length ? JSON.stringify(hits.slice(0, 3)) : "");
++  }
++
++  // `copy.ts`/`hiCopy.ts` are ~2000-line shared registries with many
++  // sections this workstream did not write — scanning the WHOLE file with
++  // `roomsVocab: true` forced on would flag PRE-EXISTING, already-approved
++  // content outside this workstream's own block (the real
++  // `scripts/check-copy.mjs` never applies the rooms-vocabulary rule to
++  // these two paths at all — `ROOM_VOCAB_PATH.test("src/studio/copy.ts")`
++  // is false, `copy-room-scope.mjs`'s own header). So this suite scans only
++  // the TWO OBJECT LITERALS this workstream actually added, sliced out by
++  // their own start/end markers, never the surrounding file — a targeted,
++  // honest bar rather than a false positive on someone else's copy.
++  function sliceBlock(src, startMarker, endMarker) {
++    const start = src.indexOf(startMarker);
++    if (start === -1) return null;
++    const end = src.indexOf(endMarker, start);
++    if (end === -1) return null;
++    return src.slice(start, end + endMarker.length);
++  }
++  {
++    const src = readFileSync(join(STUDIO_DIR, "copy.ts"), "utf8");
++    const block = sliceBlock(src, "const EN_RELATIONS_STUDIO: RelationsStudioCopy = {", "\n};");
++    ok("copy.ts: EN_RELATIONS_STUDIO block was found (not vacuous)", Boolean(block), block ? "" : "block not found");
++    if (block) {
++      const hits = scanSource("src/studio/copy.ts", block, { rules: "full", codename: true, roomsVocab: true });
++      ok("copy gate: EN_RELATIONS_STUDIO carries zero offences", hits.length === 0, hits.length ? JSON.stringify(hits.slice(0, 3)) : "");
++    }
++  }
++  {
++    const src = readFileSync(join(STUDIO_DIR, "hiCopy.ts"), "utf8");
++    const block = sliceBlock(src, "const HI_RELATIONS_STUDIO: RelationsStudioCopy = {", "\n};");
++    ok("hiCopy.ts: HI_RELATIONS_STUDIO block was found (not vacuous)", Boolean(block), block ? "" : "block not found");
++    if (block) {
++      const hits = scanSource("src/studio/hiCopy.ts", block, { rules: "full", codename: true, roomsVocab: true });
++      ok("copy gate: HI_RELATIONS_STUDIO carries zero offences", hits.length === 0, hits.length ? JSON.stringify(hits.slice(0, 3)) : "");
++    }
++  }
++  {
++    const bad = 'const relationsStudioBad = { pauseAction: "pause your clone" };';
++    const hits = scanSource("src/studio/relationsStudioCopy.ts", bad, { rules: "full", codename: true, roomsVocab: true });
++    ok('NEGATIVE CONTROL: a string with "clone" fails scripts/check-copy.mjs', hits.length > 0);
++  }
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── §6: honest below the floor — the component's own source ──");
++// ═════════════════════════════════════════════════════════════════════════
++{
++  const src = readFileSync(join(STUDIO_DIR, "RelationsStudio.tsx"), "utf8");
++  ok("mounts inside DeployStudio.tsx (checked from that file, not this one)", true);
++  ok("RelationsStudio.tsx never renders people_this_week.n or people_this_month.n WITHOUT a below_floor guard on the same expression",
++    /below_floor \? c\.fewerThanFive : relations\.people_this_week\.n/.test(src) &&
++    /below_floor \? c\.fewerThanFive : relations\.people_this_month\.n/.test(src));
++  ok("stage buckets under the floor are rendered by iterating the SERVER's own array (never a fixed 0..4 list padded with zeros)",
++    /relations\.stage_counts\.find/.test(src));
++
++  const deploySrc = readFileSync(join(STUDIO_DIR, "DeployStudio.tsx"), "utf8");
++  ok("DeployStudio.tsx imports the real RelationsStudio, not a copy", /import RelationsStudio from ["']\.\/RelationsStudio["']/.test(deploySrc));
++  ok("DeployStudio.tsx mounts <RelationsStudio", /<RelationsStudio\b/.test(deploySrc));
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── §7: roomPublishApi.ts — the client wrapper, real ops, no reinvention ──");
++// ═════════════════════════════════════════════════════════════════════════
++{
++  const src = readFileSync(join(REPO, "src/creatorStudio/roomPublishApi.ts"), "utf8");
++  ok('readOwnedRoomRelations calls op:"relations"', /op:\s*"relations"/.test(src));
++  ok('setOwnedRoomQuietHoursDefault calls op:"set_quiet_hours_default"', /op:\s*"set_quiet_hours_default"/.test(src));
++  ok("both reuse the shared call()/replicaRequest plumbing (no second fetch helper introduced)", !/new XMLHttpRequest|fetch\(["']\/api\/room-publish/.test(src));
++}
++
++console.log(`\nrelations-studio: ${pass} passed, ${fail} failed`);
++if (fail) process.exit(1);
+diff --git a/evals/room-doors/run.mjs b/evals/room-doors/run.mjs
+index f8cf7bb..1e5a1c2 100644
+--- a/evals/room-doors/run.mjs
++++ b/evals/room-doors/run.mjs
+@@ -2998,6 +2998,12 @@ const OP_COVERAGE = {
+     showcase_remove: { classes: ["e"] },
+     // WS-R85 (migration 122).
+     share_kit: { classes: ["e"] },
++    // WS-R183 ("RelationOS for the person"): read is count-shaped throughout
++    // (`ownerRoomRelations`'s own header); the write mirrors the existing
++    // follower-level `roomSetQuietHours` (`api/_room-surface.js`) onto the
++    // owner door, same validation, same class.
++    relations: { classes: ["e"] },
++    set_quiet_hours_default: { classes: ["e"] },
+   },
+   "invites.js": {
+     issue: { classes: ["e"] },
+@@ -4669,6 +4675,14 @@ const OP_INVOKE = {
+     ),
+     showcase_remove: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.removeRoomShowcase(db, OWNER, body.replica_id, body.id), "replica_not_found"),
+     share_kit: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.ownerRoomShareKit(db, OWNER, body.replica_id, { origin: "https://example.com" }), "replica_not_found"),
++    // WS-R183 ("RelationOS for the person").
++    relations: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.ownerRoomRelations(db, OWNER, body.replica_id), "replica_not_found"),
++    set_quiet_hours_default: async (db, body) => notFoundIfNull(
++      await ROOM_PUBLISH.setRoomQuietHoursDefault(db, OWNER, body.replica_id, {
++        timezone: body.timezone, quietFrom: body.quiet_from ?? null, quietTo: body.quiet_to ?? null,
++      }),
++      "replica_not_found",
++    ),
+   },
+   "invites.js": {
+     issue: (db, body) => issueInvite(db, OWNER, { contact: body.contact, applicationId: body.application_id, ttlDays: body.ttl_days }),
+diff --git a/evals/room-leak/world.mjs b/evals/room-leak/world.mjs
+index 0b47f57..d671d2e 100644
+--- a/evals/room-leak/world.mjs
++++ b/evals/room-leak/world.mjs
+@@ -725,7 +725,11 @@ const TABLE_ROLES = {
+   // this month" read - a bare count(*) over vy_room_checkin_delivery,
+   // scoped by room_id+person_id+state, the same shape _ops.js already
+   // proves out.
+-  vy_room_checkin_delivery: { owners: ["_checkins.js", "_room-surface.js"], aggregateOnly: ["_ops.js", "_room-month-note.js"] },
++  // WS-R183 ("RelationOS for the person"): `api/_room-publish.js`'s own
++  // `ownerRoomRelations` reads "check-ins sent this week" as a bare
++  // count(*), scoped by room_id+state+created_at - `_room-month-note.js`'s
++  // own admission above, one more reader.
++  vy_room_checkin_delivery: { owners: ["_checkins.js", "_room-surface.js"], aggregateOnly: ["_ops.js", "_room-month-note.js", "_room-publish.js"] },
+   vy_room_push_subscription: { owners: ["_room-push.js", "_room-surface.js"] },
+   vy_room_pulse_optin: { owners: ["_pulse.js", "_room-surface.js"] },
+   vy_room_handoff: { owners: ["_handoff.js", "_room-surface.js"] },
+diff --git a/evals/run.mjs b/evals/run.mjs
+index 7befd80..202e4d8 100644
+--- a/evals/run.mjs
++++ b/evals/run.mjs
+@@ -3495,6 +3495,29 @@ const suites = {
+   // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
+   // real source on every run, the same as `person-sheet` above.
+   "person-sheet-draft": "person-sheet-draft/run.mjs",
++
++  // WS-R183. RelationOS for the person: a Relationships screen in the
++  // personal studio (`src/studio/RelationsStudio.tsx`, mounted behind
++  // Deploy's Share tab, `DeployStudio.tsx`) showing who talks to a person's
++  // own AI as counts only (n>=5 per bucket, never a name, never a line), by
++  // stage and by recency, plus the person's own controls: pause/resume the
++  // Room, a quiet-hours default (migration 174, the agent-level counterpart
++  // to the follower-level pair `api/_quiet-hours.js` already reads), and
++  // which check-in kinds the AI may send (the existing check-in designs,
++  // reused as toggles). One new owner-only read/write pair on the existing
++  // Deploy door (`api/room-publish.js`, ops "relations"/
++  // "set_quiet_hours_default" -> `api/_room-publish.js#ownerRoomRelations`/
++  // `setRoomQuietHoursDefault`), entirely count-shaped, with the two
++  // operational counts (check-ins sent, handoffs waiting) deliberately
++  // unfloored and the two people counts and the stage buckets floored at
++  // n>=5. Proves: the floor with a negative control at n=4 (absent, never a
++  // raw 4) and n=5 (present); unfloored operational counts survive under
++  // the people floor; two owners never cross-leak; the quiet-hours
++  // validation (both-or-neither, time shape, zone probe); the screen's own
++  // source never renders a below-floor count without its guard.
++  //
++  // Offline, deterministic, $0, no DB, no network, no browser.
++  "relations-studio": "relations-studio/run.mjs",
+ };
+ 
+ const argv = process.argv.slice(2);
+diff --git a/scripts/check-accessibility.mjs b/scripts/check-accessibility.mjs
+index 9fcbc86..6528fef 100644
+--- a/scripts/check-accessibility.mjs
++++ b/scripts/check-accessibility.mjs
+@@ -123,6 +123,26 @@ const TARGETS = [
+     screens: ["deploy"],
+     mounted: ".vx-deploy",
+   },
++  // WS-R183 ("RelationOS for the person"). `check-layout.mjs`'s own
++  // `studio:relations`/`studio-hi:relations` targets, the same fixture,
++  // scenario and `?relations=fixture` flag reused verbatim (this file's own
++  // header rule) -- pause/resume, the quiet-hours time inputs and the
++  // check-in kind toggle buttons are exactly the interactive shapes a
++  // keyboard walk exists to catch.
++  {
++    name: "studio:relations",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=share&relations=fixture",
++    screens: ["deploy"],
++    mounted: ".vx-relations",
++  },
++  {
++    name: "studio-hi:relations",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=share&relations=fixture&lang=hi",
++    screens: ["deploy"],
++    mounted: ".vx-relations",
++  },
+   // WS-R155. The blind listening test, `check-layout.mjs`'s own
+   // "studio:listening" target restated for axe plus the keyboard walk: the
+   // fieldsets, radiogroups and labelled scales this screen adds are exactly
+diff --git a/scripts/check-layout.mjs b/scripts/check-layout.mjs
+index c3a68d3..e778d41 100644
+--- a/scripts/check-layout.mjs
++++ b/scripts/check-layout.mjs
+@@ -223,6 +223,31 @@ const TARGETS = [
+     panels: ".vx-deploy-banner, #room-studio",
+     minPanels: 2,
+   },
++  // WS-R183 ("RelationOS for the person"). `RelationsStudio.tsx`, mounted
++  // inside `DeployStudio.tsx` below `RoomStudio` — reuses `studio:deploy`'s
++  // own fixture and scenario, plus `?relations=fixture`
++  // (`layoutFixture.tsx`'s own fixture-only flag, never a real product
++  // query param) so `/api/room-publish`'s `op:"relations"` answers with
++  // real counts instead of the "no Room yet" 404 `studio:deploy` itself
++  // exercises.
++  {
++    name: "studio:relations",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=share&relations=fixture",
++    steps: ["deploy"],
++    mounted: ".vx-relations",
++    panels: ".vx-relations-card",
++    minPanels: 3,
++  },
++  {
++    name: "studio-hi:relations",
++    fixture: "studio-layout-fixture.html",
++    query: () => "step=meet&scenario=voice-ready&view=share&relations=fixture&lang=hi",
++    steps: ["deploy"],
++    mounted: ".vx-relations",
++    panels: ".vx-relations-card",
++    minPanels: 3,
++  },
+   // WS-R155. The blind listening test, opened straight from the voice room
+   // via `?listening=1` (CloneExperience.tsx's own deep-link for this,
+   // `room:checkins`/`room:handoff`'s own WS-R43 law restated: never a
+diff --git a/src/creatorStudio/roomPublishApi.ts b/src/creatorStudio/roomPublishApi.ts
+index bdc75db..2d1b441 100644
+--- a/src/creatorStudio/roomPublishApi.ts
++++ b/src/creatorStudio/roomPublishApi.ts
+@@ -352,3 +352,72 @@ export function firstRoomBlocker(blockers: RoomBlockers | null): { label: string
+   if (us) return { label: us.headline, anchor: us.anchor, cls: "us" };
+   return null;
+ }
++
++// ─────────────────────────────────────────────────────────────────────────
++// WS-R183 ("RelationOS for the person"). Op "relations" and
++// "set_quiet_hours_default" — `roomCohortsApi.ts`'s own `RoomRelStage`
++// mirrored here (a string union rather than an import, that file's own
++// header on why: this studio's TS build never imports `api/`).
++// ─────────────────────────────────────────────────────────────────────────
++
++export type RoomRelStage = "new" | "warming" | "settled" | "close" | "deep";
++
++export interface RoomRelStageCount {
++  stage: RoomRelStage;
++  n: number;
++}
++
++/** `n` is `null` whenever the raw count is under the floor — never a
++ *  rounded or partial number, `friends_brought_this_week`'s own shape one
++ *  interface up. */
++export interface RoomFloorCount {
++  n: number | null;
++  below_floor: boolean;
++}
++
++export interface RoomQuietHoursDefault {
++  timezone: string | null;
++  quiet_from: string | null;
++  quiet_to: string | null;
++}
++
++export interface RoomRelations {
++  // n>=5 floored server side (`api/_room-relstate.js`'s own
++  // `roomRelStateStageCounts`) — a bucket below the floor is simply ABSENT
++  // from this array, never a zero or a rounded number.
++  stage_counts: RoomRelStageCount[];
++  people_this_week: RoomFloorCount;
++  people_this_month: RoomFloorCount;
++  // Operational counts about the AI's OWN activity, never floored — the
++  // same unfloored shape `RoomStats.messages_this_month` already carries.
++  checkins_sent_this_week: number;
++  handoffs_waiting: number;
++  quiet_hours_default: RoomQuietHoursDefault;
++  paused: boolean;
++}
++
++export async function readOwnedRoomRelations(token: string, replicaId: string): Promise<RoomRelations | null> {
++  try {
++    return await call<RoomRelations>(token, { op: "relations", replica_id: replicaId });
++  } catch (e: any) {
++    if (e?.status === 404) return null;
++    throw e;
++  }
++}
++
++/** `timezone: null, quietFrom: null, quietTo: null` clears the default —
++ *  `roomSetQuietHours`'s own follower-level contract, mirrored for the
++ *  owner door (`api/_room-publish.js`'s `setRoomQuietHoursDefault`). */
++export async function setOwnedRoomQuietHoursDefault(
++  token: string,
++  replicaId: string,
++  fields: { timezone: string | null; quietFrom: string | null; quietTo: string | null },
++): Promise<RoomQuietHoursDefault> {
++  return call<RoomQuietHoursDefault>(token, {
++    op: "set_quiet_hours_default",
++    replica_id: replicaId,
++    timezone: fields.timezone,
++    quiet_from: fields.quietFrom,
++    quiet_to: fields.quietTo,
++  });
++}
+diff --git a/src/studio/DeployStudio.tsx b/src/studio/DeployStudio.tsx
+index 47e5df1..edfd7ac 100644
+--- a/src/studio/DeployStudio.tsx
++++ b/src/studio/DeployStudio.tsx
+@@ -45,6 +45,7 @@ import { StudioLocaleProvider } from "../creatorStudio/localeContext";
+ import type { StudioLocale } from "../creatorStudio/studioLocalePreference";
+ import { expertWorkspaceUrl } from "./workspaceNavigation";
+ import { deployBannerState, deployVisitorLink, shouldReviewForStep } from "./deployStudioState";
++import RelationsStudio from "./RelationsStudio";
+ import "./deploy-studio.css";
+ 
+ const RoomStudio = lazy(() => import("../creatorStudio/RoomStudio"));
+@@ -205,6 +206,18 @@ export default function DeployStudio({
+           {t.visitorLink}
+         </a>
+       )}
++
++      {/* WS-R183 ("RelationOS for the person"). Reads through the SAME
++          owner door (`api/room-publish.js`) this screen already calls via
++          `RoomStudio`/`onRoomState` above — its own fetch, count-shaped,
++          `RelationsStudio.tsx`'s own header on why. Renders nothing until a
++          Room row exists (`roomChecked` guards against a flash of an empty
++          card before the first read lands). */}
++      {roomChecked && (
++        <StudioLocaleProvider locale={locale}>
++          <RelationsStudio token={token} replicaId={replicaId} onAuthError={onAuthError} />
++        </StudioLocaleProvider>
++      )}
+     </section>
+   );
+ }
+diff --git a/src/studio/RelationsStudio.tsx b/src/studio/RelationsStudio.tsx
+new file mode 100644
+index 0000000..5356175
+--- /dev/null
++++ b/src/studio/RelationsStudio.tsx
+@@ -0,0 +1,331 @@
++// RelationsStudio.tsx — WS-R183, "RelationOS for the person".
++//
++// RelationOS is "how it treats each person". The follower already sees "How
++// we are" in the Room (WS-R154, `src/room/AccountPage.tsx`); the creator's
++// ops board already sees floored stage counts (WS-R154/167,
++// `src/creatorStudio/RoomStudio.tsx`'s own `relstate_stage_counts` card).
++// Until this workstream, the PERSON who built their own AI saw neither: no
++// screen under `src/studio/` read a relationship count at all. This screen
++// is that gap closed — mounted behind Deploy (`DeployStudio.tsx`'s own
++// Share tab, this workstream's brief law 4), reading the SAME kind of
++// counts a creator already reads, through the SAME owner door
++// (`api/room-publish.js`) the personal studio already calls for Deploy.
++//
++// COUNT-SHAPED, ALWAYS. Every number this screen shows either comes off
++// `api/_room-publish.js#ownerRoomRelations` (itself entirely count-shaped —
++// that function's own header states which counts are floored at n>=5 and
++// which are not, and why) or off `api/_checkins.js#listDesigns`/
++// `pauseDesign` (a design's own title/prompt shape — the OWNER'S OWN words
++// for their own check-in, never a follower's). No person id, name or
++// message ever reaches this component.
++//
++// HONEST BELOW THE FLOOR: `fewerThanFive` renders in WORDS, never a number
++// under five and never a bar of zero height pretending to be data — the
++// workstream brief's own law 4, `evals/relations-studio/run.mjs`'s own
++// negative control on this exact rendering rule.
++import { useCallback, useEffect, useRef, useState } from "react";
++import { useStudioLocale } from "./localeContext";
++import {
++  pauseOwnedRoom,
++  resumeOwnedRoom,
++  readOwnedRoomRelations,
++  setOwnedRoomQuietHoursDefault,
++  RoomPublishApiError,
++  type RoomRelations,
++} from "../creatorStudio/roomPublishApi";
++import {
++  listCheckinDesigns,
++  setCheckinDesignState,
++  CheckinsApiError,
++  type CheckinDesign,
++} from "../creatorStudio/checkinsApi";
++import "./relations-studio.css";
++
++const STAGE_KEYS = ["new", "warming", "settled", "close", "deep"] as const;
++
++function isAuthError(cause: unknown): boolean {
++  if (cause instanceof RoomPublishApiError && cause.status === 401) return true;
++  if (cause instanceof CheckinsApiError && cause.status === 401) return true;
++  return false;
++}
++
++export default function RelationsStudio({
++  token,
++  replicaId,
++  onAuthError,
++}: {
++  token: string;
++  replicaId: string;
++  onAuthError: (cause: unknown) => void;
++}) {
++  const { t } = useStudioLocale();
++  const c = t.relationsStudio;
++  const auth = useRef(onAuthError);
++  auth.current = onAuthError;
++
++  const [relations, setRelations] = useState<RoomRelations | null>(null);
++  const [loaded, setLoaded] = useState(false);
++  const [loadError, setLoadError] = useState(false);
++
++  const [designs, setDesigns] = useState<CheckinDesign[] | null>(null);
++  const [designsLoaded, setDesignsLoaded] = useState(false);
++  const [designBusy, setDesignBusy] = useState<string | null>(null);
++
++  const [pauseBusy, setPauseBusy] = useState(false);
++
++  const [tz, setTz] = useState("");
++  const [from, setFrom] = useState("");
++  const [to, setTo] = useState("");
++  const [quietBusy, setQuietBusy] = useState(false);
++  const [quietNotice, setQuietNotice] = useState("");
++  const [quietError, setQuietError] = useState(false);
++
++  const load = useCallback(async () => {
++    try {
++      const next = await readOwnedRoomRelations(token, replicaId);
++      setRelations(next);
++      setLoadError(false);
++      if (next) {
++        setTz(next.quiet_hours_default.timezone ?? "");
++        setFrom(next.quiet_hours_default.quiet_from ?? "");
++        setTo(next.quiet_hours_default.quiet_to ?? "");
++      }
++    } catch (cause) {
++      if (isAuthError(cause)) return auth.current(cause);
++      setLoadError(true);
++    } finally {
++      setLoaded(true);
++    }
++  }, [token, replicaId]);
++
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  useEffect(() => {
++    let alive = true;
++    listCheckinDesigns(token, replicaId)
++      .then((rows) => {
++        if (alive) setDesigns(rows);
++      })
++      .catch((cause) => {
++        if (!alive) return;
++        if (isAuthError(cause)) return auth.current(cause);
++        setDesigns([]);
++      })
++      .finally(() => {
++        if (alive) setDesignsLoaded(true);
++      });
++    return () => { alive = false; };
++  }, [token, replicaId]);
++
++  const togglePause = useCallback(async () => {
++    if (!relations) return;
++    setPauseBusy(true);
++    try {
++      const next = relations.paused ? await resumeOwnedRoom(token, replicaId) : await pauseOwnedRoom(token, replicaId);
++      setRelations({ ...relations, paused: next.paused });
++    } catch (cause) {
++      if (isAuthError(cause)) return auth.current(cause);
++      // A locked resume (readiness/disclosure regressed since publish) is a
++      // named, honest reason — `RoomPublishApiError.blockers` — but this
++      // screen's own scope is Deploy's Share-tab control surface, not the
++      // full blocker explainer `DeployStudio.tsx`'s own banner already
++      // owns; leaving `relations.paused` unchanged here is itself the
++      // honest state (the room did not actually resume).
++    } finally {
++      setPauseBusy(false);
++    }
++  }, [relations, token, replicaId]);
++
++  const saveQuietHours = useCallback(async () => {
++    setQuietBusy(true);
++    setQuietNotice("");
++    setQuietError(false);
++    try {
++      const saved = await setOwnedRoomQuietHoursDefault(token, replicaId, {
++        timezone: tz.trim() || null,
++        quietFrom: from.trim() || null,
++        quietTo: to.trim() || null,
++      });
++      setRelations((prev) => (prev ? { ...prev, quiet_hours_default: saved } : prev));
++      setQuietNotice(c.quietHoursSaved);
++    } catch (cause) {
++      if (isAuthError(cause)) return auth.current(cause);
++      setQuietError(true);
++    } finally {
++      setQuietBusy(false);
++    }
++  }, [token, replicaId, tz, from, to, c.quietHoursSaved]);
++
++  const clearQuietHours = useCallback(async () => {
++    setTz("");
++    setFrom("");
++    setTo("");
++    setQuietBusy(true);
++    setQuietNotice("");
++    setQuietError(false);
++    try {
++      const saved = await setOwnedRoomQuietHoursDefault(token, replicaId, { timezone: null, quietFrom: null, quietTo: null });
++      setRelations((prev) => (prev ? { ...prev, quiet_hours_default: saved } : prev));
++      setQuietNotice(c.quietHoursSaved);
++    } catch (cause) {
++      if (isAuthError(cause)) return auth.current(cause);
++      setQuietError(true);
++    } finally {
++      setQuietBusy(false);
++    }
++  }, [token, replicaId, c.quietHoursSaved]);
++
++  const toggleDesign = useCallback(async (design: CheckinDesign) => {
++    setDesignBusy(design.design_id);
++    try {
++      const next = design.state === "active" ? "paused" : "active";
++      const updated = await setCheckinDesignState(token, replicaId, design.design_id, next);
++      setDesigns((prev) => (prev ? prev.map((d) => (d.design_id === updated.design_id ? updated : d)) : prev));
++    } catch (cause) {
++      if (isAuthError(cause)) return auth.current(cause);
++    } finally {
++      setDesignBusy(null);
++    }
++  }, [token, replicaId]);
++
++  // No Room yet: nothing to show — `DeployStudio.tsx`'s own `visitorLink`
++  // null-until-published precedent, one step earlier (null until a Room
++  // ROW exists at all, not merely until it publishes).
++  if (loaded && !relations && !loadError) return null;
++
++  return (
++    <section className="vx-relations" aria-labelledby="relations-title">
++      <div className="vx-stage-title">
++        <h2 id="relations-title">{c.title}</h2>
++        <p className="field-note">{c.intro}</p>
++      </div>
++
++      {!loaded ? (
++        <p className="field-note" role="status">{c.loading}</p>
++      ) : loadError ? (
++        <p className="field-note">{c.errorGeneric}</p>
++      ) : relations ? (
++        <>
++          <article className="vx-relations-card">
++            <h3>{c.stageTitle}</h3>
++            {relations.stage_counts.length === 0 ? (
++              <p className="field-note">{c.stageNone}</p>
++            ) : (
++              <ul className="vx-relations-list">
++                {STAGE_KEYS.map((stage) => {
++                  const bucket = relations.stage_counts.find((b) => b.stage === stage);
++                  if (!bucket) return null;
++                  return (
++                    <li key={stage} className="vx-relations-row">
++                      <span>{c.stageWords[stage]}</span>
++                      <span className="vx-relations-value">{bucket.n}</span>
++                    </li>
++                  );
++                })}
++              </ul>
++            )}
++            <p className="field-note">{c.stageFloorNote}</p>
++          </article>
++
++          <article className="vx-relations-card">
++            <ul className="vx-relations-list">
++              <li className="vx-relations-row">
++                <span>{c.peopleWeekLabel}</span>
++                <span className="vx-relations-value">
++                  {relations.people_this_week.below_floor ? c.fewerThanFive : relations.people_this_week.n}
++                </span>
++              </li>
++              <li className="vx-relations-row">
++                <span>{c.peopleMonthLabel}</span>
++                <span className="vx-relations-value">
++                  {relations.people_this_month.below_floor ? c.fewerThanFive : relations.people_this_month.n}
++                </span>
++              </li>
++              <li className="vx-relations-row">
++                <span>{c.checkinsSentLabel}</span>
++                <span className="vx-relations-value">{relations.checkins_sent_this_week}</span>
++              </li>
++              <li className="vx-relations-row">
++                <span>{c.handoffsWaitingLabel}</span>
++                <span className="vx-relations-value">{relations.handoffs_waiting}</span>
++              </li>
++            </ul>
++          </article>
++
++          <article className="vx-relations-card">
++            <h3>{c.pauseTitle} {relations.paused && <span className="vx-relations-badge">{c.pausedBadge}</span>}</h3>
++            <p className="field-note">{c.pauseBody}</p>
++            <button type="button" className="button secondary-button" onPointerDown={togglePause} disabled={pauseBusy}>
++              {relations.paused ? c.resumeAction : c.pauseAction}
++            </button>
++          </article>
++
++          <article className="vx-relations-card">
++            <h3>{c.quietHoursTitle}</h3>
++            <p className="field-note">{c.quietHoursBody}</p>
++            <div className="vx-relations-quiet-fields">
++              <label>
++                {c.quietHoursTimezoneLabel}
++                <input
++                  type="text"
++                  value={tz}
++                  placeholder={c.quietHoursTimezonePlaceholder}
++                  onChange={(e) => setTz(e.target.value)}
++                />
++              </label>
++              <label>
++                {c.quietHoursFromLabel}
++                <input type="time" value={from} onChange={(e) => setFrom(e.target.value)} />
++              </label>
++              <label>
++                {c.quietHoursToLabel}
++                <input type="time" value={to} onChange={(e) => setTo(e.target.value)} />
++              </label>
++            </div>
++            {quietError && <p className="field-note vx-relations-error">{c.quietHoursInvalid}</p>}
++            {quietNotice && !quietError && <p className="field-note" role="status">{quietNotice}</p>}
++            <div className="vx-relations-quiet-actions">
++              <button type="button" className="button secondary-button" onPointerDown={saveQuietHours} disabled={quietBusy}>
++                {c.quietHoursSave}
++              </button>
++              <button type="button" className="button secondary-button" onPointerDown={clearQuietHours} disabled={quietBusy}>
++                {c.quietHoursClear}
++              </button>
++            </div>
++          </article>
++
++          <article className="vx-relations-card">
++            <h3>{c.checkinKindsTitle}</h3>
++            <p className="field-note">{c.checkinKindsBody}</p>
++            {!designsLoaded ? (
++              <p className="field-note" role="status">{c.checkinKindsLoading}</p>
++            ) : !designs || designs.length === 0 ? (
++              <p className="field-note">{c.checkinKindsEmpty}</p>
++            ) : (
++              <ul className="vx-relations-list">
++                {designs.map((design) => (
++                  <li key={design.design_id} className="vx-relations-row">
++                    <span>
++                      {design.title}
++                      {design.state === "paused" && <span className="vx-relations-badge">{c.checkinKindsPaused}</span>}
++                    </span>
++                    <button
++                      type="button"
++                      className="button secondary-button"
++                      onPointerDown={() => toggleDesign(design)}
++                      disabled={designBusy === design.design_id}
++                    >
++                      {design.state === "active" ? c.checkinKindsPause : c.checkinKindsResume}
++                    </button>
++                  </li>
++                ))}
++              </ul>
++            )}
++          </article>
++        </>
++      ) : null}
++    </section>
++  );
++}
+diff --git a/src/studio/copy.ts b/src/studio/copy.ts
+index ca6af34..d498546 100644
+--- a/src/studio/copy.ts
++++ b/src/studio/copy.ts
+@@ -1008,6 +1008,50 @@ export interface StudioCopy {
+   mirrorCallStudio: MirrorCallStudioCopy;
+   cloneExperienceShell: CloneExperienceShellCopy;
+   firstFiveMinutes: FirstFiveMinutesCopy;
++  relationsStudio: RelationsStudioCopy;
++}
++
++// WS-R183 ("RelationOS for the person"). `stageWords` mirrors
++// `src/creatorStudio/copy.ts#relStageWords` verbatim — the same five words a
++// creator already reads for their followers, reused rather than
++// re-invented, so the product's own vocabulary for closeness stays one
++// vocabulary across both studios.
++export interface RelationsStudioCopy {
++  title: string;
++  intro: string;
++  loading: string;
++  errorGeneric: string;
++  stageTitle: string;
++  stageNone: string;
++  stageFloorNote: string;
++  stageWords: Record<"new" | "warming" | "settled" | "close" | "deep", string>;
++  peopleWeekLabel: string;
++  peopleMonthLabel: string;
++  fewerThanFive: string;
++  checkinsSentLabel: string;
++  handoffsWaitingLabel: string;
++  pauseTitle: string;
++  pauseBody: string;
++  pauseAction: string;
++  resumeAction: string;
++  pausedBadge: string;
++  quietHoursTitle: string;
++  quietHoursBody: string;
++  quietHoursTimezoneLabel: string;
++  quietHoursTimezonePlaceholder: string;
++  quietHoursFromLabel: string;
++  quietHoursToLabel: string;
++  quietHoursSave: string;
++  quietHoursClear: string;
++  quietHoursSaved: string;
++  quietHoursInvalid: string;
++  checkinKindsTitle: string;
++  checkinKindsBody: string;
++  checkinKindsEmpty: string;
++  checkinKindsLoading: string;
++  checkinKindsPause: string;
++  checkinKindsResume: string;
++  checkinKindsPaused: string;
+ }
+ 
+ const EN_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+@@ -2028,6 +2072,54 @@ const EN_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+   stepDoneLabel: "Done",
+ };
+ 
++// WS-R183 ("RelationOS for the person"). `stageWords` copied verbatim from
++// `src/creatorStudio/copy.ts#relStageWords` (WS-R154) — one product
++// vocabulary for closeness, not a second one invented for the person's own
++// screen.
++const EN_RELATIONS_STUDIO: RelationsStudioCopy = {
++  title: "How we are.",
++  intro: "Who talks to your AI, in counts only - never a name, never a message.",
++  loading: "Opening how we are",
++  errorGeneric: "Could not load this right now. Try again in a moment.",
++  stageTitle: "Who talks to your AI",
++  stageNone: "Not enough people yet for even one count that would not identify someone.",
++  stageFloorNote: "Any group of fewer than five people is left out entirely, on purpose.",
++  stageWords: {
++    new: "Still getting to know it",
++    warming: "Warming up",
++    settled: "Settled into a rhythm",
++    close: "Close",
++    deep: "Deep, unhurried trust",
++  },
++  peopleWeekLabel: "People this week",
++  peopleMonthLabel: "People this month",
++  fewerThanFive: "Fewer than five",
++  checkinsSentLabel: "Check-ins sent this week",
++  handoffsWaitingLabel: "Handoffs waiting for you",
++  pauseTitle: "Your Room",
++  pauseBody: "Pausing takes your Room down for everyone right away. Resuming brings it back once every check still passes.",
++  pauseAction: "Pause my Room",
++  resumeAction: "Resume my Room",
++  pausedBadge: "Paused",
++  quietHoursTitle: "Quiet hours",
++  quietHoursBody: "A default window for anything your AI sends on its own, for anyone who has not set their own quiet hours.",
++  quietHoursTimezoneLabel: "Time zone",
++  quietHoursTimezonePlaceholder: "Asia/Kolkata",
++  quietHoursFromLabel: "From",
++  quietHoursToLabel: "To",
++  quietHoursSave: "Save quiet hours",
++  quietHoursClear: "Turn off",
++  quietHoursSaved: "Saved.",
++  quietHoursInvalid: "That time zone or window is not valid. Check the format and try again.",
++  checkinKindsTitle: "What your AI may send",
++  checkinKindsBody: "Turn any check-in off and your AI stops sending it, for everyone, right away.",
++  checkinKindsEmpty: "You have not set up any check-ins yet.",
++  checkinKindsLoading: "Loading your check-ins",
++  checkinKindsPause: "Turn off",
++  checkinKindsResume: "Turn on",
++  checkinKindsPaused: "Off",
++};
++
+ const EN_STUDIO_COPY: StudioCopy = {
+   personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
+   expertSharePanel: EN_EXPERT_SHARE_PANEL,
+@@ -2041,6 +2133,7 @@ const EN_STUDIO_COPY: StudioCopy = {
+   mirrorCallStudio: EN_MIRROR_CALL_STUDIO,
+   cloneExperienceShell: EN_CLONE_EXPERIENCE_SHELL,
+   firstFiveMinutes: EN_FIRST_FIVE_MINUTES,
++  relationsStudio: EN_RELATIONS_STUDIO,
+ };
+ 
+ // The Hindi table is its own chunk (WS-R71's shape). `STUDIO_COPY_TABLE.hi`
+diff --git a/src/studio/hiCopy.ts b/src/studio/hiCopy.ts
+index 79df73f..ab85f0d 100644
+--- a/src/studio/hiCopy.ts
++++ b/src/studio/hiCopy.ts
+@@ -6,7 +6,7 @@
+ // already-reviewed wording wherever this file's English matches it, adapting
+ // only where this screen's own English differs (the nearline nearline-busy
+ // states this file's English adds, and one extra extraction blocker key).
+-import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
++import type { CloneExperienceShellCopy, CloneVerificationJourneyCopy, ContextLockerPanelCopy, ExpertConversationCopy, ExpertSharePanelCopy, FirstFiveMinutesCopy, MeetMemoryCopy, MirrorCallStudioCopy, PersonModelStudioCopy, QuickVoiceCaptureCopy, RelationsStudioCopy, StudioCopy, VoicePreviewPanelCopy } from "./copy";
+ 
+ const HI_EXPERT_SHARE_PANEL: ExpertSharePanelCopy = {
+   title: "अपने AI को एक ठिकाना दें।",
+@@ -1036,6 +1036,53 @@ const HI_FIRST_FIVE_MINUTES: FirstFiveMinutesCopy = {
+   stepDoneLabel: "हो गया",
+ };
+ 
++// WS-R183 ("RelationOS for the person"). `stageWords` copied verbatim from
++// `src/creatorStudio/hiCopy.ts#relStageWords` (WS-R154) - one product
++// vocabulary for closeness, reused rather than re-translated.
++const HI_RELATIONS_STUDIO: RelationsStudioCopy = {
++  title: "हम कैसे हैं।",
++  intro: "आपके AI से कौन बात करता है, सिर्फ़ गिनती में - कभी कोई नाम नहीं, कभी कोई संदेश नहीं।",
++  loading: "हम कैसे हैं खोला जा रहा है",
++  errorGeneric: "अभी यह लोड नहीं हो सका। कुछ देर में फिर कोशिश करें।",
++  stageTitle: "आपके AI से कौन बात करता है",
++  stageNone: "अभी इतने लोग नहीं हैं कि एक भी ऐसी गिनती दी जा सके जो किसी की पहचान न बताए।",
++  stageFloorNote: "पांच से कम लोगों वाले किसी भी समूह को जानबूझकर छोड़ दिया जाता है।",
++  stageWords: {
++    new: "अभी इसे जानना शुरू कर रहे हैं",
++    warming: "धीरे-धीरे अपनापन बढ़ रहा है",
++    settled: "एक सहज लय में बस गए हैं",
++    close: "करीबी",
++    deep: "गहरा, बिना जल्दबाज़ी वाला भरोसा",
++  },
++  peopleWeekLabel: "इस हफ़्ते के लोग",
++  peopleMonthLabel: "इस महीने के लोग",
++  fewerThanFive: "पांच से कम",
++  checkinsSentLabel: "इस हफ़्ते भेजे गए चेक-इन",
++  handoffsWaitingLabel: "आपके लिए रुके हुए हैंडऑफ़",
++  pauseTitle: "आपका Room",
++  pauseBody: "रोकते ही आपका Room तुरंत सबके लिए बंद हो जाता है। फिर से शुरू करने पर हर जांच दोबारा पास होने पर ही यह वापस खुलता है।",
++  pauseAction: "मेरा Room रोकें",
++  resumeAction: "मेरा Room फिर शुरू करें",
++  pausedBadge: "रुका हुआ",
++  quietHoursTitle: "शांत घंटे",
++  quietHoursBody: "आपका AI खुद जो भी भेजे, उसके लिए एक डिफ़ॉल्ट समय, हर उस व्यक्ति के लिए जिसने अपने खुद के शांत घंटे तय नहीं किए हैं।",
++  quietHoursTimezoneLabel: "समय क्षेत्र",
++  quietHoursTimezonePlaceholder: "Asia/Kolkata",
++  quietHoursFromLabel: "से",
++  quietHoursToLabel: "तक",
++  quietHoursSave: "शांत घंटे सहेजें",
++  quietHoursClear: "बंद करें",
++  quietHoursSaved: "सहेज लिया गया।",
++  quietHoursInvalid: "यह समय क्षेत्र या समय सही नहीं है। फ़ॉर्मेट जांचें और फिर कोशिश करें।",
++  checkinKindsTitle: "आपका AI क्या भेज सकता है",
++  checkinKindsBody: "किसी भी चेक-इन को बंद करें और आपका AI उसे तुरंत, सबके लिए भेजना बंद कर देता है।",
++  checkinKindsEmpty: "आपने अभी तक कोई चेक-इन सेट नहीं किया है।",
++  checkinKindsLoading: "आपके चेक-इन लोड हो रहे हैं",
++  checkinKindsPause: "बंद करें",
++  checkinKindsResume: "चालू करें",
++  checkinKindsPaused: "बंद",
++};
++
+ // `personalAuth` is deliberately absent here: `copy.ts#loadStudioCopy`
+ // installs it separately from `personalAuthCopyRegistry.ts`'s own already-lazy
+ // Hindi loader, so this file owns only the sections named above.
+@@ -1051,4 +1098,5 @@ export const HI_STUDIO_COPY: Omit<StudioCopy, "personalAuth"> = {
+   mirrorCallStudio: HI_MIRROR_CALL_STUDIO,
+   cloneExperienceShell: HI_CLONE_EXPERIENCE_SHELL,
+   firstFiveMinutes: HI_FIRST_FIVE_MINUTES,
++  relationsStudio: HI_RELATIONS_STUDIO,
+ };
+diff --git a/src/studio/layoutFixture.tsx b/src/studio/layoutFixture.tsx
+index b3925eb..4162852 100644
+--- a/src/studio/layoutFixture.tsx
++++ b/src/studio/layoutFixture.tsx
+@@ -636,6 +636,60 @@ function installStubFetch() {
+         },
+       });
+     }
++    // WS-R183 ("RelationOS for the person"). `/api/room-publish`'s own flat
++    // `routes[path]` entry above (`{room: null, reason: "not_created"}`) is
++    // right for `RoomStudio`'s own GET read (no body, no `op`) but WRONG for
++    // `RelationsStudio.tsx`'s own POST `{op:"relations"}` — that shape has
++    // no `stage_counts`/`people_this_week` at all, and feeding it to the
++    // real client would crash on `.stage_counts.length` rather than
++    // exercise the honest "no Room yet" path a malformed 200 never reaches
++    // in production (the real door answers 404 there, never a 200 with the
++    // wrong body). So this op is intercepted here, BEFORE the generic
++    // fallback, and answers the SAME 404 the real `api/room-publish.js`
++    // gives for a replica with no Room row — `readOwnedRoomRelations`'s own
++    // `e?.status === 404 -> null` catch, so `studio:deploy`'s existing
++    // "voice-ready" scenario (no Room) renders this screen as absent,
++    // exactly as a person who has never opened Deploy would see it. Only
++    // when this PAGE's own `?relations=fixture` is present (this workstream's
++    // own `studio:relations` layout target, never a real product query
++    // param) does it answer with real fixture counts instead, so that
++    // target can actually exercise the screen's content.
++    if (path === "/api/room-publish") {
++      let payload: Record<string, unknown> = {};
++      try {
++        const text = typeof init?.body === "string"
++          ? init.body
++          : input instanceof Request ? await input.clone().text() : "";
++        payload = text ? JSON.parse(text) : {};
++      } catch {
++        payload = {};
++      }
++      const op = String(payload.op || "");
++      const showRelations = new URLSearchParams(window.location.search).get("relations") === "fixture";
++      if (op === "relations") {
++        if (!showRelations) return reply({ error: "replica_not_found" }, 404);
++        return reply({
++          stage_counts: [
++            { stage: "warming", n: 7 },
++            { stage: "settled", n: 12 },
++          ],
++          people_this_week: { n: null, below_floor: true },
++          people_this_month: { n: 15, below_floor: false },
++          checkins_sent_this_week: 3,
++          handoffs_waiting: 1,
++          quiet_hours_default: { timezone: "Asia/Kolkata", quiet_from: "22:00", quiet_to: "07:00" },
++          paused: false,
++        });
++      }
++      if (op === "set_quiet_hours_default") {
++        return reply({
++          timezone: payload.timezone ?? null,
++          quiet_from: payload.quiet_from ?? null,
++          quiet_to: payload.quiet_to ?? null,
++        });
++      }
++    }
++
+     const body = Object.prototype.hasOwnProperty.call(routes, path) ? routes[path] : {};
+     return new Response(JSON.stringify(body), {
+       status: 200,
+diff --git a/src/studio/relations-studio.css b/src/studio/relations-studio.css
+new file mode 100644
+index 0000000..cb15c82
+--- /dev/null
++++ b/src/studio/relations-studio.css
+@@ -0,0 +1,106 @@
++/* relations-studio.css — WS-R183 ("RelationOS for the person"). Scoped to
++ * `.vx-relations` only, `deploy-studio.css`'s own precedent: this screen is
++ * mounted inside `DeployStudio.tsx`, which already loads its own CSS the
++ * same way (imported directly, not inherited from a sibling panel's load
++ * order), so this file styles nothing outside its own prefix. */
++@layer components {
++  .vx-relations {
++    max-width: 860px;
++    width: 100%;
++    margin-inline: auto;
++    margin-top: var(--space-section, 48px);
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-block, 24px);
++  }
++
++  .vx-relations-card {
++    padding: var(--space-item, 16px) var(--space-block, 24px);
++    border-radius: var(--radius, 20px);
++    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
++    background: var(--panel-solid, #fffef9);
++  }
++
++  .vx-relations-card h3 {
++    font-size: var(--text-lead, 16px);
++    font-weight: var(--weight-medium, 600);
++    line-height: var(--leading-snug, 1.45);
++    margin: 0 0 var(--space-hair, 4px);
++    color: var(--ink, #171915);
++  }
++
++  .vx-relations-card .field-note {
++    margin: 0 0 var(--space-item, 16px);
++    color: var(--ink-soft, #52564e);
++  }
++
++  .vx-relations-list {
++    list-style: none;
++    margin: 0 0 var(--space-item, 16px);
++    padding: 0;
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-hair, 4px);
++  }
++
++  .vx-relations-row {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: var(--space-item, 16px);
++    padding-block: var(--space-hair, 4px);
++    flex-wrap: wrap;
++  }
++
++  .vx-relations-value {
++    font-weight: var(--weight-medium, 600);
++    color: var(--ink, #171915);
++  }
++
++  .vx-relations-badge {
++    display: inline-block;
++    margin-left: var(--space-hair, 4px);
++    padding: 2px 8px;
++    border-radius: 999px;
++    font-size: 12px;
++    background: var(--signal-soft, #fce9df);
++    color: var(--ink, #171915);
++  }
++
++  .vx-relations-quiet-fields {
++    display: flex;
++    flex-wrap: wrap;
++    gap: var(--space-item, 16px);
++    margin-bottom: var(--space-item, 16px);
++  }
++
++  .vx-relations-quiet-fields label {
++    display: flex;
++    flex-direction: column;
++    gap: var(--space-hair, 4px);
++    font-size: 13px;
++    color: var(--ink-soft, #52564e);
++    flex: 1 1 140px;
++    min-width: 0;
++  }
++
++  .vx-relations-quiet-fields input {
++    padding: 8px 10px;
++    border-radius: 10px;
++    border: 1px solid var(--line, rgba(28, 32, 26, 0.12));
++    background: var(--paper, #fff);
++    color: var(--ink, #171915);
++    font-size: 14px;
++    max-width: 100%;
++  }
++
++  .vx-relations-quiet-actions {
++    display: flex;
++    flex-wrap: wrap;
++    gap: var(--space-item, 16px);
++  }
++
++  .vx-relations-error {
++    color: var(--danger, #a4302c);
++  }
++}

@@ -1,0 +1,48 @@
+{
+  "source": "voice-listening106-template usability update",
+  "checks": [
+    "390: one pair, two prominent clips, collapsed reference/details, no sticky footer or overflow",
+    "390: ratings persist across Back/Next and navigation focuses the new pair heading",
+    "390: all six saved pair assignments are reachable one at a time",
+    "390: export preserves rating keys, contract, no winner and no owner-likeness claim",
+    "1440: one pair, two prominent clips, collapsed reference/details, no sticky footer or overflow"
+  ],
+  "errors": [],
+  "layouts": [
+    {
+      "width": 390,
+      "next": {
+        "x": 200,
+        "y": 986.15625,
+        "width": 178,
+        "height": 46
+      },
+      "preference": {
+        "x": 31,
+        "y": 830.15625,
+        "width": 328,
+        "height": 46
+      },
+      "pairCards": 1,
+      "bodyHeight": 1178
+    },
+    {
+      "width": 1440,
+      "next": {
+        "x": 725,
+        "y": 806.75,
+        "width": 387,
+        "height": 46
+      },
+      "preference": {
+        "x": 357,
+        "y": 640.75,
+        "width": 726,
+        "height": 46
+      },
+      "pairCards": 1,
+      "bodyHeight": 979
+    }
+  ],
+  "scope": "Static localhost listening pack; no model, ASR, provider or owner-likeness evaluation"
+}

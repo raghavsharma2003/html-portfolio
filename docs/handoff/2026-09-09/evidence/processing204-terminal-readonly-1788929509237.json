@@ -1,0 +1,120 @@
+{
+  "kind": "processing204-terminal-readonly/v1",
+  "state": "fresh_metadata_and_ledger_read",
+  "resource_writes": 0,
+  "sql_writes": 0,
+  "provider_calls": 0,
+  "release_calls": 0,
+  "observation": {
+    "kind": "azure-shared-evidence-observation/v1",
+    "resource_id": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/containerapps/vyakti-voice-evidence",
+    "revision_sha256": "9cddb2d4edbeb2199db7cd601753d453c83beafb6bff6757d24130ca3cf3d5c2",
+    "image_sha256": "b2e2b74349ee8d1e2f3d346ea5bf070a5dcf4808ca8b4cd39845ae20dbd83914",
+    "observed_at_ms": 1788929492910,
+    "revisions": [
+      {
+        "name": "vyakti-voice-evidence--2h9abh1",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000001",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000002",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000003",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000004",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000005",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000006",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000007",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000008",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--0000009",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--ov2r2obj",
+        "active": false,
+        "replicas": 0
+      },
+      {
+        "name": "vyakti-voice-evidence--ov2r2zero",
+        "active": true,
+        "replicas": 0
+      }
+    ]
+  },
+  "ledger": [
+    {
+      "budget_id": "gpu-control-probe-20260908",
+      "limit_microusd": "1000000",
+      "reserved_microusd": "970200",
+      "spent_microusd": "0",
+      "state": "active"
+    }
+  ],
+  "windows": [
+    {
+      "window_id": "d78bb973-8fc7-49e7-b464-21ab7b46c079",
+      "budget_id": "gpu-control-probe-20260908",
+      "resource_sha256": "e4a9b0541603bb3b69c2babfc2b501285875ee70ead318e54012f3ecfd3f6691",
+      "contract_sha256": "d36fbd5f45765c5e1cd3f34d38da9eb115311f9a71a77e59005efa8434605072",
+      "state": "in_flight",
+      "reserved_microusd": "138600",
+      "actual_microusd": null,
+      "resource_released_at": null,
+      "created_at": "2026-09-08 08:18:58.818237+00"
+    },
+    {
+      "window_id": "2c12d920-287c-48cf-99e8-eb77457ce039",
+      "budget_id": "gpu-control-probe-20260908",
+      "resource_sha256": "7b48d94e798205572a91a6180e38d940d0cf976d4b7fe277dcd8fc35a572847d",
+      "contract_sha256": "38c45a02318baa0c9afb733440ce8b311f848f668fc4c3b17523ef3dc702a75d",
+      "state": "uncertain",
+      "reserved_microusd": "831600",
+      "actual_microusd": null,
+      "resource_released_at": "2026-09-09 04:29:12.274299+00",
+      "created_at": "2026-09-09 04:19:57.119249+00"
+    }
+  ],
+  "lifecycle": [
+    {
+      "window_id": "2c12d920-287c-48cf-99e8-eb77457ce039",
+      "state": "natural_zero_observed",
+      "closed_at": "2026-09-09 04:23:01.233572+00",
+      "admission_deadline_at": "2026-09-09 04:28:56.814+00",
+      "claimed_children": 0
+    }
+  ],
+  "monetary_liability": "unchanged"
+}

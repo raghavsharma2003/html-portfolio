@@ -22,7 +22,7 @@ export {
   type ActivityRecord,
 } from "../src/engine/memory";
 export { activityOf, RECENT_END_MS } from "../src/state/game";
-export { settleOccupant, emitClosedActivity } from "../src/components/activityClose";
+export { settleOccupant, emitClosedActivity } from "./fixtures/retired-activity-close";
 export { LABEL } from "../src/engine/activity";
 export { compile } from "../src/engine/compiler";
 export { renderSelfArc } from "../src/engine/selfarc";
@@ -35,3 +35,5 @@ export { newGame, play } from "../src/engine/chess";
 export { freshSession, answerCurrent, advance } from "../src/engine/wyr/session";
 export { findActivitySpecifics, activityVocabulary, guardReply } from "../src/engine/honesty";
 export { mergeStates } from "../src/state/merge";
+
+export { demoTeacherAgent } from "../src/engine/agents/teacher";

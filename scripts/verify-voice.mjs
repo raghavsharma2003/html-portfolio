@@ -50,9 +50,12 @@
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
-const read = (p) => readFileSync(ROOT + p, "utf8");
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const at = (p) => join(ROOT, p);
+const read = (p) => readFileSync(at(p), "utf8");
 
 let fail = 0;
 const FAIL = (line, ...rest) => {
@@ -158,7 +161,7 @@ if (setIdx >= 0) {
     process.exit(2);
   }
 
-  const targets = [...SITES, ...(existsSync(ROOT + NATIVE.file) ? [NATIVE] : [])];
+  const targets = [...SITES, ...(existsSync(at(NATIVE.file)) ? [NATIVE] : [])];
   const changed = [];
   for (const site of targets) {
     const src = read(site.file);
@@ -172,7 +175,7 @@ if (setIdx >= 0) {
     // mentions the old name in prose (every one of them does — these headers are
     // incident reports) keeps its history.
     const patched = m[0].replace(`"${m[1]}"`, `"${next}"`);
-    writeFileSync(ROOT + site.file, src.slice(0, m.index) + patched + src.slice(m.index + m[0].length));
+    writeFileSync(at(site.file), src.slice(0, m.index) + patched + src.slice(m.index + m[0].length));
     changed.push(`${site.file}: ${m[1]} → ${next}`);
   }
   // The allow-list has to admit her own voice or /api/speech refuses a request
@@ -182,7 +185,7 @@ if (setIdx >= 0) {
   const al = sp.match(/const ALLOWED_VOICES = new Set\(\[([^\]]*)\]\)/);
   if (al && !al[1].includes(`"${next}"`)) {
     const widened = al[0].replace("]", `, "${next}"]`);
-    writeFileSync(ROOT + "api/speech.js", sp.replace(al[0], widened));
+    writeFileSync(at("api/speech.js"), sp.replace(al[0], widened));
     changed.push(`api/speech.js: ALLOWED_VOICES += ${next}`);
   }
   console.log(changed.length ? `── switched her voice to ${next} ──` : `── already ${next} everywhere ──`);
@@ -209,7 +212,7 @@ for (const site of SITES) {
   found.push({ ...site, voice: m[1] });
 }
 
-const nativePresent = existsSync(ROOT + NATIVE.file);
+const nativePresent = existsSync(at(NATIVE.file));
 if (nativePresent) {
   const m = read(NATIVE.file).match(NATIVE.re);
   if (m) found.push({ ...NATIVE, voice: m[1] });
@@ -395,7 +398,7 @@ else if (tsRegion[0] !== jsRegion[0]) {
 // battery carries the negative controls that matter: a hyphenated word and a
 // crisis helpline number that must survive an over-eager dash rule.
 try {
-  execFileSync("node", [ROOT + "evals/voice/spoken.mjs"], { cwd: ROOT, stdio: "inherit" });
+  execFileSync("node", [at("evals/voice/spoken.mjs")], { cwd: ROOT, stdio: "inherit" });
 } catch {
   FAIL("evals/voice/spoken.mjs failed — the sanitiser's own case battery is red (see above)");
 }
@@ -504,6 +507,7 @@ const cascade = read("src/voice/speech.ts");
 // a new host — fails this run until somebody declares it and the harness in
 // evals/voice/device.mjs proves its text is sanitised.
 const DECLARED_DOORS = {
+  "REPLICA_SPEECH_URL": "the authenticated replica voice, exact-version and consent gated",
   "api.elevenlabs.io": "ElevenLabs v3, user key — the one door that KEEPS audio tags (it performs them)",
   "api.sarvam.ai": "Sarvam bulbul, user key",
   "PROXY_SPEECH_URL": "the hosted voice — /api/speech, sanitised server-side as well",
@@ -513,6 +517,7 @@ const DECLARED_DOORS = {
 const doors = new Set();
 for (const m of cascade.matchAll(/fetch\(\s*(?:`|")(https?:\/\/([a-z0-9.-]+))/gi)) doors.add(m[2]);
 for (const m of cascade.matchAll(/fetch\(\s*(PROXY_SPEECH_URL)/g)) doors.add(m[1]);
+for (const m of cascade.matchAll(/url:\s*(PROXY_SPEECH_URL|REPLICA_SPEECH_URL)/g)) doors.add(m[1]);
 if (/TextToSpeech\.speak\(/.test(cascade)) doors.add("TextToSpeech.speak");
 if (/new SpeechSynthesisUtterance\(/.test(cascade)) doors.add("SpeechSynthesisUtterance");
 
@@ -543,7 +548,7 @@ if (!undeclared.length && !missing.length)
 // hyphens must SURVIVE, and her own words must not be deleted — over-stripping
 // is the silent failure of any sanitiser.
 try {
-  execFileSync("node", [ROOT + "evals/voice/device.mjs"], { cwd: ROOT, stdio: "inherit" });
+  execFileSync("node", [at("evals/voice/device.mjs")], { cwd: ROOT, stdio: "inherit" });
 } catch {
   FAIL(
     "evals/voice/device.mjs failed — a path from her text to audio is unsanitised (see above)",

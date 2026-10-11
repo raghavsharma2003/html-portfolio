@@ -14,11 +14,20 @@
 //                                                            consolidate.js's
 //                                                            own dual on-
 //                                                            demand+cron shape)
-//   GET  /api/taste-queue?secret=...                      → list pending
+//   GET  /api/taste-queue                                 → list pending
 //                                                            candidates for
 //                                                            owner review
-//   POST /api/taste-queue {op:"approve"|"reject", id, secret}
+//   POST /api/taste-queue {op:"approve"|"reject", id}
 //                                                          → owner decision
+//
+// GET listing, `nominate_all` and `approve`/`reject` all carry the owner
+// secret in the `x-owner-secret` header, never the query string or the
+// body — WS-R93. It used to be `?secret=` on GET and `body.secret` on
+// POST, which lands in access logs, proxies and browser history, the same
+// leak class WS-R89 already closed for `api/consolidate-sweep.js`'s cron
+// secret (`context/rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope`).
+// `nominate` (a follower device scanning its own patterns) never carried a
+// secret and still does not — it is not an owner op.
 //
 // "Generated text never writes the identity core" (§4.1.5): approving a
 // candidate here NEVER edits src/engine/inner.ts's authored TASTE table —
@@ -42,11 +51,23 @@
 // (frozen here) so forget/export cover it — until that lands, a person's
 // pending taste candidates do NOT get swept by forget, which is flagged
 // below as a known gap, not silently accepted.
+import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { personIdFor } from "./memory.js";
+import { MEERA_AGENT_ID, agentScopePredicate, agentValue } from "./_agentscope.js";
 
 const SECRET = process.env.TASTE_QUEUE_SECRET || "";
+
+// Owner secret, header only, constant-time compare — api/self-check.js's
+// own `authorized` shape, api/consolidate-sweep.js's own `secretMatches`.
+// A short or unset SECRET can never match, so an unconfigured deploy is
+// simply closed rather than open-by-accident.
+function authorized(req) {
+  const expected = Buffer.from(String(SECRET));
+  const actual = Buffer.from(String(req.headers?.["x-owner-secret"] || ""));
+  return expected.length >= 16 && expected.length === actual.length && timingSafeEqual(expected, actual);
+}
 
 // §4.1.5's own numbers, duplicated here rather than imported from
 // src/engine/relstate.ts's `checkTasteEligibility` — same rationale
@@ -66,6 +87,7 @@ async function ensureSchema() {
   await q(`
     create table if not exists vy_taste_candidate (
       id            bigint generated always as identity primary key,
+      agent_id      uuid not null,
       person_id     uuid not null,
       take          text not null,          -- telegraphic candidate line
       keys          text[] not null default '{}',
@@ -80,7 +102,7 @@ async function ensureSchema() {
       reviewed_at   timestamptz,
       created_at    timestamptz not null default now(),
       constraint vy_taste_candidate_cited check (cardinality(citations) >= 1),
-      constraint vy_taste_candidate_source_once unique (source, source_id)
+      constraint vy_taste_candidate_source_once unique (agent_id, source, source_id)
     )
   `).catch(() => {});
   await q(`create index if not exists vy_taste_candidate_status_ix
@@ -102,21 +124,23 @@ function eligible(citations, citationDates) {
  *  taste-shaped candidates — `self_in_relation` patterns are the ones that
  *  actually read as a stance rather than situational guidance, so only
  *  those are considered (a conflict-moment if-then is not a taste). */
-async function nominateForPerson(person) {
+async function nominateForPerson(person, agentId = MEERA_AGENT_ID) {
   await ensureSchema();
   const patterns = await q(
     `select p.id, p.moment, p.if_shape, p.then_note, p.self_in_relation, p.citations, p.support_count
-       from vy_pattern p
+      from vy_pattern p
       where p.person_id = $1 and p.t_invalid is null
+        ${agentScopePredicate("p", { agentId: "$3" })}
         and cardinality(p.citations) >= $2
         and p.self_in_relation <> ''`,
-    [person, TASTE_MIN_CITATIONS],
+    [person, TASTE_MIN_CITATIONS, agentId],
   );
   let nominated = 0;
   for (const p of patterns) {
     const dateRows = await q(
-      `select started_at from vy_episode where id = any($1::bigint[])`,
-      [p.citations],
+      `select started_at from vy_episode e where id = any($1::bigint[])
+         ${agentScopePredicate("e", { agentId: "$2" })}`,
+      [p.citations, agentId],
     ).catch(() => []);
     const dates = dateRows.map((r) => r.started_at);
     if (!eligible(p.citations, dates)) continue;
@@ -126,11 +150,11 @@ async function nominateForPerson(person) {
     if (!take) continue;
     const inserted = await q(
       `insert into vy_taste_candidate
-         (person_id, take, keys, source, source_id, citations, support_count, span_days)
-       values ($1,$2,$3,'pattern',$4,$5,$6,$7)
-       on conflict (source, source_id) do nothing
+         (agent_id, person_id, take, keys, source, source_id, citations, support_count, span_days)
+       values (${agentValue("$8")},$1,$2,$3,'pattern',$4,$5,$6,$7)
+       on conflict (agent_id, source, source_id) do nothing
        returning id`,
-      [person, take, [], p.id, p.citations, p.support_count, Math.round(spanDays * 10) / 10],
+      [person, take, [], p.id, p.citations, p.support_count, Math.round(spanDays * 10) / 10, agentId],
     ).catch(() => []);
     if (inserted.length) nominated++;
   }
@@ -150,16 +174,16 @@ export default async function handler(req, res) {
       // other endpoint in this repo, so it is gated exactly like
       // api/culture.js gates its `force` param: no secret configured means
       // this capability is simply off, never open by accident.
-      const secret = req.query?.secret || "";
-      if (!SECRET || secret !== SECRET) return res.status(403).json({ error: "owner review only" });
+      if (!authorized(req)) return res.status(403).json({ error: "owner review only" });
       await ensureSchema();
       const status = ["pending", "approved", "rejected"].includes(req.query?.status) ? req.query.status : "pending";
       const rows = await q(
         `select id, person_id, take, source, source_id, citations, support_count, span_days,
                 status, reviewed_by, reviewed_at, created_at
-           from vy_taste_candidate where status = $1
+           from vy_taste_candidate t where status = $1
+             ${agentScopePredicate("t", { agentId: "$2" })}
           order by created_at desc limit 100`,
-        [status],
+        [status, MEERA_AGENT_ID],
       );
       return res.status(200).json({ status, rows });
     }
@@ -177,15 +201,15 @@ export default async function handler(req, res) {
     }
 
     if (op === "nominate_all") {
-      const secret = req.body?.secret || "";
-      if (!SECRET || secret !== SECRET) return res.status(403).json({ error: "owner-triggered sweep only" });
+      if (!authorized(req)) return res.status(403).json({ error: "owner-triggered sweep only" });
       await ensureSchema();
       const limit = Math.min(Number(req.body?.limit) || 25, 100);
       const persons = await q(
-        `select distinct person_id from vy_pattern
+        `select distinct person_id from vy_pattern p
           where t_invalid is null and cardinality(citations) >= $1
+            ${agentScopePredicate("p", { agentId: "$3" })}
           limit $2`,
-        [TASTE_MIN_CITATIONS, limit],
+        [TASTE_MIN_CITATIONS, limit, MEERA_AGENT_ID],
       );
       let totalNominated = 0;
       for (const row of persons) {
@@ -196,8 +220,7 @@ export default async function handler(req, res) {
     }
 
     if (op === "approve" || op === "reject") {
-      const secret = req.body?.secret || "";
-      if (!SECRET || secret !== SECRET) return res.status(403).json({ error: "owner review only" });
+      if (!authorized(req)) return res.status(403).json({ error: "owner review only" });
       const id = Number(req.body?.id);
       if (!Number.isFinite(id)) return res.status(400).json({ error: "id required" });
       await ensureSchema();
@@ -205,8 +228,9 @@ export default async function handler(req, res) {
         `update vy_taste_candidate
             set status = $2, reviewed_by = 'owner', reviewed_at = now()
           where id = $1 and status = 'pending'
+            and agent_id = ($3)::uuid
           returning id, take`,
-        [id, op === "approve" ? "approved" : "rejected"],
+        [id, op === "approve" ? "approved" : "rejected", MEERA_AGENT_ID],
       );
       if (!rows.length) return res.status(404).json({ error: "not found or already reviewed" });
       // Deliberately NOT written into src/engine/inner.ts's TASTE table —
@@ -215,7 +239,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(400).json({ error: "unknown op" });
-  } catch (e) {
+  } catch {
     return res.status(500).json({ error: "taste-queue failure" });
   }
 }

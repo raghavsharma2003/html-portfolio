@@ -1,0 +1,70 @@
+-- Migration 096 - check-ins over Telegram (WS-R34).
+--
+-- The Room on Telegram (WS-R18, migration 082) is a transport over the SAME
+-- follower lane the web Room uses, with a one-Room-per-chat pointer:
+-- `vy_room_follower_channel`. Check-ins (WS-R16, migration 079) already
+-- deliver in-app, by web push (WS-R22, migration 085) and by a WhatsApp
+-- utility template (WS-R29, migration 092). Telegram is the fourth channel,
+-- and it needs no per-message fee, no template approval and no separate
+-- destination a follower has to type in: the channel pointer that ALREADY
+-- exists (082's own table) is the opt-in, because a follower whose Room
+-- pointer is a Telegram chat is, by construction, a follower this platform
+-- can already reach on Telegram.
+--
+-- Two changes, both additive and idempotent, no DO blocks, one statement per
+-- request (Neon's SQL-over-HTTP endpoint accepts exactly one):
+--
+--   vy_room_checkin_delivery  channel CHECK widened to admit 'telegram',
+--                              drop-then-add — the only way Postgres lets an
+--                              unnamed CHECK be widened, migration 085's own
+--                              precedent one migration family over. The
+--                              constraint name is NOT this repo's own
+--                              invention: it is Postgres's default naming for
+--                              an unnamed single-column CHECK
+--                              (`<table>_<column>_check`), and it was READ
+--                              BACK from `pg_constraint` and confirmed to
+--                              match before migration 085 was applied live
+--                              (`context/measurements.md#rooms-migration-085-
+--                              live-verification-2026-09-04`) — so this
+--                              migration reuses the SAME confirmed name
+--                              rather than guessing a second time. The main
+--                              loop should still read it back once more
+--                              before applying, per this workstream's own
+--                              instruction.
+--
+--   vy_room_follower_channel  gains two columns, both with a default so an
+--                              existing pointer (every row migration 082 has
+--                              ever created) is unaffected:
+--
+--     checkins_enabled  boolean not null default true — the default-on
+--                        opt-in this migration's own header argues for. A
+--                        follower who never touches the toggle gets
+--                        check-ins on Telegram automatically, exactly the
+--                        way joining a Room on Telegram at all was already a
+--                        deliberate act (the two-question gate, migration
+--                        082's own header).
+--     stopped_code      text null — revoke-on-failure's own column,
+--                        `vy_room_follower_whatsapp.last_failure_code`'s
+--                        precedent one channel over except NULLABLE rather
+--                        than a not-null-default-empty-string: this column
+--                        doubles as the "is this pointer stopped at all"
+--                        predicate (`stopped_code is null` means sendable),
+--                        so it needs a NULL state to mean "never stopped",
+--                        which a not-null default cannot represent without a
+--                        second boolean. Set by a 403 (bot blocked) or a 400
+--                        naming a dead chat (workstream law #3); cleared by
+--                        the follower's own `/checkins on` or the Room
+--                        panel's own toggle-on (api/_checkins.js's
+--                        `deliverers.telegram`, api/_room-surface.js's
+--                        `setTelegramCheckinsEnabledForFollower`).
+--
+-- No new table, no new PERSON_TABLES entry: `vy_room_follower_channel` is
+-- already in that manifest (migration 082's own header) and these two
+-- columns carry no words anyone said, so nothing about the erasure cascade,
+-- `roomExport`'s shape, or `evals/recall/run.mjs`'s FATE table changes.
+alter table vy_room_checkin_delivery drop constraint if exists vy_room_checkin_delivery_channel_check;
+alter table vy_room_checkin_delivery add constraint vy_room_checkin_delivery_channel_check
+  check (channel in ('in_app','whatsapp_template','web_push','telegram'));
+
+alter table vy_room_follower_channel add column if not exists checkins_enabled boolean not null default true;
+alter table vy_room_follower_channel add column if not exists stopped_code text;

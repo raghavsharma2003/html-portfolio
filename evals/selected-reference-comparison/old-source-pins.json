@@ -1,0 +1,7 @@
+{
+  "base": "f4235c6809128d00f336fb73b127e75afe6493b2",
+  "sha256_canonical_lf": {
+    "LivenessCapture.tsx": "142faf7b776c241684f8c14162f80e0268ca1e53c35452fe3cf2f6848a1fc2f6",
+    "livenessApi.ts": "1cc8188377610d293750a763aae2f303af978991c20ce084f320344f24aa13a5"
+  }
+}

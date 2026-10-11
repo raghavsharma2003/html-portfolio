@@ -73,19 +73,15 @@
 --                         deriveTrustRepairForPerson (trust)
 --                                                on conflict (agent_id, person_id)
 --
---   BLOCKERS — NOT WS-AGENTSCOPE's files, NOT edited, and each one still names
---   a person-only arbiter. THIS MIGRATION MUST NOT BE APPLIED UNTIL ALL FOUR
---   ARE MIGRATED BY THEIR OWNERS:
---     src/engine/relstate.ts:599   vy_rel_state      on conflict (person_id)
---     src/engine/india.ts:154      vy_ritual         on conflict (person_id, key)
---     src/engine/india.ts:199      vy_currency       on conflict (person_id, topic)
---     src/engine/india.ts:341      vy_india_profile  on conflict (person_id)
+--   MIGRATED after the original readiness note (all now name agent_id):
+--     src/engine/relstate.ts       vy_rel_state      on conflict (agent_id, person_id)
+--     src/engine/india.ts          vy_ritual         on conflict (agent_id, person_id, key)
+--     src/engine/india.ts          vy_currency       on conflict (agent_id, person_id, topic)
+--     src/engine/india.ts          vy_india_profile  on conflict (agent_id, person_id)
 --
---   `src/engine/persona.ts` is read-only for Phase E but these two are not;
---   they are QueryFn-injected client-bundle writers (relstate.ts's own header:
---   "nothing here imports api/_db.js"), so migrating them also means their
---   callers must supply an agent id. That is a persona/engine-lane change and
---   is named here rather than attempted from this workstream.
+--   These QueryFn-injected client-bundle writers always name agent_id in SQL;
+--   trusted production call chains pass the active agent explicitly. The
+--   offline `agentstrict` gate protects this precondition before live apply.
 --
 --   NOT blockers, listed so nobody re-derives them as such:
 --     api/clock.js:166             vy_person         — person-INTRINSIC (§2);

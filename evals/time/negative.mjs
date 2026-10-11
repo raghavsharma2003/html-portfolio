@@ -18,7 +18,8 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   ROOT,
   SRC,
@@ -31,7 +32,12 @@ import {
   checkRenderShape,
 } from "./_checks.mjs";
 
-const ORIGINAL = readFileSync(SRC, "utf8");
+const ORIGINAL = readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
+const NPX_COMMAND = process.platform === "win32" ? process.execPath : "npx";
+const NPX_ARGS = process.platform === "win32"
+  ? [join(dirname(process.execPath), "node_modules/npm/bin/npx-cli.js")]
+  : [];
+const modulePath = (path) => path.replaceAll("\\", "/");
 
 let failed = 0;
 let passed = 0;
@@ -64,16 +70,16 @@ function bundleSource(src) {
   writeFileSync(
     file,
     src
-      .replace(/from "\.\/shapelint"/g, `from "${join(ROOT, "src/engine/shapelint")}"`)
-      .replace(/from "\.\/relstate"/g, `from "${join(ROOT, "src/engine/relstate")}"`),
+      .replace(/from "\.\/shapelint"/g, `from ${JSON.stringify(modulePath(join(ROOT, "src/engine/shapelint")))}`)
+      .replace(/from "\.\/relstate"/g, `from ${JSON.stringify(modulePath(join(ROOT, "src/engine/relstate")))}`),
   );
   const out = join(dir, "mutant.bundle.mjs");
   execFileSync(
-    "npx",
-    ["esbuild", file, "--bundle", "--format=esm", "--platform=node", `--outfile=${out}`, "--log-level=error"],
+    NPX_COMMAND,
+    [...NPX_ARGS, "esbuild", file, "--bundle", "--format=esm", "--platform=node", `--outfile=${out}`, "--log-level=error"],
     { stdio: "inherit", cwd: ROOT },
   );
-  return out;
+  return pathToFileURL(out).href;
 }
 
 /** A mutation is CAUGHT when at least one named check reports a problem. */

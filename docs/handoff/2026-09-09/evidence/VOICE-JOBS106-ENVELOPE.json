@@ -1,0 +1,297 @@
+{
+  "contract": "vyakti-stock-jobs106/v1",
+  "planSha256": "c4862a0980ec263b68568a60d9595e221f1ba9dc1c6a6741bdc9c70bc36f5414",
+  "enabled": true,
+  "jobs": [
+    {
+      "arm": "chatterbox",
+      "contextPath": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-chatterbox-context",
+      "manifestSha256": "f4bf9a8151527a725807446ce71cb4fdc224b821575f794aad6bdcc189c888ff",
+      "plan": {
+        "kind": "azure-isolated-gpu-job-plan/v1",
+        "job_id": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/jobs/vyakti-stock106-chatterbox",
+        "workload": "synthetic-stock-comparison106-v1",
+        "location": "centralindia",
+        "properties": {
+          "environmentId": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/managedEnvironments/vyakti-voice-env",
+          "workloadProfileName": "Consumption-GPU-NC8as-T4",
+          "configuration": {
+            "triggerType": "Manual",
+            "replicaTimeout": 900,
+            "replicaRetryLimit": 0,
+            "manualTriggerConfig": {
+              "parallelism": 1,
+              "replicaCompletionCount": 1
+            },
+            "registries": [
+              {
+                "server": "vyaktivoiceacr.azurecr.io",
+                "username": "vyaktivoiceacr",
+                "passwordSecretRef": "registry-pull"
+              }
+            ],
+            "secrets": [
+              {
+                "name": "registry-pull"
+              }
+            ]
+          },
+          "template": {
+            "containers": [
+              {
+                "name": "comparison",
+                "image": "vyaktivoiceacr.azurecr.io/vyakti/stock106-chatterbox@sha256:19b990e606e08a3434ca0d4b64f24fe26d78f6652b61948d1988aae0254f1885",
+                "command": [
+                  "python",
+                  "/opt/vyakti-stock/entrypoint.py"
+                ],
+                "resources": {
+                  "cpu": 8,
+                  "memory": "56Gi"
+                },
+                "env": []
+              }
+            ]
+          }
+        },
+        "template_sha256": "2eb4c68cdb33502cc9236a1d7fe7d36081605d48b60c5796c7363434c74df163",
+        "configuration_sha256": "60f1ae862a2ac444e7c25cdb92f63da93f955848e344efed82f50220c4bb92d5",
+        "activation_available": false,
+        "blocking_codes": [
+          "gpu_experiment_budget_not_approved",
+          "gpu_private_registry_auth_not_deployed",
+          "gpu_exclusive_start_authority_unproven",
+          "gpu_attributable_usage_unavailable"
+        ]
+      },
+      "deployment": {
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "contentVersion": "1.0.0.0",
+        "parameters": {
+          "registryPassword": {
+            "type": "secureString"
+          }
+        },
+        "resources": [
+          {
+            "type": "Microsoft.App/jobs",
+            "apiVersion": "2025-07-01",
+            "name": "vyakti-stock106-chatterbox",
+            "location": "centralindia",
+            "properties": {
+              "environmentId": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/managedEnvironments/vyakti-voice-env",
+              "workloadProfileName": "Consumption-GPU-NC8as-T4",
+              "configuration": {
+                "triggerType": "Manual",
+                "replicaTimeout": 900,
+                "replicaRetryLimit": 0,
+                "manualTriggerConfig": {
+                  "parallelism": 1,
+                  "replicaCompletionCount": 1
+                },
+                "registries": [
+                  {
+                    "server": "vyaktivoiceacr.azurecr.io",
+                    "username": "vyaktivoiceacr",
+                    "passwordSecretRef": "registry-pull"
+                  }
+                ],
+                "secrets": [
+                  {
+                    "name": "registry-pull",
+                    "value": "[parameters('registryPassword')]"
+                  }
+                ]
+              },
+              "template": {
+                "containers": [
+                  {
+                    "name": "comparison",
+                    "image": "vyaktivoiceacr.azurecr.io/vyakti/stock106-chatterbox@sha256:19b990e606e08a3434ca0d4b64f24fe26d78f6652b61948d1988aae0254f1885",
+                    "command": [
+                      "python",
+                      "/opt/vyakti-stock/entrypoint.py"
+                    ],
+                    "resources": {
+                      "cpu": 8,
+                      "memory": "56Gi"
+                    },
+                    "env": []
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "arm": "voxcpm2",
+      "contextPath": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\voice-overlay106-voxcpm2-context",
+      "manifestSha256": "10d3f2ca8933eecc248bdf73ca82a21b74429372784bbffeaea93942a9ffeda1",
+      "plan": {
+        "kind": "azure-isolated-gpu-job-plan/v1",
+        "job_id": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/jobs/vyakti-stock106-voxcpm2",
+        "workload": "synthetic-stock-comparison106-v1",
+        "location": "centralindia",
+        "properties": {
+          "environmentId": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/managedEnvironments/vyakti-voice-env",
+          "workloadProfileName": "Consumption-GPU-NC8as-T4",
+          "configuration": {
+            "triggerType": "Manual",
+            "replicaTimeout": 900,
+            "replicaRetryLimit": 0,
+            "manualTriggerConfig": {
+              "parallelism": 1,
+              "replicaCompletionCount": 1
+            },
+            "registries": [
+              {
+                "server": "vyaktivoiceacr.azurecr.io",
+                "username": "vyaktivoiceacr",
+                "passwordSecretRef": "registry-pull"
+              }
+            ],
+            "secrets": [
+              {
+                "name": "registry-pull"
+              }
+            ]
+          },
+          "template": {
+            "containers": [
+              {
+                "name": "comparison",
+                "image": "vyaktivoiceacr.azurecr.io/vyakti/stock106-voxcpm2@sha256:6117bb89a4eb32508f39834ba6a7841a8a667c67d31a8ba78e68794e5defcd5c",
+                "command": [
+                  "python",
+                  "/opt/vyakti-stock/entrypoint.py"
+                ],
+                "resources": {
+                  "cpu": 8,
+                  "memory": "56Gi"
+                },
+                "env": []
+              }
+            ]
+          }
+        },
+        "template_sha256": "01616a7cee6f241c3e7b2452cfd13615adcf26a69e853723446f5d9325c30fd9",
+        "configuration_sha256": "24a69f977a29e8958c55b6ad2c6b3cd1e8d8cb61f40cbfe62e5b5a12e8874576",
+        "activation_available": false,
+        "blocking_codes": [
+          "gpu_experiment_budget_not_approved",
+          "gpu_private_registry_auth_not_deployed",
+          "gpu_exclusive_start_authority_unproven",
+          "gpu_attributable_usage_unavailable"
+        ]
+      },
+      "deployment": {
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "contentVersion": "1.0.0.0",
+        "parameters": {
+          "registryPassword": {
+            "type": "secureString"
+          }
+        },
+        "resources": [
+          {
+            "type": "Microsoft.App/jobs",
+            "apiVersion": "2025-07-01",
+            "name": "vyakti-stock106-voxcpm2",
+            "location": "centralindia",
+            "properties": {
+              "environmentId": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/managedEnvironments/vyakti-voice-env",
+              "workloadProfileName": "Consumption-GPU-NC8as-T4",
+              "configuration": {
+                "triggerType": "Manual",
+                "replicaTimeout": 900,
+                "replicaRetryLimit": 0,
+                "manualTriggerConfig": {
+                  "parallelism": 1,
+                  "replicaCompletionCount": 1
+                },
+                "registries": [
+                  {
+                    "server": "vyaktivoiceacr.azurecr.io",
+                    "username": "vyaktivoiceacr",
+                    "passwordSecretRef": "registry-pull"
+                  }
+                ],
+                "secrets": [
+                  {
+                    "name": "registry-pull",
+                    "value": "[parameters('registryPassword')]"
+                  }
+                ]
+              },
+              "template": {
+                "containers": [
+                  {
+                    "name": "comparison",
+                    "image": "vyaktivoiceacr.azurecr.io/vyakti/stock106-voxcpm2@sha256:6117bb89a4eb32508f39834ba6a7841a8a667c67d31a8ba78e68794e5defcd5c",
+                    "command": [
+                      "python",
+                      "/opt/vyakti-stock/entrypoint.py"
+                    ],
+                    "resources": {
+                      "cpu": 8,
+                      "memory": "56Gi"
+                    },
+                    "env": []
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "sequence": "serial_terminal_observation_required",
+  "totalSynthesisCalls": 12,
+  "retries": 0,
+  "newTables": 0,
+  "ownerRoutesChanged": false,
+  "requirements": {
+    "t4Replicas": 1,
+    "cpu": 8,
+    "memoryGiB": 56,
+    "eachJobTimeoutSeconds": 900,
+    "planningHeadroomSecondsPerJob": 360,
+    "aggregatePlanningAllocationSeconds": 2520,
+    "budgetReservationMicrousd": 1164240,
+    "currentRateMicrousdPerSecond": 462,
+    "hardInvoiceCap": false,
+    "outputTransport": "bounded_hash_checked_job_log_artifacts",
+    "outputCompleteness": "must verify every chunk and job terminal receipt"
+  },
+  "sourceCommitment": "e747bfaa37d1303333a2110e6b21b1af99799ac6f89f1613b1eee84ed2e62682",
+  "admission": {
+    "kind": "reviewed-stock-job-admission/v1",
+    "planSha256": "c4862a0980ec263b68568a60d9595e221f1ba9dc1c6a6741bdc9c70bc36f5414",
+    "approvalSha256": "3d1efa9d71b5e03d24afab4e3f5ca25fc00642c9000ff9d51ccd9e28c581aee3",
+    "maximumReservationMicrousd": 1164240
+  },
+  "expectedDatabase": "vyakti_expert_integration_20260906",
+  "logAnalyticsWorkspaceId": "cdb1ef00-c81f-4591-9897-413a691a8225",
+  "observerSourceSha256": "9866d4d04532b84e252b80e397c6dcb089fb8a74a23f414659968a6383f66d4a",
+  "policies": [
+    {
+      "budgetId": "gpu-control-probe-20260908",
+      "limitMicrousd": 2500000,
+      "rateMicrousdPerSecond": 462,
+      "planningHeadroomSeconds": 360,
+      "approvalSha256": "3d1efa9d71b5e03d24afab4e3f5ca25fc00642c9000ff9d51ccd9e28c581aee3",
+      "configurationSha256": "60f1ae862a2ac444e7c25cdb92f63da93f955848e344efed82f50220c4bb92d5"
+    },
+    {
+      "budgetId": "gpu-control-probe-20260908",
+      "limitMicrousd": 2500000,
+      "rateMicrousdPerSecond": 462,
+      "planningHeadroomSeconds": 360,
+      "approvalSha256": "3d1efa9d71b5e03d24afab4e3f5ca25fc00642c9000ff9d51ccd9e28c581aee3",
+      "configurationSha256": "24a69f977a29e8958c55b6ad2c6b3cd1e8d8cb61f40cbfe62e5b5a12e8874576"
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+with eligible_job as materialized (
+       select j.* from vy_replica_processing_job j
+       join vy_replica_source s on s.source_id=j.source_id and s.replica_id=j.replica_id
+        and s.owner_user_id=j.owner_user_id
+        where j.job_id=$1::uuid and j.state='leased' and j.lease_token_hash=$2
+          and j.lease_expires_at>now() and j.step=$10
+          and s.state in ('quarantined','processing')
+     ), desired_artifacts as materialized (
+       select value item from jsonb_array_elements($3::jsonb)
+     ), inserted_artifacts as (
+       insert into vy_replica_processing_artifact
+         (artifact_id,replica_id,owner_user_id,source_id,parent_artifact_id,created_by_job_id,
+          stage,variant_key,storage_bucket,object_path,mime,byte_size,duration_ms,sha256,input_sha256,
+          transform_name,transform_version,parameter_hash,adapter_family,adapter_name,adapter_version,
+          manifest,manifest_hash)
+       select (item->>'artifact_id')::uuid,(item->>'replica_id')::uuid,(item->>'owner_user_id')::uuid,
+              (item->>'source_id')::uuid,nullif(item->>'parent_artifact_id','')::uuid,
+              (item->>'created_by_job_id')::uuid,item->>'stage',item->>'variant_key',item->>'storage_bucket',
+              item->>'object_path',item->>'mime',(item->>'byte_size')::bigint,
+              nullif(item->>'duration_ms','')::integer,item->>'sha256',item->>'input_sha256',
+              item#>>'{transform,name}',item#>>'{transform,version}',item#>>'{transform,parameter_hash}',
+              item#>>'{adapter,family}',item#>>'{adapter,name}',item#>>'{adapter,version}',
+              item,item->>'manifest_hash'
+         from desired_artifacts d cross join eligible_job j
+        where (d.item->>'created_by_job_id')::uuid=j.job_id
+          and (d.item->>'source_id')::uuid=j.source_id
+          and (d.item->>'replica_id')::uuid=j.replica_id
+          and (d.item->>'owner_user_id')::uuid=j.owner_user_id
+       on conflict (artifact_id) do nothing
+       returning artifact_id
+     ), desired_evidence as materialized (
+       select value item from jsonb_array_elements($4::jsonb)
+     ), inserted_evidence as (
+       insert into vy_replica_processing_evidence
+         (evidence_id,replica_id,owner_user_id,source_id,artifact_id,created_by_job_id,evidence_type,
+          span_start_ms,span_end_ms,confidence,value,input_sha256,adapter_family,adapter_name,
+          adapter_version,record_hash)
+       select (item->>'evidence_id')::uuid,(item->>'replica_id')::uuid,(item->>'owner_user_id')::uuid,
+              (item->>'source_id')::uuid,nullif(item->>'artifact_id','')::uuid,
+              (item->>'created_by_job_id')::uuid,item->>'evidence_type',
+              nullif(item#>>'{span,start_ms}','')::integer,nullif(item#>>'{span,end_ms}','')::integer,
+              nullif(item->>'confidence','')::double precision,item->'value',item->>'input_sha256',
+              item#>>'{adapter,family}',item#>>'{adapter,name}',item#>>'{adapter,version}',item->>'record_hash'
+         from desired_evidence d cross join eligible_job j
+        where (d.item->>'created_by_job_id')::uuid=j.job_id
+          and (d.item->>'source_id')::uuid=j.source_id
+          and (d.item->>'replica_id')::uuid=j.replica_id
+          and (d.item->>'owner_user_id')::uuid=j.owner_user_id
+       on conflict (evidence_id) do nothing
+       returning evidence_id
+     -- A desired row counts as valid if THIS statement inserted it, or if an
+     -- identical row was already there.
+     --
+     -- The or exists half used to be the whole test: re-read the table and
+     -- join. That can never see the row inserted_evidence just wrote.
+     -- Data-modifying CTEs run against the same snapshot and cannot observe one
+     -- another's effects, so the re-read returned the state from BEFORE the
+     -- insert, the counts disagreed, and collision_guard divided by zero.
+     --
+     -- Which means this statement had never committed a step that produces an
+     -- artifact or a piece of evidence - only integrity and malware_scan,
+     -- which produce neither, could get through it. Measured 2026-08-26 on
+     -- production: 0 rows in vy_replica_processing_artifact, 0 rows in
+     -- vy_replica_processing_evidence, and the only completed steps in the
+     -- entire database were those two. media_probe failed SQLSTATE 22012.
+     --
+     -- Both halves are load-bearing and the guard's real job is unchanged: an
+     -- id that already exists with DIFFERENT content is in neither half, so it
+     -- still aborts, which is the collision this was written to catch. An
+     -- identical re-commit is in the second half, so a retry after a lost
+     -- response still settles instead of dead-ending.
+     ), valid_artifacts as materialized (
+       select count(*)::integer total from desired_artifacts d
+        where (d.item->>'artifact_id')::uuid in (select artifact_id from inserted_artifacts)
+           or exists (
+             select 1 from vy_replica_processing_artifact a
+              where a.artifact_id=(d.item->>'artifact_id')::uuid
+                and a.source_id=(d.item->>'source_id')::uuid and a.replica_id=(d.item->>'replica_id')::uuid
+                and a.owner_user_id=(d.item->>'owner_user_id')::uuid
+                and a.created_by_job_id=(d.item->>'created_by_job_id')::uuid and a.sha256=d.item->>'sha256'
+                and a.input_sha256=d.item->>'input_sha256' and a.manifest_hash=d.item->>'manifest_hash')
+     ), valid_evidence as materialized (
+       select count(*)::integer total from desired_evidence d
+        where (d.item->>'evidence_id')::uuid in (select evidence_id from inserted_evidence)
+           or exists (
+             select 1 from vy_replica_processing_evidence e
+              where e.evidence_id=(d.item->>'evidence_id')::uuid
+                and e.source_id=(d.item->>'source_id')::uuid and e.replica_id=(d.item->>'replica_id')::uuid
+                and e.owner_user_id=(d.item->>'owner_user_id')::uuid
+                and e.created_by_job_id=(d.item->>'created_by_job_id')::uuid and e.input_sha256=d.item->>'input_sha256'
+                and e.record_hash=d.item->>'record_hash')
+     ), collision_guard as materialized (
+       -- With no eligible job there is nothing to guard: the writes above
+       -- inserted nothing because they cross join eligible_job. Aborting here
+       -- would turn an ordinary lost lease into SQLSTATE 22012, when settled
+       -- being empty already reports it as lost_processing_lease, which is
+       -- the answer the caller is written to handle.
+       select 1 / case when (select count(*) from eligible_job)=0 then 1
+                       when (select count(*) from desired_artifacts)=(select total from valid_artifacts)
+                        and (select count(*) from desired_evidence)=(select total from valid_evidence)
+                  then 1 else 0 end ok
+     ), settled as (
+       update vy_replica_processing_job j
+          set state='complete',result=$5::jsonb,failure_code='',lease_token_hash='',
+              leased_at=null,lease_expires_at=null,updated_at=now()
+         from collision_guard g cross join eligible_job eligible
+        where g.ok=1 and j.job_id=eligible.job_id
+       returning j.*
+     ), attempt as (
+       update vy_replica_processing_attempt a
+          set outcome='complete',result_manifest_hash=$6,adapter_family=$7,adapter_name=$8,
+              adapter_version=$9,finished_at=now()
+         from settled s where a.job_id=s.job_id and a.attempt=s.attempt
+     ), source_state as (
+       -- media_probe measures the recording's duration and, until now, wrote it
+       -- only into its evidence row. vy_replica_source.duration_ms stayed
+       -- NULL, and worker.js puts that field on the input reference every later
+       -- step sends to the evidence service, so every one of them declared a
+       -- null duration for a recording whose length was already known and
+       -- recorded. Read straight from desired_evidence: it is an ordinary CTE
+       -- over a parameter, so unlike the inserted rows it IS visible here.
+       update vy_replica_source source
+          set state=case when s.step='voice_quality' then 'ready' else 'processing' end,
+              duration_ms=case when s.step='media_probe' then coalesce((
+                select (d.item#>>'{value,duration_ms}')::bigint from desired_evidence d
+                 where d.item->>'evidence_type'='media_probe'
+                   and (d.item#>>'{value,duration_ms}') ~ '^[0-9]+$'
+                 limit 1), source.duration_ms) else source.duration_ms end,
+              updated_at=now()
+         from settled s where source.source_id=s.source_id and source.replica_id=s.replica_id
+          and source.owner_user_id=s.owner_user_id and source.state in ('quarantined','processing')
+     ), enqueued as (
+       insert into vy_replica_processing_job(replica_id,owner_user_id,source_id,step,revision,state)
+       select s.replica_id,s.owner_user_id,s.source_id,wanted.step,s.revision,'queued'
+         from settled s cross join jsonb_array_elements_text($5::jsonb->'next_steps') wanted(step)
+       on conflict (source_id,step,revision) do nothing returning step
+     )
+     select * from settled

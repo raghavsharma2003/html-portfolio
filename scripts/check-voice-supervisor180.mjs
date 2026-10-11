@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {loadDueVoiceWindows,VOICE_APP_SQL} from '../api/_voice/allocation-boundary.js';
+const plan={app_id:'/apps/current',revision_name:'current--one',contract_sha256:'a'.repeat(64)};
+const foreign=Array.from({length:11},(_,i)=>({window_id:String(i),app_id:'/apps/other',revision_name:'other--one',contract_sha256:'b'.repeat(64)}));
+const previous={...plan,window_id:'previous-revision',revision_name:'current--old'};
+const drift={...plan,window_id:'previous-contract',contract_sha256:'c'.repeat(64)};
+const current={...plan,window_id:'current-window'};
+const all=[...foreign,previous,drift,current];
+// Query-shape control plus response defense; this is NOT a PostgreSQL parser.
+assert.match(VOICE_APP_SQL.due,/where l\.app_id=\$1 and l\.revision_name=\$2 and l\.contract_sha256=\$3/);
+assert.ok(VOICE_APP_SQL.due.indexOf('contract_sha256=$3')<VOICE_APP_SQL.due.indexOf('limit 10'));
+let calls=0;
+const db=async(sql,params)=>{
+ calls++;assert.equal(sql,VOICE_APP_SQL.due);assert.deepEqual(params,Object.values(plan));
+ return all.filter(row=>row.app_id===params[0]&&row.revision_name===params[1]&&row.contract_sha256===params[2]).slice(0,10);
+};
+assert.deepEqual(await loadDueVoiceWindows(db,plan),[current]);
+assert.equal(calls,1);
+for(const wrong of [foreign[0],previous,drift])await assert.rejects(loadDueVoiceWindows(async()=>[wrong],plan),/voice_supervisor_scope_mismatch/);
+await assert.rejects(loadDueVoiceWindows(async()=>all.slice(0,10),plan),/voice_supervisor_scope_mismatch/);
+await assert.rejects(loadDueVoiceWindows(async()=>Array(11).fill(current),plan),/voice_supervisor_scope_mismatch/);
+await assert.rejects(loadDueVoiceWindows(async()=>{throw Error('should not query');},{app_id:plan.app_id}),/voice_allocation_not_configured/);
+const route=readFileSync(new URL('../api/voice-allocation-supervise.js',import.meta.url),'utf8');
+assert.ok(route.includes('loadDueVoiceWindows(q,runtime.plan)'));
+assert.ok(!route.includes('q(VOICE_APP_SQL.due,[])'));
+const client=readFileSync(new URL('../src/studio/voicePanelApi.ts',import.meta.url),'utf8');
+const server=readFileSync(new URL('../api/voice-preview.js',import.meta.url),'utf8');
+assert.ok(client.includes('AbortSignal.timeout(450_000)')&&server.includes('420_000'));
+console.log('voice180: mixed app/revision/contract scope, stale-query negatives, bound caller and450s/420s timing passed; SQL not executed.');

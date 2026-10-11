@@ -1,0 +1,290 @@
+/* ops-board.css - WS-R21. The platform-operator board's own scoped sheet,
+ * `drift-watch.css`/`review-queue.css`'s own precedent: a layout that only
+ * exists as a diff inside `studio.css` is a layout that loses a merge.
+ *
+ * Tokens from `design/tokens.css` and the palette `studio.css` already
+ * declares in its own `@layer tokens` block (--paper, --ink, --forest,
+ * --danger, --radius*, --shadow). One theme (DESIGN-LAW §3): this page never
+ * flips to dark, matching every other studio screen today.
+ */
+@layer components {
+  .ops-board {
+    min-height: 100dvh;
+    background: var(--paper);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    padding: var(--space-pad);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-section);
+  }
+
+  .ops-board__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-item);
+    max-width: 1080px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .ops-board__title {
+    font-size: var(--text-heading);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-heading);
+    font-weight: var(--weight-strong);
+    margin: 0;
+  }
+
+  .ops-board__meta {
+    font-size: var(--text-small);
+    /* WS-R135. `--ink-faint` measures below AA (studio.css's own token
+     * comment: 3.47:1 to 4.1:1 against the backgrounds it paints on, "a
+     * SECOND, AA-safe token, reserved for the exact selectors this gate's
+     * axe scan actually caught failing"). This board was never rendered by
+     * the accessibility gate before this workstream added `studio:ops`/
+     * `studio-hi:ops` (`context/decisions.md#ws-r62-ops-board-push-copy-
+     * stays-english-inline`'s own restatement: "the accessibility gate
+     * never renders it"), so this selector is the FIRST time this rule
+     * measured it — the fix is the same reserved token, applied here for
+     * the same reason, never a wider `--ink-faint` recolour. */
+    color: var(--ink-faint-aa);
+  }
+
+  /* WS-R135. The board's own language switch - `studio-shell.css`'s
+   * `.studio-lang-switch`/`.studio-lang-btn` restated for this standalone
+   * mount rather than imported: this file's own header rule ("a layout
+   * that only exists as a diff inside a contended file loses a merge")
+   * applies just as much to importing another surface's contended
+   * stylesheet for two small rules. Both language names always shown, the
+   * current one `aria-pressed` (announced as state, never disabled). */
+  .ops-board__lang-switch {
+    display: flex;
+    gap: var(--space-hair);
+  }
+  .ops-board__lang-btn {
+    appearance: none;
+    border: var(--hairline) solid var(--ink-faint);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: var(--radius-control);
+    padding: var(--space-hair) var(--space-tight);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+  }
+  .ops-board__lang-btn[aria-pressed="true"] {
+    background: var(--forest);
+    color: var(--paper);
+    border-color: var(--forest);
+  }
+
+  .ops-board__refresh {
+    appearance: none;
+    border: var(--hairline) solid var(--ink-faint);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: var(--radius-control);
+    padding: var(--space-tight) var(--space-item);
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: transform var(--motion-instant) var(--ease-standard), background var(--motion-quick) var(--ease-standard);
+  }
+  .ops-board__refresh:active { transform: scale(0.97); }
+  .ops-board__refresh:disabled { opacity: 0.55; cursor: default; transform: none; }
+  .ops-board__refresh:focus-visible {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--focus-offset);
+  }
+
+  .ops-board__body {
+    max-width: 1080px;
+    margin: 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-section);
+  }
+
+  .ops-board__panel {
+    background: color-mix(in srgb, var(--paper) 96%, var(--ink) 4%);
+    border: var(--hairline) solid color-mix(in srgb, var(--ink) 12%, transparent);
+    border-radius: var(--radius);
+    padding: var(--space-block);
+  }
+
+  .ops-board__panel h2 {
+    font-size: var(--text-title);
+    letter-spacing: var(--tracking-heading);
+    margin: 0 0 var(--space-item);
+  }
+
+  .ops-board__panel h3 {
+    font-size: var(--text-lead);
+    margin: 0 0 var(--space-hair);
+  }
+
+  .ops-board__room + .ops-board__room {
+    margin-top: var(--space-block);
+    padding-top: var(--space-block);
+    border-top: var(--hairline) solid color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+
+  .ops-board__room-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-tight);
+    margin-bottom: var(--space-row);
+  }
+
+  .ops-board__slug {
+    font-size: var(--text-small);
+    /* WS-R135. Same measured fix as `.ops-board__meta` above. */
+    color: var(--ink-faint-aa);
+    /* WS-R135. `--measure` (68ch, tokens.css) - this class also carries the
+     * board's longest sentences (the Sweeps/Self-check/Incidents/Digest
+     * card descriptions), which ran to 120cpl at the tablet width before
+     * this fix (`scripts/check-layout.mjs --only studio:ops`, MAX_CPL=115).
+     * A no-op on this class's other, short inline `<span>` uses (a slug, a
+     * badge annotation): max-width has no effect on a non-replaced inline
+     * element, only on the block-level `<p>` this class is ALSO applied to. */
+    max-width: var(--measure);
+  }
+
+  .ops-board__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-hair);
+    font-size: var(--text-micro);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    padding: 2px var(--space-tight);
+    border-radius: var(--radius-pill);
+    font-weight: var(--weight-medium);
+  }
+  .ops-board__badge--done { background: var(--state-done-soft); color: var(--state-done); }
+  /* WS-R135. `--state-waiting` on `--state-waiting-soft` measures 4.20:1 at
+   * this badge's tiny `--text-micro` size (measured directly, the same way
+   * `--ink-faint-aa` above was), below the 4.5:1 floor normal-size text
+   * needs - the other three badge pairs (`--state-done`/`-soft` 8.57:1,
+   * `--state-running`/`-soft` 5.94:1, `--state-stopped`/`-soft` 6.16:1) all
+   * clear it. `--state-waiting` is used in 10+ places across `studio.css`
+   * (the wizard dots, the voice-unlock eyebrow); darkening the shared token
+   * would recolour every one of them sight-unseen, so this is a LOCAL
+   * override, scoped to the one selector this board's own axe scan actually
+   * caught failing - `--ink-faint-aa`'s own precedent, restated for a badge
+   * pair instead of a text token. #a64e1d measures 4.79:1 against
+   * `--state-waiting-soft`. */
+  .ops-board__badge--waiting { background: var(--state-waiting-soft); color: #a64e1d; }
+  .ops-board__badge--running { background: var(--state-running-soft); color: var(--state-running); }
+  .ops-board__badge--stopped { background: var(--state-stopped-soft); color: var(--state-stopped); }
+
+  .ops-board__stats {
+    display: grid;
+    /* WS-R135. `auto-fill` reserves as many tracks as the row COULD hold at
+     * its widest, then leaves the ones a shorter stat list does not fill
+     * empty rather than collapsing them - exactly the "a grid reserves a
+     * column for a child that is not in the DOM" shape this gate's own
+     * header names as its founding defect, caught here on the two-stat
+     * `ReceiptsCard` and the three-stat `PhaseGateCard` rows (170-647px
+     * wasted, measured by `scripts/check-layout.mjs --only studio:ops`).
+     * `auto-fit` collapses an empty track to 0 and lets the `1fr` on the
+     * real ones absorb the freed space instead. */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-row);
+  }
+
+  .ops-board__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .ops-board__stat-value {
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    line-height: 1.1;
+  }
+  .ops-board__stat-label {
+    font-size: var(--text-micro);
+    /* WS-R135. Same measured fix as `.ops-board__meta` above. */
+    color: var(--ink-faint-aa);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .ops-board__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-small);
+  }
+  .ops-board__table th, .ops-board__table td {
+    text-align: left;
+    padding: var(--space-tight) var(--space-row);
+    border-bottom: var(--hairline) solid color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+  .ops-board__table th {
+    font-size: var(--text-micro);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    /* WS-R135. Same measured fix as `.ops-board__meta` above. */
+    color: var(--ink-faint-aa);
+    font-weight: var(--weight-medium);
+  }
+  .ops-board__table td.ops-board__num { text-align: right; }
+  .ops-board__table tbody tr:last-child td { border-bottom: none; }
+
+  /* WS-R116. The Self-check card's optional-absent names, grouped by
+   * manifest section - `.wizard-blockers-rest`'s own summary shape
+   * (honesty.css) restated for this card's own list rather than imported,
+   * `OpsBoard.tsx`'s own header rule: this file is a standalone mount that
+   * does not depend on another surface's file. */
+  .ops-board__self-check-optional { margin-top: var(--space-item); }
+  .ops-board__self-check-section { margin-top: var(--space-hair); }
+  .ops-board__self-check-section > summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+  .ops-board__self-check-section > summary::-webkit-details-marker { display: none; }
+  .ops-board__self-check-section[open] > summary { color: var(--ink); }
+
+  .ops-board__empty, .ops-board__error, .ops-board__loading {
+    font-size: var(--text-body);
+    color: var(--ink-soft);
+    padding: var(--space-block);
+    text-align: center;
+  }
+  .ops-board__error { color: var(--danger); }
+
+  .ops-board__signin {
+    max-width: 420px;
+    margin: 15vh auto;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-item);
+  }
+  .ops-board__signin button {
+    appearance: none;
+    border: none;
+    background: var(--forest);
+    color: var(--paper);
+    border-radius: var(--radius-control);
+    padding: var(--space-row) var(--space-block);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+  .ops-board__signin button:active { transform: scale(0.97); }
+
+  @media (max-width: 640px) {
+    .ops-board { padding: var(--space-item); }
+    .ops-board__table { display: block; overflow-x: auto; }
+  }
+}

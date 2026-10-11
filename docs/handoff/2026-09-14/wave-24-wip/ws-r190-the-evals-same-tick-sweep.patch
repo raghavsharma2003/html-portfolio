@@ -1,0 +1,1743 @@
+diff --git a/evals/action-focus/run.mjs b/evals/action-focus/run.mjs
+index 7d698d9..e79904f 100644
+--- a/evals/action-focus/run.mjs
++++ b/evals/action-focus/run.mjs
+@@ -9,6 +9,10 @@ import {createServer} from 'node:http';
+ import {createHash} from 'node:crypto';
+ import {build} from 'vite';
+ import {chromium} from 'playwright';
++// WS-R190: replaces this file's own local, fixed-10s busy-poll (`until`)
++// with the shared, load-scaled poller — `evals/same-tick-scan/run.mjs`'s own
++// law, "never a per-suite copy".
++import {awaitCount} from '../lib/bounded-wait.mjs';
+ const root=fileURLToPath(new URL('../../',import.meta.url)),art=join(root,'scratchpad/action-focus',String(Date.now()));mkdirSync(art,{recursive:true});
+ const RID='10000000-0000-4000-8000-000000000001',OTHER='10000000-0000-4000-8000-000000000002';
+ const SHEET='20000000-0000-4000-8000-000000000001',ITEM='30000000-0000-4000-8000-000000000001',SOURCE='40000000-0000-4000-8000-000000000001',GRANT='50000000-0000-4000-8000-000000000001';
+@@ -20,7 +24,6 @@ const answer=(body,state='complete')=>({replica_id:body.replica_id,request_id:bo
+ let scenario='ready',activeSheet=SHEET,draftStatus='draft',mine=false,mode='normal',pending=[],requests=[],browser,server;const checks=[],errors=[];
+ const old=JSON.parse(readFileSync(join(root,'evals/action-focus/old-components.json'),'utf8'));for(const [file,source] of Object.entries(old.files))assert.equal(createHash('sha256').update(source).digest('hex'),old.hashes[file]);
+ const contextItem=()=>({item_id:ITEM,kind:'file',format:'text',source_name:'pendulum-notes.txt',source_url:'',byte_size:200,extracted_chars:200,extractor:'plain-text/v1',status:mine?'mined':'extracted',refusal_reason:'',routed_to:'',mine_skip_reason:'not_owner_authored_no_style_evidence',authorship:mine?'mine':'unknown',owner_speaker:'',consent_scope:'own_context',proposal:null,created_at:null,updated_at:null});
+-const until=async fn=>{const end=Date.now()+10000;while(!fn()){if(Date.now()>end)throw Error('exact request barrier timed out');await new Promise(r=>setTimeout(r,10));}};
+ const record=name=>{checks.push(name);console.log('ok '+checks.length+' - '+name);};
+ try{
+ const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:join(root,'evals/action-focus/host.html')}},plugins:[{name:'exact-old-components',resolveId(id){if(id==='virtual:old-locker')return '\0old-locker.tsx';if(id==='virtual:old-private')return '\0old-private.tsx';},load(id){const file=id==='\0old-locker.tsx'?'ContextLockerPanel.tsx':id==='\0old-private.tsx'?'PrivateTextRehearsal.tsx':null;if(file)return old.files['src/studio/'+file].replace(/(from\s*|import\s*|import\()(["'])(\.\.?\/[^"']+)\2/g,(_,prefix,q,path)=>prefix+q+resolve(root,'src/studio',path).replaceAll('\\','/')+q);}}]});
+@@ -46,12 +49,12 @@ const trigger=kind=>page.getByRole('button',{name:kind==='source'?'My writing':k
+ const done=async kind=>{if(kind==='source')await page.getByRole('button',{name:'Test this source',exact:true}).waitFor();if(kind==='save'){await page.locator('.ptr-editor').waitFor({state:'hidden'});await page.getByRole('button',{name:'Edit draft details',exact:true}).waitFor({state:'visible'});}if(kind==='answer')await page.getByRole('heading',{name:'Your private text answer',exact:true}).waitFor();await page.waitForLoadState('networkidle');await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));};
+ const expected=kind=>kind==='source'?'Test this source':kind==='save'?'Choose what the answer uses.':'Your private text answer';
+ for(const kind of ['source','save','answer']){
+-for(const legacy of [true,false]){await open(kind,legacy);await prepare(kind);mode='hold';await trigger(kind).click();await until(()=>pending.length===1);pending.shift()();await done(kind);const focus=await active();assert.equal(legacy?focus.tag:focus.text,legacy?'BODY':expected(kind));assert.equal(requests.filter(r=>r.method==='POST').length,1);if(kind==='save')assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);if(!legacy){assert(!['INPUT','TEXTAREA','SELECT'].includes(focus.tag));await page.screenshot({path:join(art,width+'-'+kind+'.png')});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}record(width+'/'+kind+'/'+(legacy?'old BODY negative':'action focus and no keyboard'));}
+-for(const move of ['typing','away-then-body','token','replica','hide','failure']){await open(kind);await prepare(kind);mode='hold';await trigger(kind).click();await until(()=>pending.length===1);if(move==='typing')await page.locator('#other-work').fill('Keep my focus');if(move==='away-then-body'){await page.locator('#other-control').click();await page.locator('#other-control').evaluate(el=>el.blur());}if(['token','replica','hide'].includes(move))await page.evaluate(m=>window.focusProbe[m](),move);if(move==='failure')mode='failure';pending.shift()();if(['typing','away-then-body'].includes(move))await done(kind);else await page.waitForLoadState('networkidle');const focus=await active();if(move==='typing')assert.equal(focus.id,'other-work');else assert.notEqual(focus.text,expected(kind));assert.equal(await page.evaluate(()=>Boolean(window.focusProbeAuth)),false);assert.equal(requests.filter(r=>r.method==='POST').length,1);record(width+'/'+kind+'/'+move+': no late focus or automatic POST');}
++for(const legacy of [true,false]){await open(kind,legacy);await prepare(kind);mode='hold';await trigger(kind).click();await awaitCount(()=>pending.length,1);pending.shift()();await done(kind);const focus=await active();assert.equal(legacy?focus.tag:focus.text,legacy?'BODY':expected(kind));assert.equal(requests.filter(r=>r.method==='POST').length,1);if(kind==='save')assert.equal(await page.locator('.ptr-attestation input:checked').count(),0);if(!legacy){assert(!['INPUT','TEXTAREA','SELECT'].includes(focus.tag));await page.screenshot({path:join(art,width+'-'+kind+'.png')});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}record(width+'/'+kind+'/'+(legacy?'old BODY negative':'action focus and no keyboard'));}
++for(const move of ['typing','away-then-body','token','replica','hide','failure']){await open(kind);await prepare(kind);mode='hold';await trigger(kind).click();await awaitCount(()=>pending.length,1);if(move==='typing')await page.locator('#other-work').fill('Keep my focus');if(move==='away-then-body'){await page.locator('#other-control').click();await page.locator('#other-control').evaluate(el=>el.blur());}if(['token','replica','hide'].includes(move))await page.evaluate(m=>window.focusProbe[m](),move);if(move==='failure')mode='failure';pending.shift()();if(['typing','away-then-body'].includes(move))await done(kind);else await page.waitForLoadState('networkidle');const focus=await active();if(move==='typing')assert.equal(focus.id,'other-work');else assert.notEqual(focus.text,expected(kind));assert.equal(await page.evaluate(()=>Boolean(window.focusProbeAuth)),false);assert.equal(requests.filter(r=>r.method==='POST').length,1);record(width+'/'+kind+'/'+move+': no late focus or automatic POST');}
+ // Native keyboard activation is a separate actual event path.
+-await open(kind);await prepare(kind);mode='hold';await trigger(kind).focus();await page.keyboard.press('Enter');await until(()=>pending.length===1);pending.shift()();await done(kind);assert.equal((await active()).text,expected(kind));record(width+'/'+kind+': Enter action focus');
++await open(kind);await prepare(kind);mode='hold';await trigger(kind).focus();await page.keyboard.press('Enter');await awaitCount(()=>pending.length,1);pending.shift()();await done(kind);assert.equal((await active()).text,expected(kind));record(width+'/'+kind+': Enter action focus');
+ }
+-for(const kind of ['source','answer']){await open(kind,false,true,kind==='answer');await until(()=>pending.length>0);await page.locator('#other-work').fill('Initial read must not move focus');mode='normal';while(pending.length)pending.shift()();await page.waitForLoadState('networkidle');assert.equal((await active()).id,'other-work');assert.equal(requests.filter(r=>r.method==='POST').length,0);record(width+'/'+kind+': delayed initial/restored reads never autofocus');}
++for(const kind of ['source','answer']){await open(kind,false,true,kind==='answer');await awaitCount(()=>pending.length,1);await page.locator('#other-work').fill('Initial read must not move focus');mode='normal';while(pending.length)pending.shift()();await page.waitForLoadState('networkidle');assert.equal((await active()).id,'other-work');assert.equal(requests.filter(r=>r.method==='POST').length,0);record(width+'/'+kind+': delayed initial/restored reads never autofocus');}
+ await ctx.close();
+ }
+ assert.deepEqual(errors,[]);writeFileSync(join(art,'result.json'),JSON.stringify({at:new Date().toISOString(),checks,errors,oldHashes:old.hashes,sourceHashes:Object.fromEntries(Object.keys(old.files).map(f=>[f,createHash('sha256').update(readFileSync(join(root,f))).digest('hex')])),scope:'Actual components/API clients/native focus, synthetic loopback only; no real permission, SQL, model, whole-shell or visual superiority acceptance.'},null,2));console.log('PASS '+checks.length+' groups; '+art);
+diff --git a/evals/candidate-activation-ui.mjs b/evals/candidate-activation-ui.mjs
+index 1e39aac..5625e33 100644
+--- a/evals/candidate-activation-ui.mjs
++++ b/evals/candidate-activation-ui.mjs
+@@ -6,6 +6,11 @@ import {fileURLToPath} from 'node:url';
+ import {join} from 'node:path';
+ import {build} from 'vite';
+ import {chromium} from 'playwright';
++// WS-R190: a `.click()`/`page.waitForFunction(...)` proves only what the page
++// rendered, never that the request it dispatched has reached this fake
++// server yet (context/rejected.md#teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled
++// — this exact suite is named there as WS-R181's own gate-run casualty).
++import {awaitCount} from './lib/bounded-wait.mjs';
+ const root = fileURLToPath(new URL('../', import.meta.url));
+ const id = n => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+ const replica = id(1), candidate = id(2), base = id(3), next = id(4), qualification = id(5);
+@@ -99,7 +104,10 @@ try {
+       {...valid(), can_experiment: true, experimental_qualification_id: null}, {...valid(), selection_kind: 'passed'},
+       {...valid(),can_reset:true},{...valid(),can_reset:true,reset_target_capability_id:base},{...valid(),can_reset:'true'}];
+     assert.equal(await page.evaluate(values => values.every(value => {try {window.parseActivation(value); return false;} catch {return true;}}), negatives), true);
+-    mode = 'hold'; await activate.click(); assert.equal(await activate.isDisabled(), true);
++    mode = 'hold'; const beforeActivate = calls.length; await activate.click(); assert.equal(await activate.isDisabled(), true);
++    // WS-R190: isDisabled() reads the client's own optimistic state, set
++    // before the POST it dispatched necessarily reaches this fake server.
++    assert.equal(await awaitCount(() => calls.length, beforeActivate + 1), beforeActivate + 1);
+     assert.equal(calls.filter(item => item.body.op === 'activate').length, 1);
+     pending(); pending = null; mode = '';
+     await page.getByText('This version is selected for new private conversations.', {exact: true}).waitFor();
+@@ -174,9 +182,13 @@ try {
+     assert.equal(await page.getByText('This version is selected for new private conversations.', {exact: true}).count(), 0);
+     assert.deepEqual(errors, []); checks.push(`${width}: late previous-account mutation cannot restore authority`);
+     mode='';recoveryRow=recoveryInitial();await page.goto(`http://127.0.0.1:${server.address().port}/?lang=en`);
++    const beforeRecoveryOpen=calls.length;
+     await page.getByRole('button',{name:'Show erased candidate recovery',exact:true}).click();
+     const recovery=page.getByRole('button',{name:'Use current AI',exact:true});
+     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Use current AI'&&!el.disabled));
++    // WS-R190: the re-enabled button proves what the page rendered, not that
++    // this fake server has recorded the status call yet.
++    assert(await awaitCount(()=>calls.length,beforeRecoveryOpen+1)>=beforeRecoveryOpen+1,'recovery status call did not reach the fake server');
+     const beforeRecovery=calls.length;
+     assert.deepEqual(calls.at(-1).body,{op:'status',replica_id:replica});
+     assert.equal(await page.evaluate(values=>values.every(value=>{try{window.parseRecovery(value);return false;}catch{return true;}}),
+@@ -185,6 +197,9 @@ try {
+     assert.equal(await recovery.isDisabled(),true);assert.equal(calls.length,beforeRecovery+1);
+     mode='';await page.getByRole('button',{name:'Check recovery status',exact:true}).click();
+     await page.waitForFunction(()=>window.runtimeChanges.length===1);
++    // WS-R190: the page-side runtimeChanges read proves what the page saw,
++    // not that this fake server has recorded the follow-up status call yet.
++    assert.equal(await awaitCount(()=>calls.length,beforeRecovery+2),beforeRecovery+2);
+     assert.deepEqual(calls.at(-1).body,{op:'status',replica_id:replica});
+     assert.deepEqual(await page.evaluate(()=>window.runtimeChanges),[{replica_id:replica,capability_id:id(6)}]);
+     assert.equal(calls.length,beforeRecovery+2);
+diff --git a/evals/candidate-qualification-ui.mjs b/evals/candidate-qualification-ui.mjs
+index e9223fb..a3c3f5a 100644
+--- a/evals/candidate-qualification-ui.mjs
++++ b/evals/candidate-qualification-ui.mjs
+@@ -7,6 +7,11 @@ import { join, extname } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ import { build } from 'vite';
+ import { chromium } from 'playwright';
++// WS-R190: replaces this file's own local busy-loop
++// (`while(activationReads.length<2)...`) with the shared, load-scaled
++// poller — `evals/same-tick-scan/run.mjs`'s own law, "never a per-suite
++// copy".
++import { awaitCount } from './lib/bounded-wait.mjs';
+ 
+ const root = fileURLToPath(new URL('../', import.meta.url));
+ const RID = '10000000-0000-4000-8000-000000000001';
+@@ -128,8 +133,7 @@ try {
+     await page.keyboard.press('Enter'); await page.getByText(copy.more, { exact: true }).waitFor();
+     await page.waitForFunction(() => document.querySelector('.candidate-eval-results')?.getAttribute('aria-busy') === 'false');
+     assert.equal(mutations().length, 1);
+-    await bounded((async()=>{while(activationReads.length<2)await new Promise(resolve=>setImmediate(resolve));})(), 'Successful explicit qualification did not refresh activation status');
+-    assert.equal(activationReads.length,2);
++    assert.equal(await awaitCount(() => activationReads.length, 2), 2, 'Successful explicit qualification did not refresh activation status');
+     const missingHeading = language === 'hi' ? 'हमें अभी क्या जाँचना है' : 'What we still need to check';
+     const checkDetails = page.locator('.candidate-eval-results details');
+     await page.getByText(missingHeading, { exact: true }).waitFor();
+diff --git a/evals/context-attribution/run.mjs b/evals/context-attribution/run.mjs
+index 2672e15..f38b9e8 100644
+--- a/evals/context-attribution/run.mjs
++++ b/evals/context-attribution/run.mjs
+@@ -8,12 +8,16 @@ import {fileURLToPath} from 'node:url';
+ import {createServer} from 'node:http';
+ import {build} from 'vite';
+ import {chromium} from 'playwright';
++// WS-R190: an `aria-pressed`/`disabled` DOM read proves what the page
++// rendered, never that this fake server has already recorded the request —
++// `awaitCount` is the shared, load-scaled fix, replacing this file's own
++// local fixed-5s busy-poll (`until`) too ("never a per-suite copy").
++import {awaitCount} from '../lib/bounded-wait.mjs';
+ const root=fileURLToPath(new URL('../../',import.meta.url)),art=join(root,'scratchpad/context-attribution',String(Date.now()));mkdirSync(art,{recursive:true});
+ const RID='10000000-0000-4000-8000-000000000001',OTHER='20000000-0000-4000-8000-000000000001',ITEM='30000000-0000-4000-8000-000000000001';
+ const item=(overrides={})=>({item_id:ITEM,kind:'file',format:'text',source_name:'My saved lesson.txt',source_url:'',byte_size:200,extracted_chars:200,extractor:'plain-text/v1',status:'extracted',refusal_reason:'',routed_to:'',mine_skip_reason:'not_owner_authored_no_style_evidence',authorship:'unknown',owner_speaker:'',consent_scope:'own_context',proposal:null,created_at:null,updated_at:null,...overrides});
+ const view=items=>({items,quota:{items:items.length,bytes:200,max_items:100,max_bytes:1e7},limits:{max_item_bytes:1e6,accepted_file_formats:['text','markdown','pdf','docx'],routed_elsewhere:{}}});
+ let rows=[item()],posts=[],gets=[],held=[],holdPost=false,holdGet=false,postMode='normal',browser,server;const checks=[],errors=[];
+-const until=async predicate=>{const deadline=Date.now()+5000;while(!predicate()){if(Date.now()>deadline)throw Error('fixture state deadline');await new Promise(r=>setTimeout(r,10));}};
+ // blob from commit c56cadfe72a20ee02781485752d8d67fcfc6fb21 (before this
+ // component's current shape), moved to a committed fixture so this suite
+ // never shells to `git show` at test time (context/rejected.md#ci-shallow-
+@@ -55,14 +59,17 @@ try{
+   await open();await page.reload();await my().waitFor();assert.equal(posts.length,0);assert.ok(gets.length>=2);check(width+': actual reload restores choice without implicit remine');
+   await my().scrollIntoViewIfNeeded();await page.screenshot({path:join(art,`${width}-choice.png`)});
+   await my().focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>document.querySelector('[aria-label="Writing attribution"] button')?.getAttribute('aria-pressed')==='true');
+-  assert.equal(posts.length,1);assert.equal(posts[0].body.authorship,'mine');assert.equal(posts[0].authorization,'Bearer synthetic-a');assert.equal(rows[0].authorship,'mine');assert.equal(await my().isDisabled(),true);assert.ok(gets.length>=3);assert.equal(await page.getByText(/nothing in it repeated often enough/).count(),1);check(width+': explicit keyboard action sends actual scoped request and authoritative refresh confirms own writing');
+-  await reference().focus();await page.keyboard.press('Space');await page.waitForFunction(()=>document.querySelectorAll('[aria-label="Writing attribution"] button')[1]?.getAttribute('aria-pressed')==='true');assert.equal(posts.length,2);assert.equal(posts[1].body.authorship,'not_mine');check(width+': explicit reference-only action sends no grant or source text');
++  // WS-R190: aria-pressed is a client-side read; poll for the POST it
++  // dispatched to have actually reached this fake server first.
++  assert.equal(await awaitCount(()=>posts.length,1),1);
++  assert.equal(posts[0].body.authorship,'mine');assert.equal(posts[0].authorization,'Bearer synthetic-a');assert.equal(rows[0].authorship,'mine');assert.equal(await my().isDisabled(),true);assert.ok(gets.length>=3);assert.equal(await page.getByText(/nothing in it repeated often enough/).count(),1);check(width+': explicit keyboard action sends actual scoped request and authoritative refresh confirms own writing');
++  await reference().focus();await page.keyboard.press('Space');await page.waitForFunction(()=>document.querySelectorAll('[aria-label="Writing attribution"] button')[1]?.getAttribute('aria-pressed')==='true');assert.equal(await awaitCount(()=>posts.length,2),2);assert.equal(posts[1].body.authorship,'not_mine');check(width+': explicit reference-only action sends no grant or source text');
+   await page.screenshot({path:join(art,`${width}-reference.png`)});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);check(width+': native controls wrap without horizontal overflow');
+-  await open();holdPost=true;await my().click();await page.waitForFunction(()=>document.querySelector('[aria-label="Writing attribution"] button')?.disabled);await until(()=>posts.length===1);await my().evaluate(el=>{el.click();el.click();});assert.equal(posts.length,1);const beforeGet=gets.length;await page.evaluate(()=>window.attributionProbe.switchReplica());await page.getByText('Other replica.txt',{exact:true}).waitFor();const beforeEvents=await page.evaluate(()=>window.attributionProbe.events.length);const oldResponse=page.waitForResponse(r=>r.request().method()==='POST');held.splice(0).forEach(f=>f());await oldResponse;assert.equal(await page.getByText('My saved lesson.txt',{exact:true}).count(),0);assert.equal(await page.evaluate(()=>window.attributionProbe.events.length),beforeEvents);assert.ok(gets.slice(beforeGet).every(r=>r.rid===OTHER));check(width+': pending double action suppressed; old replica completion cannot update or refresh new scope');
++  await open();holdPost=true;await my().click();await page.waitForFunction(()=>document.querySelector('[aria-label="Writing attribution"] button')?.disabled);await awaitCount(()=>posts.length,1);await my().evaluate(el=>{el.click();el.click();});assert.equal(await awaitCount(()=>posts.length,1),1);const beforeGet=gets.length;await page.evaluate(()=>window.attributionProbe.switchReplica());await page.getByText('Other replica.txt',{exact:true}).waitFor();const beforeEvents=await page.evaluate(()=>window.attributionProbe.events.length);const oldResponse=page.waitForResponse(r=>r.request().method()==='POST');held.splice(0).forEach(f=>f());await oldResponse;assert.equal(await page.getByText('My saved lesson.txt',{exact:true}).count(),0);assert.equal(await page.evaluate(()=>window.attributionProbe.events.length),beforeEvents);assert.ok(gets.slice(beforeGet).every(r=>r.rid===OTHER));check(width+': pending double action suppressed; old replica completion cannot update or refresh new scope');
+   await open();holdPost=true;await my().click();await page.waitForFunction(()=>document.querySelector('[aria-label="Writing attribution"] button')?.disabled);await page.evaluate(()=>window.attributionProbe.hide());const closedEvents=await page.evaluate(()=>window.attributionProbe.events.length);const response=page.waitForResponse(r=>r.request().method()==='POST');held.splice(0).forEach(f=>f());await response;assert.equal(await page.evaluate(()=>window.attributionProbe.events.length),closedEvents);assert.equal(await my().count(),0);check(width+': late unmounted completion has no host callbacks');
+   await open();postMode='wrong-item';await my().click();await page.getByRole('alert').waitFor();assert.equal(await my().getAttribute('aria-pressed'),'false');check(width+': mismatched response never confirms attribution');
+   await open();postMode='error';await my().click();await page.getByRole('alert').waitFor();assert.equal(await my().getAttribute('aria-pressed'),'false');check(width+': failed request remains unconfirmed');
+-  reset();holdGet=true;await page.goto(origin+'/evals/context-attribution/host.html');await until(()=>held.length>=1);rows=[item({source_name:'New token note.txt'})];holdGet=false;await page.evaluate(()=>window.attributionProbe.switchToken());await page.getByText('New token note.txt',{exact:true}).waitFor();held.splice(0).forEach(f=>f());await page.waitForLoadState('networkidle');assert.equal(await page.getByText('My saved lesson.txt',{exact:true}).count(),0);assert.equal(posts.length,0);assert.equal(gets.at(-1).authorization,'Bearer synthetic-b');check(width+': delayed old list cannot replace a new authenticated token scope');
++  reset();holdGet=true;await page.goto(origin+'/evals/context-attribution/host.html');await awaitCount(()=>held.length,1);rows=[item({source_name:'New token note.txt'})];holdGet=false;await page.evaluate(()=>window.attributionProbe.switchToken());await page.getByText('New token note.txt',{exact:true}).waitFor();held.splice(0).forEach(f=>f());await page.waitForLoadState('networkidle');assert.equal(await page.getByText('My saved lesson.txt',{exact:true}).count(),0);assert.equal(posts.length,0);assert.equal(gets.at(-1).authorization,'Bearer synthetic-b');check(width+': delayed old list cannot replace a new authenticated token scope');
+   reset();rows=[item({format:'image'}),item({item_id:OTHER,format:'whatsapp_export'}),item({item_id:RID,status:'refused'}),item({item_id:'40000000-0000-4000-8000-000000000001',kind:'link'}),item({item_id:'50000000-0000-4000-8000-000000000001',extracted_chars:0})];await page.goto(origin+'/evals/context-attribution/host.html');await page.getByRole('heading',{name:'In your locker'}).waitFor();await page.getByRole('button',{name:'Remove',exact:true}).first().waitFor();assert.equal(await my().count(),0);assert.equal(posts.length,0);check(width+': image chat refused link and empty rows have no attribution shortcut');
+   reset();rows=['text','markdown','pdf','docx'].map((format,i)=>item({item_id:`${i+3}0000000-0000-4000-8000-000000000001`,format}));await page.goto(origin+'/evals/context-attribution/host.html');await page.getByRole('button',{name:'Remove',exact:true}).first().waitFor();assert.equal(await my().count(),4);assert.equal(posts.length,0);check(width+': all four supported persisted document formats expose an explicit choice');
+   await context.close();
+diff --git a/evals/continuity/assembly.mjs b/evals/continuity/assembly.mjs
+index d0469fe..fec06e4 100644
+--- a/evals/continuity/assembly.mjs
++++ b/evals/continuity/assembly.mjs
+@@ -58,6 +58,17 @@ const ALLOWED = new Set([
+   "src/engine/persona.ts", // defines them
+   "src/engine/agents/types.ts", // declares the AgentModule signature (types only)
+   "src/engine/agents/meera.ts", // the AgentModule that re-exports them
++  // WS-R190. The waves after this suite was written added three more agent
++  // modules, each the identical shape meera.ts already is (an AgentModule
++  // that re-exports buildSystemPromptParts/buildSpeechStyle wrapped around
++  // its own persona data, never a second assembler) — teacher.ts (Codex's
++  // expert-studio work), fromSheet.ts (a person's own HumanOS sheet) and
++  // kabir.ts (a demo agent). The rule this suite encodes ("only the compiler
++  // seam builds a prompt") still holds; the allowlist was simply stale for
++  // three files that obey it, not three violations of it.
++  "src/engine/agents/teacher.ts",
++  "src/engine/agents/fromSheet.ts",
++  "src/engine/agents/kabir.ts",
+   "src/engine/compiler.ts", // the one assembler, through agent.*
+   // The byte-identity proof harness. oldOracle.ts is a DELIBERATELY frozen
+   // copy of the pre-extraction assembly whose entire job is to be compared
+@@ -95,7 +106,23 @@ for (const fn of ["function handleUser", "function armReengage", "function sayAl
+   ok(`${fn.replace("function ", "")}() never assembles a prompt`, !(body?.[0] || "").includes("compile("));
+ }
+ // and nothing may rebuild the live session's system string after connect
+-ok("startLiveCall is called exactly once", (code.match(/startLiveCall\(/g) || []).length === 1);
++// WS-R190: this used to read "exactly once", true when this suite was
++// written. A later feature (#96, "stopping a native watch share must not
++// strand the call on the slower lane forever") added a SECOND call site,
++// `reconnectLiveAfterWatch` — reconnecting the live socket after a screen
++// share ends, using `liveSystemRef.current`, the SAME string
++// `tryStartLive` already compiled and set once, never a fresh `compile()`.
++// That file's own comment says so directly: "not a second assembly; it is
++// the same assembly, reconnected". G-C4 is still one compile per call — the
++// assertion above already proves that independently by counting
++// `compile(` calls, not `startLiveCall(` calls — so the real invariant this
++// line should hold is "no THIRD call site appeared unnoticed", not "still
++// exactly one".
++const startLiveCallSites = code.match(/startLiveCall\(/g) || [];
++ok("startLiveCall is called from exactly two sites: the initial connect (tryStartLive) and the post-watch reconnect (reconnectLiveAfterWatch)",
++  startLiveCallSites.length === 2, `${startLiveCallSites.length}`);
++ok("the second call site is reconnectLiveAfterWatch, reusing the already-compiled system string, never a fresh compile()",
++  /async function reconnectLiveAfterWatch\(\)[\s\S]*?startLiveCall\(\{[\s\S]*?system: liveSystemRef\.current,/.test(code));
+ ok("no code path mutates a live session's system", !/\.system\s*=/.test(code));
+ 
+ console.log("\n§3 — the ring fetch is on the ring, not on the reply path");
+diff --git a/evals/continuity/seam3.mjs b/evals/continuity/seam3.mjs
+index 4800302..1de53ef 100644
+--- a/evals/continuity/seam3.mjs
++++ b/evals/continuity/seam3.mjs
+@@ -68,8 +68,16 @@ const turns = toTurns(history, "aur bata");
+ const flat = turns.map((t) => (typeof t.content === "string" ? t.content : t.content.map((p) => p.text || "").join(" "))).join("\n");
+ ok("nothing said on the call is dropped", flat.includes("raise wali baat kar di") && flat.includes("kya bola unhone"));
+ ok("text said BEFORE the call survives too", flat.includes("kal wali meeting ho gayi"));
+-ok("the switch is marked, not hidden", flat.includes("[a voice call starts]"));
+-ok("the switch back is marked", flat.includes("[the call ended, back to texting]"));
++// WS-R190: the exact marker text changed since this suite was written — the
++// bare "[a voice call starts]" measurably wasn't enough (brain.ts's own
++// comment: the owner reported her misattributing something said on a call
++// as typed), so the wording now carries the attribution rule itself
++// ("...SPOKEN aloud, not typed" / "...back to typed texting"). Matched by
++// substring rather than the old exact string so this suite tracks the
++// PROPERTY (a marked, not hidden, channel switch) rather than freezing
++// today's exact wording as a second copy of it.
++ok("the switch is marked, not hidden", flat.includes("a voice call starts"));
++ok("the switch back is marked", flat.includes("the call ended"));
+ ok("the callmark chip is not fed to her as conversation", !flat.includes("0:06"));
+ // A "new conversation" reader would restart the turn list at the boundary.
+ const firstUser = turns.find((t) => t.role === "user");
+diff --git a/evals/feedback-dataset-ui.mjs b/evals/feedback-dataset-ui.mjs
+index 52395d5..2299735 100644
+--- a/evals/feedback-dataset-ui.mjs
++++ b/evals/feedback-dataset-ui.mjs
+@@ -9,6 +9,13 @@ import { join, extname } from "node:path";
+ import { build } from "vite";
+ import { buildFeedbackDatasetDefinition } from "../api/_replica-feedback-dataset.js";
+ import { createHash } from "node:crypto";
++// WS-R190: the button's own disabled state is set client-side, optimistically,
++// BEFORE the POST it dispatched necessarily reaches this fake server —
++// waiting for it proves nothing about whether feedbackPosts has been filled
++// yet (context/rejected.md#ws-r173-three-eval-suites-failed-once-under-extreme-contention-unrelated-to-any-touched-file
++// names this exact suite's own failure shape: `{wording:'off'}` read as
++// `undefined`). `awaitCount` is the bounded, load-scaled fix.
++import { awaitCount } from "./lib/bounded-wait.mjs";
+ 
+ const root = fileURLToPath(new URL("../", import.meta.url));
+ const RID = "10000000-0000-4000-8000-000000000001", OTHER = "10000000-0000-4000-8000-000000000002";
+@@ -120,9 +127,13 @@ try {
+     assert.equal(await page.locator(".feedback-details").getAttribute("open"), null);
+     assert.equal(await page.getByRole("button", { name: "Off", exact: true }).count(), 0);
+     await page.screenshot({ path: join(artifactDir, `focused-correction-open-${width}.png`), fullPage: true });
+-    holdFeedback = true; const beforeFeedback = readCount;
++    holdFeedback = true; const beforeFeedback = readCount; const beforeFeedbackPosts = feedbackPosts.length;
+     await page.getByRole("button", { name: "Save correction", exact: true }).click();
+     await page.waitForFunction(() => document.querySelector(".feedback-actions .primary-button")?.disabled === true);
++    // WS-R190: the disabled read above is client-optimistic and proves nothing
++    // about the Node-side handler; poll for the POST it dispatched to have
++    // actually landed before reading its content.
++    assert.equal(await awaitCount(() => feedbackPosts.length, beforeFeedbackPosts + 1), beforeFeedbackPosts + 1);
+     assert.equal(readCount, beforeFeedback, "pending feedback does not refresh or claim saved evidence");
+     assert.deepEqual(feedbackPosts.at(-1)?.ratings, { wording: "off" });
+     assert.equal(feedbackPosts.at(-1)?.correction, correction);
+diff --git a/evals/gate-load/run.mjs b/evals/gate-load/run.mjs
+index 4797ac3..d8b6027 100644
+--- a/evals/gate-load/run.mjs
++++ b/evals/gate-load/run.mjs
+@@ -41,6 +41,7 @@ import {
+   loadCeilingResult,
+   loadRatio,
+   listenWithPortWait,
++  awaitCount,
+   DEFAULT_LOAD_CEILING,
+ } from "../lib/bounded-wait.mjs";
+ import { performanceGateResult } from "../../scripts/check-performance.mjs";
+@@ -221,5 +222,37 @@ const fakeOs = (load1) => ({ loadavg: () => [load1, load1, load1], cpus: () => A
+   await new Promise((r) => free.close(r));
+ }
+ 
++// 4. WS-R190's awaitCount -- the generalised fix for the same-tick race
++// (evals/same-tick-scan/run.mjs's own header; `awaitPending` in
++// evals/teacher-sheet-publication/mounted.mjs was the first, per-suite
++// version this generalises). Proves: it returns as soon as the count is
++// already met (no needless wait on the common path), it POLLS rather than
++// reading once (catches a count that arrives a little late), and on a
++// count that never arrives it returns the last (too-low) value rather than
++// hanging or silently reporting the target -- so a caller's own
++// `assert.equal(await awaitCount(...), n)` fails by name on a real miss.
++{
++  let already = 3;
++  const t0 = Date.now();
++  const v0 = await awaitCount(() => already, 3, 2000, { intervalMs: 10 });
++  ok("a count already at target returns immediately, no wait paid", v0 === 3 && Date.now() - t0 < 150);
++
++  let late = 0;
++  setTimeout(() => { late = 2; }, 120);
++  const v1 = await awaitCount(() => late, 2, 2000, { intervalMs: 10 });
++  ok("a count that arrives a little late is polled until it is seen", v1 === 2);
++
++  let never = 0;
++  const t2 = Date.now();
++  const v2 = await awaitCount(() => never, 5, 150, { intervalMs: 10 });
++  const elapsed2 = Date.now() - t2;
++  ok("a count that never arrives returns the real (too-low) value, not the target", v2 === 0);
++  ok("a count that never arrives is bounded, not an indefinite hang", elapsed2 < 2000);
++
++  let steps = 0;
++  const v3 = await awaitCount(() => ++steps, 4, 2000, { intervalMs: 5 });
++  ok("awaitCount polls (rereads getCount) rather than reading once", v3 >= 4 && steps >= 4);
++}
++
+ console.log(failures ? `\nfailed: ${failures}/${count}` : `\n  ok    gate-load: ${count} checks, 0 failed`);
+ process.exit(failures ? 1 : 0);
+diff --git a/evals/lib/bounded-wait.mjs b/evals/lib/bounded-wait.mjs
+index 5a9a8f2..6292508 100644
+--- a/evals/lib/bounded-wait.mjs
++++ b/evals/lib/bounded-wait.mjs
+@@ -111,6 +111,39 @@ export function loadCeilingResult(ceiling = DEFAULT_LOAD_CEILING, opts = {}) {
+  * own separate `node` process holding the identical port at the same
+  * instant, which no in-process lane can ever prevent.
+  */
++/**
++ * WS-R190. The shared fix for the same-tick race: a browser-side wait
++ * (`page.waitForFunction`/`.waitFor`/`.click`) proves only what the PAGE
++ * rendered, never whether the request it dispatched has yet reached a
++ * Node-side fake server/fetch handler — the exact race that cost
++ * `teacher-sheet-publication-ui`, `candidate-activation-ui` and
++ * `feedback-dataset-ui` a run each this wave (context/rejected.md
++ * #teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled).
++ * `awaitPending` in `evals/teacher-sheet-publication/mounted.mjs` was the
++ * first fix, written by hand for that one suite's own `pending` array;
++ * `awaitCount` here is the same fix generalised so no suite ever needs its
++ * own copy again (`evals/same-tick-scan/run.mjs`'s own law: "never a
++ * per-suite copy").
++ *
++ * `getCount()` is polled (never a single read) until it reaches at least
++ * `n` or the bound (`boundedWaitMs(base, opts)`, so it scales with load
++ * exactly like every other barrier in this file) elapses, then the LAST
++ * read value is returned — never `n` itself — so a caller's own
++ * `assert.equal(await awaitCount(...), n)` fails by name, with the real
++ * (too-low) count, when the count genuinely never arrives, rather than the
++ * bound silently laundering a real miss into a false pass.
++ */
++export async function awaitCount(getCount, n, base = 5000, opts = {}) {
++  const deadline = Date.now() + boundedWaitMs(base, opts);
++  const { intervalMs = 20 } = opts;
++  let value = getCount();
++  while (value < n && Date.now() < deadline) {
++    await new Promise((resolve) => setTimeout(resolve, intervalMs));
++    value = getCount();
++  }
++  return value;
++}
++
+ export async function listenWithPortWait(server, port, host = "127.0.0.1", opts = {}) {
+   const { timeoutMs = boundedWaitMs(15000, opts), intervalMs = 500 } = opts;
+   const deadline = Date.now() + timeoutMs;
+diff --git a/evals/personality-flow28/mounted.mjs b/evals/personality-flow28/mounted.mjs
+index 4709945..9a2c135 100644
+--- a/evals/personality-flow28/mounted.mjs
++++ b/evals/personality-flow28/mounted.mjs
+@@ -5,6 +5,10 @@ import { createHash } from 'node:crypto';
+ import { mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
+ import { join } from 'node:path';
+ import { fileURLToPath } from 'node:url';
++// WS-R190: replaces this file's own local, fixed-10s busy-poll (`until`)
++// with the shared, load-scaled poller — `evals/same-tick-scan/run.mjs`'s own
++// law, "never a per-suite copy".
++import { awaitCount } from '../lib/bounded-wait.mjs';
+ const root = fileURLToPath(new URL('../../', import.meta.url));
+ const sha = b => createHash('sha256').update(b).digest('hex'), base = 'c3cae7ddbb6992ed9311d46f88d89b31f3fee8b0';
+ const canonical = bytes => Buffer.from(bytes.toString('utf8').replaceAll('\r\n', '\n'));
+@@ -76,7 +80,6 @@ const origin = `http://127.0.0.1:${server.address().port}`, browser = await laun
+ const results = [], pageErrors = []; let page;
+ const affectedOnly = process.argv.includes('--affected');
+ const pass = name => { results.push(name); console.log(`ok ${results.length} - ${name}`); };
+-const until = async predicate => { const deadline = Date.now() + 10000; while (!predicate()) { assert(Date.now() < deadline, 'explicit HTTP dispatch barrier timed out'); await new Promise(resolve => setTimeout(resolve, 10)); } };
+ const release = async () => { assert.equal(held.length, 1); const settled = await page.evaluate(() => window.__settled); held.shift()(); await page.waitForFunction(n => window.__settled > n, settled); await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))); };
+ const reset = () => { assert.equal(held.length, 0); hold = null; requests = []; wrongScope = false; };
+ const show = (rid, token = 'synthetic-initial') => page.getByText(marker(rid, token), { exact: true }).waitFor();
+@@ -89,19 +92,19 @@ try {
+     for (const lane of ['person', 'calibration']) {
+       const open = old => page.goto(`${origin}/?lane=${lane}${old ? '&old=1' : ''}`), prefix = `${width}/${lane}`;
+       if (!affectedOnly) {
+-      reset(); hold = { path: pathFor(lane), method: 'GET' }; await open(true); await until(() => held.length === 1); await page.getByRole('button', { name: 'Switch replica', exact: true }).click(); await show(B); await release(); await show(A); await approve(lane).click(); await until(() => posts().length === 1); assert.equal(posts()[0].input.replica_id, B); assert.equal(posts()[0].input.version, 7); await approve(lane).waitFor(); pass(prefix + ' exact old late A read displays A while explicit approve writes B version7');
+-      reset(); hold = { path: pathFor(lane), method: 'GET' }; await open(false); await until(() => held.length === 1); await page.getByRole('button', { name: 'Switch replica', exact: true }).click(); await show(B); await release(); assert.equal(await page.getByText(marker(A, 'synthetic-initial'), { exact: true }).count(), 0); await approve(lane).click(); await until(() => posts().length === 1); assert.equal(posts()[0].input.replica_id, B); await approve(lane).waitFor(); pass(prefix + ' late replica read is discarded and reviewed B can still explicitly approve');
+-      reset(); hold = { path: pathFor(lane), method: 'GET' }; await open(false); await until(() => held.length === 1); await page.getByRole('button', { name: 'Refresh token', exact: true }).click(); await show(A, 'synthetic-fresh'); await release(); assert.equal(await page.getByText(marker(A, 'synthetic-initial'), { exact: true }).count(), 0); assert.equal(posts().length, 0); pass(prefix + ' token refresh replaces review scope without a write');
+-      reset(); hold = { path: pathFor(lane), method: 'GET', status: 401 }; await open(false); await until(() => held.length === 1); await page.getByRole('button', { name: 'Switch account', exact: true }).click(); await show(B, 'synthetic-other'); await release(); assert.equal(await page.evaluate(() => window.__authErrors), 0); pass(prefix + ' late read401 cannot sign out the new account');
++      reset(); hold = { path: pathFor(lane), method: 'GET' }; await open(true); await awaitCount(() => held.length, 1); await page.getByRole('button', { name: 'Switch replica', exact: true }).click(); await show(B); await release(); await show(A); await approve(lane).click(); await awaitCount(() => posts().length, 1); assert.equal(posts()[0].input.replica_id, B); assert.equal(posts()[0].input.version, 7); await approve(lane).waitFor(); pass(prefix + ' exact old late A read displays A while explicit approve writes B version7');
++      reset(); hold = { path: pathFor(lane), method: 'GET' }; await open(false); await awaitCount(() => held.length, 1); await page.getByRole('button', { name: 'Switch replica', exact: true }).click(); await show(B); await release(); assert.equal(await page.getByText(marker(A, 'synthetic-initial'), { exact: true }).count(), 0); await approve(lane).click(); await awaitCount(() => posts().length, 1); assert.equal(posts()[0].input.replica_id, B); await approve(lane).waitFor(); pass(prefix + ' late replica read is discarded and reviewed B can still explicitly approve');
++      reset(); hold = { path: pathFor(lane), method: 'GET' }; await open(false); await awaitCount(() => held.length, 1); await page.getByRole('button', { name: 'Refresh token', exact: true }).click(); await show(A, 'synthetic-fresh'); await release(); assert.equal(await page.getByText(marker(A, 'synthetic-initial'), { exact: true }).count(), 0); assert.equal(posts().length, 0); pass(prefix + ' token refresh replaces review scope without a write');
++      reset(); hold = { path: pathFor(lane), method: 'GET', status: 401 }; await open(false); await awaitCount(() => held.length, 1); await page.getByRole('button', { name: 'Switch account', exact: true }).click(); await show(B, 'synthetic-other'); await release(); assert.equal(await page.evaluate(() => window.__authErrors), 0); pass(prefix + ' late read401 cannot sign out the new account');
+       for (const status of [200, 401]) {
+-        reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'POST', status }; await approve(lane).click(); await until(() => held.length === 1); await page.getByRole('button', { name: 'Switch account', exact: true }).click(); await show(B, 'synthetic-other'); const before = requests.length; await release(); assert.equal(await page.evaluate(() => window.__authErrors), 0); assert.equal(posts().length, 1); assert.equal(requests.slice(before).filter(r => r.token === 'synthetic-initial').length, 0); assert.equal(await page.getByText(marker(A, 'synthetic-initial'), { exact: true }).count(), 0); pass(prefix + ` late write${status} neither reads old scope nor changes current account`);
++        reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'POST', status }; await approve(lane).click(); await awaitCount(() => held.length, 1); await page.getByRole('button', { name: 'Switch account', exact: true }).click(); await show(B, 'synthetic-other'); const before = requests.length; await release(); assert.equal(await page.evaluate(() => window.__authErrors), 0); assert.equal(posts().length, 1); assert.equal(requests.slice(before).filter(r => r.token === 'synthetic-initial').length, 0); assert.equal(await page.getByText(marker(A, 'synthetic-initial'), { exact: true }).count(), 0); pass(prefix + ` late write${status} neither reads old scope nor changes current account`);
+       }
+-      reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'GET' }; await approve(lane).click(); await until(() => held.length === 1); await page.getByRole('button', { name: 'Switch replica', exact: true }).click(); await show(B); await release(); assert.equal(await page.getByText(marker(A, 'synthetic-initial'), { exact: true }).count(), 0); assert.equal(posts().length, 1); pass(prefix + ' late successful mutation readback cannot replace the next replica');
+-      reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'POST', status: 401 }; await approve(lane).click(); await until(() => held.length === 1); await page.getByRole('button', { name: 'Leave review', exact: true }).click(); await page.getByRole('heading', { name: 'Another page' }).waitFor(); await release(); assert.equal(await page.evaluate(() => window.__authErrors), 0); assert.equal(posts().length, 1); pass(prefix + ' unmounted pending approval has no late auth or page effects');
++      reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'GET' }; await approve(lane).click(); await awaitCount(() => held.length, 1); await page.getByRole('button', { name: 'Switch replica', exact: true }).click(); await show(B); await release(); assert.equal(await page.getByText(marker(A, 'synthetic-initial'), { exact: true }).count(), 0); assert.equal(posts().length, 1); pass(prefix + ' late successful mutation readback cannot replace the next replica');
++      reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'POST', status: 401 }; await approve(lane).click(); await awaitCount(() => held.length, 1); await page.getByRole('button', { name: 'Leave review', exact: true }).click(); await page.getByRole('heading', { name: 'Another page' }).waitFor(); await release(); assert.equal(await page.evaluate(() => window.__authErrors), 0); assert.equal(posts().length, 1); pass(prefix + ' unmounted pending approval has no late auth or page effects');
+       reset(); wrongScope = true; await open(false); await page.getByRole('button', { name: 'Retry', exact: true }).waitFor(); assert.equal(await approve(lane).count(), 0); assert.equal(posts().length, 0); wrongScope = false; await page.getByRole('button', { name: 'Retry', exact: true }).click(); await show(A); pass(prefix + ' mismatched response replica is refused and explicit read retry recovers');
+       }
+-      reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'POST', status: 503 }; await approve(lane).click(); await until(() => held.length === 1); await release(); await page.getByRole('button', { name: 'Retry', exact: true }).waitFor(); assert.equal(posts().length, 1); await page.getByRole('button', { name: 'Retry', exact: true }).click(); await show(A); assert.equal(posts().length, 1); pass(prefix + ' uncertain approval allows explicit status read without repeating POST');
+-      reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'POST' }; await page.getByRole('button', { name: lane === 'person' ? 'This is me' : 'A Own the mistake Acknowledge and correct it.', exact: true }).click(); await until(() => held.length === 1); await page.getByRole('button', { name: 'Refresh token', exact: true }).click(); await show(A, 'synthetic-fresh'); const requestCount = requests.length; await release(); assert.equal(posts().length, 1); assert.equal(posts()[0].input.op, lane === 'person' ? 'decide_claim' : 'choose'); assert.equal(requests.slice(requestCount).filter(r => r.token === 'synthetic-initial').length, 0); assert.equal(await page.evaluate(() => window.__authErrors), 0); pass(prefix + ' pending explicit claim or contrast write survives token refresh without stale readback or retry');
++      reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'POST', status: 503 }; await approve(lane).click(); await awaitCount(() => held.length, 1); await release(); await page.getByRole('button', { name: 'Retry', exact: true }).waitFor(); assert.equal(posts().length, 1); await page.getByRole('button', { name: 'Retry', exact: true }).click(); await show(A); assert.equal(posts().length, 1); pass(prefix + ' uncertain approval allows explicit status read without repeating POST');
++      reset(); await open(false); await show(A); hold = { path: pathFor(lane), method: 'POST' }; await page.getByRole('button', { name: lane === 'person' ? 'This is me' : 'A Own the mistake Acknowledge and correct it.', exact: true }).click(); await awaitCount(() => held.length, 1); await page.getByRole('button', { name: 'Refresh token', exact: true }).click(); await show(A, 'synthetic-fresh'); const requestCount = requests.length; await release(); assert.equal(posts().length, 1); assert.equal(posts()[0].input.op, lane === 'person' ? 'decide_claim' : 'choose'); assert.equal(requests.slice(requestCount).filter(r => r.token === 'synthetic-initial').length, 0); assert.equal(await page.evaluate(() => window.__authErrors), 0); pass(prefix + ' pending explicit claim or contrast write survives token refresh without stale readback or retry');
+       await page.screenshot({ path: join(out, `${lane}-${width}.png`), fullPage: true });
+     }
+     await context.close();
+diff --git a/evals/private-draft-editor/run.mjs b/evals/private-draft-editor/run.mjs
+index 09e81cb..26d7fbf 100644
+--- a/evals/private-draft-editor/run.mjs
++++ b/evals/private-draft-editor/run.mjs
+@@ -10,6 +10,8 @@ import {build} from 'vite';
+ import {chromium} from 'playwright';
+ import {checkDisclosures} from './disclosures.mjs';
+ import {INVALID_DRAFT_CASES} from '../private-draft-invalid-display.mjs';
++// WS-R190: a `.click()` proves only what the page rendered.
++import {awaitCount} from '../lib/bounded-wait.mjs';
+ const root=fileURLToPath(new URL('../../',import.meta.url)),art=join(root,'scratchpad/private-draft-editor',String(Date.now()));mkdirSync(art,{recursive:true});
+ const rid='10000000-0000-4000-8000-000000000001';
+ const minimal={name:'Anjali',identityWho:'Physics teacher',subjectDomain:'physics'};
+@@ -52,7 +54,7 @@ try{
+    await page.getByRole('button',{name:'Replace chapter list',exact:true}).focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>document.activeElement===document.querySelector('.syllabus-chapters input')),true);assert.equal(posts.length,1);await page.locator('.syllabus-chapters input').first().check();
+    await Promise.all([page.waitForResponse(r=>r.request().method()==='POST'),page.locator('.person-model-action button').click()]);let changed=posts.at(-1).draft;assert.equal(changed.subjectStrands.length,1);assert.equal(typeof changed.subjectStrands[0],'string');assert.deepEqual(changed.doubtEscalationLadder,malformedLists.doubtEscalationLadder);assert.deepEqual(changed.analogyBank,[null]);assert.deepEqual(changed.unknownOwnerField,malformedLists.unknownOwnerField);
+    await page.locator('.syllabus-chapters input').first().uncheck();await Promise.all([page.waitForResponse(r=>r.request().method()==='POST'),page.locator('.person-model-action button').click()]);assert.deepEqual(posts.at(-1).draft.subjectStrands,[]);check(`${width}/${lane}: explicit chapter replacement enables safe keyboard checkbox edits and changes only its field`);
+-   const writesBeforeReset=posts.length;await page.getByRole('button',{name:'Replace doubt steps',exact:true}).click();assert.equal(await page.evaluate(()=>document.activeElement===document.querySelector('.create-row input')),true);assert.equal(posts.length,writesBeforeReset);await page.locator('.create-row input').fill('Identify known values');await page.keyboard.press('Enter');await Promise.all([page.waitForResponse(r=>r.request().method()==='POST'),page.locator('.person-model-action button').click()]);assert.deepEqual(posts.at(-1).draft.doubtEscalationLadder,['Identify known values']);assert.deepEqual(posts.at(-1).draft.analogyBank,[null]);await page.locator('.ladder-list button').click();await Promise.all([page.waitForResponse(r=>r.request().method()==='POST'),page.locator('.person-model-action button').click()]);assert.deepEqual(posts.at(-1).draft.doubtEscalationLadder,[]);assert.equal(await page.locator('.teacher-sheet-ingested-grid').getByRole('button').count(),0);assert(await page.locator('.teacher-sheet-ingested-grid').innerText().then(t=>t.includes('Saved value needs review.')));check(`${width}/${lane}: explicit doubt-list replacement supports add/remove without erasing invalid read-only or unknown fields`);
++   const writesBeforeReset=posts.length;await page.getByRole('button',{name:'Replace doubt steps',exact:true}).click();assert.equal(await page.evaluate(()=>document.activeElement===document.querySelector('.create-row input')),true);assert.equal(await awaitCount(()=>posts.length,writesBeforeReset),writesBeforeReset);await page.locator('.create-row input').fill('Identify known values');await page.keyboard.press('Enter');await Promise.all([page.waitForResponse(r=>r.request().method()==='POST'),page.locator('.person-model-action button').click()]);assert.deepEqual(posts.at(-1).draft.doubtEscalationLadder,['Identify known values']);assert.deepEqual(posts.at(-1).draft.analogyBank,[null]);await page.locator('.ladder-list button').click();await Promise.all([page.waitForResponse(r=>r.request().method()==='POST'),page.locator('.person-model-action button').click()]);assert.deepEqual(posts.at(-1).draft.doubtEscalationLadder,[]);assert.equal(await page.locator('.teacher-sheet-ingested-grid').getByRole('button').count(),0);assert(await page.locator('.teacher-sheet-ingested-grid').innerText().then(t=>t.includes('Saved value needs review.')));check(`${width}/${lane}: explicit doubt-list replacement supports add/remove without erasing invalid read-only or unknown fields`);
+    const invalidScalars={...minimal,name:{keep:'name'},subjectDomain:'biology',strictness:'2',warmth:99,syllabusScope:{keep:true},identityLife:[null],boundaryParagraph:{keep:true},unknownOwnerField:{keep:['exact']}};
+    await open('?current=1'+suffix,invalidScalars);await page.locator('.draft-invalid-notice').waitFor();for(const id of ['subject-domain','strictness','warmth','syllabus-scope','identity-life']){assert.equal(await page.locator('#'+id).inputValue(),'');assert.equal(await page.locator('#'+id).getAttribute('aria-invalid'),'true');}
+    await Promise.all([page.waitForResponse(r=>r.request().method()==='POST'),page.locator('.person-model-action button').click()]);assert.deepEqual(posts[0].draft,invalidScalars);await page.locator('#strictness').selectOption('0');await page.locator('#identity-life').fill('An explicit teaching boundary');await Promise.all([page.waitForResponse(r=>r.request().method()==='POST'),page.locator('.person-model-action button').click()]);assert.deepEqual(posts.at(-1).draft,{...invalidScalars,strictness:0,identityLife:'An explicit teaching boundary'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:join(art,`${width}-${lane}-invalid-values.png`)});check(`${width}/${lane}: malformed scalars have honest review states and only explicitly edited fields change`);
+diff --git a/evals/rehearsal/creator.mjs b/evals/rehearsal/creator.mjs
+index 9d177f1..d36d210 100644
+--- a/evals/rehearsal/creator.mjs
++++ b/evals/rehearsal/creator.mjs
+@@ -60,6 +60,9 @@ import assert from "node:assert/strict";
+ import { readFileSync } from "node:fs";
+ import { dirname, join } from "node:path";
+ import { fileURLToPath, pathToFileURL } from "node:url";
++// WS-R190: every fixed first-render/navigation barrier below is scaled by
++// machine load (ws-common.md's own wave-twenty-three lesson).
++import { boundedWaitMs } from "../lib/bounded-wait.mjs";
+ 
+ const HERE = dirname(fileURLToPath(import.meta.url));
+ const ROOT = join(HERE, "..", "..");
+@@ -296,13 +299,13 @@ async function walkLocale(locale) {
+     const railText = await page.waitForFunction((label) => {
+       const el = document.querySelector(`[aria-label="${label}"]`);
+       return el && el.textContent ? el.textContent : false;
+-    }, railAriaLabel, { timeout: 15_000, polling: 200 }).then((handle) => handle.jsonValue()).catch(() => "");
++    }, railAriaLabel, { timeout: boundedWaitMs(15_000), polling: 200 }).then((handle) => handle.jsonValue()).catch(() => "");
+     ok(`${locale}: the created replica renders in the studio's own "Your AIs" rail`, railText.includes("Anjali Physics"), railText.slice(0, 80));
+ 
+     // Source persistence now uses the canonical consent fence. Drive the
+     // actual attestation controls; never seed grants into the fixture.
+     const permissionPanel = page.locator(".consent-panel");
+-    await permissionPanel.waitFor({ state: "visible", timeout: 15_000 });
++    await permissionPanel.waitFor({ state: "visible", timeout: boundedWaitMs(15_000) });
+     const permissionChecks = permissionPanel.locator('input[type="checkbox"]');
+     ok(`${locale}: source permission asks for all four owner attestations`, await permissionChecks.count() === 4);
+     const recordPermission = permissionPanel.locator(".consent-button");
+@@ -319,7 +322,7 @@ async function walkLocale(locale) {
+       permissionResponse.status() === 201 && ["capture", "transcription", "storage"].every((scope) =>
+         permissionBody.consents?.some((receipt) => receipt.scope === scope)),
+       JSON.stringify(permissionBody).slice(0, 180));
+-    await page.locator(".consent-panel.consent-active").waitFor({ state: "visible", timeout: 15_000 });
++    await page.locator(".consent-panel.consent-active").waitFor({ state: "visible", timeout: boundedWaitMs(15_000) });
+ 
+     // ── ADD ONE TEXT SOURCE, through the Context Locker's REAL drop zone
+     //    (WS-R109) — `ContextLockerPanel.tsx`'s own `<input type="file"
+@@ -350,11 +353,11 @@ async function walkLocale(locale) {
+       : /^(Files, links, videos, channels|Add files and links)$/;
+     await page.getByText(contextLockerLabel).first().click();
+     const fileInput = page.locator("input.context-file-input");
+-    await fileInput.waitFor({ state: "attached", timeout: 10_000 });
++    await fileInput.waitFor({ state: "attached", timeout: boundedWaitMs(10_000) });
+     const [addFilesResponse] = await Promise.all([
+       page.waitForResponse(
+         (r) => r.url().endsWith("/api/context-items") && r.request().method() === "POST",
+-        { timeout: 15_000 },
++        { timeout: boundedWaitMs(15_000) },
+       ),
+       fileInput.setInputFiles({
+         name: "notes.txt",
+@@ -576,14 +579,14 @@ async function walkLocale(locale) {
+     // never found it and this click timed out under `--full` before this
+     // fix, found by running it, not assumed.
+     const meetTabLabel = locale === "hi" ? new RegExp(`^${hiAuthCopyTabTitle("meet")}$`) : /^Meet$/;
+-    await page.getByText(meetTabLabel).first().click({ timeout: 10_000 });
++    await page.getByText(meetTabLabel).first().click({ timeout: boundedWaitMs(10_000) });
+     const knowsMaterialCard = page.locator(".vy-readiness__part", { hasText: "Knows your material" });
+     // Generous and retried: the churn this file's own header names below
+     // COULD still make even PRESENCE flap for a few seconds after the tab
+     // switch, kept defensive rather than assumed fixed by inference alone.
+-    await knowsMaterialCard.first().waitFor({ timeout: 10_000 }).catch(async () => {
++    await knowsMaterialCard.first().waitFor({ timeout: boundedWaitMs(10_000) }).catch(async () => {
+       await page.waitForFunction(() => Array.from(document.querySelectorAll(".vy-readiness__part"))
+-        .some((el) => el.textContent?.includes("Knows your material")), null, { timeout: 30_000, polling: 200 });
++        .some((el) => el.textContent?.includes("Knows your material")), null, { timeout: boundedWaitMs(30_000), polling: 200 });
+     });
+     // ReadinessPanel used to keep RE-FETCHING on this screen on a cadence of
+     // a few seconds even once the replica list had long since settled —
+@@ -606,7 +609,7 @@ async function walkLocale(locale) {
+     const [measureResponse] = await Promise.all([
+       page.waitForResponse(
+         (r) => r.url().endsWith("/api/readiness") && r.request().postDataJSON()?.op === "measure_now",
+-        { timeout: 25_000 },
++        { timeout: boundedWaitMs(25_000) },
+       ),
+       page.waitForFunction((label) => {
+         const card = Array.from(document.querySelectorAll(".vy-readiness__part"))
+@@ -616,7 +619,7 @@ async function walkLocale(locale) {
+         const btn = Array.from(card.querySelectorAll("button")).find((b) => b.textContent?.trim() === label);
+         if (btn && !btn.disabled) { btn.click(); return true; }
+         return false;
+-      }, measureLabel, { timeout: 25_000, polling: 50 }),
++      }, measureLabel, { timeout: boundedWaitMs(25_000), polling: 50 }),
+     ]);
+     const measureBody = await measureResponse.json().catch(() => ({}));
+     ok(`${locale}: the real "Measure now" click runs a real recall run and scores it (n=${RECALL_PASSAGE_COUNT}, echoed answers)`,
+@@ -635,7 +638,7 @@ async function walkLocale(locale) {
+         .find((el) => el.textContent?.includes("Knows your material"));
+       const val = card?.querySelector(".vy-readiness__part-value");
+       return val ? val.textContent.trim() : false;
+-    }, null, { timeout: 20_000, polling: 100 });
++    }, null, { timeout: boundedWaitMs(20_000), polling: 100 });
+     const knowsMaterialValue = await knowsMaterialHandle.jsonValue();
+     ok(`${locale}: the "Knows your material" card shows measured on screen (server-given, never client-computed)`,
+       knowsMaterialValue === "100", knowsMaterialValue);
+@@ -703,9 +706,9 @@ async function walkLocale(locale) {
+     const shareCopy = locale === "hi"
+       ? { tab: "शेयर", pick: "अपनी समीक्षाओं में से चुनें", pickTitle: /वे कार्ड जिन्हें आपने पहले ही सही कहा है/, use: "इसे इस्तेमाल करें", copy: "कॉपी करें", download: "सब कुछ डाउनलोड करें" }
+       : { tab: "Share", pick: "Pick from your reviews", pickTitle: /cards you already marked sounds right/i, use: "Use this", copy: "Copy", download: "Download everything" };
+-    await page.getByText(new RegExp(`^${shareCopy.tab}$`)).first().click({ timeout: 10_000 });
+-    await page.getByRole("button", { name: shareCopy.pick }).first().click({ timeout: 10_000 });
+-    await page.getByText(shareCopy.pickTitle).waitFor({ timeout: 10_000 });
++    await page.getByText(new RegExp(`^${shareCopy.tab}$`)).first().click({ timeout: boundedWaitMs(10_000) });
++    await page.getByRole("button", { name: shareCopy.pick }).first().click({ timeout: boundedWaitMs(10_000) });
++    await page.getByText(shareCopy.pickTitle).waitFor({ timeout: boundedWaitMs(10_000) });
+     // The picker's title renders while `pickerLoading` is still true
+     // (`ShowcaseCard.tsx`: the title, then a loading note, then the list
+     // once `showcase_eligible` answers). Counting the item at the instant
+@@ -714,12 +717,12 @@ async function walkLocale(locale) {
+     // #rehearsal-counted-the-picker-list-before-it-loaded`), so wait for
+     // the item itself, bounded, then count.
+     const pickerItem = page.locator(".vy-room__showcase-picker-item", { hasText: "What do you teach?" });
+-    await pickerItem.first().waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
++    await pickerItem.first().waitFor({ state: "visible", timeout: boundedWaitMs(10_000) }).catch(() => {});
+     ok(`${locale}: the picker's own list shows the seeded, decided card`, await pickerItem.count() === 1);
+     const [showcaseSetResponse] = await Promise.all([
+       page.waitForResponse(
+         (r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "showcase_set",
+-        { timeout: 10_000 },
++        { timeout: boundedWaitMs(10_000) },
+       ),
+       pickerItem.getByRole("button", { name: shareCopy.use }).click(),
+     ]);
+@@ -766,7 +769,7 @@ async function walkLocale(locale) {
+     const [kitResponse] = await Promise.all([
+       page.waitForResponse(
+         (r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "share_kit",
+-        { timeout: 10_000 },
++        { timeout: boundedWaitMs(10_000) },
+       ),
+       page.reload({ waitUntil: "networkidle" }),
+     ]);
+@@ -774,7 +777,7 @@ async function walkLocale(locale) {
+     const whatsapp = kitBody?.kit?.find((k) => k.channel === "whatsapp");
+     ok(`${locale}: the share kit carries a real WhatsApp text naming the AI, never "clone"`,
+       Boolean(whatsapp?.text) && whatsapp.text.includes("AI") && !/\bclone\b/i.test(whatsapp.text));
+-    await page.getByText(new RegExp(`^${shareCopy.copy}$`)).first().click({ timeout: 10_000 });
++    await page.getByText(new RegExp(`^${shareCopy.copy}$`)).first().click({ timeout: boundedWaitMs(10_000) });
+     const clipboardText = await page.evaluate(() => navigator.clipboard.readText().catch(() => ""));
+     ok(`${locale}: the share kit's own "Copy" button wrote real kit text to the clipboard`,
+       clipboardText.length > 0 && clipboardText.includes("AI"), clipboardText.slice(0, 80));
+@@ -799,7 +802,7 @@ async function walkLocale(locale) {
+     //    "मालिकाना नियंत्रण, मिटाना शामिल" (confirmed unique in that file).
+     //    ─────────────────────────────────────────────────────────────────
+     const ownerAreaLabel = locale === "hi" ? hiCopyString("ownerAreaTitle") : /owner control, including erasure/i;
+-    await page.getByText(ownerAreaLabel).first().click({ timeout: 10_000 });
++    await page.getByText(ownerAreaLabel).first().click({ timeout: boundedWaitMs(10_000) });
+     // `t.creatorExport.title` (the section's own `<h2>`) and
+     // `t.creatorExport.button` are the SAME string, "Download everything"
+     // (`copy.ts`), and the heading renders BEFORE the button in this
+@@ -807,12 +810,12 @@ async function walkLocale(locale) {
+     // the button, and clicking a heading does nothing, found the hard way
+     // rather than assumed. `getByRole("button", ...)` is unambiguous.
+     const [download, exportResponse] = await Promise.all([
+-      page.waitForEvent("download", { timeout: 15_000 }),
++      page.waitForEvent("download", { timeout: boundedWaitMs(15_000) }),
+       page.waitForResponse(
+         (r) => r.url().endsWith("/api/replica") && r.request().postDataJSON()?.op === "export",
+-        { timeout: 15_000 },
++        { timeout: boundedWaitMs(15_000) },
+       ),
+-      page.getByRole("button", { name: new RegExp(`^${shareCopy.download}$`, "i") }).click({ timeout: 10_000 }),
++      page.getByRole("button", { name: new RegExp(`^${shareCopy.download}$`, "i") }).click({ timeout: boundedWaitMs(10_000) }),
+     ]);
+     ok(`${locale}: "Download everything" triggers a real browser download event`, Boolean(download));
+     const exported = await exportResponse.json().catch(() => ({}));
+diff --git a/evals/rehearsal/follower.mjs b/evals/rehearsal/follower.mjs
+index 3cab1e5..b7ed9f3 100644
+--- a/evals/rehearsal/follower.mjs
++++ b/evals/rehearsal/follower.mjs
+@@ -25,6 +25,9 @@ import { launchRehearsalBrowser } from "./browser.mjs";
+ import { checkRoomMemoryFixture } from "./room-memory-fixture-controls.mjs";
+ import { startFakeWaCloudApiServer } from "./stubs/fake-wa-cloud-api-server.mjs";
+ import { startFakeTgBotApiServer } from "./stubs/fake-tg-bot-api-server.mjs";
++// WS-R190: every fixed first-render/navigation barrier below is scaled by
++// machine load (ws-common.md's own wave-twenty-three lesson).
++import { boundedWaitMs } from "../lib/bounded-wait.mjs";
+ 
+ const HERE = dirname(fileURLToPath(import.meta.url));
+ const ROOT = join(HERE, "..", "..");
+@@ -228,13 +231,13 @@ async function joinFresh(page, baseUrl, slug, { qs = "?via=search", locale = "en
+     await page.waitForFunction(
+       () => document.querySelector(".room-lang-switch button[lang=\"hi\"]")?.getAttribute("aria-pressed") === "true",
+       null,
+-      { timeout: 10_000 },
++      { timeout: boundedWaitMs(10_000) },
+     );
+   }
+   // The taste screen shows first for anyone not yet joined (WS-R53) — the
+   // join control is always present, per that workstream's own law.
+   try {
+-    await page.getByRole("button", { name: c.tasteJoin }).click({ timeout: 10_000 });
++    await page.getByRole("button", { name: c.tasteJoin }).click({ timeout: boundedWaitMs(10_000) });
+   } catch (e) {
+     console.log("[joinFresh debug] body:", (await page.locator("body").innerText().catch(() => "")).slice(0, 800));
+     throw e;
+@@ -248,7 +251,7 @@ async function joinFresh(page, baseUrl, slug, { qs = "?via=search", locale = "en
+   // ever answering the memory question below. A SEPARATE tab, never `page`
+   // itself, so the join screen's own state is untouched.
+   if (checkAbout) {
+-    await page.waitForSelector(".room-join", { timeout: 10_000 });
++    await page.waitForSelector(".room-join", { timeout: boundedWaitMs(10_000) });
+     const about = await checkAboutLink(page, page.context(), baseUrl, ".room-about-link");
+     ok(`joinFresh(${locale}): the about link from the join screen opens a real /r/<slug>/about page in ${locale}`,
+       about.heading === c.aboutHeading, JSON.stringify(about));
+@@ -261,11 +264,11 @@ async function joinFresh(page, baseUrl, slug, { qs = "?via=search", locale = "en
+   const [response] = await Promise.all([
+     page.waitForResponse(
+       (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "join",
+-      { timeout: 15_000 },
++      { timeout: boundedWaitMs(15_000) },
+     ),
+     page.getByRole("button", { name: c.memoryYes }).click(),
+   ]);
+-  await page.waitForSelector(".room-composer textarea", { timeout: 15_000 });
++  await page.waitForSelector(".room-composer textarea", { timeout: boundedWaitMs(15_000) });
+   const body = await response.json().catch(() => ({}));
+   return body.session || "";
+ }
+@@ -278,7 +281,7 @@ async function sayThree(page, texts) {
+     await page.waitForFunction(
+       (n) => document.querySelectorAll(".room-bubble.from-them").length > n,
+       before,
+-      { timeout: 15_000 },
++      { timeout: boundedWaitMs(15_000) },
+     );
+   }
+ }
+@@ -339,7 +342,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+     await cPage.waitForFunction(
+       () => document.querySelectorAll(".room-taste-turn").length > 0,
+       null,
+-      { timeout: 15_000 },
++      { timeout: boundedWaitMs(15_000) },
+     );
+     ok(`${gate}: the island's first taste turn answered`, await cPage.locator(".room-taste-turn").count() >= 1);
+     // Two more, to the taste ceiling — the island's own `endOfTasteFlow()`.
+@@ -354,7 +357,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+         return join && !join.hidden;
+       },
+       null,
+-      { timeout: 15_000 },
++      { timeout: boundedWaitMs(15_000) },
+     );
+     ok(`${gate}: the island refuses a fourth taste turn on screen (input hidden, join shown)`,
+       await cPage.locator("#vy-taste-input").isHidden());
+@@ -404,7 +407,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   // screen a follower actually sees the affordance on first.
+   const citeButton = page.getByRole("button", { name: c.whereFrom });
+   await citeButton.click();
+-  await page.waitForSelector(".room-cite-answer", { timeout: 10_000 });
++  await page.waitForSelector(".room-cite-answer", { timeout: boundedWaitMs(10_000) });
+   ok(`${gate}: a citation answer rendered`, await page.locator(".room-cite-answer").count() === 1);
+ 
+   // ── open a thread ───────────────────────────────────────────────────────
+@@ -418,7 +421,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   await Promise.all([
+     page.waitForResponse(
+       (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "thread",
+-      { timeout: 10_000 },
++      { timeout: boundedWaitMs(10_000) },
+     ),
+     page.locator(".room-rail button", { hasText: c.threadSave }).click(),
+   ]);
+@@ -434,7 +437,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   const other = locale === "hi" ? "en" : "hi";
+   const co = COPY[other];
+   await page.getByRole("button", { name: c.accountOpen }).click();
+-  await page.waitForSelector(".room-account", { timeout: 10_000 });
++  await page.waitForSelector(".room-account", { timeout: boundedWaitMs(10_000) });
+   // Non-empty, not merely present: `.room-card` mounts synchronously with
+   // the panel, but a Playwright read racing the very same paint has
+   // occasionally caught it between mount and the text commit — poll rather
+@@ -442,7 +445,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   await page.waitForFunction(
+     () => ((document.querySelector(".room-account .room-card") || {}).innerText || "").trim().length > 0,
+     null,
+-    { timeout: 10_000 },
++    { timeout: boundedWaitMs(10_000) },
+   );
+   const disclosureBefore = (await page.locator(".room-account .room-card").innerText()).trim();
+   ok(`${gate}: the account page shows the disclosure card`, disclosureBefore.length > 0);
+@@ -451,7 +454,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   await page.waitForFunction(
+     (prevText) => (document.querySelector(".room-account .room-card") || {}).innerText?.trim() !== prevText,
+     disclosureBefore,
+-    { timeout: 10_000 },
++    { timeout: boundedWaitMs(10_000) },
+   );
+   const disclosureOther = (await page.locator(".room-account .room-card").innerText()).trim();
+   ok(`${gate}: switching to ${other} re-renders the disclosure in ${other} (server-authored, not stale)`,
+@@ -463,7 +466,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   await page.waitForFunction(
+     (prev) => (document.querySelector(".room-account .room-card") || {}).innerText?.trim() === prev,
+     disclosureBefore,
+-    { timeout: 10_000 },
++    { timeout: boundedWaitMs(10_000) },
+   );
+   ok(`${gate}: switching back to ${locale} restores the original disclosure`, true);
+ 
+@@ -485,7 +488,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   const [pushSubscribeResponse] = await Promise.all([
+     page.waitForResponse(
+       (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "push_subscribe",
+-      { timeout: 10_000 },
++      { timeout: boundedWaitMs(10_000) },
+     ),
+     pushToggle.getByRole("button", { name: c.pushEnable }).click(),
+   ]);
+@@ -498,7 +501,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+       && s.endpoint === "https://fake-push.rehearsal.internal/ep/1"));
+ 
+   const referralUrlLocator = page.locator(".room-referral-url");
+-  await referralUrlLocator.waitFor({ timeout: 10_000 });
++  await referralUrlLocator.waitFor({ timeout: boundedWaitMs(10_000) });
+   const referralPath = (await referralUrlLocator.innerText()).trim().replace(/^https?:\/\/[^/]+/, "");
+   ok(`${gate}: the referral card shows a real /r/anjali?via=friend&ref= link`,
+     /^\/r\/anjali\?via=friend&ref=[0-9a-f]{64}$/.test(referralPath), referralPath);
+@@ -515,7 +518,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   // rather than silently leaving TWO dialogs mounted for the data-menu step
+   // below to trip over.
+   await page.locator(".room-account .room-actions").last().getByRole("button", { name: c.close, exact: true }).click();
+-  await page.waitForSelector(".room-account", { state: "detached", timeout: 10_000 });
++  await page.waitForSelector(".room-account", { state: "detached", timeout: boundedWaitMs(10_000) });
+ 
+   // ── a second browser context opens the referral link and joins ─────────
+   const refContext = await browser.newContext({ extraHTTPHeaders: { "x-real-ip": `10.94.${gateOffset + 3}.1` } });
+@@ -600,7 +603,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+     const [sayResponse] = await Promise.all([
+       page.waitForResponse(
+         (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "say",
+-        { timeout: 15_000 },
++        { timeout: boundedWaitMs(15_000) },
+       ),
+       (async () => {
+         await page.locator(".room-composer textarea").fill(text);
+@@ -615,7 +618,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+     () => document.body.innerText.includes("That felt like a real conversation")
+       || document.body.innerText.includes("असली बातचीत"),
+     null,
+-    { timeout: 10_000 },
++    { timeout: boundedWaitMs(10_000) },
+   ).catch(() => {});
+   ok(`${gate}: the Room's own offer card renders on screen after the offer-bearing reply`,
+     await page.getByText(/felt like a real conversation|असली बातचीत/).count() > 0);
+@@ -657,12 +660,12 @@ async function runJourney({ harness, browser, locale, gate }) {
+   // (the webhook's own tier flip), so the account page is re-opened to see
+   // the section render with a real row rather than the empty state.
+   await page.getByRole("button", { name: c.accountOpen }).click();
+-  await page.waitForSelector(".room-account", { timeout: 10_000 });
++  await page.waitForSelector(".room-account", { timeout: boundedWaitMs(10_000) });
+   const receiptRow = page.locator(".room-checkins-list .room-checkins-row").first();
+-  await receiptRow.waitFor({ timeout: 10_000 });
++  await receiptRow.waitFor({ timeout: boundedWaitMs(10_000) });
+   ok(`${gate}: the receipts list shows a real row after the fake landed charge`, await receiptRow.count() === 1);
+   const [printPopup] = await Promise.all([
+-    context.waitForEvent("page", { timeout: 10_000 }),
++    context.waitForEvent("page", { timeout: boundedWaitMs(10_000) }),
+     receiptRow.getByRole("button").click(),
+   ]);
+   // `printReceipt()` (AccountPage.tsx) opens the popup with `window.open("",
+@@ -671,13 +674,13 @@ async function runJourney({ harness, browser, locale, gate }) {
+   // the fetched HTML in — polling the popup's own body text is what makes
+   // this wait honest rather than a race.
+   await printPopup.waitForLoadState("load");
+-  await printPopup.waitForFunction(() => document.body && document.body.innerText.trim().length > 0, null, { timeout: 10_000 }).catch(() => {});
++  await printPopup.waitForFunction(() => document.body && document.body.innerText.trim().length > 0, null, { timeout: boundedWaitMs(10_000) }).catch(() => {});
+   const printText = await printPopup.locator("body").innerText().catch(() => "");
+   ok(`${gate}: the receipt's own print HTML opened in a real new window and names a real amount`,
+     /349|₹349/.test(printText), printText.slice(0, 200));
+   await printPopup.close();
+   await page.locator(".room-account .room-actions").last().getByRole("button", { name: c.close, exact: true }).click();
+-  await page.waitForSelector(".room-account", { state: "detached", timeout: 10_000 });
++  await page.waitForSelector(".room-account", { state: "detached", timeout: boundedWaitMs(10_000) });
+ 
+   // ── readable export (WS-R108, now driven for real) — "Open a readable
+   //    copy" clicked on the real account page; the popup's own document
+@@ -704,13 +707,13 @@ async function runJourney({ harness, browser, locale, gate }) {
+   //    identity's bucket and the hi gate's land on the OTHER's, never
+   //    sharing one bucket across 4 calls against a 3-per-minute cap. ───────
+   await page.getByRole("button", { name: c.accountOpen }).click();
+-  await page.waitForSelector(".room-account", { timeout: 10_000 });
++  await page.waitForSelector(".room-account", { timeout: boundedWaitMs(10_000) });
+   const [readablePopup, readableResponse] = await Promise.all([
+-    context.waitForEvent("page", { timeout: 10_000 }),
++    context.waitForEvent("page", { timeout: boundedWaitMs(10_000) }),
+     page.waitForResponse(
+       (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "export"
+         && r.request().postDataJSON()?.format === "html",
+-      { timeout: 10_000 },
++      { timeout: boundedWaitMs(10_000) },
+     ),
+     page.getByRole("button", { name: c.openReadable }).click(),
+   ]);
+@@ -719,7 +722,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   const serverH2Count = (readableResponseText.match(/<h2>/g) || []).length;
+   await readablePopup.waitForLoadState("load");
+   await readablePopup.waitForFunction(
+-    () => document.body && document.body.innerText.trim().length > 0, null, { timeout: 10_000 },
++    () => document.body && document.body.innerText.trim().length > 0, null, { timeout: boundedWaitMs(10_000) },
+   ).catch(() => {});
+   ok(`${gate}: the readable export's own document lang matches the follower's chosen locale`,
+     await readablePopup.evaluate(() => document.documentElement.lang) === locale);
+@@ -742,13 +745,13 @@ async function runJourney({ harness, browser, locale, gate }) {
+     readableBodyText.includes(c.forgetHeadingReadable));
+   await readablePopup.close();
+   await page.locator(".room-account .room-actions").last().getByRole("button", { name: c.close, exact: true }).click();
+-  await page.waitForSelector(".room-account", { state: "detached", timeout: 10_000 });
++  await page.waitForSelector(".room-account", { state: "detached", timeout: boundedWaitMs(10_000) });
+ 
+   // ── export ───────────────────────────────────────────────────────────────
+   await page.getByRole("button", { name: c.dataMenuOpen }).click();
+-  await page.waitForSelector(".room-menu", { timeout: 10_000 });
++  await page.waitForSelector(".room-menu", { timeout: boundedWaitMs(10_000) });
+   const [download] = await Promise.all([
+-    page.waitForEvent("download", { timeout: 15_000 }),
++    page.waitForEvent("download", { timeout: boundedWaitMs(15_000) }),
+     page.getByRole("button", { name: c.download }).click(),
+   ]);
+   ok(`${gate}: export triggered a real file download`, download.suggestedFilename() === "your-data.json");
+@@ -763,7 +766,7 @@ async function runJourney({ harness, browser, locale, gate }) {
+   await Promise.all([
+     page.waitForResponse(
+       (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "forget",
+-      { timeout: 15_000 },
++      { timeout: boundedWaitMs(15_000) },
+     ),
+     page.getByRole("button", { name: c.forgetConfirm }).click(),
+   ]);
+diff --git a/evals/rehearsal/person-room.mjs b/evals/rehearsal/person-room.mjs
+index b3ff29d..b904bca 100644
+--- a/evals/rehearsal/person-room.mjs
++++ b/evals/rehearsal/person-room.mjs
+@@ -84,6 +84,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
+ import { randomUUID } from "node:crypto";
+ import { register } from "node:module";
+ import { readFile } from "node:fs/promises";
++// WS-R190: every fixed first-render/navigation barrier below is scaled by
++// machine load (ws-common.md's own wave-twenty-three lesson).
++import { boundedWaitMs } from "../lib/bounded-wait.mjs";
+ 
+ const HERE = dirname(fileURLToPath(import.meta.url));
+ const ROOT = join(HERE, "..", "..");
+@@ -439,15 +442,15 @@ async function walkLocale(locale) {
+       rootText.length > 0 && !/sign in with google/i.test(rootText), rootText.slice(0, 80));
+ 
+     const shareLabel = locale === "hi" ? "शेयर करें" : "Share";
+-    await page.getByText(new RegExp(`^${shareLabel}$`)).first().click({ timeout: 15_000 });
++    await page.getByText(new RegExp(`^${shareLabel}$`)).first().click({ timeout: boundedWaitMs(15_000) });
+ 
+     const setupLabel = locale === "hi" ? "अपना रूम बनाएं" : "Set up your Room";
+     const setupButton = page.getByRole("button", { name: setupLabel });
+-    await setupButton.waitFor({ state: "visible", timeout: 15_000 });
++    await setupButton.waitFor({ state: "visible", timeout: boundedWaitMs(15_000) });
+     ok(`${locale}: the real Share tab opened Deploy (RoomStudio's "Set up your Room" is reachable for a TEXT-ready person, the break this walk found and fixed)`, true);
+ 
+     const [createResponse] = await Promise.all([
+-      page.waitForResponse((r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "create", { timeout: 15_000 }),
++      page.waitForResponse((r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "create", { timeout: boundedWaitMs(15_000) }),
+       setupButton.click(),
+     ]);
+     ok(`${locale}: "Set up your Room" posts a real create through RoomStudio's own controls`, createResponse.status() === 201);
+@@ -471,14 +474,14 @@ async function walkLocale(locale) {
+     state.rehearsalDisclosureApproved = false;
+     const publishButtonLabel = locale === "hi" ? "अपना रूम पब्लिश करें" : "Publish your Room";
+     const publishButton = page.getByRole("button", { name: publishButtonLabel });
+-    await publishButton.waitFor({ state: "visible", timeout: 15_000 });
++    await publishButton.waitFor({ state: "visible", timeout: boundedWaitMs(15_000) });
+     const [blockedResponse] = await Promise.all([
+-      page.waitForResponse((r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "publish", { timeout: 15_000 }),
++      page.waitForResponse((r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "publish", { timeout: boundedWaitMs(15_000) }),
+       publishButton.click(),
+     ]);
+     ok(`${locale}: NEGATIVE CONTROL — publishing with no published person sheet is refused (409, room_publish_locked)`, blockedResponse.status() === 409);
+     const blockerList = page.locator(".vy-room__blockers");
+-    await blockerList.waitFor({ state: "visible", timeout: 10_000 });
++    await blockerList.waitFor({ state: "visible", timeout: boundedWaitMs(10_000) });
+     const blockerText = await blockerList.innerText();
+     // The blocker's own headline text (`api/_room-publish.js#publishBlockers`'s
+     // own `room_disclosure_not_approved` copy) is server-authored ENGLISH
+@@ -524,7 +527,7 @@ async function walkLocale(locale) {
+     state.rehearsalDisclosureApproved = true;
+ 
+     const [publishedResponse] = await Promise.all([
+-      page.waitForResponse((r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "publish", { timeout: 15_000 }),
++      page.waitForResponse((r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "publish", { timeout: boundedWaitMs(15_000) }),
+       publishButton.click(),
+     ]);
+     ok(`${locale}: publish succeeds once the person's own sheet is published (the real predicate clears)`, publishedResponse.status() === 200);
+@@ -581,16 +584,16 @@ async function walkLocale(locale) {
+       await visitorPage.locator('.room-lang-switch button[lang="hi"]').click();
+       await visitorPage.waitForFunction(
+         () => document.querySelector('.room-lang-switch button[lang="hi"]')?.getAttribute("aria-pressed") === "true",
+-        null, { timeout: 10_000 },
++        null, { timeout: boundedWaitMs(10_000) },
+       );
+     }
+-    await visitorPage.getByRole("button", { name: c.tasteJoin }).click({ timeout: 15_000 });
++    await visitorPage.getByRole("button", { name: c.tasteJoin }).click({ timeout: boundedWaitMs(15_000) });
+ 
+     // The about link, checked from the join screen before ever answering the
+     // memory question (`follower.mjs`'s own step order restated) — a SEPARATE
+     // tab, `follower.mjs`'s own precedent for a scratch tab proving one thing
+     // without disturbing the join screen's own state.
+-    await visitorPage.waitForSelector(".room-join", { timeout: 10_000 });
++    await visitorPage.waitForSelector(".room-join", { timeout: boundedWaitMs(10_000) });
+     const aboutHref = await visitorPage.locator(".room-about-link").getAttribute("href");
+     const aboutPage = await visitorContext.newPage();
+     await aboutPage.goto(`${url}${aboutHref}`, { waitUntil: "networkidle" });
+@@ -604,24 +607,24 @@ async function walkLocale(locale) {
+ 
+     await visitorPage.locator('input[type="checkbox"]').check();
+     const [joinResponse] = await Promise.all([
+-      visitorPage.waitForResponse((r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "join", { timeout: 15_000 }),
++      visitorPage.waitForResponse((r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "join", { timeout: boundedWaitMs(15_000) }),
+       visitorPage.getByRole("button", { name: c.memoryYes }).click(),
+     ]);
+     const joinBody = await joinResponse.json().catch(() => ({}));
+     ok(`${locale}: the visitor joins for real, a real session minted`, joinResponse.status() === 200 && typeof joinBody.session === "string" && joinBody.session.length > 20);
+     ok(`${locale}: the fixture's own follower row was written`, state.followers.some((f) => f.person_id === followerPerson));
+ 
+-    await visitorPage.waitForSelector(".room-composer textarea", { timeout: 15_000 });
++    await visitorPage.waitForSelector(".room-composer textarea", { timeout: boundedWaitMs(15_000) });
+     const beforeCount = await visitorPage.locator(".room-bubble.from-them").count();
+     await visitorPage.locator(".room-composer textarea").fill(locale === "hi" ? "आप कौन हैं?" : "Who are you?");
+     const [sayResponse] = await Promise.all([
+-      visitorPage.waitForResponse((r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "say", { timeout: 15_000 }),
++      visitorPage.waitForResponse((r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "say", { timeout: boundedWaitMs(15_000) }),
+       visitorPage.locator(".room-send").click(),
+     ]);
+     const sayBody = await sayResponse.json().catch(() => ({}));
+     ok(`${locale}: the visitor's question gets a real reply through the fake seam`,
+       sayResponse.status() === 200 && sayBody?.reply?.includes(PERSON_DISPLAY_NAME), JSON.stringify(sayBody?.reply).slice(0, 120));
+-    await visitorPage.waitForFunction((n) => document.querySelectorAll(".room-bubble.from-them").length > n, beforeCount, { timeout: 15_000 });
++    await visitorPage.waitForFunction((n) => document.querySelectorAll(".room-bubble.from-them").length > n, beforeCount, { timeout: boundedWaitMs(15_000) });
+     const bubbleText = await visitorPage.locator(".room-bubble.from-them").last().innerText();
+     ok(`${locale}: the real reply rendered on a real bubble, the person's AI, never the teacher's`, bubbleText.includes(PERSON_DISPLAY_NAME));
+ 
+diff --git a/evals/rehearsal/personal.mjs b/evals/rehearsal/personal.mjs
+index 2ca1def..62ffb9b 100644
+--- a/evals/rehearsal/personal.mjs
++++ b/evals/rehearsal/personal.mjs
+@@ -94,6 +94,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
+ import { randomUUID } from "node:crypto";
+ import { register } from "node:module";
+ import { tmpdir } from "node:os";
++// WS-R190: every fixed first-render/navigation barrier below is scaled by
++// machine load, the same fix ws-common.md's own wave-twenty-three lesson
++// names ("evals/rehearsal/personal.mjs's 20s wait after sign-in lost twice
++// in the pool at load 28 to 40 and passed 63 of 63 alone").
++import { boundedWaitMs } from "../lib/bounded-wait.mjs";
+ 
+ const HERE = dirname(fileURLToPath(import.meta.url));
+ const ROOT = join(HERE, "..", "..");
+@@ -938,11 +943,11 @@ async function main() {
+     let tStep = Date.now();
+     await page.goto(`${url}/vyakti-landing.html`, { waitUntil: "domcontentloaded" });
+     const heroCta = page.locator("#loc-en .hero .btn");
+-    await heroCta.waitFor({ state: "visible", timeout: 20_000 });
++    await heroCta.waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     const heroCtaHref = await heroCta.getAttribute("href");
+     ok("landing: the hero's own primary action points straight at sign-in, never the apply form", heroCtaHref === "/studio", `href=${heroCtaHref}`);
+     await heroCta.click();
+-    await page.locator("#studio-email").waitFor({ state: "visible", timeout: 20_000 });
++    await page.locator("#studio-email").waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     ok("landing: the real click reached the real AuthGate, carrying no ?mode= (personal studio by default)", new URL(page.url()).search.includes("mode=teacher") === false);
+     timings.landingToSignInMs = Date.now() - tStep;
+ 
+@@ -951,7 +956,7 @@ async function main() {
+     ok("sign-in: the real AuthGate renders (no localStorage seed)", true);
+     await page.locator("#studio-email").fill(EMAIL);
+     await page.locator(".auth-card button.primary-button").first().click();
+-    await page.locator("#studio-code").waitFor({ state: "visible", timeout: 20_000 });
++    await page.locator("#studio-code").waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     ok("sign-in: send_otp through the real api/account.js door moved the UI to the code step", true);
+ 
+     // NEGATIVE CONTROL — a wrong OTP is refused with a sentence, never a
+@@ -961,7 +966,7 @@ async function main() {
+     await page.locator("#studio-code").fill("000000");
+     await page.locator(".auth-card button.primary-button").last().click();
+     const wrongCodeError = page.locator(".inline-error");
+-    await wrongCodeError.waitFor({ state: "visible", timeout: 20_000 });
++    await wrongCodeError.waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     const wrongCodeText = (await wrongCodeError.textContent()) || "";
+     const looksLikeAStack = /error:|\bat\s+\S+:\d+:\d+|stack trace/i.test(wrongCodeText);
+     ok("NEGATIVE CONTROL — a wrong code is refused with a real sentence, never a stack", wrongCodeText.trim().length > 0 && !looksLikeAStack, `text=${JSON.stringify(wrongCodeText)}`);
+@@ -970,7 +975,7 @@ async function main() {
+ 
+     await page.locator("#studio-code").fill(OTP);
+     await page.locator(".auth-card button.primary-button").last().click();
+-    await page.locator(".vx-agreement, .vx-shell").first().waitFor({ state: "visible", timeout: 20_000 });
++    await page.locator(".vx-agreement, .vx-shell").first().waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     ok("sign-in: verify_otp through the real door signed a real session in", true);
+     timings.signInMs = Date.now() - tStep;
+ 
+@@ -981,7 +986,7 @@ async function main() {
+       await checkAll.click();
+       await page.getByRole("button", { name: /continue/i }).first().click();
+     }
+-    await page.locator("#context-locker-title, .vx-record-button").first().waitFor({ state: "visible", timeout: 20_000 });
++    await page.locator("#context-locker-title, .vx-record-button").first().waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     ok("agreement: accepting created a real replica and granted enrollment consent", state.replicas.length === 1, `replicas=${state.replicas.length}`);
+     const rid = state.replicas[0]?.replica_id || "";
+     ok("agreement: enrollment consent (capture/transcription/storage) is a real, granted row", (state.consents || []).filter((c) => c.replica_id === rid && !c.revoked_at).length === 3);
+@@ -1001,10 +1006,10 @@ async function main() {
+     if (await describeButton.count()) {
+       await describeButton.click();
+       const describeText = page.locator(".vx-describe textarea");
+-      await describeText.waitFor({ state: "visible", timeout: 10_000 });
++      await describeText.waitFor({ state: "visible", timeout: boundedWaitMs(10_000) });
+       await describeText.fill("I am warm with close friends, direct at work, and I switch to Hindi when I get excited.");
+       await page.locator("button.vx-button--primary", { hasText: "Add to my context" }).click();
+-      await page.locator(".vx-describe [role=status]").waitFor({ state: "visible", timeout: 15_000 });
++      await page.locator(".vx-describe [role=status]").waitFor({ state: "visible", timeout: boundedWaitMs(15_000) });
+       if (process.env.RH_DEBUG === "1") console.log("DEBUG describe status message:", await page.locator(".vx-describe [role=status]").innerText(), "contextItems:", JSON.stringify(state.contextItems), "rid:", rid);
+       ok("Describe me: a real context item was saved through the real door", state.contextItems.some((i) => i.replica_id === rid));
+     } else {
+@@ -1023,7 +1028,7 @@ async function main() {
+     const backToVoice = page.locator("button.vx-text-button", { hasText: "Record my voice instead" });
+     if (await backToVoice.count()) await backToVoice.click();
+     const recordButton = page.locator("button.vx-record-button");
+-    await recordButton.waitFor({ state: "visible", timeout: 20_000 });
++    await recordButton.waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+ 
+     // NEGATIVE CONTROL 1: a too-short recording is refused (client-side,
+     // real — `MINIMUM_RECORDING_MS` in `CloneExperience.tsx`).
+@@ -1035,21 +1040,21 @@ async function main() {
+ 
+     await page.waitForTimeout(12_500);
+     await recordButton.click();
+-    await page.locator("button.vx-button--primary", { hasText: "Continue" }).waitFor({ state: "visible", timeout: 20_000 });
++    await page.locator("button.vx-button--primary", { hasText: "Continue" }).waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     const qualityText = await page.locator(".vx-sample p").first().textContent();
+     ok("record: a real >=12s fake-microphone sample reached the review screen", true, `quality=${JSON.stringify(qualityText)}`);
+     const continueButton = page.locator("button.vx-button--primary", { hasText: "Continue" });
+     const continueEnabled = await continueButton.isEnabled();
+     ok("record: the sample passed the real client-side quality gate (Continue enabled)", continueEnabled);
+     if (continueEnabled) {
+-      const uploadPut = page.waitForResponse((r) => r.url().includes("/__fixture-upload/") && r.request().method() === "PUT", { timeout: 30_000 });
+-      const finalizeCall = page.waitForResponse((r) => r.url().includes("/api/replica-source") && r.request().method() === "POST", { timeout: 30_000 });
+-      const buildCall = page.waitForResponse((r) => r.url().includes("/api/replica-review") && r.request().method() === "POST", { timeout: 30_000 });
++      const uploadPut = page.waitForResponse((r) => r.url().includes("/__fixture-upload/") && r.request().method() === "PUT", { timeout: boundedWaitMs(30_000) });
++      const finalizeCall = page.waitForResponse((r) => r.url().includes("/api/replica-source") && r.request().method() === "POST", { timeout: boundedWaitMs(30_000) });
++      const buildCall = page.waitForResponse((r) => r.url().includes("/api/replica-review") && r.request().method() === "POST", { timeout: boundedWaitMs(30_000) });
+       await continueButton.click();
+       await uploadPut.catch((e) => console.log("  DEBUG: fixture-upload PUT never observed:", e.message));
+       await finalizeCall.catch((e) => console.log("  DEBUG: replica-source POST never observed:", e.message));
+       await buildCall.catch((e) => console.log("  DEBUG: replica-review POST (request_voice_genome_build) never observed:", e.message));
+-      await page.waitForFunction(() => !document.querySelector(".vx-upload"), { timeout: 20_000 }).catch(async () => {
++      await page.waitForFunction(() => !document.querySelector(".vx-upload"), { timeout: boundedWaitMs(20_000) }).catch(async () => {
+         console.log("DEBUG upload stuck at:", await page.locator(".vx-upload").innerText().catch(() => "(gone)"));
+       });
+     }
+@@ -1096,7 +1101,7 @@ async function main() {
+     // without-the-full-build-promotion-pipeline.
+     tStep = Date.now();
+     await page.reload({ waitUntil: "domcontentloaded" });
+-    await page.locator(".vx-verification, .vx-conversation-switch, #knowledge-menu-title, #context-locker-title").first().waitFor({ state: "visible", timeout: 20_000 });
++    await page.locator(".vx-verification, .vx-conversation-switch, #knowledge-menu-title, #context-locker-title").first().waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     const reachedMeet = await page.locator(".vx-conversation-switch").count() > 0;
+     ok("record: the real, unmodified CloneVerificationJourney renders honestly (never a crash) when the build has not promoted", reachedMeet || await page.locator(".vx-verification").count() > 0);
+     if (!reachedMeet) {
+@@ -1268,7 +1273,7 @@ async function main() {
+     await page.evaluate((rid) => localStorage.removeItem(`vyakti:experience:voice-saga:v1:${rid}`), rid);
+     await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
+     try {
+-      await page.locator(".vx-conversation-switch, .vx-record-button, .vx-verification").first().waitFor({ state: "visible", timeout: 20_000 });
++      await page.locator(".vx-conversation-switch, .vx-record-button, .vx-verification").first().waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     } catch (cause) {
+       console.log("DEBUG meetOpenWithoutVoice timeout; body:", (await page.locator("body").innerText()).slice(0, 800));
+       const el = page.locator(".vx-conversation-switch").first();
+@@ -1310,7 +1315,7 @@ async function main() {
+     //    state — not a full call turn (a named gap, see this file's header).
+     tStep = Date.now();
+     await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
+-    await page.locator("#knowledge-menu-title, .vx-record-button, .vx-conversation-switch, .vx-verification").first().waitFor({ state: "visible", timeout: 20_000 });
++    await page.locator("#knowledge-menu-title, .vx-record-button, .vx-conversation-switch, .vx-verification").first().waitFor({ state: "visible", timeout: boundedWaitMs(20_000) });
+     ok("Talk: the studio reloads signed-in without crashing (real session persisted; MirrorCallStudio is unreachable in this tree for the same real reason Meet is, named in this file's own header)", true);
+     timings.talkMs = Date.now() - tStep;
+ 
+diff --git a/evals/run.mjs b/evals/run.mjs
+index 7befd80..a9f8909 100644
+--- a/evals/run.mjs
++++ b/evals/run.mjs
+@@ -3495,6 +3495,59 @@ const suites = {
+   // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
+   // real source on every run, the same as `person-sheet` above.
+   "person-sheet-draft": "person-sheet-draft/run.mjs",
++
++  // SECTION WS-R190: the evals' same-tick sweep.
++  //
++  // `evals/continuity/assembly.mjs` and `evals/continuity/seam3.mjs`
++  // (WS-CONTINUITY, pre-dating the wave numbering) proved G-C6 (one prompt
++  // assembler), G-C4 (the live prompt compiled exactly once, at connect)
++  // and that a text<->call channel switch is a storage fact, never a
++  // conversational restart. Both fell out of the registry and off the base
++  // tree: the compiler seam's allowlist never grew to include three agent
++  // modules later waves legitimately added in the same shape as meera.ts
++  // (teacher.ts, fromSheet.ts, kabir.ts), and a #96 fix
++  // ("reconnectLiveAfterWatch") gave startLiveCall a second, correct call
++  // site the suite still expected exactly one of. Neither was a real
++  // regression; both are fixed at the rule (the allowlist, the call-site
++  // count) rather than at the code the rule was checking, and registered
++  // here so they gate every future compiler-seam change again
++  // (context/rejected.md#ws-r190-two-continuity-suites-fell-off-the-base-tree-stale-rules-not-real-regressions).
++  //
++  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
++  // Both re-bundle from the real source (esbuild, `evals/continuity/_entry.ts`)
++  // on every run, so they gate the tree being shipped, not a frozen copy.
++  "continuity-assembly": "continuity/assembly.mjs",
++  "continuity-seam3": "continuity/seam3.mjs",
++
++  // WS-R190. `evals/lib/bounded-wait.mjs`'s own suite (WS-R181's
++  // `evals/gate-load/run.mjs`) additionally proves `awaitCount` — the
++  // generalised fix for the same-tick race (see `same-tick-scan` below):
++  // returns immediately when the count is already met, polls (not a single
++  // read) for a count that arrives a little late, and returns the real
++  // (too-low) value rather than hanging or silently reporting the target
++  // when the count never arrives. No new suite key: `gate-load` is already
++  // registered above and this workstream only added assertions to it.
++
++  // WS-R190. The scanner: every browser suite in the tree read through the
++  // shared comment-stripping tokenizer (`evals/lib/source-scan.mjs`), failing
++  // BY NAME on a same-tick assert (a browser-side wait — `page.waitForFunction`
++  // /`.click`/an unsafe `.waitFor` — followed, before any bounded Node-side
++  // wait, by an assert on a push()/increment-fed counter a fake server or
++  // fake fetch fills) or an unscaled literal `timeout: >= 10s` in
++  // `evals/rehearsal/*.mjs` or a `*/mounted.mjs` suite. Negative control: a
++  // synthetic offending file with one instance of each shape. Positive
++  // control: `evals/teacher-sheet-publication/mounted.mjs` (the suite this
++  // workstream is named for) reports zero findings. On the real tree today,
++  // 0 of 80 browser suites still trip either shape — every real finding this
++  // sweep found (candidate-activation-ui, candidate-qualification-ui,
++  // feedback-dataset-ui, context-attribution, personality-flow28,
++  // private-draft-editor, teacher-sheet-edit-races, action-focus; four
++  // rehearsal files' fixed first-render barriers) was fixed in the same
++  // commit, each suite proved green alone three times
++  // (context/measurements.md#ws-r190-same-tick-sweep-counts).
++  //
++  // Offline, deterministic, $0, no network, no database, no model call, no GPU.
++  "same-tick-scan": "same-tick-scan/run.mjs",
+ };
+ 
+ const argv = process.argv.slice(2);
+diff --git a/evals/same-tick-scan/run.mjs b/evals/same-tick-scan/run.mjs
+new file mode 100644
+index 0000000..93be5fc
+--- /dev/null
++++ b/evals/same-tick-scan/run.mjs
+@@ -0,0 +1,497 @@
++// WS-R190. THE EVALS' SAME-TICK SWEEP — the scanner.
++//
++//   node evals/same-tick-scan/run.mjs
++//   node evals/run.mjs same-tick-scan
++//
++// Three suites lost a run each this wave to the identical shape
++// (context/rejected.md#teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled:
++// candidate-activation-ui, feedback-dataset-ui, teacher-sheet-publication-ui)
++// and the personal rehearsal lost two runs to a fixed 20s first-render
++// barrier under load (ws-common.md's wave-twenty-three lesson). Both are the
++// same root cause — a barrier or assertion tuned on a QUIET machine meeting a
++// machine that is not quiet — and both have one known fix already
++// (`evals/lib/bounded-wait.mjs`, WS-R181). This file is the scanner that
++// makes writing either shape again impossible to land unnoticed: it reads
++// every browser suite through the shared comment-stripping tokenizer
++// (`evals/lib/source-scan.mjs`, WS-R134 — so a comment describing either
++// trap, this file's own header included, can never trip or hide from it) and
++// fails BY NAME on either shape.
++//
++// LAW 2 SHAPE ("same-tick assert"): a browser-side wait
++// (`page.waitForFunction(`, `.waitFor(`, `.click(`) followed, before any
++// bounded Node-side wait, by an `assert.*(` on a bare identifier that is
++// itself filled asynchronously by a fake HTTP server or fetch handler in
++// THIS file — proved by grepping the file for that identifier's own
++// `.push(` (an array a handler appends to) or `++`/`+= 1` (a scalar counter
++// a handler increments). The browser wait proves what the PAGE rendered; it
++// proves nothing about whether the REQUEST that render was reacting to has
++// yet reached the Node-side handler that fills the identifier — the exact
++// race `teacher-sheet-publication-ui` lost once under pool contention
++// (`awaitPending` in `evals/teacher-sheet-publication/mounted.mjs` is the
++// fixed shape this scanner treats as SAFE: a bounded poll of the same
++// predicate, from `evals/lib/bounded-wait.mjs`, interposed before the
++// assert).
++//
++// LAW 3 SHAPE ("fixed barrier"): a `timeout: <N>` of 10 seconds or more
++// written as a literal number, in `evals/rehearsal/*.mjs` or a
++// `*/mounted.mjs` suite — the exact class `evals/rehearsal/personal.mjs`'s
++// 20s post-sign-in wait was, before this workstream scaled it with
++// `boundedWaitMs`. A literal already wrapped in `boundedWaitMs(...)` is safe
++// by construction (the wrapper call is what this scanner looks for) and is
++// not re-flagged.
++//
++// NEGATIVE CONTROL: a synthetic offending file, one instance of each shape,
++// must be caught. POSITIVE CONTROL: the fixed
++// `evals/teacher-sheet-publication/mounted.mjs` (the suite this whole
++// workstream is named for) reports zero same-tick findings, and every
++// `evals/rehearsal/*.mjs` first-render/navigation barrier this workstream
++// scaled is confirmed wrapped.
++//
++// Offline, deterministic, $0, no network, no database, no model call, no GPU.
++import { readFileSync, readdirSync, statSync } from "node:fs";
++import { dirname, join, relative, resolve } from "node:path";
++import { fileURLToPath } from "node:url";
++import { stripComments } from "../lib/source-scan.mjs";
++
++const HERE = dirname(fileURLToPath(import.meta.url));
++const REPO = resolve(HERE, "..", "..");
++const EVALS = join(REPO, "evals");
++
++let pass = 0;
++let fail = 0;
++const ok = (name, cond, extra = "") => {
++  if (cond) pass++;
++  else fail++;
++  console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
++};
++
++// ═════════════════════════════════════════════════════════════════════════
++// The two pure detectors. Both operate on COMMENT-STRIPPED source only.
++// ═════════════════════════════════════════════════════════════════════════
++
++// `page.waitForFunction(` and `.click(` are the two triggers every real
++// incident in this codebase actually used (teacher-sheet-publication-ui and
++// feedback-dataset-ui on a `page.waitForFunction(() => ...disabled === true)`
++// client-optimistic DOM read; candidate-activation-ui on a bare `.click()`
++// with nothing but a synchronous `isDisabled()` DOM read before the assert —
++// context/rejected.md#teacher-sheet-publication-ui-asserted-the-fake-servers-pending-count-on-the-tick-the-button-disabled).
++// A LOCATOR `.waitFor(` (`region().getByText(...).waitFor()` and its kin) is
++// deliberately NOT a trigger: this codebase's own idiom for "prove the round
++// trip finished" is waiting for text/role content that only renders once
++// React has processed a resolved fetch — reaching that state is therefore
++// already proof the Node-side handler ran, which is exactly why every real
++// suite in this tree (teacher-sheet-publication-ui's own already-fixed file
++// included, this scanner's positive control below) freely asserts a
++// push()-fed counter right after one. Treating it as a trigger anyway was
++// this scanner's own first draft, and it flagged 17 already-safe sites in
++// the ONE file everyone agrees is already fixed — the false-positive rate
++// the positive control below exists to catch.
++const TRIGGER_RE = /(?:page\.waitForFunction\(|\.click\()/g;
++// Interposing ANY of these before the assert marks the pairing SAFE — each
++// either genuinely blocks on the Node-visible request/response
++// (waitForResponse/waitForLoadState), is this workstream's/WS-R181's own
++// bounded poller (awaitPending/awaitCount/boundedWaitMs), or is a locator
++// `.waitFor(` proving a server-confirmed render per the paragraph above.
++const SAFE_INTERPOSED_RE = /\b(?:awaitPending|awaitCount|boundedWaitMs)\s*\(|\.waitForResponse\(|\.waitForLoadState\(|\.waitFor\(/g;
++// The identifier immediately inside `assert.<method>(`, an optional leading
++// `await` skipped — whatever it is chained with after (`.length`,
++// `.filter(...)`, `.at(-1)`, a bare `,`) is deliberately NOT required here;
++// `fedByPushOrIncrement` below is what actually decides whether this
++// identifier is a counter worth caring about, so broadening the capture
++// costs nothing but catches the real shapes a stricter `IDENT.length`-only
++// pattern misses (`calls.filter(item => item.body.op === 'x').length`,
++// `calls.at(-1).body`, none of which have `.length` immediately after the
++// bare identifier).
++const ASSERT_RE = /assert\.\w+\(\s*(?:await\s+)?([A-Za-z_$][\w$]*)\b/g;
++// An assert of the exact shape `assert.deepEqual(IDENT, [])` (an EMPTY-array
++// check, whitespace-insensitive) — this codebase's own end-of-suite idiom
++// for "nothing unexpected happened at all" (`network`/`pageErrors`/`errors`/
++// `external`/`unexpected`/`surprises`/`issues`/`blocked`, each asserted `[]`
++// once, after every other await in the suite has already settled). Proving
++// an array is EMPTY needs no NEW event to have landed — unlike law 2's real
++// race (proving a counter already reflects an event that JUST happened), an
++// absence that has not manifested by the time every other awaited step in
++// the suite already finished isn't waiting on anything further, so this
++// shape is categorically not the same-tick race and is excluded rather than
++// mis-flagged as one (found empirically: every real occurrence of this
++// shape in the tree today is an end-of-suite diagnostic-array check).
++// Also generalised to `assert.equal(<expr>.length, 0)` — the identical
++// "prove nothing new happened" idiom spelled with a length-vs-zero compare
++// instead of a deepEqual-vs-`[]` one (this tree's own
++// `evals/personality-flow28/mounted.mjs`: `assert.equal(requests.slice(before)
++// .filter(r => r.token === 'synthetic-initial').length, 0)` — proving a
++// STALE token produced no further request, not that an expected one already
++// landed). Both shapes need no NEW event to have manifested by the time
++// every other awaited step in the statement has already settled.
++const EMPTY_OR_ZERO_ASSERT_RE = /assert\.\w+\([^,]*,\s*(?:\[\s*\]|0)\s*[,)]/;
++function assertsEmptyArray(cleanSrc, assertIndex) {
++  EMPTY_OR_ZERO_ASSERT_RE.lastIndex = 0;
++  const m = EMPTY_OR_ZERO_ASSERT_RE.exec(cleanSrc.slice(assertIndex, assertIndex + 160));
++  return Boolean(m && m.index === 0);
++}
++// Bookkeeping arrays/counters every suite in this style keeps for its own
++// pass/fail tally, console log or per-iteration RESULT record (pushed by the
++// suite's OWN synchronous code, never by a fake server/fetch handler
++// responding to a request) — asserting on these is not the race this
++// scanner exists for.
++const BOOKKEEPING_IDENTS = new Set(["checks", "errors", "cases", "logs", "warnings", "pass", "fail", "failed", "rows", "results"]);
++
++/** True when the trigger at `index` sits inside a `Promise.all([ ... ])` (or
++ *  `await Promise.all([ ... ])`) array literal that ALSO contains a real
++ *  network wait (`.waitForResponse(`/`.waitForLoadState(`) somewhere in the
++ *  same array — the idiom this codebase uses to pair a click with the
++ *  response it causes (`Promise.all([page.waitForResponse(...),
++ *  locator.click()])`), which genuinely blocks the enclosing `await` on the
++ *  Node-visible response even though the `.click(` token itself sits AFTER
++ *  `.waitForResponse(` in source order. Found by walking backward from
++ *  `index` for the nearest `Promise.all([`, then forward with bracket
++ *  counting for its matching `]`; a trigger with no enclosing `Promise.all([`
++ *  within reach is not reclassified. */
++function isInsideSafePromiseAll(cleanSrc, index) {
++  const opener = cleanSrc.lastIndexOf("Promise.all([", index);
++  if (opener === -1) return false;
++  const arrayStart = opener + "Promise.all(".length; // at the "["
++  let depth = 0;
++  let j = arrayStart;
++  for (; j < cleanSrc.length; j++) {
++    if (cleanSrc[j] === "[") depth++;
++    else if (cleanSrc[j] === "]") {
++      depth--;
++      if (depth === 0) break;
++    }
++  }
++  const arrayEnd = j; // index of the matching "]", or src.length if unterminated
++  if (index < arrayStart || index > arrayEnd) return false; // the trigger is not actually inside THIS array
++  const body = cleanSrc.slice(arrayStart, arrayEnd);
++  return /\.waitForResponse\(|\.waitForLoadState\(/.test(body);
++}
++
++// A local async helper's own definition, any shape this codebase writes:
++// `async function NAME(...) { ... }`, `const NAME = async (...) => { ... }`,
++// or `const NAME = async bareParam => { ... }` (a single unparenthesized
++// arrow parameter, this tree's own `action-focus/run.mjs#done` shape).
++const HELPER_DEF_RE = /(?:async\s+function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{|(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*async\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{)/g;
++
++/** The matching `}` for the `{` at `openBrace`, by depth counting — good
++ *  enough for this repo's real function bodies (no template-literal `${`
++ *  interpolation confusion, since `cleanSrc` is comment-stripped source and
++ *  a template literal's own braces still balance). */
++function matchingBrace(cleanSrc, openBrace) {
++  let depth = 0;
++  for (let j = openBrace; j < cleanSrc.length; j++) {
++    if (cleanSrc[j] === "{") depth++;
++    else if (cleanSrc[j] === "}") {
++      depth--;
++      if (depth === 0) return j;
++    }
++  }
++  return cleanSrc.length;
++}
++
++/** `[index, ...]` — the start of every CALL SITE (`NAME(`) of a locally
++ *  defined async helper whose OWN body directly contains a real network wait
++ *  or a bounded poller — the same "safe" shapes `SAFE_INTERPOSED_RE` already
++ *  recognizes at a call site, just one level of indirection down. This is
++ *  what keeps this scanner from blaming `.click()` for an assert that
++ *  actually follows `await ask(page)`, when `ask()`'s own body already does
++ *  `await page.getByText(...).waitFor()` before returning — a real shape in
++ *  this tree (`evals/publication-continuity-mounted.mjs`'s own `ask`), not
++ *  merely a hypothetical. Only ONE level of indirection is resolved (a safe
++ *  helper calling ANOTHER helper that is itself safe is not chased further);
++ *  every real occurrence in this tree today needs only one level. */
++function safeHelperCallSites(cleanSrc) {
++  const safeNames = new Set();
++  HELPER_DEF_RE.lastIndex = 0;
++  for (const m of cleanSrc.matchAll(HELPER_DEF_RE)) {
++    const name = m[1] || m[2];
++    const openBrace = m.index + m[0].length - 1;
++    const closeBrace = matchingBrace(cleanSrc, openBrace);
++    const body = cleanSrc.slice(openBrace, closeBrace);
++    if (SAFE_INTERPOSED_RE.test(body)) safeNames.add(name);
++    SAFE_INTERPOSED_RE.lastIndex = 0;
++  }
++  if (safeNames.size === 0) return [];
++  const callRe = new RegExp(`\\b(?:${[...safeNames].map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\s*\\(`, "g");
++  const sites = [];
++  for (const m of cleanSrc.matchAll(callRe)) sites.push(m.index);
++  return sites;
++}
++
++// Every local function/arrow BODY's own `[start, end)` brace span (any
++// shape: `function NAME(...) { }`, `const NAME = (...) => { }`, `const NAME
++// = async (...) => { }`, `const NAME = bareParam => { }`), sync or async.
++// Used only to SCOPE the nearest-preceding-op search below — never to decide
++// safety on its own — because a helper's OWN definition sits at some
++// arbitrary point in the file, textually "after" whatever trigger happened
++// to precede it, even though the helper is only ever REACHED later, at its
++// own call site. Without this, an assert written inside a helper's
++// definition (`const reset = () => { assert.equal(held.length, 0); ... }`,
++// this tree's own `evals/personality-flow28/mounted.mjs#reset`) gets blamed
++// for a completely unrelated trigger that merely happens to sit earlier in
++// the file, when the real question — was `reset()`'s OWN call site properly
++// guarded — is a different, well-covered concern (every real call site is
++// itself scanned when its surrounding statement is walked).
++const ANY_FUNC_BODY_RE = /(?:function\s+[A-Za-z_$][\w$]*\s*\([^)]*\)\s*\{|(?:const|let)\s+[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{)/g;
++function functionBodyRanges(cleanSrc) {
++  const ranges = [];
++  ANY_FUNC_BODY_RE.lastIndex = 0;
++  for (const m of cleanSrc.matchAll(ANY_FUNC_BODY_RE)) {
++    const openBrace = m.index + m[0].length - 1;
++    const closeBrace = matchingBrace(cleanSrc, openBrace);
++    ranges.push([openBrace, closeBrace]);
++  }
++  return ranges;
++}
++/** The SMALLEST (innermost) range in `ranges` that contains `index`, or
++ *  `null` if `index` sits at top level, outside every function body. */
++function innermostRange(ranges, index) {
++  let best = null;
++  for (const r of ranges) {
++    if (index >= r[0] && index < r[1] && (!best || r[1] - r[0] < best[1] - best[0])) best = r;
++  }
++  return best;
++}
++
++/** `[{ identifier, index }]` — one entry per same-tick pairing found.
++ *  `cleanSrc` must already be comment-stripped by the caller.
++ *  `fedByPushOrIncrement` decides whether a captured identifier is plausibly
++ *  a fake-server/fetch-filled counter (callers pass the real per-file check,
++ *  tests pass a stub).
++ *
++ *  Algorithm: walk every assert in source order and look at the NEAREST
++ *  preceding operation of either kind (trigger or safe-interposed) —
++ *  whichever gates that particular assert, not merely whichever trigger
++ *  happens to sit within some fixed character budget of it. This is what
++ *  makes the scanner agree with a file where a click is followed by a LATER,
++ *  unrelated, already-safe wait before the assert that actually matters: the
++ *  nearest op to the assert is the safe one, so the earlier click is
++ *  correctly not blamed for it. The search is further SCOPED to the assert's
++ *  own innermost function body (see `functionBodyRanges` above): an op
++ *  outside that scope never gates an assert inside it, and vice versa. */
++export function findSameTickAsserts(cleanSrc, fedByPushOrIncrement) {
++  const ops = [];
++  for (const m of cleanSrc.matchAll(TRIGGER_RE)) ops.push({ index: m.index, safe: isInsideSafePromiseAll(cleanSrc, m.index) });
++  for (const m of cleanSrc.matchAll(SAFE_INTERPOSED_RE)) ops.push({ index: m.index, safe: true });
++  for (const index of safeHelperCallSites(cleanSrc)) ops.push({ index, safe: true });
++  ops.sort((a, b) => a.index - b.index);
++  const ranges = functionBodyRanges(cleanSrc);
++
++  const hits = [];
++  for (const assertMatch of cleanSrc.matchAll(ASSERT_RE)) {
++    const scope = innermostRange(ranges, assertMatch.index);
++    let nearest = null;
++    for (const op of ops) {
++      if (op.index >= assertMatch.index) break;
++      if (scope && (op.index < scope[0] || op.index >= scope[1])) continue; // outside the assert's own scope
++      nearest = op;
++    }
++    if (!nearest || nearest.safe) continue; // no gating op in scope, or the nearest one is safe
++    const identifier = assertMatch[1];
++    if (BOOKKEEPING_IDENTS.has(identifier)) continue;
++    if (assertsEmptyArray(cleanSrc, assertMatch.index)) continue;
++    if (!fedByPushOrIncrement(identifier)) continue;
++    hits.push({ identifier, index: assertMatch.index });
++  }
++  return hits;
++}
++
++/** Whether `identifier` is written to by a `.push(` call or an increment
++ *  (`++`/`+= 1`) anywhere in this (comment-stripped) file — the file-level
++ *  proof that it is a counter a handler fills, not a DOM/page-side read. */
++export function identifierIsPushedOrIncremented(cleanSrc, identifier) {
++  const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
++  const pushRe = new RegExp(`\\b${escaped}\\s*\\.push\\s*\\(`);
++  const incRe = new RegExp(`\\b${escaped}\\s*(?:\\+\\+|\\+=\\s*1\\b)`);
++  return pushRe.test(cleanSrc) || incRe.test(cleanSrc);
++}
++
++// A literal ms value of 10 seconds or more, as `timeout: <N>` (Playwright's
++// own option shape). `boundedWaitMs(` immediately as the value is exempted —
++// that IS the fix. Values under 10 000 are left alone: a short click/network
++// timeout is not the "first render or navigation" barrier class this
++// workstream targets, and flagging every short wait would bury the two real
++// barrier classes in noise.
++const FIXED_TIMEOUT_RE = /timeout\s*:\s*(boundedWaitMs\([^)]*\)|\d[\d_]*)/g;
++
++/** `[{ ms, index }]` — one entry per literal (non-`boundedWaitMs`) timeout
++ *  of 10 000ms or more found in `cleanSrc`. */
++export function findFixedBarriers(cleanSrc) {
++  const hits = [];
++  for (const m of cleanSrc.matchAll(FIXED_TIMEOUT_RE)) {
++    const raw = m[1];
++    if (raw.startsWith("boundedWaitMs")) continue;
++    const ms = Number(raw.replace(/_/g, ""));
++    if (Number.isFinite(ms) && ms >= 10_000) hits.push({ ms, index: m.index });
++  }
++  return hits;
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// §1 — NEGATIVE CONTROL: a synthetic offending file, one instance of each
++// shape, must be caught by both detectors.
++// ═════════════════════════════════════════════════════════════════════════
++console.log("── §1: negative control — a synthetic offending file is caught ──");
++{
++  const OFFENDING = [
++    "const pending = [];",
++    "server = createServer((req, res) => { pending.push(() => res.end('{}')); });",
++    "await page.waitForFunction(() => document.querySelector('button').disabled === true);",
++    "assert.equal(pending.length, 1);",
++    "await page.waitForFunction(() => true, { timeout: 20_000 });",
++  ].join("\n");
++  const clean = stripComments(OFFENDING);
++  const sameTick = findSameTickAsserts(clean, (id) => identifierIsPushedOrIncremented(clean, id));
++  ok("NEGATIVE CONTROL: the same-tick assert on a push()-fed Node counter is caught",
++    sameTick.length === 1 && sameTick[0].identifier === "pending");
++  const barriers = findFixedBarriers(clean);
++  ok("NEGATIVE CONTROL: the fixed 20s literal timeout is caught", barriers.length === 1 && barriers[0].ms === 20_000);
++
++  // A comment DESCRIBING the trap (this file's own header does, at length)
++  // must never itself trip the scanner — the exact class of bug
++  // `evals/lib/source-scan.mjs` exists to prevent
++  // (context/rejected.md#ws-r127-own-eval-static-scan-tripped-by-its-own-prose).
++  const COMMENTED = [
++    "// BAD SHAPE, do not write this: await page.waitForFunction(() => true);",
++    "// assert.equal(pending.length, 1); // pending.push(() => {}) fills it",
++    "const real = 1;",
++  ].join("\n");
++  const cleanCommented = stripComments(COMMENTED);
++  const sameTickCommented = findSameTickAsserts(cleanCommented, (id) => identifierIsPushedOrIncremented(cleanCommented, id));
++  ok("NEGATIVE CONTROL (comment immunity): the identical shape written only inside a comment is not flagged",
++    sameTickCommented.length === 0);
++
++  // A same-tick assert already guarded by a bounded wait is SAFE and must
++  // not be flagged — the exact fixed shape `awaitPending` in
++  // `evals/teacher-sheet-publication/mounted.mjs` is.
++  const FIXED_SHAPE = [
++    "const pending = [];",
++    "server = createServer((req, res) => { pending.push(() => res.end('{}')); });",
++    "await page.waitForFunction(() => document.querySelector('button').disabled === true);",
++    "await awaitPending(1);",
++  ].join("\n");
++  const cleanFixed = stripComments(FIXED_SHAPE);
++  const sameTickFixed = findSameTickAsserts(cleanFixed, (id) => identifierIsPushedOrIncremented(cleanFixed, id));
++  ok("NEGATIVE CONTROL (already fixed): a same-tick assert interposed with awaitPending() is not flagged",
++    sameTickFixed.length === 0);
++
++  // A helper function whose OWN body already does a real round-trip-proving
++  // wait is safe to call before a same-tick assert, one level of
++  // indirection down — the real shape
++  // `evals/publication-continuity-mounted.mjs`'s own `ask()` is (fill,
++  // click, then `.waitFor()` on the reply text before returning).
++  const HELPER_SHAPE = [
++    "const posts = [];",
++    "server = createServer((req, res) => { posts.push(1); res.end('{}'); });",
++    "async function ask(page) { await page.locator('button').click(); await page.getByText('done').waitFor(); }",
++    "await page.locator('button').click();",
++    "await ask(page);",
++    "assert.equal(posts.length, 1);",
++  ].join("\n");
++  const cleanHelper = stripComments(HELPER_SHAPE);
++  const sameTickHelper = findSameTickAsserts(cleanHelper, (id) => identifierIsPushedOrIncremented(cleanHelper, id));
++  ok("NEGATIVE CONTROL (safe helper indirection): an assert after calling a helper whose own body already waits on a server-confirmed render is not flagged",
++    sameTickHelper.length === 0);
++
++  // The helper indirection control above must not blind the scanner to a
++  // DIFFERENT, genuinely unsafe call sitting right next to a safe helper —
++  // a helper name matching is not a blanket amnesty for the whole file.
++  const HELPER_SHAPE_STILL_UNSAFE = [
++    "const posts = [];",
++    "server = createServer((req, res) => { posts.push(1); res.end('{}'); });",
++    "async function ask(page) { await page.locator('button').click(); await page.getByText('done').waitFor(); }",
++    "await page.locator('#other').click();",
++    "assert.equal(posts.length, 1);",
++  ].join("\n");
++  const cleanStillUnsafe = stripComments(HELPER_SHAPE_STILL_UNSAFE);
++  const sameTickStillUnsafe = findSameTickAsserts(cleanStillUnsafe, (id) => identifierIsPushedOrIncremented(cleanStillUnsafe, id));
++  ok("NEGATIVE CONTROL (helper indirection is not a blanket amnesty): an unrelated unsafe click right before the assert is still caught",
++    sameTickStillUnsafe.length === 1);
++
++  const cleanBoundedBarrier = stripComments("await x.waitFor({ timeout: boundedWaitMs(20_000) });");
++  ok("NEGATIVE CONTROL (already fixed): a boundedWaitMs(...) timeout is not flagged as a fixed barrier",
++    findFixedBarriers(cleanBoundedBarrier).length === 0);
++
++  // An end-of-suite EMPTY-array diagnostic check ("nothing unexpected
++  // happened") is a different shape from law 2's real race (proving a
++  // counter already reflects an event that JUST happened) and must not be
++  // flagged even though it textually matches "wait-then-assert-on-a-
++  // push()-fed-identifier" — see EMPTY_ARRAY_ASSERT_RE's own header.
++  const DIAGNOSTIC_EMPTY_CHECK = [
++    "const network = [];",
++    "page.on('requestfailed', (r) => network.push(r.url()));",
++    "await page.locator('button').click();",
++    "await page.getByText('Done').waitFor();",
++    "assert.deepEqual(network, []);",
++  ].join("\n");
++  const cleanDiag = stripComments(DIAGNOSTIC_EMPTY_CHECK);
++  const sameTickDiag = findSameTickAsserts(cleanDiag, (id) => identifierIsPushedOrIncremented(cleanDiag, id));
++  ok("NEGATIVE CONTROL (diagnostic empty-array check): an end-of-suite assert.deepEqual(IDENT, []) is not flagged",
++    sameTickDiag.length === 0);
++}
++
++// ═════════════════════════════════════════════════════════════════════════
++// §2 — the real sweep, every browser suite in the tree.
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── §2: the real sweep — every browser suite ──");
++
++/** Every `.mjs` file under `evals/` (archive excluded — a frozen snapshot,
++ *  not something this workstream can edit or re-gate) that launches a real
++ *  browser, found the same way a human would: it imports Playwright or this
++ *  repo's own shared launcher. */
++function findBrowserSuiteFiles(dir, out = []) {
++  for (const entry of readdirSync(dir)) {
++    if (entry === "archive" || entry === "node_modules") continue;
++    const full = join(dir, entry);
++    const st = statSync(full);
++    if (st.isDirectory()) {
++      findBrowserSuiteFiles(full, out);
++    } else if (entry.endsWith(".mjs")) {
++      const src = readFileSync(full, "utf8");
++      if (/from\s+["']playwright["']|launchSuiteBrowser\(|launchRehearsalBrowser\(/.test(src)) out.push(full);
++    }
++  }
++  return out;
++}
++
++const BROWSER_SUITE_FILES = findBrowserSuiteFiles(EVALS).sort();
++ok("at least one browser suite file was found (the sweep is reaching real files)", BROWSER_SUITE_FILES.length > 10, `${BROWSER_SUITE_FILES.length} files`);
++
++let totalSameTick = 0;
++let totalBarriers = 0;
++for (const file of BROWSER_SUITE_FILES) {
++  const rel = relative(REPO, file);
++  const clean = stripComments(readFileSync(file, "utf8"));
++  const sameTick = findSameTickAsserts(clean, (id) => identifierIsPushedOrIncremented(clean, id));
++  ok(`[same-tick] ${rel} has no browser-wait-then-same-tick-Node-assert`, sameTick.length === 0,
++    sameTick.length ? `${sameTick.length} site(s): ${sameTick.map((h) => h.identifier).join(", ")}` : "");
++  totalSameTick += sameTick.length;
++
++  // Law 3's fixed-barrier check applies only to the two named classes: the
++  // rehearsals (evals/rehearsal/*.mjs) and the mounted.mjs suites — first-
++  // render/navigation barriers in the browser-driven walk-throughs, not
++  // every short click timeout anywhere in the eval tree.
++  const isRehearsal = rel.startsWith("evals/rehearsal/") && rel.endsWith(".mjs") && rel !== "evals/rehearsal/browser.mjs";
++  const isMounted = /\/mounted\.mjs$/.test(rel);
++  if (isRehearsal || isMounted) {
++    const barriers = findFixedBarriers(clean);
++    ok(`[fixed-barrier] ${rel} has no unscaled literal timeout >= 10s`, barriers.length === 0,
++      barriers.length ? `${barriers.length} site(s): ${barriers.map((h) => `${h.ms}ms`).join(", ")}` : "");
++    totalBarriers += barriers.length;
++  }
++}
++console.log(`  swept ${BROWSER_SUITE_FILES.length} browser suite files: ${totalSameTick} same-tick finding(s), ${totalBarriers} unscaled fixed-barrier finding(s)`);
++
++// ═════════════════════════════════════════════════════════════════════════
++// §3 — POSITIVE CONTROL: the suite this workstream is named for is clean.
++// ═════════════════════════════════════════════════════════════════════════
++console.log("\n── §3: positive control — the fixed teacher-sheet-publication suite ──");
++{
++  const file = join(EVALS, "teacher-sheet-publication/mounted.mjs");
++  const clean = stripComments(readFileSync(file, "utf8"));
++  const sameTick = findSameTickAsserts(clean, (id) => identifierIsPushedOrIncremented(clean, id));
++  ok("POSITIVE CONTROL: teacher-sheet-publication-ui's awaitPending fix reports zero same-tick findings",
++    sameTick.length === 0, sameTick.map((h) => h.identifier).join(", "));
++}
++
++console.log(`\nsame-tick-scan: ${pass} passed, ${fail} failed`);
++process.exit(fail ? 1 : 0);
+diff --git a/evals/teacher-sheet-edit-races/run.mjs b/evals/teacher-sheet-edit-races/run.mjs
+index 9e5968e..8a2fc94 100644
+--- a/evals/teacher-sheet-edit-races/run.mjs
++++ b/evals/teacher-sheet-edit-races/run.mjs
+@@ -9,13 +9,17 @@ import {createServer} from 'node:http';
+ import {createHash} from 'node:crypto';
+ import {build} from 'vite';
+ import {chromium} from 'playwright';
+-import {boundedWaitMs} from '../lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
++// WS-R190: `awaitCount` replaces this file's own local, fixed-8s busy-poll
++// (`until`) with the shared, load-scaled poller —
++// `evals/same-tick-scan/run.mjs`'s own law, "never a per-suite copy".
++// `boundedWaitMs` (WS-R181) scales the fixed Playwright action timeout by
++// machine load.
++import {awaitCount,boundedWaitMs} from '../lib/bounded-wait.mjs';
+ const root=fileURLToPath(new URL('../../',import.meta.url)),art=join(root,'scratchpad/editor-edit-races',String(Date.now()));mkdirSync(art,{recursive:true});
+ const rid='10000000-0000-4000-8000-000000000001',sheetId='20000000-0000-4000-8000-000000000001';
+ const initial={name:'Anjali',identityWho:'Physics teacher',subjectDomain:'physics',syllabusScope:'Saved scope A',subjectStrands:['Kinematics'],doubtEscalationLadder:['First hint'],strictness:2,warmth:3,identityLife:'Teaching life',boundaryParagraph:{retain:'raw boundary'},analogyBank:[null],unknownOwnerField:{retain:['exact',null,7]}};
+ const old=JSON.parse(readFileSync(join(root,'evals/teacher-sheet-edit-races/old-editors.json'),'utf8'));for(const lane of ['creatorStudio','studio'])assert.equal(createHash('sha256').update(old.files[lane]).digest('hex'),old.hashes[lane]);
+ let raw,mode,posts,gets,pending=[],browser,server,published=false;const checks=[],errors=[];
+-const until=async fn=>{const end=Date.now()+8000;while(!fn()){if(Date.now()>end)throw Error('fixture request barrier timed out');await new Promise(r=>setTimeout(r,10));}};
+ const check=n=>{checks.push(n);console.log(`ok ${checks.length} - ${n}`);};
+ try{
+  const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:join(root,'evals/teacher-sheet-edit-races/host.html')}},plugins:[{name:'retained-exact-editors',resolveId(id){if(id==='virtual:old-race-creator')return '\0old-race-creator.tsx';if(id==='virtual:old-race-studio')return '\0old-race-studio.tsx';},load(id){const lane=id==='\0old-race-creator.tsx'?'creatorStudio':id==='\0old-race-studio.tsx'?'studio':null;if(lane)return old.files[lane].replace(/(from\s*|import\s*|import\()(["'])(\.\.?\/[^"']+)\2/g,(_,prefix,q,path)=>prefix+q+resolve(root,'src',lane,path).replaceAll('\\','/')+q);}}]});
+@@ -45,29 +49,29 @@ try{
+   for(const lane of ['creator','studio']){
+    // Each old behavior executes in the actual preserved component before its corresponding new assertion.
+    for(const legacy of [true,false]){
+-    await open(lane,legacy);mode='hold-load';await load().click();await until(()=>pending.length===1);await page.locator('#syllabus-scope').fill('Newer owner edit B');if(!legacy){assert(await save().isDisabled());assert.equal(await page.locator('#teacher-sheet-studio').getAttribute('aria-busy'),'true');}
++    await open(lane,legacy);mode='hold-load';await load().click();assert.equal(await awaitCount(()=>pending.length,1),1);await page.locator('#syllabus-scope').fill('Newer owner edit B');if(!legacy){assert(await save().isDisabled());assert.equal(await page.locator('#teacher-sheet-studio').getAttribute('aria-busy'),'true');}
+     await settle();assert.equal(await page.locator('#syllabus-scope').inputValue(),legacy?'Saved scope A':'Newer owner edit B');assert.equal(posts.length,0);
+     if(!legacy){await page.getByText('Your newer edits were kept. The saved draft was not loaded.',{exact:true}).waitFor();mode='normal';await saveNow();assert.deepEqual(posts[0].draft,{...initial,syllabusScope:'Newer owner edit B'});}
+     check(`${width}/${lane}/${legacy?'old negative':'current'}: held GET versus scalar edit`);
+    }
+    const malformed={...initial,subjectStrands:'malformed chapters',doubtEscalationLadder:[null]};
+    for(const legacy of [true,false]){
+-    await open(lane,legacy,malformed);mode='hold-load';await load().click();await until(()=>pending.length===1);await page.getByRole('button',{name:'Replace chapter list',exact:true}).click();await page.getByRole('button',{name:'Replace doubt steps',exact:true}).click();assert(await page.locator('.create-row input').evaluate(el=>el===document.activeElement));await settle();
++    await open(lane,legacy,malformed);mode='hold-load';await load().click();assert.equal(await awaitCount(()=>pending.length,1),1);await page.getByRole('button',{name:'Replace chapter list',exact:true}).click();await page.getByRole('button',{name:'Replace doubt steps',exact:true}).click();assert(await page.locator('.create-row input').evaluate(el=>el===document.activeElement));await settle();
+     assert.equal(await page.getByRole('button',{name:'Replace chapter list',exact:true}).count(),legacy?1:0);assert.equal(await page.locator('.create-row input').isDisabled(),legacy);mode='normal';await saveNow();assert.deepEqual(posts[0].draft,legacy?malformed:{...malformed,subjectStrands:[],doubtEscalationLadder:[]});check(`${width}/${lane}/${legacy?'old negative':'current'}: held GET versus explicit malformed-list replacements preserves hidden raw values`);
+    }
+-   await open(lane);mode='hold-save';await save().evaluate(el=>{el.click();el.click();});await until(()=>pending.length===1);assert.equal(posts.length,1);assert(await load().isDisabled());await page.locator('#syllabus-scope').fill('Newer edit after POST');await settle();await page.getByText('Earlier edits saved. Your newer edits still need saving.',{exact:true}).waitFor();assert.equal(raw.syllabusScope,initial.syllabusScope);assert.equal(await page.locator('#syllabus-scope').inputValue(),'Newer edit after POST');mode='normal';await saveNow();assert.equal(raw.syllabusScope,'Newer edit after POST');await page.locator('#syllabus-scope').fill('Another unsaved edit');assert.equal(await page.getByText('Sheet draft saved.',{exact:true}).count(),0);check(`${width}/${lane}: save revision notice, no duplicate POST and mutually exclusive load`);
++   await open(lane);mode='hold-save';await save().evaluate(el=>{el.click();el.click();});assert.equal(await awaitCount(()=>pending.length,1),1);assert.equal(posts.length,1);assert(await load().isDisabled());await page.locator('#syllabus-scope').fill('Newer edit after POST');await settle();await page.getByText('Earlier edits saved. Your newer edits still need saving.',{exact:true}).waitFor();assert.equal(raw.syllabusScope,initial.syllabusScope);assert.equal(await page.locator('#syllabus-scope').inputValue(),'Newer edit after POST');mode='normal';await saveNow();assert.equal(raw.syllabusScope,'Newer edit after POST');await page.locator('#syllabus-scope').fill('Another unsaved edit');assert.equal(await page.getByText('Sheet draft saved.',{exact:true}).count(),0);check(`${width}/${lane}: save revision notice, no duplicate POST and mutually exclusive load`);
+    await open(lane);await page.locator('#syllabus-scope').fill('Committed but response lost');mode='lost-save';await saveNow();await page.getByText('Saving could not be confirmed. Your edits remain here. Load the saved draft to check.',{exact:true}).waitFor();assert.equal(posts.length,1);assert.equal(raw.syllabusScope,'Committed but response lost');mode='normal';await loadNow();assert.equal(await page.locator('#syllabus-scope').inputValue(),'Committed but response lost');assert.equal(posts.length,1);check(`${width}/${lane}: uncertain save recovered by explicit GET without retry`);
+    for(const kind of ['normal','ignored','failed-load']){
+     await open(lane);published=true;await page.locator('.teacher-sheet-publication button').click();await page.locator('.teacher-sheet-publication a').waitFor();const before=gets.filter(r=>r.url.includes('publication_review')).length;
+-    mode=kind==='failed-load'?'failed-load':'hold-load';if(kind==='failed-load')await loadNow();else{await load().click();await until(()=>pending.length===1);assert.equal(await page.locator('.teacher-sheet-publication a').count(),0);if(kind==='ignored'){await page.locator('#syllabus-scope').fill('Temporary edit');await page.locator('#syllabus-scope').fill(initial.syllabusScope);}await settle();}
++    mode=kind==='failed-load'?'failed-load':'hold-load';if(kind==='failed-load')await loadNow();else{await load().click();assert.equal(await awaitCount(()=>pending.length,1),1);assert.equal(await page.locator('.teacher-sheet-publication a').count(),0);if(kind==='ignored'){await page.locator('#syllabus-scope').fill('Temporary edit');await page.locator('#syllabus-scope').fill(initial.syllabusScope);}await settle();}
+     await page.locator('.teacher-sheet-publication button').waitFor();assert.equal(await page.locator('.teacher-sheet-publication a').count(),0);assert.equal(gets.filter(r=>r.url.includes('publication_review')).length,before);assert.equal(posts.length,0);check(`${width}/${lane}: ${kind} same-JSON load still invalidates publication without automatic review`);
+    }
+    for(const kind of ['token','replica','hide']){
+-    await open(lane);mode='late-auth';await load().click();await until(()=>pending.length===1);await page.locator('#syllabus-scope').fill('Current editing survives');await page.evaluate(kind=>window.editorRaceProbe[kind](),kind);pending.shift()();await page.waitForLoadState('networkidle');assert.equal(await page.evaluate(()=>Boolean(window.editorRaceAuthError)),false);if(kind==='token')assert.equal(await page.locator('#syllabus-scope').inputValue(),'Current editing survives');if(kind==='replica')assert.equal(await page.locator('#syllabus-scope').inputValue(),initial.syllabusScope);if(kind==='hide')assert.equal(await page.locator('#teacher-sheet-studio').count(),0);check(`${width}/${lane}: late old auth error after ${kind} cannot change current editor or invoke callback`);
++    await open(lane);mode='late-auth';await load().click();assert.equal(await awaitCount(()=>pending.length,1),1);await page.locator('#syllabus-scope').fill('Current editing survives');await page.evaluate(kind=>window.editorRaceProbe[kind](),kind);pending.shift()();await page.waitForLoadState('networkidle');assert.equal(await page.evaluate(()=>Boolean(window.editorRaceAuthError)),false);if(kind==='token')assert.equal(await page.locator('#syllabus-scope').inputValue(),'Current editing survives');if(kind==='replica')assert.equal(await page.locator('#syllabus-scope').inputValue(),initial.syllabusScope);if(kind==='hide')assert.equal(await page.locator('#teacher-sheet-studio').count(),0);check(`${width}/${lane}: late old auth error after ${kind} cannot change current editor or invoke callback`);
+    }
+    await open(lane);await page.locator('.teacher-sheet-ingested summary').focus();await page.keyboard.press('Space');const before=[gets.length,posts.length];await page.locator('.teacher-sheet-ingested summary').focus();await page.keyboard.press('Enter');assert.deepEqual([gets.length,posts.length],before);await page.screenshot({path:join(art,`${width}-${lane}.png`)});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);check(`${width}/${lane}: native disclosure keyboard and viewport remain intact`);
+   }
+-  await open('creator',false,initial,true);mode='hold-load';await load().click();await until(()=>pending.length===1);await page.locator('#syllabus-scope').fill('नए बदलाव');await settle();await page.getByText('आपके नए बदलाव रखे गए हैं। सहेजा हुआ ड्राफ्ट लोड नहीं किया गया।',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);check(`${width}: Hindi newer-edit status fits`);
++  await open('creator',false,initial,true);mode='hold-load';await load().click();assert.equal(await awaitCount(()=>pending.length,1),1);await page.locator('#syllabus-scope').fill('नए बदलाव');await settle();await page.getByText('आपके नए बदलाव रखे गए हैं। सहेजा हुआ ड्राफ्ट लोड नहीं किया गया।',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);check(`${width}: Hindi newer-edit status fits`);
+   await context.close();
+  }
+  assert.deepEqual(errors,[]);writeFileSync(join(art,'result.json'),JSON.stringify({at:new Date().toISOString(),checks,errors,oldHashes:old.hashes,sourceHashes:Object.fromEntries(['src/studio/TeacherSheetStudio.tsx','src/creatorStudio/TeacherSheetStudio.tsx','src/creatorStudio/copy.ts','src/creatorStudio/hiCopy.ts'].map(f=>[f,createHash('sha256').update(readFileSync(join(root,f))).digest('hex')])),scope:'Actual mounted editors, native controls and API clients; synthetic HTTP only, no full Studio shell/SQL/provider or publication permission acceptance.'},null,2));console.log(`PASS ${checks.length} groups; ${art}`);

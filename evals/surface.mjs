@@ -40,8 +40,9 @@
 // suite is asserting against their case and not against a paraphrase of it.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 let pass = 0;
 const failures = [];
@@ -56,6 +57,7 @@ const ok = (name, cond, detail = "") => {
 };
 
 const engine = await import("../api/_engine.gen.js");
+const { DEMO_TEACHER } = await import("./.bundle.mjs");
 const surface = await import("../api/_surface.js");
 const { gatedReply, gateReply, honestyContextFor, deliver, makeCtx, splitForLimit } = surface;
 
@@ -83,8 +85,9 @@ const adapter = {
 // depends on surviving the gate, because family 1's allowlist is built FROM
 // the brief: if the helplines were not trusted text, the gate would strip the
 // crisis numbers, which is a failure this repo has already paid for once.
+const TRUSTED_CONTACT_LINES = DEMO_TEACHER.crisisLines;
 const compiledFor = (extra = "") => ({
-  core: `you are meera.\n${engine.CRISIS_LINES}\n${extra}`,
+  core: `you are a synthetic expert fixture.\n${TRUSTED_CONTACT_LINES}\n${extra}`,
   tail: "recent context.",
   sections: {},
 });
@@ -262,12 +265,12 @@ console.log("\n── 3. the negative controls — a clean reply is not touched 
   // The safety floor. `check-prompt-budget.mjs` exists because truncation ate
   // the helplines once; a gate that stripped them would be the same loss by a
   // different mechanism. They are in the brief, so they are trusted text.
-  const helpline = engine.CRISIS_LINES.split("\n").find((l) => /\d{3}/.test(l))?.trim();
+  const helpline = TRUSTED_CONTACT_LINES.split("\n").find((l) => /\d{3}/.test(l))?.trim();
   if (helpline) {
     const r = await gatedReply(ctxFor(helpline), compiledFor(), turns, { record });
-    ok("a published crisis helpline survives the gate", r.text === helpline, r.text);
+    ok("the teacher's published crisis helplines survive the gate", r.text === helpline, r.text);
   } else {
-    ok("a published crisis helpline survives the gate", false, "no numeric line found in CRISIS_LINES");
+    ok("the teacher's published crisis helplines survive the gate", false, "no numeric line found in teacher crisis material");
   }
 }
 
@@ -453,8 +456,8 @@ console.log("\n── 7. STATIC — no path emits model text around the gate ─
     [
       "a second, ungated ctx.reply call site",
       SURFACE_SRC.replace(
-        "  const history = await roomHistory(room.id, ctx.t);",
-        "  const history = await roomHistory(room.id, ctx.t);\n  const sneaky = await ctx.reply(compiled, history);",
+        "  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);",
+        "  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);\n  const sneaky = await ctx.reply(compiled, history);",
       ),
       (src) => [...src.matchAll(/ctx\.reply\(/g)].length !== 1,
     ],
@@ -569,7 +572,7 @@ console.log("\n── 8. STATIC — the room binding is (surface, surface_chat_i
   const BIND_DEFECTS = [
     [
       "a legacy lookup that forgot which surface it is on",
-      SURFACE_SRC.replace('  if (surface !== "telegram") return null;\n', ""),
+      SURFACE_SRC.replace('  if (surface !== "telegram") return null;', ""),
       (src) => {
         const f = src.slice(src.indexOf("export function legacyChatId("), src.indexOf("export const legacyUserId"));
         return !/surface\s*!==\s*"telegram"/.test(f);

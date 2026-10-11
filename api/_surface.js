@@ -43,7 +43,14 @@
 // A degraded persona that still replies is the `silent-truncation` shape — it
 // works, everything returns 200, and she is quietly someone else.
 import { q } from "./_db.js";
+import { replyEngineCapability } from "./_reply-engine-capability.js";
+import { createProductionRoomReplyGenerator } from "./_dialogue/registry.js";
 import { MEERA_AGENT_ID } from "./_agentscope.js";
+// WS-R4. The owner's "Never say this" rules, as a predicate on the assembled
+// reply. `api/_never-rules.js` imports NOTHING, on purpose: this file is on
+// every surface's reply path and must not gain a transitive dependency on
+// storage config or a database client to enforce an owner's rule.
+import { replyViolatesNeverRule } from "./_never-rules.js";
 import {
   setReadConsent,
   setQuiet,
@@ -161,6 +168,13 @@ const ident = (n) => n;
  *           Does this inbound event mean "link me"? Telegram's `/start r<id>`
  *           deep link is the shipped instance; a surface without deep links
  *           returns null and links on first contact instead.
+ * @property {*} [agent]
+ *           The AgentModule that answers on this wire, or null for Meera's
+ *           compile-time default. Set by `api/_clonechannel.js`'s inbound
+ *           resolution — see the CLONE BINDING note below.
+ * @property {string} [agentId]
+ *           The uuid the same clone's rows are written under. Defaults to
+ *           MEERA_AGENT_ID so every existing lane is byte-identical.
  * @property {(roomId:number)=>string|null} [linkFor]
  *           A URL that onboards a room member, for the room card's button.
  *           Null on surfaces with no deep-link mechanic — the card still goes,
@@ -212,6 +226,40 @@ export const withdrawReceipt = (n) =>
 export const NOTICED_EMOJI = "👀";
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE CLONE BINDING (Gurukul WS-N) — why `agent` and `agentId` are on ctx
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Everything in this file used to answer as exactly one agent. Not by a
+// setting — by a CONSTANT: `MEERA_AGENT_ID` appeared in the two writers below,
+// and `compile()` took no `agent`, so it fell to the engine's default. That is
+// correct for a product with one persona and it is precisely why a second
+// clone on Telegram was a code change.
+//
+// The generalization is two fields on ctx and nothing else:
+//
+//   ctx.agent    the AgentModule that answers here, or null for the default
+//   ctx.agentId  the uuid its rows are written under, defaulting to Meera's
+//
+// Both are resolved by `api/_clonechannel.js` AT THE HTTP EDGE, from
+// `vy_clone_channel`, before an event reaches `dispatch()`. This file does not
+// know how that resolution works and must never learn: a surface layer that
+// could decide WHICH clone answers is a surface layer that has become a
+// tenancy boundary, and docs/SURFACES.md §0's first sentence is that a surface
+// scopes nothing.
+//
+// WHAT DID NOT CHANGE, and is the load-bearing half:
+//
+//   - `vy_surface_identity` still has no `agent_id`. Identity resolution is
+//     agent-independent (§4). The agent enters at RETRIEVAL — which is what
+//     `ctx.agentId` reaching the two writers below actually means.
+//   - `gatedReply()` is still the ONLY call site of `ctx.reply` in this file.
+//     A clone inherits every honesty family for free, and cannot opt out,
+//     because there is no second door.
+//   - Defaults are Meera's, so every existing lane compiles the same bytes.
+//     `evals/surface.mjs` and `evals/mp/tgbot.mjs` are the proof of that, and
+//     they were not edited for this change.
+
+// ─────────────────────────────────────────────────────────────────────────
 // THE ENGINE
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -237,32 +285,17 @@ export async function loadEngine() {
  *  byte-stable core rides as `system` (prompt-cached) and the volatile part as
  *  `system_tail`. One copy for every surface — a second copy is a second set
  *  of sampling parameters nobody remembers to keep in step. */
-export async function think(engine, compiled, turns) {
-  const key = process.env.OPENROUTER_API_KEY || "";
-  const body = {
-    model: "google/gemini-3.6-flash",
-    messages: [
-      {
-        role: "system",
-        content: [
-          { type: "text", text: compiled.core.slice(0, 64_000), cache_control: { type: "ephemeral" } },
-          { type: "text", text: compiled.tail.slice(0, 24_000) },
-        ],
-      },
-      ...turns.slice(-40),
-    ],
-    max_tokens: 400,
-    reasoning: { effort: "low" },
-  };
-  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Title": "Meera" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30_000),
-  }).catch(() => null);
-  if (!r || !r.ok) return "";
-  const j = await r.json().catch(() => ({}));
-  return j?.choices?.[0]?.message?.content ?? "";
+export async function think(engine, compiled, turns, options = {}) {
+  const env = options.env || process.env;
+  const capability = replyEngineCapability(env);
+  if (!capability.available) return "";
+  const generator = createProductionRoomReplyGenerator({
+    env,
+    db: options.db || q,
+    fetchImpl: options.fetchImpl || globalThis.fetch,
+    requestKey: options.requestKey,
+  });
+  return generator.generate({ compiled, turns, signal: options.signal });
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -318,12 +351,38 @@ export async function think(engine, compiled, turns) {
  *                 she may retell. NOT the brief, which mentions half the world
  *                 and would make the check vacuous.
  */
+/**
+ * WS-R111: the material block's own lines are excluded from `trustedText`.
+ * `context/rejected.md#ws-r105-no-material-instruction-boundary-in-the-compiler`
+ * measured a secret-shaped string placed in a sheet field reaching the
+ * delivered reply BECAUSE `trustedText` carried the whole compiled prompt —
+ * a string the creator's own material contains is not thereby something the
+ * gate should treat as grounded to say. This changes only the trusted SET
+ * (never `honesty.ts`'s families, per this workstream's own law) and is a
+ * no-op whenever the markers are absent — every Meera/Kabir compiled prompt,
+ * and any bundle predating this change, strips nothing.
+ */
+function stripMaterialBlock(text, engine) {
+  const open = engine?.MATERIAL_BLOCK_OPEN;
+  const close = engine?.MATERIAL_BLOCK_CLOSE;
+  if (!open || !close) return text;
+  let out = text;
+  let start = out.indexOf(open);
+  while (start >= 0) {
+    const end = out.indexOf(close, start);
+    if (end < 0) break; // an unclosed marker is a malformed prompt, not a block to strip
+    out = out.slice(0, start) + out.slice(end + close.length);
+    start = out.indexOf(open);
+  }
+  return out;
+}
+
 export function honestyContextFor(engine, compiled, turns, { record = [], nameable = [] } = {}) {
   const history = (turns || []).map((m) => ({
     from: m.role === "assistant" ? "her" : "me",
     text: String(m.content ?? ""),
   }));
-  const fullSystem = `${compiled?.core ?? ""}${compiled?.tail ?? ""}`;
+  const fullSystem = stripMaterialBlock(`${compiled?.core ?? ""}${compiled?.tail ?? ""}`, engine);
   return {
     trustedText: [
       fullSystem,
@@ -363,8 +422,47 @@ export function hasGate(engine) {
  * event is that the string it caught must not travel; logging it here would
  * put it in a log aggregator instead of a chat window, which is not better.
  */
-export function gateReply(engine, raw, honestyCtx, label = "surface") {
+// Explicit server selection only; never infer an answer profile from a request,
+// source text or persona. Keeping this pure adds no Room import capability.
+export function roomReplyTextProfile(env = process.env) {
+  const value = env.ROOM_REPLY_TEXT_PROFILE;
+  if (value === undefined) return undefined;
+  if (value !== "expert_answer") {
+    throw Object.assign(new Error("room_reply_text_profile_invalid"), {
+      code: "room_reply_text_profile_invalid", status: 503,
+    });
+  }
+  return value;
+}
+
+function assertReplyTextProfile(engine, profile) {
+  if (profile === undefined) return;
+  if (profile !== "expert_answer") {
+    throw Object.assign(new Error("reply_text_profile_invalid"), {
+      code: "reply_text_profile_invalid", status: 503,
+    });
+  }
+  if (typeof engine?.parseExpertAnswer !== "function") {
+    throw Object.assign(new Error("expert_answer_parser_unavailable"), {
+      code: "expert_answer_parser_unavailable", status: 503,
+    });
+  }
+}
+
+function assertExpertAnswerLength(text, profile) {
+  // String units match Room's transcript and roomSpeak bounds. Reject whole
+  // answers instead of delivering a prefix with a misleading source receipt.
+  if (profile === "expert_answer" && text.length > 4000) {
+    throw Object.assign(new Error("expert_answer_text_too_long"), {
+      code: "expert_answer_text_too_long", status: 502,
+    });
+  }
+}
+
+export function gateReply(engine, raw, honestyCtx, label = "surface", neverRules = [], textProfile = undefined) {
+  assertReplyTextProfile(engine, textProfile);
   const text = String(raw ?? "");
+  assertExpertAnswerLength(text, textProfile);
   if (!text) return { text: "", findings: [], gated: true };
   if (!hasGate(engine)) {
     console.error(
@@ -378,7 +476,7 @@ export function gateReply(engine, raw, honestyCtx, label = "surface") {
   // then the texting-dash predicate — text lane only, and every surface lane
   // is a text lane; the live voice lane does not come through this file — then
   // the honesty gate over the bubbles.
-  const parsed = engine.parseBubbles(text);
+  const parsed = textProfile === "expert_answer" ? engine.parseExpertAnswer(text) : engine.parseBubbles(text);
   parsed.bubbles = (parsed.bubbles || []).map((b) => engine.stripTextingDashes(b)).filter(Boolean);
   const { reply, findings } = engine.guardReply(parsed, honestyCtx);
   if (findings.length) {
@@ -393,11 +491,34 @@ export function gateReply(engine, raw, honestyCtx, label = "surface") {
   // owns fragmentation (splitForLimit) — the engine does not get to decide how
   // many messages a wire wants. Newline-joined, so her burst structure
   // survives into whatever the adapter makes of it.
+  const joined = (reply.bubbles || []).join("\n").trim();
+  assertExpertAnswerLength(joined, textProfile);
+  // ── WS-R4. THE OWNER'S "Never say this", AS A PREDICATE ON THE OUTPUT ────
+  //
+  // Last, and here rather than anywhere else, for the reason
+  // docs/gurukul/safety-floor-teacher.md states with a measurement attached:
+  // "prompt instructions leaked 57-98%; the SQL predicate leaked 0 of 31,122 …
+  // a sentence in a brief is a preference, a predicate on the output is a
+  // guarantee." A list of forbidden sentences in a persona would ALSO be a
+  // phrase bank pointed at the exact strings it forbids (`recited-prompt`), so
+  // the rules never go near a prompt — they are rows, read per turn, matched
+  // here, on the assembled bytes.
+  //
+  // A match SUPPRESSES. Saying nothing is the fail-closed direction and it is
+  // the same direction this function already takes when the gate is missing. The
+  // rule id travels in `neverRule` so a surface can say why it went quiet; the
+  // TEXT never does, for `gateReply`'s standing reason.
+  const violated = joined && neverRules.length ? replyViolatesNeverRule(joined, neverRules) : "";
+  if (violated) {
+    console.warn(`[${label}] never_rule_block rule=${violated}`);
+    return { text: "", findings, gated: true, parsed: reply, neverRule: violated };
+  }
   return {
-    text: (reply.bubbles || []).join("\n").trim(),
+    text: joined,
     findings,
     gated: true,
     parsed: reply,
+    neverRule: "",
   };
 }
 
@@ -409,16 +530,25 @@ export function gateReply(engine, raw, honestyCtx, label = "surface") {
  * of a rule someone has to remember on the day they add the fifth surface.
  */
 export async function gatedReply(ctx, compiled, turns, opts = {}) {
+  // Validate before ctx.reply: old bundles must not silently apply the chat cap.
+  assertReplyTextProfile(ctx.engine, opts.textProfile);
   const label = opts.label || ctx.adapter?.surface || "surface";
+  // WS-R4. Compiled never-rules ride in on `opts` rather than being loaded
+  // here, because this file has no database and must keep none: a lane that
+  // knows the replica loads them (api/_review-queue.js::loadNeverRules) and
+  // hands them down, and a lane that does not passes none and is unchanged.
+  const neverRules = Array.isArray(opts.neverRules) ? opts.neverRules : [];
+  await ctx.assertPublicAuthority?.();
   const raw = await ctx.reply(compiled, turns);
+  await ctx.assertPublicAuthority?.();
   // The availability check comes BEFORE the context is built, and that order
   // is load-bearing rather than tidy: a bundle without the gate is also a
   // bundle without the vocabulary builders `honestyContextFor` calls, so
   // building the context first turns a refusal into a TypeError thrown out of
   // the middle of a lane — after the user's turn is logged and before hers is.
   // `evals/surface.mjs` drives exactly this, which is how the order was found.
-  if (!hasGate(ctx.engine)) return gateReply(ctx.engine, raw, { trustedText: [], openItems: [] }, label);
-  return gateReply(ctx.engine, raw, honestyContextFor(ctx.engine, compiled, turns, opts), label);
+  if (!hasGate(ctx.engine)) return gateReply(ctx.engine, raw, { trustedText: [], openItems: [] }, label, neverRules, opts.textProfile);
+  return gateReply(ctx.engine, raw, honestyContextFor(ctx.engine, compiled, turns, opts), label, neverRules, opts.textProfile);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -436,11 +566,12 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
  * they are decided here rather than in three adapters.
  */
 export async function deliver(ctx, chatKey, msg) {
-  if (msg.kind === "reaction") return await ctx.send(chatKey, msg);
+  if (msg.kind === "reaction") { await ctx.assertPublicAuthority?.(); return await ctx.send(chatKey, msg); }
   const parts = ctx.adapter.render(String(msg.text ?? ""));
   if (!parts.length) return { ok: false, error: "empty render" };
   let last = null;
   for (let i = 0; i < parts.length; i++) {
+    await ctx.assertPublicAuthority?.();
     last = await ctx.send(chatKey, {
       ...msg,
       kind: "text",
@@ -577,7 +708,7 @@ export async function linkIdentity(ctx, ev, { personId = null } = {}) {
 /** The columns every lane below reads off a room. Named once so the two reads
  *  cannot drift into disagreeing about what a room is. */
 const ROOM_COLS =
-  "id, name, kind, surface, surface_chat_id, tg_chat_id, room_device_id, " +
+  "id, agent_id, name, kind, surface, surface_chat_id, tg_chat_id, room_device_id, " +
   "read_consent_at, quiet_level, member_cap, created_at";
 
 /**
@@ -607,12 +738,13 @@ export const legacyUserId = (surface, surfaceUserId) =>
  * the read. A database that refuses it must still answer "which room is this",
  * because the alternative is she goes silent in a room she can plainly see.
  */
-export async function roomForChat(surface, chatKey, t = ident) {
+export async function roomForChat(surface, chatKey, t = ident, agentId = MEERA_AGENT_ID) {
   const key = String(chatKey ?? "");
   if (!surface || !key) return null;
   const [row] = await q(
-    `select ${ROOM_COLS} from ${t("vy_group")} where surface = $1 and surface_chat_id = $2`,
-    [surface, key],
+    `select ${ROOM_COLS} from ${t("vy_group")}
+      where surface = $1 and surface_chat_id = $2 and agent_id = $3::uuid`,
+    [surface, key, agentId],
   ).catch(() => []);
   if (row) return row;
 
@@ -620,16 +752,17 @@ export async function roomForChat(surface, chatKey, t = ident) {
   const legacy = legacyChatId(surface, key);
   if (legacy === null) return null;
   const [old] = await q(
-    `select ${ROOM_COLS} from ${t("vy_group")} where tg_chat_id = $1`,
-    [legacy],
+    `select ${ROOM_COLS} from ${t("vy_group")}
+      where tg_chat_id = $1 and agent_id = $2::uuid`,
+    [legacy, agentId],
   ).catch(() => []);
   if (!old) return null;
   // Adopt it. `and surface is null` makes this idempotent and makes it
   // impossible to re-address a room the new writer already owns.
   await q(
     `update ${t("vy_group")} set surface = $2, surface_chat_id = $3
-      where id = $1 and surface is null`,
-    [old.id, surface, key],
+      where id = $1 and agent_id = $4::uuid and surface is null`,
+    [old.id, surface, key, agentId],
   ).catch(() => {});
   return { ...old, surface, surface_chat_id: key };
 }
@@ -646,10 +779,10 @@ export async function roomForChat(surface, chatKey, t = ident) {
 export async function ensureRoomForSurfaceChat(
   surface,
   chatKey,
-  { name = "", kind = "friend_group" } = {},
+  { name = "", kind = "friend_group", agentId = MEERA_AGENT_ID } = {},
   t = ident,
 ) {
-  const have = await roomForChat(surface, chatKey, t);
+  const have = await roomForChat(surface, chatKey, t, agentId);
   if (have) return have;
   const key = String(chatKey ?? "");
   if (!surface || !key) return null;
@@ -658,7 +791,10 @@ export async function ensureRoomForSurfaceChat(
        (agent_id, name, kind, room_device_id, surface, surface_chat_id, tg_chat_id)
      values ($1,$2,$3,$4,$5,$6,$7) on conflict do nothing`,
     [
-      MEERA_AGENT_ID,
+      // The clone that owns this room, not a constant. Defaulted above to
+      // MEERA_AGENT_ID so a caller that never heard of clones writes exactly
+      // the rows it always wrote.
+      agentId,
       String(name || "").slice(0, 120),
       kind,
       surfaceRoomDeviceId(surface, key),
@@ -668,7 +804,7 @@ export async function ensureRoomForSurfaceChat(
       legacyChatId(surface, key),
     ],
   );
-  return await roomForChat(surface, chatKey, t);
+  return await roomForChat(surface, chatKey, t, agentId);
 }
 
 /**
@@ -684,7 +820,7 @@ export async function ensureRoomForSurfaceChat(
  */
 export async function upsertRoomMember(
   groupId,
-  { personId, surface = null, surfaceUserId = null },
+  { personId, surface = null, surfaceUserId = null, agentId = MEERA_AGENT_ID },
   t = ident,
 ) {
   const key = surfaceUserId == null ? null : String(surfaceUserId);
@@ -692,13 +828,14 @@ export async function upsertRoomMember(
   await q(
     `insert into ${m}
        (agent_id, group_id, person_id, surface, surface_user_id, tg_user_id, joined_at)
-     values ($1,$2,$3,$4,$5,$6, now())
+     select $1::uuid, g.id, $3::uuid, $4, $5, $6, now()
+       from ${t("vy_group")} g where g.id = $2 and g.agent_id = $1::uuid
      on conflict (group_id, person_id) do update set
        left_at = null,
        surface = coalesce(excluded.surface, ${m}.surface),
        surface_user_id = coalesce(excluded.surface_user_id, ${m}.surface_user_id),
        tg_user_id = coalesce(excluded.tg_user_id, ${m}.tg_user_id)`,
-    [MEERA_AGENT_ID, groupId, personId, surface || null, key, legacyUserId(surface, key)],
+    [agentId, groupId, personId, surface || null, key, legacyUserId(surface, key)],
   );
 }
 
@@ -748,17 +885,22 @@ export async function dispatch(ev, ctx) {
 export async function onBotMembership(ev, ctx) {
   if (!ev.isGroup) return { ok: true, skipped: "not a room" };
   const status = ev.adminBits?.selfStatus ?? null;
-  const room = await ensureRoomForSurfaceChat(ev.surface, ev.chatKey, { name: ev.chatName || "" }, ctx.t);
+  const room = await ensureRoomForSurfaceChat(
+    ev.surface,
+    ev.chatKey,
+    { name: ev.chatName || "", agentId: ctx.agentId },
+    ctx.t,
+  );
   if (!room) return { ok: false, error: "room not created" };
 
   if (status === "left" || status === "kicked") {
     // Demotion/removal is instant, total, user-controlled revocation with no
     // code path of ours involved — we only record that it happened.
-    await setReadConsent(room.id, false, ctx.t);
+    await setReadConsent(room.id, false, ctx.t, ctx.agentId);
     return { ok: true, room: room.id, consent: false, event: status };
   }
   const isAdmin = status === "admin";
-  await setReadConsent(room.id, isAdmin, ctx.t);
+  await setReadConsent(room.id, isAdmin, ctx.t, ctx.agentId);
   if (isAdmin && !room.read_consent_at) {
     // The room card, posted at the moment consent becomes real and before the
     // first episode can be recorded.
@@ -781,28 +923,28 @@ export async function onBotMembership(ev, ctx) {
  *  stale row, never a disclosure. */
 export async function onMemberChange(ev, ctx) {
   if (!ev.isGroup) return { ok: true, skipped: "not a room" };
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
   if (!room) return { ok: true, skipped: "unknown room" };
   const bits = ev.adminBits || {};
   if (!bits.subjectUserId || bits.subjectIsBot) return { ok: true, skipped: "bot or no user" };
   const bound = await personForSurfaceUser(ev.surface, bits.subjectUserId, ctx.t);
   if (!bound) return { ok: true, skipped: "unlinked member" };
   if (bits.subjectStatus === "left" || bits.subjectStatus === "kicked") {
-    await markMemberLeft(room.id, bound.person_id, ctx.t);
+    await markMemberLeft(room.id, bound.person_id, ctx.t, ctx.agentId);
     return { ok: true, room: room.id, left: true };
   }
-  if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t)))
+  if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t, ctx.agentId)))
     return { ok: true, room: room.id, joined: false, full: true };
   await upsertRoomMember(
     room.id,
-    { personId: bound.person_id, surface: ev.surface, surfaceUserId: bits.subjectUserId },
+    { personId: bound.person_id, surface: ev.surface, surfaceUserId: bits.subjectUserId, agentId: ctx.agentId },
     ctx.t,
   );
   return { ok: true, room: room.id, joined: true };
 }
 
 export async function onJoin(ev, ctx) {
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
   if (!room) return { ok: true, skipped: "unknown room" };
   let added = 0;
   for (const u of ev.adminBits?.joined || []) {
@@ -814,10 +956,10 @@ export async function onJoin(ev, ctx) {
     if (!bound) continue;
     // the §7 cap applies on every path a member can arrive by, not just the
     // deep link — see roomHasSpaceFor
-    if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t))) continue;
+    if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t, ctx.agentId))) continue;
     await upsertRoomMember(
       room.id,
-      { personId: bound.person_id, surface: ev.surface, surfaceUserId: u.surfaceUserId },
+      { personId: bound.person_id, surface: ev.surface, surfaceUserId: u.surfaceUserId, agentId: ctx.agentId },
       ctx.t,
     );
     added++;
@@ -826,13 +968,13 @@ export async function onJoin(ev, ctx) {
 }
 
 export async function onLeave(ev, ctx) {
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
   if (!room) return { ok: true, skipped: "unknown room" };
   const u = ev.adminBits?.left || null;
   if (!u || u.isBot) return { ok: true, skipped: "bot or no user" };
   const bound = await personForSurfaceUser(ev.surface, u.surfaceUserId, ctx.t);
   if (!bound) return { ok: true, skipped: "unlinked" };
-  await markMemberLeft(room.id, bound.person_id, ctx.t);
+  await markMemberLeft(room.id, bound.person_id, ctx.t, ctx.agentId);
   return { ok: true, room: room.id, left: true };
 }
 
@@ -860,13 +1002,14 @@ export async function onDirectMessage(ev, ctx) {
   const person = bound.person_id;
   const device = await bindSurfaceDmDevice(ev.surface, ev.surfaceUserId, person, ctx.t);
   const text = ev.text || ev.caption || "";
-  await logDmTurn({ device, person, role: "me", content: text }, ctx.t);
+  await logDmTurn({ device, person, role: "me", content: text, agentId: ctx.agentId }, ctx.t);
 
   // M2 — the disclosure predicate, one recipient, no room. She still has what
   // the rooms she was in hold, because she was there with them; she does not
   // have anyone else's DMs, because she was not.
-  const facts = await dmRecall(person, {}, ctx.t);
+  const facts = await dmRecall(person, { agentId: ctx.agentId }, ctx.t);
   const compiled = ctx.engine.compile({
+    agent: ctx.agent ?? undefined,
     user: { name: ev.handle, vibe: [], facts: {} },
     messageCount: 999,
     medium: "text",
@@ -881,7 +1024,7 @@ export async function onDirectMessage(ev, ctx) {
     cultureNoteText: "",
     latestUserText: text,
   });
-  const history = await dmHistory(device, ctx.t);
+  const history = await dmHistory(device, ctx.t, 30, ctx.agentId);
   // The shared record family 4 may retell FROM: the facts this turn retrieved
   // through the disclosure predicate, and nothing else. A moment she was
   // handed is a moment she may claim; one she was not is a fabrication.
@@ -894,7 +1037,7 @@ export async function onDirectMessage(ev, ctx) {
   const said = gatedOut.text;
   if (said) {
     await deliver(ctx, ev.chatKey, { kind: "text", text: said, replyTo: null, buttons: [] });
-    await logDmTurn({ device, person, role: "her", content: said }, ctx.t);
+    await logDmTurn({ device, person, role: "her", content: said, agentId: ctx.agentId }, ctx.t);
   }
   return {
     ok: true,
@@ -924,13 +1067,13 @@ async function onLinkTap(ev, intent, ctx) {
     // §7's ≤6 cap, enforced where a member is ADDED rather than where the
     // address strip is rendered — see roomHasSpaceFor. A refused member still
     // gets their own 1:1 channel; only the room membership is denied.
-    if (await roomHasSpaceFor(roomRef, linked.personId, ctx.t)) {
+    if (await roomHasSpaceFor(roomRef, linked.personId, ctx.t, ctx.agentId)) {
       await upsertRoomMember(
         roomRef,
-        { personId: linked.personId, surface: ev.surface, surfaceUserId: ev.surfaceUserId },
+        { personId: linked.personId, surface: ev.surface, surfaceUserId: ev.surfaceUserId, agentId: ctx.agentId },
         ctx.t,
       );
-      await linkMember(roomRef, linked.personId, ctx.t);
+      await linkMember(roomRef, linked.personId, ctx.t, ctx.agentId);
       room = roomRef;
     } else {
       full = true;
@@ -947,6 +1090,7 @@ async function onLinkTap(ev, intent, ctx) {
     // The 1:1 lane, unchanged: NO roomBundle, so this compile takes exactly
     // today's path (gate G1) — the DM she just opened is a DM, not a room.
     const compiled = ctx.engine.compile({
+      agent: ctx.agent ?? undefined,
       user: { name: ev.handle, vibe: [], facts: {} },
       messageCount: 0,
       medium: "text",
@@ -982,12 +1126,22 @@ async function onLinkTap(ev, intent, ctx) {
 /** A DM turn carries BOTH keys: the device (today's legacy forget scopes) and
  *  the speaker person (008a). Writing both costs nothing and means no
  *  transport is ever the one row shape the forget cascade cannot find. */
-export async function logDmTurn({ device, person, role, content }, t = ident) {
-  await q(
-    `insert into ${t("meera_log")} (device_id, role, channel, kind, content, at, speaker_person_id)
-     values ($1,$2,'chat','text',$3, now(), $4)`,
-    [device, role === "her" ? "her" : "me", String(content || "").slice(0, 4000), person],
-  ).catch(() => {});
+export async function logDmTurn(
+  { device, person, role, content, agentId = MEERA_AGENT_ID },
+  t = ident,
+) {
+  // An ambiguous INSERT is not a confirmed save. Do not retry here: the first
+  // write may have committed. Existing callers may ignore this explicit result.
+  try {
+    await q(
+      `insert into ${t("meera_log")} (agent_id, device_id, role, channel, kind, content, at, speaker_person_id)
+     values ($5,$1,$2,'chat','text',$3, now(), $4)`,
+      [device, role === "her" ? "her" : "me", String(content || "").slice(0, 4000), person, agentId],
+    );
+    return { persisted: true };
+  } catch {
+    return { persisted: false };
+  }
 }
 
 /**
@@ -1004,12 +1158,16 @@ export async function logDmTurn({ device, person, role, content }, t = ident) {
  * surface layer's own copy of the same discipline, and it moves with this
  * function wherever the function moves.
  */
-export async function dmHistory(device, t = ident, limit = 30) {
+export async function dmHistory(device, t = ident, limit = 30, agentId = MEERA_AGENT_ID, { strict = false } = {}) {
   const rows = await q(
-    `select role, content from ${t("meera_log")} where device_id = $1 and group_id is null
+    `select role, content from ${t("meera_log")}
+      where device_id = $1 and agent_id = $2::uuid and group_id is null
       order by id desc limit ${limit | 0}`,
-    [device],
-  ).catch(() => []);
+    [device, agentId],
+  ).catch(() => {
+    if (strict) throw Object.assign(new Error("room_expert_history_unavailable"), { code: "room_expert_history_unavailable", status: 503 });
+    return [];
+  });
   return rows
     .reverse()
     .map((r) => ({ role: r.role === "her" ? "assistant" : "user", content: r.content }));
@@ -1026,14 +1184,14 @@ export async function dmHistory(device, t = ident, limit = 30) {
  */
 export async function onGroupMessage(ev, ctx) {
   if (ev.fromBot) return { ok: true, skipped: "bot message" };
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
   if (!room) return { ok: true, skipped: "unknown room" };
   // No engine, no room behaviour AT ALL — not even the participation decision,
   // which lives in the same bundle. She stays silent and the failure is loud.
   // A degraded fallback here would be a second Meera nobody tested.
   if (!ctx.engine) {
     await recordTurnAction(
-      { groupId: room.id, action: "lurk", addressed: false, reason: "engine bundle missing" },
+      { groupId: room.id, action: "lurk", addressed: false, reason: "engine bundle missing", agentId: ctx.agentId },
       ctx.t,
     );
     return { ok: false, room: room.id, action: "lurk", reason: "engine bundle missing" };
@@ -1044,14 +1202,15 @@ export async function onGroupMessage(ev, ctx) {
   if (speaker)
     await upsertRoomMember(
       room.id,
-      { personId: speaker, surface: ev.surface, surfaceUserId: ev.surfaceUserId },
+      { personId: speaker, surface: ev.surface, surfaceUserId: ev.surfaceUserId, agentId: ctx.agentId },
       ctx.t,
     );
   const memberRow = speaker
     ? (
         await q(
-          `select quiet_level, linked_at from ${ctx.t("vy_group")}_member where group_id = $1 and person_id = $2`,
-          [room.id, speaker],
+          `select quiet_level, linked_at from ${ctx.t("vy_group")}_member
+            where group_id = $1 and person_id = $2 and agent_id = $3::uuid`,
+          [room.id, speaker, ctx.agentId],
         ).catch(() => [])
       )[0]
     : null;
@@ -1060,8 +1219,8 @@ export async function onGroupMessage(ev, ctx) {
   const cmd = commandOf(ev.text);
   if (cmd) return await onCommand(cmd, { ev, room, speaker, ctx });
 
-  const recipients = await recipientSet(room.id, ctx.t);
-  const ent = await roomEntitled(room, ctx.t);
+  const recipients = await recipientSet(room.id, ctx.t, ctx.agentId);
+  const ent = await roomEntitled(room, ctx.t, ctx.agentId);
   const gates = {
     readConsent: room.read_consent_at != null,
     quorum: recipients.length >= QUORUM,
@@ -1069,12 +1228,14 @@ export async function onGroupMessage(ev, ctx) {
     entitled: ent.entitled,
   };
 
-  const words = gates.readConsent && gates.quorum ? await roomWords(room.id, recipients, ctx.t) : [];
+  const words = gates.readConsent && gates.quorum
+    ? await roomWords(room.id, recipients, ctx.t, ctx.agentId)
+    : [];
   const decision = ctx.engine.decideParticipation({
     text: ev.text || ev.caption || "",
     botUsername: ctx.botHandle,
     replyToHer: Boolean(ev.replyToSelf),
-    sinceHerLastMs: await sinceHerLast(room, ctx.t),
+    sinceHerLastMs: await sinceHerLast(room, ctx.t, ctx.agentId),
     roomQuiet: room.quiet_level || "normal",
     memberQuiet: memberRow?.quiet_level || "normal",
     roomWords: words,
@@ -1089,16 +1250,21 @@ export async function onGroupMessage(ev, ctx) {
   let logId = null;
   const roomDevice = room.room_device_id || surfaceRoomDeviceId(ev.surface, ev.chatKey);
   if (gates.readConsent && gates.quorum && gates.speakerLinked && gates.entitled) {
-    const ep = await openOrExtendGroupEpisode(room.id, { roomDevice }, ctx.t);
+    const ep = await openOrExtendGroupEpisode(
+      room.id,
+      { roomDevice, agentId: ctx.agentId },
+      ctx.t,
+    );
     episodeId = ep?.id ?? null;
     if (episodeId) {
       // The participant set is the ACL. Every currently-linked, active member
       // is a participant of what is said in front of them — that is the
       // primitive, and it is why the room->room and room->DM directions need
       // no consent and no model judgement.
-      for (const pid of recipients) await addEpisodeParticipant(episodeId, pid, "participant", ctx.t);
+      for (const pid of recipients)
+        await addEpisodeParticipant(episodeId, pid, "participant", ctx.t, ctx.agentId);
       if (!recipients.includes(speaker))
-        await addEpisodeParticipant(episodeId, speaker, "participant", ctx.t);
+        await addEpisodeParticipant(episodeId, speaker, "participant", ctx.t, ctx.agentId);
     }
     logId = await logRoomTurn(
       {
@@ -1107,6 +1273,7 @@ export async function onGroupMessage(ev, ctx) {
         speakerPersonId: speaker,
         role: "me",
         content: ev.text || ev.caption || "",
+        agentId: ctx.agentId,
       },
       ctx.t,
     );
@@ -1120,6 +1287,7 @@ export async function onGroupMessage(ev, ctx) {
       action: decision.action,
       addressed: decision.addressed,
       reason: decision.reason,
+      agentId: ctx.agentId,
     },
     ctx.t,
   );
@@ -1139,13 +1307,14 @@ export async function onGroupMessage(ev, ctx) {
 
   // ── RETRIEVE. Everything below this line came through the predicate.
   const [facts, bridge, members] = await Promise.all([
-    roomRecall(room.id, recipients, {}, ctx.t),
-    roomBridge(room.id, recipients, ctx.t),
-    roster(room.id, ctx.t),
+    roomRecall(room.id, recipients, { agentId: ctx.agentId }, ctx.t),
+    roomBridge(room.id, recipients, ctx.t, ctx.agentId),
+    roster(room.id, ctx.t, ctx.agentId),
   ]);
 
   // ── RENDER through the REAL compiler, with the mp slots live.
   const compiled = ctx.engine.compile({
+    agent: ctx.agent ?? undefined,
     user: { name: ev.handle, vibe: [], facts: {} },
     messageCount: 999,
     medium: "text",
@@ -1165,7 +1334,7 @@ export async function onGroupMessage(ev, ctx) {
     roomBundle: { members, bridge },
   });
 
-  const history = await roomHistory(room.id, ctx.t);
+  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);
   // In a room the shared record is what came through the predicate for THIS
   // room's recipient set, plus the bridge rows — every one of them already
   // disclosure-checked above. She may retell what she was handed here and
@@ -1188,7 +1357,7 @@ export async function onGroupMessage(ev, ctx) {
       buttons: [],
     });
     await logRoomTurn(
-      { groupId: room.id, roomDevice, speakerPersonId: null, role: "her", content: text },
+      { groupId: room.id, roomDevice, speakerPersonId: null, role: "her", content: text, agentId: ctx.agentId },
       ctx.t,
     );
   }
@@ -1208,11 +1377,11 @@ export async function onGroupMessage(ev, ctx) {
 /** Her own last word in THIS ROOM. `group_id = $1` pins it, so a DM row
  *  (group_id null) can never match and the cooldown can never be reset by
  *  something she said somewhere else. */
-export async function sinceHerLast(room, t = ident) {
+export async function sinceHerLast(room, t = ident, agentId = MEERA_AGENT_ID) {
   const r = await q(
     `select extract(epoch from (now() - max(at))) * 1000 as ms from ${t("meera_log")}
-      where group_id = $1 and role = 'her'`,
-    [room.id],
+      where group_id = $1 and agent_id = $2::uuid and role = 'her'`,
+    [room.id, agentId],
   ).catch(() => []);
   const ms = Number(r[0]?.ms);
   return Number.isFinite(ms) ? ms : Number.MAX_SAFE_INTEGER;
@@ -1221,10 +1390,11 @@ export async function sinceHerLast(room, t = ident) {
 /** The room's live turn window, pinned to the room by `group_id = $1`. A DM
  *  turn (group_id null) can never enter a room's history — the other half of
  *  the channel guard above, in the other direction. */
-export async function roomHistory(groupId, t = ident, limit = 20) {
+export async function roomHistory(groupId, t = ident, limit = 20, agentId = MEERA_AGENT_ID) {
   const rows = await q(
-    `select role, content from ${t("meera_log")} where group_id = $1 order by id desc limit ${limit | 0}`,
-    [groupId],
+    `select role, content from ${t("meera_log")}
+      where group_id = $1 and agent_id = $2::uuid order by id desc limit ${limit | 0}`,
+    [groupId, agentId],
   ).catch(() => []);
   return rows
     .reverse()
@@ -1250,8 +1420,9 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
   if (cmd.name === "chup") {
     if (cmd.arg === "me" && speaker) {
       await q(
-        `update ${t("vy_group")}_member set quiet_level = 'quiet' where group_id = $1 and person_id = $2`,
-        [room.id, speaker],
+        `update ${t("vy_group")}_member set quiet_level = 'quiet'
+          where group_id = $1 and person_id = $2 and agent_id = $3::uuid`,
+        [room.id, speaker, ctx.agentId],
       );
       await deliver(ctx, ev.chatKey, {
         kind: "text",
@@ -1261,7 +1432,7 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
       });
       return { ok: true, room: room.id, quiet: "member" };
     }
-    await setQuiet(room.id, "quiet", t);
+    await setQuiet(room.id, "quiet", t, ctx.agentId);
     await deliver(ctx, ev.chatKey, {
       kind: "text",
       text: "theek hai — ab sirf tab bolungi jab koi naam lekar bulaye. wapas: /bolo",
@@ -1273,11 +1444,12 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
   if (cmd.name === "bolo") {
     if (cmd.arg === "me" && speaker) {
       await q(
-        `update ${t("vy_group")}_member set quiet_level = 'normal' where group_id = $1 and person_id = $2`,
-        [room.id, speaker],
+        `update ${t("vy_group")}_member set quiet_level = 'normal'
+          where group_id = $1 and person_id = $2 and agent_id = $3::uuid`,
+        [room.id, speaker, ctx.agentId],
       );
     } else {
-      await setQuiet(room.id, "normal", t);
+      await setQuiet(room.id, "normal", t, ctx.agentId);
     }
     await deliver(ctx, ev.chatKey, { kind: "text", text: "theek hai.", replyTo: null, buttons: [] });
     return { ok: true, room: room.id, quiet: "normal" };
@@ -1289,7 +1461,7 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
     // evals/mp/withdraw.mjs.
     if (!speaker) return { ok: true, skipped: "unlinked" };
     const { withdrawSharedRows } = await import("./memory.js");
-    const res = await withdrawSharedRows(speaker, { t });
+    const res = await withdrawSharedRows(speaker, { t, agentId: ctx.agentId });
     const n = (res.participant_rows || 0) + (res.room_turns || 0);
     await deliver(ctx, ev.chatKey, {
       kind: "text",
@@ -1334,6 +1506,11 @@ export function makeCtx(adapter, deps = {}) {
     reply: deps.reply || ((compiled, turns) => think(engine, compiled, turns)),
     send: deps.send || ((chatKey, msg) => adapter.send(chatKey, msg)),
     botHandle: deps.botHandle || "",
+    // The clone binding (see THE CLONE BINDING above). Both default to
+    // Meera's, so a caller that passes neither gets today's behaviour exactly.
+    agent: deps.agent ?? null,
+    agentId: deps.agentId || MEERA_AGENT_ID,
+    assertPublicAuthority: deps.assertPublicAuthority,
     linkIntent: deps.linkIntent || null,
     linkFor: deps.linkFor || null,
   };

@@ -27,7 +27,7 @@
 
 import { Capacitor } from "@capacitor/core";
 
-const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform() ? "https://vyakti-replica-lab.vercel.app" : "";
 const ENDPOINT = `${BASE}/api/telemetry`;
 
 const FLUSH_MS = 4000;

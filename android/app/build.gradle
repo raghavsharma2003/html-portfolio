@@ -1,47 +1,53 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "app.meera.companion"
+    namespace = "app.vyakti.studio"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.meera.companion"
+        applicationId "app.vyakti.studio"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 27
+        versionName "27.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        // OTA native contract. Web and Java used to ship together, so a web
-        // bundle could always assume the Java beside it; OTA breaks that
-        // coupling, and a bundle that calls a @PluginMethod this APK does not
-        // have is a crash on a phone we cannot reach. BUMP THIS whenever the
-        // JS→Java surface gains something a web bundle may depend on (a new
-        // plugin method, a new event name, a changed payload shape). Bundles
-        // built after the bump carry min_native = the new number and are
-        // REFUSED by older APKs instead of applied — those need a reinstall,
-        // which is the honest answer. scripts/ota-bundle.mjs reads this exact
-        // line, so keep the shape parseable.
-        buildConfigField "int", "OTA_NATIVE_CONTRACT", "1"
+        // Plugin identity changed with the sole-product shell. OTA bundles
+        // built for this API must be refused by contract-1 APKs.
+        buildConfigField "int", "OTA_NATIVE_CONTRACT", "2"
+        def vyaktiOrigin = System.getenv('VYAKTI_PUBLIC_APP_ORIGIN') ?: 'https://vyakti-replica-lab.vercel.app'
+        def vyaktiHost = vyaktiOrigin.replaceFirst('^https?://', '').replaceFirst('/.*$', '')
+        manifestPlaceholders = [vyaktiAppHost: vyaktiHost]
         aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // AGP 8 generates BuildConfig only on request; OTA_NATIVE_CONTRACT above
-    // is read from Java and is the reason this is on.
     buildFeatures {
         buildConfig true
+    }
+    def ksFile = file('../vyakti-upload.keystore')
+    def ksPass = System.getenv('VYAKTI_ANDROID_KEYSTORE_PASSWORD')
+    signingConfigs {
+        if (ksFile.exists() && ksPass != null) {
+            release {
+                storeFile ksFile
+                storePassword ksPass
+                keyAlias System.getenv('VYAKTI_ANDROID_KEY_ALIAS') ?: 'vyakti-upload'
+                keyPassword System.getenv('VYAKTI_ANDROID_KEY_PASSWORD') ?: ksPass
+            }
+        }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (ksFile.exists() && ksPass != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
 
 repositories {
-    flatDir{
+    flatDir {
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
     }
 }
@@ -52,10 +58,6 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    // Gemini Live realtime watch (LiveWatchEngine) needs a WebSocket client;
-    // Capacitor 8 ships none (its HTTP layer is HttpURLConnection), and
-    // android.net has no WS API. 4.12.0 is the last 4.x — minSdk 21, Java 8
-    // bytecode, pulls kotlin-stdlib transitively (no Kotlin plugin needed).
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

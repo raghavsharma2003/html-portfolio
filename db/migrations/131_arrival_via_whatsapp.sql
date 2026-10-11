@@ -1,0 +1,46 @@
+-- Migration 131 (WS-R126, join from WhatsApp).
+--
+-- THE FINDING THIS MIGRATION IS BUILT AROUND, not the assumption it started
+-- from: this workstream's own brief said "Migration 131 widens the arrival
+-- `via` CHECK to add `whatsapp`". Before writing a single statement, this
+-- workstream grepped `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` and every
+-- prior `vy_room_arrival_via_check` migration (`rejected.md`'s own law:
+-- "grep for a CALLER not a definition", restated here for a schema value
+-- instead of a function) and found that 'whatsapp' is ALREADY a valid value
+-- -- migration 122 (WS-R85, the share kit) added it alongside 'instagram',
+-- 'youtube' and 'telegram' for its own per-channel `?via=whatsapp` web link
+-- (a follower who receives a shared link in a WhatsApp message and clicks
+-- through to the web Room), and migration 123 (WS-R86, referrals) reconciled
+-- the SAME constraint to the union that already carried it forward. Both are
+-- listed as "applied live" in CLAUDE.md's own migration ledger. So this
+-- migration does NOT add a new value -- there is not one to add.
+--
+-- WHAT THIS WORKSTREAM ACTUALLY NEEDED, once that was known: a genuinely
+-- SEPARATE arrival source -- a follower opening the WhatsApp Business chat
+-- itself via a wa.me deep link with `join <slug>` already typed
+-- (api/_room-whatsapp-chat.js's `handleJoin`, wired in the same commit as
+-- this migration), never touching the web Room at all. This workstream's own
+-- brief names the bucket to record that under: 'whatsapp' -- the SAME value,
+-- not a new sibling one -- because both are honestly "the follower arrived
+-- via WhatsApp" for the one thing this number is measured for
+-- (api/_funnel.js's `shareKitArrivalsThisWeek`, the Growth line's own
+-- WhatsApp row). A distinct value (e.g. 'whatsapp_chat') was considered and
+-- rejected: it would have split one honest signal into two half-populated
+-- ones for no reader of the Growth line to act on differently
+-- (context/decisions.md#ws-r126-whatsapp-chat-join-reuses-the-whatsapp-arrival-value
+-- states the reversal condition -- a future reader who genuinely needs to
+-- tell the two apart).
+--
+-- So there is no new value to admit into the CHECK. The two statements below
+-- are the SAME drop-then-recreate idiom migrations 121/122/123 each used to
+-- reconcile a wave's own additions to this one constraint, run here purely
+-- DEFENSIVELY: idempotent, harmless, and a no-op against a database already
+-- at 123's state (which every live record this workstream could read said it
+-- already was) -- but cheap insurance against db/schema.sql's own record
+-- ever having drifted from the live catalog, since the constraint's own name
+-- is asserted here rather than re-derived from a query this migration has no
+-- way to run before it applies. One statement per request (Neon SQL-over-
+-- HTTP), no DO blocks.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram', 'friend'));

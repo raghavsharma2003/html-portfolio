@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f8f8f5" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- WS-R157: the studio's own install prompt/PWA identity, and the
+         Vyakti native shell's start page. `public/studio.webmanifest` is
+         served verbatim (Vite copies `public/` into `dist/` root, exactly
+         as `room.webmanifest` and `manifest.webmanifest` already are —
+         `evals/vyakti-app` asserts this stays a static file, never a
+         second per-route generator like the Room's manifest needed). -->
+    <link rel="manifest" href="/studio.webmanifest" />
+    <!--
+      THE CASCADE LAYER ORDER, DECLARED WHERE A MINIFIER CANNOT REMOVE IT.
+
+      `studio.css` and `design/tokens.css` both open with
+      `@layer reset, tokens, base, components, responsive;`, and the build
+      DROPPED it: LightningCSS treats a standalone layer statement as redundant
+      and strips it, so the shipped stylesheet began `@layer components{`. Layer
+      order is then fixed by first appearance, which made the real order
+      components, reset, tokens, base, responsive, with RESET LAST OF THE FIRST
+      FOUR and therefore beating everything it was written to lose to.
+
+      What that shipped: `button { color: inherit }` in the reset out-ranked
+      `.primary-button { color: #fffef9 }`, so every primary call to action
+      rendered near-black ink on forest green at a measured 1.73:1 contrast,
+      against a WCAG AA floor of 4.5:1 and DESIGN-LAW's "a CTA whose label does
+      not read against its own background is a shipping defect".
+
+      A statement inside an inline <style> in the document head is emitted
+      verbatim and is the first layer declaration the browser sees, which is all
+      that is required to fix the order for every sheet that follows.
+      `scripts/check-layout.mjs` measures the contrast so this cannot regress
+      silently again.
+    -->
+    <style>@layer reset, tokens, base, components, responsive;</style>
+    <title>Vyakti | Make your AI self</title>
+    <meta
+      name="description"
+      content="Record your voice, meet your private AI self, and help it evolve with context you control."
+    />
+  </head>
+  <body>
+    <!--
+      LIVING VOICE INSTRUMENT DIRECTION CONTRACT
+      THESIS: One living voice field carries the entire clone journey. The public
+      product rejects dashboards, card walls, teacher framing, and long pages.
+      OWN-WORLD: Chalk white, graphite, mineral green, a spectral-blue edge,
+      and a precise radial signal that behaves like one continuous voice.
+      STORY: Sign in, agree once, speak, review the measured sample, wait on an
+      honest observed range, then meet, evolve, and call your clone.
+      FIRST VIEWPORT: A tiny header, one heading, the central voice control,
+      and one instruction. The active task fits without page scroll.
+      FORM: User-pinned synthesis of the Voice Aperture, Resonance Nucleus, and
+      Living Voice Ribbon mockups, rebuilt as a functional analyser-driven field.
+      unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+    -->
+    <div id="studio-root"></div>
+    <script type="module" src="/src/studio/main.tsx"></script>
+  </body>
+</html>

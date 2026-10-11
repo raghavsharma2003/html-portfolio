@@ -1,0 +1,10 @@
+.private-conversation-sources{margin-block:12px;color:var(--studio-text,#253d31);font-size:14px;max-width:100%;overflow-wrap:anywhere}
+.private-conversation-sources summary{cursor:pointer;min-height:44px;display:list-item;align-content:center;text-underline-offset:3px}
+.private-conversation-sources summary:focus-visible,.private-conversation-sources button:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.private-conversation-sources summary:hover{text-decoration:underline}
+.private-conversation-sources ol{padding-inline-start:22px;margin:12px 0}
+.private-conversation-sources li+li{margin-block-start:20px}
+.private-conversation-sources p{margin-block:6px;line-height:1.5}
+.private-conversation-sources time,.private-conversation-sources__note{font-size:12px}
+.private-conversation-sources button{min-height:44px;cursor:pointer;font:inherit}
+.private-continuity-choice{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}

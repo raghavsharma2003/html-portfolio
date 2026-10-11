@@ -25,8 +25,9 @@
 // dot animates `width`, and says so.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const ALLOW = /motion-lint:\s*allow\b/;
 
 /** Longest a UI TRANSITION may run. Looping ambience is judged separately. */

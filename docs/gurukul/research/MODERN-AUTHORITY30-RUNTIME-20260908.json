@@ -1,0 +1,427 @@
+{
+  "started_at": "2026-09-07T23:05:29.258Z",
+  "database": "vyakti_expert_integration_20260906",
+  "source_commit": "cecc71e56e8a87548da51cf96b741066f5da8a35",
+  "freeze_sha256": "9a293d0ca413928e5ecaf22591c704180d3b03c3a0d6d3d6407ffa83add3176e",
+  "runtime_sha256": "d02389690829a1b70a4dc9a5834fb4525c7b8912058855173848855c1499df62",
+  "launcher_sha256": "91f8a14f6c98c5ef9a40a8604e2f8a2ffc42cdf9d76c1a127a3d75136e323c9d",
+  "provider_calls": 0,
+  "migration_applied": false,
+  "finished_at": "2026-09-07T23:07:43.131Z",
+  "state": "passed",
+  "result": {
+    "database": "vyakti_expert_integration_20260906",
+    "passed": true,
+    "checks": [
+      "explain:comparison_descriptor",
+      "explain:authority_snapshot",
+      "explain:issue",
+      "explain:receipt",
+      "explain:authority_load",
+      "explain:review_artifact",
+      "explain:review_evidence",
+      "explain:review_batch",
+      "fixture-explain:absence:1",
+      "fixture-explain:absence:2",
+      "fixture-explain:absence:3",
+      "fixture-explain:absence:4",
+      "fixture-explain:absence:5",
+      "fixture-explain:absence:6",
+      "fixture-explain:absence:7",
+      "fixture-explain:absence:8",
+      "fixture-explain:absence:9",
+      "fixture-explain:absence:10",
+      "fixture-explain:absence:11",
+      "fixture-explain:absence:12",
+      "fixture-explain:absence:13",
+      "fixture-explain:seed:14",
+      "fixture-explain:seed:15",
+      "fixture-explain:seed:16",
+      "fixture-explain:seed:17",
+      "fixture-explain:seed:18",
+      "fixture-explain:seed:19",
+      "fixture-explain:seed:20",
+      "fixture-explain:seed:21",
+      "fixture-explain:seed:22",
+      "fixture-explain:seed:23",
+      "fixture-explain:seed:24",
+      "fixture-explain:capture:25",
+      "fixture-explain:capture:26",
+      "fixture-explain:capture:27",
+      "fixture-explain:capture:28",
+      "fixture-explain:cleanup:29",
+      "fixture-explain:cleanup:30",
+      "fixture-explain:cleanup:31",
+      "fixture-explain:cleanup:32",
+      "fixture-explain:cleanup:33",
+      "fixture-explain:cleanup:34",
+      "fixture-explain:cleanup:35",
+      "fixture-explain:cleanup:36",
+      "fixture-explain:cleanup:37",
+      "fixture-explain:cleanup:38",
+      "fixture-explain:cleanup:39",
+      "fixture-explain:cleanup:40",
+      "fixture-explain:cleanup:41",
+      "fixture-explain:cleanup:42",
+      "fixture-explain:cleanup:43",
+      "fixture-explain:cleanup:44",
+      "fixture-explain:cleanup:45",
+      "explain:negative42703",
+      "fixture-explain:retained-negative42883",
+      "fixture-explain:retained-negative42703",
+      "first-issue",
+      "same-preview-replay",
+      "rollback:challengeId",
+      "rollback:comparisonConsentId",
+      "valid-replacement",
+      "duplicate-primary",
+      "valid-load",
+      "review:empty-batch-no-advance",
+      "review:nonreference-no-advance",
+      "review:positive-batch-once",
+      "review:artifact-once-text-epoch-unchanged",
+      "load-negative:capture-hash",
+      "load-negative:private-locator",
+      "load-negative:lease-token",
+      "load-negative:attempt",
+      "load-negative:identity-locator",
+      "load-negative:face-digest",
+      "grant-revoked",
+      "expired",
+      "source-contention",
+      "review-contention",
+      "review-old-snapshot-refused",
+      "retained-no-epoch-negative",
+      "two-issuer-old-snapshot"
+    ],
+    "races": [
+      {
+        "name": "review-old-snapshot-refused",
+        "reader_pid": 17531,
+        "holder_pid": 10365,
+        "sql_sha256": "29662d07ca918dfe03e3c925aa483ae64108496c0ef02c33f34866338d8ebe4a",
+        "wait_event_type": "Lock",
+        "marker": "/* modern-authority-race:ee8fd76028ac3df96ad6971923c3d3a8 */",
+        "activity_query_truncated": true,
+        "visible_query_bytes": 1023,
+        "activity_capacity_bytes": 1024,
+        "original_sql_sha256": "2b239a7b10d468c6e5335a546ddf6bcea1adc2ca89fe1e4fd0722b47d9c73acf",
+        "instrumented_sql_sha256": "83c7bfb776a43396670c0a89c88ac88098be0d25edfa4e78dddfaecfd8774d16",
+        "returned_rows": 0
+      },
+      {
+        "name": "retained-no-epoch-negative",
+        "reader_pid": 10365,
+        "holder_pid": 17531,
+        "sql_sha256": "33172fb79acbb66815c7fca85e6b25b1a801a933b9d5f4479684c8963bde9797",
+        "wait_event_type": "Lock",
+        "marker": "/* modern-authority-race:5138d98afdb6d207b35a57614e7d556e */",
+        "activity_query_truncated": true,
+        "visible_query_bytes": 1023,
+        "activity_capacity_bytes": 1024,
+        "original_sql_sha256": "2b239a7b10d468c6e5335a546ddf6bcea1adc2ca89fe1e4fd0722b47d9c73acf",
+        "instrumented_sql_sha256": "83c7bfb776a43396670c0a89c88ac88098be0d25edfa4e78dddfaecfd8774d16",
+        "returned_rows": 1
+      },
+      {
+        "name": "two-issuer-old-snapshot",
+        "reader_pid": 17531,
+        "holder_pid": 10365,
+        "sql_sha256": "75e096202a34a3e7721fd88210b6afcffa19295254de3263f35674da1217ae14",
+        "wait_event_type": "Lock",
+        "marker": "/* modern-authority-race:bbb0b8ed103c713752b33bda2a78d2ca */",
+        "activity_query_truncated": true,
+        "visible_query_bytes": 1023,
+        "activity_capacity_bytes": 1024,
+        "original_sql_sha256": "da50bd175c77f598c94b9760797910298fa66f8b4ede5c9a294ad17d8a84be36",
+        "instrumented_sql_sha256": "2a30b2d5cec5ea02af12a0ad6a69e436ceeb1d6fc76645fb30a966179e51b759",
+        "returned_rows": 0
+      }
+    ],
+    "errors": [],
+    "cleanup": [
+      {
+        "replica_id": "0efad357-34d2-4eef-89bc-17ba223a9460",
+        "counts": {
+          "vy_replica": 0,
+          "vy_replica_source": 0,
+          "vy_replica_consent": 0,
+          "vy_replica_identity_case": 0,
+          "vy_replica_voice_reference": 0,
+          "vy_replica_processing_job": 0,
+          "vy_replica_processing_attempt": 0,
+          "vy_replica_processing_artifact": 0,
+          "vy_replica_processing_evidence": 0,
+          "vy_replica_processing_artifact_decision": 0,
+          "vy_replica_processing_evidence_decision": 0,
+          "vy_replica_liveness_challenge": 0,
+          "vy_replica_biometric_verification_grant": 0,
+          "vy_replica_liveness_verification_attempt": 0,
+          "vy_replica_audit": 0,
+          "vy_replica_model_build": 0,
+          "vy_replica_voice_genome": 0,
+          "vy_person": 0
+        }
+      },
+      {
+        "replica_id": "6b275750-5a6e-42f6-b150-75f343c7a0c5",
+        "counts": {
+          "vy_replica": 0,
+          "vy_replica_source": 0,
+          "vy_replica_consent": 0,
+          "vy_replica_identity_case": 0,
+          "vy_replica_voice_reference": 0,
+          "vy_replica_processing_job": 0,
+          "vy_replica_processing_attempt": 0,
+          "vy_replica_processing_artifact": 0,
+          "vy_replica_processing_evidence": 0,
+          "vy_replica_processing_artifact_decision": 0,
+          "vy_replica_processing_evidence_decision": 0,
+          "vy_replica_liveness_challenge": 0,
+          "vy_replica_biometric_verification_grant": 0,
+          "vy_replica_liveness_verification_attempt": 0,
+          "vy_replica_audit": 0,
+          "vy_replica_model_build": 0,
+          "vy_replica_voice_genome": 0,
+          "vy_person": 0
+        }
+      },
+      {
+        "replica_id": "e71115b8-6290-4776-be08-f2e91fe84284",
+        "counts": {
+          "vy_replica": 0,
+          "vy_replica_source": 0,
+          "vy_replica_consent": 0,
+          "vy_replica_identity_case": 0,
+          "vy_replica_voice_reference": 0,
+          "vy_replica_processing_job": 0,
+          "vy_replica_processing_attempt": 0,
+          "vy_replica_processing_artifact": 0,
+          "vy_replica_processing_evidence": 0,
+          "vy_replica_processing_artifact_decision": 0,
+          "vy_replica_processing_evidence_decision": 0,
+          "vy_replica_liveness_challenge": 0,
+          "vy_replica_biometric_verification_grant": 0,
+          "vy_replica_liveness_verification_attempt": 0,
+          "vy_replica_audit": 0,
+          "vy_replica_model_build": 0,
+          "vy_replica_voice_genome": 0,
+          "vy_person": 0
+        }
+      }
+    ],
+    "fixture_manifest": {
+      "database": "vyakti_expert_integration_20260906",
+      "fixtures": [
+        {
+          "declaration": "Synthetic SQL rows only. No real person enrollment, biometrics, auth, media, provider work or identity acceptance.",
+          "replica_id": "0efad357-34d2-4eef-89bc-17ba223a9460",
+          "owner_user_id": "6919f1f6-4370-4d60-a9ed-b942966eb127",
+          "person_id": "8e73e63d-4e60-4b2e-8095-95eeba821735",
+          "source_ids": [
+            "fcd7c962-f20e-42b4-ad03-1e5045d2d29f",
+            "1fc4e1e5-c3a0-4a2c-aae4-a85721bf3638",
+            "854c065f-335f-4145-a926-4690648c388e"
+          ],
+          "consent_ids": [
+            "fc1d3058-ae26-49a3-b16d-ba17b64f1495",
+            "6d92cdce-fdff-4ae9-9522-c85dd87d2c45",
+            "c9270179-1392-41d9-b0aa-2e119cffe751",
+            "30d8cf73-2d0b-41b3-8f3b-881f2bab5a31"
+          ],
+          "identity_case_id": "d1848fec-f46a-46c7-933d-9e9980d30c06",
+          "artifact_id": "302dbfec-94f8-4a2a-bbbf-3f9b439e52a3",
+          "evidence_ids": [
+            "75a059bb-dd30-5c79-aa87-87f65084be36",
+            "8851c022-243e-5f3c-b320-91c3e704371f",
+            "ab92d5ea-0073-5891-8930-e02aeecfddd3",
+            "45f4c344-86fc-5386-8d45-a2709ba07745"
+          ],
+          "decision_ids": [
+            "5b23713c-48b8-4ed3-88fc-9861f9cdb43a",
+            "1f63aa82-b6c6-4278-b551-f5666d86b3c2",
+            "11ecd7b2-199e-43fe-9704-212380a3a770"
+          ],
+          "generated_artifact_decision_ids": [
+            "7"
+          ],
+          "job_ids": [
+            "b20e77de-8e32-481c-ad4c-88caf67e4cb0",
+            "932cd5f0-332a-4028-82f0-6682ad963ed1",
+            "36f2b64b-4a86-4aa2-8cfb-deca51a01520",
+            "b5c790ea-6fd4-4933-b76e-6d1799039652"
+          ],
+          "challenge_ids": [
+            "146a4085-3659-4095-9e22-75233ad668b6",
+            "dcf8b5c6-2f78-4b19-8ae7-00705d95e541"
+          ],
+          "grant_ids": [
+            "8907b746-bfe6-486c-9e54-15ca0285124d",
+            "b56a260c-fd16-458b-9f25-4d32f29c99ec"
+          ],
+          "primary_selection_id": "6b21d170-11c6-49e2-8e65-0ed369d76da8"
+        },
+        {
+          "declaration": "Synthetic SQL rows only. No real person enrollment, biometrics, auth, media, provider work or identity acceptance.",
+          "replica_id": "6b275750-5a6e-42f6-b150-75f343c7a0c5",
+          "owner_user_id": "27544197-df0e-46ba-8382-af52afc12eb1",
+          "person_id": "8d5e7b40-3fec-4b4f-b38e-d0a9c152d16b",
+          "source_ids": [
+            "3cd83064-6938-434e-a506-8b4b60865607",
+            "ed3eda8d-cc0d-40bd-803a-794a959e6f2c",
+            "f69bf999-bac9-4841-8cce-e4e2c89532c2"
+          ],
+          "consent_ids": [
+            "70efec07-9e14-4910-a7da-978e4d1cc8d8",
+            "50d5d9ad-3261-4e6c-bb8f-d295e95e2d92",
+            "4562cbde-6c0b-4425-b5a2-6796ef676734",
+            "5fd1e168-498d-4c96-9f4b-6105472cf386"
+          ],
+          "identity_case_id": "9b741fd0-1c68-458c-94bc-da4351f88085",
+          "artifact_id": "a557ac7b-1847-4f65-bb5e-1f98b9f0fa6d",
+          "evidence_ids": [
+            "01eb2131-909e-5db4-a7f5-0856cf60771e",
+            "16e46e82-d87c-5168-9db0-2978d378e94c",
+            "4fbd2e5c-5688-5d36-84a2-75b60ee722c4",
+            "19d36e85-cd00-5796-b8fc-f35bedcbf651"
+          ],
+          "decision_ids": [
+            "566bf354-2e64-403c-90a6-ea25b117f2c3",
+            "41adaeba-82bd-437e-876e-4f3edbb73834",
+            "02788a7e-3c03-4893-b0e2-f4d7d34a6386"
+          ],
+          "generated_artifact_decision_ids": [
+            "8"
+          ],
+          "job_ids": [
+            "75b0168e-2baf-46a4-a0d8-52ed1eafb774",
+            "2a992bb9-bb8b-4098-9181-4a904597b095",
+            "a302443d-20ae-417a-9e11-6c876570cffb",
+            "c8f51278-c9f8-4414-81db-1a669e1140dc"
+          ],
+          "challenge_ids": [
+            "09cf18cd-cb8c-4be7-b58c-84bcd0cf20c7"
+          ],
+          "grant_ids": [
+            "67bf2b4f-a270-4e34-9f00-5f42f2777212"
+          ],
+          "primary_selection_id": "7da335e8-6a47-4388-94ff-c29256c007db"
+        },
+        {
+          "declaration": "Synthetic SQL rows only. No real person enrollment, biometrics, auth, media, provider work or identity acceptance.",
+          "replica_id": "e71115b8-6290-4776-be08-f2e91fe84284",
+          "owner_user_id": "c4043ccb-46b7-4c93-8f0f-6d490dcb468d",
+          "person_id": "60ecb212-9555-4ca4-9942-abfe3d7ed662",
+          "source_ids": [
+            "b7c2ea81-0f0a-4f54-b900-a894f3c4d5dd",
+            "884cb30e-139d-4113-980e-784d448b3b20",
+            "764fe500-b779-4747-ba63-4a146f018a45"
+          ],
+          "consent_ids": [
+            "b2dd1220-5f8f-4824-bebc-97590987c50e",
+            "9b218426-4988-4228-a1a9-dcb516fad946",
+            "a01ffd6d-5ed2-4a76-9b6d-d4b8e4a2e106",
+            "08f7e546-1641-406d-8306-2a17ad5878ae"
+          ],
+          "identity_case_id": "fdb54019-268b-4ae2-ba65-b03118bb40c8",
+          "artifact_id": "37fef904-96ee-4b58-87e2-33abd9d37eb8",
+          "evidence_ids": [
+            "5b92a10f-76a5-5e45-b8a1-0bcf190d4e64",
+            "a1af5287-5db9-5b59-8007-2ba801be9e2b",
+            "e8d2b112-ab12-58a5-82f9-46756c3e1f1f",
+            "445d31f6-8aaf-5726-846e-f15837e7cc1c"
+          ],
+          "decision_ids": [
+            "02f292b3-ca15-4d17-ac68-271a1139864f",
+            "15d27c94-4333-4e18-8903-72e029a5e369",
+            "b698a702-0fc5-4f96-b78f-8e153a5d3f30"
+          ],
+          "generated_artifact_decision_ids": [
+            "9"
+          ],
+          "job_ids": [
+            "e63ded7f-ec11-45ca-870f-99188b392555",
+            "4778b095-48d8-48db-b2b6-608870282f3f",
+            "598b36c6-eb8f-41c7-892a-3c81870485bb",
+            "21bc5e24-2363-43f5-a018-c73f83c2e926"
+          ],
+          "challenge_ids": [
+            "cc5f2418-ce8d-4424-b514-078d2a77f800",
+            "d69465f7-f207-4e42-83fc-25db5d051c40"
+          ],
+          "grant_ids": [
+            "5eec16b4-d0eb-4728-82c1-6f037fe70fc9",
+            "8681529c-0853-41a6-9ba8-199304c9212e"
+          ],
+          "primary_selection_id": "fccf6c9e-6743-44c9-92a6-aaa682f6e6c4"
+        }
+      ],
+      "source_sha256": {
+        "api/_liveness/issued-authority.js": "d699f47670391dd44ea8855b6742f3d4c909f2f67be18816d2e9b071d3908f0d",
+        "api/_liveness/issued-contract.js": "8f35c412236e8c72bc9448ae5cf72acadc970391df4bc54a805378b5e0962dca",
+        "api/_liveness/registry.js": "3e3a97a2d224c3f47936077d325e5a46d46ae4e07c1d18fec475d2d1e11e89cb",
+        "api/_liveness/azure-shared-audio.js": "8086d8733650fefb9a1016ea36c4630573bfe1ff9e014e2a492a302d97615d23",
+        "api/_liveness/capture-readiness.js": "1fc2930f505e4128357d4af95e1c8a8e16fbd8588113277c341008eb3b319ed1",
+        "api/_replica-review.js": "2fcb298f3fa9cd9827d2980948a46b0814c35f9b1c1b2083fdc22e211a77a7d2",
+        "api/_replica-liveness.js": "034e39ec4563d140e24d1fe1f5f55d1e50f8a566cfc64c232a3790a6a16f0a8b",
+        "api/_replica-liveness-verification.js": "0f9d2556c706b4776ff4f97975c0f6e42be0128e4d56150ae71bc830f0d10479",
+        "api/_replica-processing/contracts.js": "86fdb4396e53e31e7897689a533b56ea3a77004c722ded8c798115fd37a7e1c0",
+        "api/_replica-processing/repository.js": "3dcc6111d8e6f570de75f48bb8d4b9b50727141f15ec60a7143b608770581d4b",
+        "api/_replica-processing/purpose.js": "bf149cad27cf326310cd58447506c9b645b7720028b340aa3b7975873e4538c4",
+        "api/_voice-identity/issued-contract.js": "dd3a5b49da6602cfcce59fb59dc53e29a2aa34fcc30afff0da8b5652ddbb3ac2",
+        "db/migrations/144_modern_reference_authority_epoch.sql": "fc472800481dee513307e0b79201abcee2be993c5d8b65885119db903b495c7e",
+        "evals/modern-issued-authority/fixtures.mjs": "b82bff79242af4bfeb54d0c5e4f4530f4ecd5b78454a59cca83857157b15642e",
+        "evals/modern-issued-authority/sql-cases.mjs": "05bbf8e2f6367d6833b15d8d09a39ac327882ba2f23d4099d5bb09eb2a1ccef4",
+        "evals/modern-issued-authority/live-fixtures.mjs": "4f8e7f8438ed254861b545dfa04d90f9a2b8b3c45399f4aa06952a1d5d65890b",
+        "evals/modern-issued-authority/live.mjs": "8255eaa25fdb1f99d74d83dd8ca4002d5e51dd5aa00a866e8e913759a2d67213",
+        "evals/modern-issued-authority/live-fixture-sql.mjs": "867c8e960957c71de1b55a313305c053c03ca082e44d52de5376177d69ecc03a"
+      }
+    },
+    "sql_execution": true,
+    "provider_calls": 0,
+    "identity_acceptance": false
+  },
+  "manifest_files": [
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0001.json",
+      "sha256": "434331d04d439f6ba74a836745baa3dc47a07114f6734fd7982460aa91436910"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0002.json",
+      "sha256": "918541d9d62b3557b489833218e20d9481f79cbf519a0218bac4d83239ace505"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0003.json",
+      "sha256": "12c6e3dad864b7385c609bbf5e95a1a597e88ca86292b860ede37dcb31988856"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0004.json",
+      "sha256": "7c95c03d5451f9e0f5646ad705436a31128887f4e573e57560fe125a8c383f8c"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0005.json",
+      "sha256": "899bb94db171d3341f44e12f006e73b6c9411617f2fbd049b176be032f6c10ad"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0006.json",
+      "sha256": "39a1bba417882f8638d58e37e8b773d5d666c6a3ae4d3fb3043835c68d496e70"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0007.json",
+      "sha256": "52e1577e27531c8eb872eab8feca79b911aec49b78ffad860b11a70cab2dcae7"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0008.json",
+      "sha256": "af259aecbb8245773c3196386d57a4adc71d9d9fecfb433ef47210b9a2d4f1f0"
+    },
+    {
+      "path": "C:\\Users\\raghav.s\\Desktop\\build\\Vyakti-platform\\scratchpad\\expert-tools\\modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-manifest-0009.json",
+      "sha256": "844e6fefdd24d283e84151a7537faf71e0757331ee03329e72108a37385e7317"
+    }
+  ],
+  "sessions_opened": 17,
+  "queries": 500,
+  "timeout": false,
+  "session_errors": [],
+  "session_cleanup_errors": []
+}

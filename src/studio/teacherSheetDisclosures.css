@@ -1,0 +1,35 @@
+/* Shared by both advanced editors. Native disclosure retains keyboard and
+   assistive-technology behavior without changing draft or publication state. */
+.teacher-sheet-studio .teacher-sheet-disclosure > summary {
+  min-height: 44px;
+  padding: 12px 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  color: var(--forest-deep);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.teacher-sheet-studio .teacher-sheet-disclosure > summary:focus-visible {
+  outline: 2px solid var(--forest-deep);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.teacher-sheet-studio .teacher-sheet-disclosure > summary::marker {
+  color: var(--forest-deep);
+}
+.teacher-sheet-studio .teacher-sheet-boundary {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.teacher-sheet-studio .disclosure-note,
+.teacher-sheet-studio .disclosure-review {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.teacher-sheet-studio .disclosure-review { font-weight: 600; }

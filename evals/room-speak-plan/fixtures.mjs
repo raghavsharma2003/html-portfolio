@@ -1,0 +1,125 @@
+// WS-R156. Forty sentence-split cases across three languages, each proving
+// one shape of `api/_room-speak-plan.js`'s `planReplySentences` — plain
+// multi-sentence splitting, an abbreviation, a decimal number, chained
+// initials, a numbered list marker, a quoted sentence, an ellipsis, a run of
+// terminal punctuation, and a reply with no terminal punctuation at all.
+// Every `expected` array here was checked against the real function before
+// being committed (`node` against this fixture, not hand-derived and hoped
+// correct) — a fixture nobody ran is a claim, not a proof.
+//
+// `id` carries a short, greppable label per case; `lang` is `"en"`, `"hi"`
+// (Devanagari) or `"hi-Latn"` (Hinglish: Hindi words in Roman script, the
+// register `docs/gurukul/DESIGN-LAW.md` calls out as first-class alongside
+// the other two). `note` names the ONE shape the case proves, so a future
+// reader can tell "this one is here for the decimal-point exception" without
+// re-deriving it from the text.
+export const SPEAK_PLAN_CASES = [
+  // ── English (14) ──────────────────────────────────────────────────────
+  { id: "en-01", lang: "en", note: "one sentence, full stop",
+    text: "I am fine.", expected: ["I am fine."] },
+  { id: "en-02", lang: "en", note: "two sentences, full stop then question",
+    text: "I am fine. How are you?", expected: ["I am fine.", "How are you?"] },
+  { id: "en-03", lang: "en", note: "ellipsis is its own boundary, distinct from the question after it",
+    text: "Wait... so what happened?", expected: ["Wait...", "so what happened?"] },
+  { id: "en-04", lang: "en", note: "a run of mixed terminal punctuation (?!) is one boundary",
+    text: "Really?! That's amazing!", expected: ["Really?!", "That's amazing!"] },
+  { id: "en-05", lang: "en", note: "abbreviation exception: Dr. does not end the sentence",
+    text: "I met Dr. Mehta yesterday.", expected: ["I met Dr. Mehta yesterday."] },
+  { id: "en-06", lang: "en", note: "decimal-point exception: digit.digit does not end the sentence",
+    text: "It costs ₹49.99 today.", expected: ["It costs ₹49.99 today."] },
+  { id: "en-07", lang: "en", note: "chained initials: each dot sees the previous one, none split",
+    text: "A.P.J. Abdul Kalam was a great scientist.", expected: ["A.P.J. Abdul Kalam was a great scientist."] },
+  { id: "en-08", lang: "en", note: "numbered-list markers at a sentence's own start do not end it",
+    text: "1. Preheat the oven. 2. Add the sugar.", expected: ["1. Preheat the oven.", "2. Add the sugar."] },
+  { id: "en-09", lang: "en", note: "a two-letter abbreviation (vs.) mid-sentence",
+    text: "Compare it vs. last month's numbers.", expected: ["Compare it vs. last month's numbers."] },
+  { id: "en-10", lang: "en", note: "a closing quote right after the boundary is absorbed into the same sentence",
+    text: "He said \"I'll be there.\" Then he left.",
+    expected: ["He said \"I'll be there.\"", "Then he left."] },
+  { id: "en-11", lang: "en", note: "two questions",
+    text: "Are you coming? Or should I go alone?", expected: ["Are you coming?", "Or should I go alone?"] },
+  { id: "en-12", lang: "en", note: "a run of three exclamation marks is one boundary; the trailing fragment has no punctuation",
+    text: "OMG!!! I can't believe this.", expected: ["OMG!!!", "I can't believe this."] },
+  { id: "en-13", lang: "en", note: "\"p.m.\" is two chained one-letter abbreviations, neither splits",
+    text: "Let's meet at 5 p.m. tomorrow.", expected: ["Let's meet at 5 p.m. tomorrow."] },
+  { id: "en-14", lang: "en", note: "no terminal punctuation at all: the whole text is one final sentence",
+    text: "See you tomorrow", expected: ["See you tomorrow"] },
+
+  // ── Hindi, Devanagari (13) ───────────────────────────────────────────
+  { id: "hi-01", lang: "hi", note: "danda then question mark",
+    text: "मैं ठीक हूं। तुम कैसे हो?",
+    expected: ["मैं ठीक हूं।", "तुम कैसे हो?"] },
+  { id: "hi-02", lang: "hi", note: "one sentence, danda",
+    text: "आज मौसम अच्छा है।",
+    expected: ["आज मौसम अच्छा है।"] },
+  { id: "hi-03", lang: "hi", note: "Devanagari abbreviation (डॉ. = Dr.) does not end the sentence",
+    text: "डॉ. शर्मा ने कहा कि सब ठीक है।",
+    expected: ["डॉ. शर्मा ने कहा कि सब ठीक है।"] },
+  { id: "hi-04", lang: "hi", note: "decimal-point exception holds regardless of surrounding script",
+    text: "उसने ₹49.99 चुकाए।",
+    expected: ["उसने ₹49.99 चुकाए।"] },
+  { id: "hi-05", lang: "hi", note: "ellipsis chained into a question mark is one boundary",
+    text: "यह क्या है...? मुझे नहीं पता।",
+    expected: ["यह क्या है...?", "मुझे नहीं पता।"] },
+  { id: "hi-06", lang: "hi", note: "three sentences in one reply",
+    text: "सुबह जल्दी उठो। नाश्ता करो। स्कूल जाओ।",
+    expected: [
+      "सुबह जल्दी उठो।",
+      "नाश्ता करो।",
+      "स्कूल जाओ।",
+    ] },
+  { id: "hi-07", lang: "hi", note: "a closing quote right after a danda is absorbed into the same sentence",
+    text: "उसने कहा, \"मैं आऊंगा।\" फिर वह चला गया।",
+    expected: [
+      "उसने कहा, \"मैं आऊंगा।\"",
+      "फिर वह चला गया।",
+    ] },
+  { id: "hi-08", lang: "hi", note: "no terminal punctuation at all",
+    text: "ठीक है चलते हैं",
+    expected: ["ठीक है चलते हैं"] },
+  { id: "hi-09", lang: "hi", note: "double danda ends a sentence",
+    text: "यह पूरा हुआ॥",
+    expected: ["यह पूरा हुआ॥"] },
+  { id: "hi-10", lang: "hi", note: "exclamation then question, no danda at all",
+    text: "क्या बात है! सच में?",
+    expected: ["क्या बात है!", "सच में?"] },
+  { id: "hi-11", lang: "hi", note: "a short two-sentence greeting",
+    text: "नमस्ते। आप कैसे हैं?",
+    expected: ["नमस्ते।", "आप कैसे हैं?"] },
+  { id: "hi-12", lang: "hi", note: "a numbered list marker in Devanagari sentence context",
+    text: "1. पहले यह करो। 2. फिर वह।",
+    expected: ["1. पहले यह करो।", "2. फिर वह।"] },
+  { id: "hi-13", lang: "hi", note: "one long sentence, no internal boundary",
+    text: "मुझे लगता है कि आज का दिन अच्छा रहेगा।",
+    expected: ["मुझे लगता है कि आज का दिन अच्छा रहेगा।"] },
+
+  // ── Hinglish, Romanized Hindi (13) ───────────────────────────────────
+  { id: "hgl-01", lang: "hi-Latn", note: "one sentence, one question mark",
+    text: "Kal milte hain, thik hai?", expected: ["Kal milte hain, thik hai?"] },
+  { id: "hgl-02", lang: "hi-Latn", note: "two sentences",
+    text: "Arre yaar, mast tha! Chal ab so ja.", expected: ["Arre yaar, mast tha!", "Chal ab so ja."] },
+  { id: "hgl-03", lang: "hi-Latn", note: "abbreviation exception applies the same in Hinglish",
+    text: "Wo Dr. Verma ke paas gaya tha.", expected: ["Wo Dr. Verma ke paas gaya tha."] },
+  { id: "hgl-04", lang: "hi-Latn", note: "decimal-point exception in a Hinglish sentence",
+    text: "Uska rate ₹49.99 hai, sasta hai na?", expected: ["Uska rate ₹49.99 hai, sasta hai na?"] },
+  { id: "hgl-05", lang: "hi-Latn", note: "ellipsis and question mark are SEPARATE boundaries when not adjacent",
+    text: "Bhai... kya scene hai?", expected: ["Bhai...", "kya scene hai?"] },
+  { id: "hgl-06", lang: "hi-Latn", note: "numbered list markers",
+    text: "1. Pehle chai bana. 2. Phir baith ke baat karte hain.",
+    expected: ["1. Pehle chai bana.", "2. Phir baith ke baat karte hain."] },
+  { id: "hgl-07", lang: "hi-Latn", note: "a two-letter abbreviation (vs.) with no other punctuation",
+    text: "Waise vs. pichle mahine zyada acha tha.", expected: ["Waise vs. pichle mahine zyada acha tha."] },
+  { id: "hgl-08", lang: "hi-Latn", note: "closing quote absorbed into the sentence it closes",
+    text: "Usne bola, \"Main aaunga.\" Phir chala gaya.",
+    expected: ["Usne bola, \"Main aaunga.\"", "Phir chala gaya."] },
+  { id: "hgl-09", lang: "hi-Latn", note: "a run of terminal punctuation (?!) then a second sentence",
+    text: "Kya baat hai?! Ekdum mast!", expected: ["Kya baat hai?!", "Ekdum mast!"] },
+  { id: "hgl-10", lang: "hi-Latn", note: "no terminal punctuation at all",
+    text: "chal theek hai bye", expected: ["chal theek hai bye"] },
+  { id: "hgl-11", lang: "hi-Latn", note: "chained one-letter initials",
+    text: "A. K. Sharma ne bataya tha.", expected: ["A. K. Sharma ne bataya tha."] },
+  { id: "hgl-12", lang: "hi-Latn", note: "a trailing ellipsis with nothing after it",
+    text: "Mujhe nahi pata...", expected: ["Mujhe nahi pata..."] },
+  { id: "hgl-13", lang: "hi-Latn", note: "a four-digit decimal amount",
+    text: "Bill ₹1234.50 tha, thik lagta hai.", expected: ["Bill ₹1234.50 tha, thik lagta hai."] },
+];

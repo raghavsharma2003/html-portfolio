@@ -1,0 +1,421 @@
+// The clone's reply inside a Mirror Call — WS-AC.
+//
+// Contract: docs/gurukul/MIRROR-CALL-SPEC.md §"Clone speech" ("cascade lane
+// (ASR -> engine -> TTS), not full-duplex"). This file is the ENGINE half of
+// that cascade; `api/_voice/preview-panel.js` is the TTS half and is reused
+// unchanged.
+//
+// ═════════════════════════════════════════════════════════════════════════
+// IT IS NOT A SECOND CHAT ENGINE, AND THAT IS THE WHOLE DESIGN
+// ═════════════════════════════════════════════════════════════════════════
+//
+// The reply comes out of `api/_surface.js`'s `gatedReply()` — the same single
+// door every other surface's bytes leave by — assembled from the owner's own
+// TeacherSheet through the same `sheetToModule` the published clone runs on.
+// `api/_clonechat.js` states the argument in full and it transfers verbatim: a
+// lane with its own reply path is `age-tier-never-realtime` in a new costume,
+// a second assembler that misses every rule added after the fork, silently,
+// while returning 200.
+//
+// There is therefore NO fallback persona anywhere below. A replica with no
+// sheet produces NO TURN and a named reason, never a generic assistant voice.
+// That refusal is load-bearing in a way it is not on the widget: on a Mirror
+// Call the owner is listening to a clone OF THEMSELVES in order to judge
+// whether it sounds like them, and a generic chatbot wearing their cloned
+// voice would corrupt the only judgement the call exists to collect. The
+// closest failure already in the book is `plausible-return-hides-a-dead-
+// pipeline`, and this one would come with a speaker attached.
+//
+// ═════════════════════════════════════════════════════════════════════════
+// PUBLISHED SHEET PREFERRED, DRAFT SHEET ALLOWED, THE DIFFERENCE ANNOUNCED
+// ═════════════════════════════════════════════════════════════════════════
+//
+// A calibration call is the thing an owner does BEFORE they publish, so
+// refusing every unpublished replica would make the feature unreachable
+// exactly when it is most useful. So the draft sheet answers — and every
+// payload that carries the turn also carries `sheet_source`, because "the
+// owner heard a plausible voice and could not tell which persona produced it"
+// is the failure mode this repo has already paid for once.
+//
+// The consent gate is NOT relaxed by that. `loadTeacherAgent` refuses an
+// unconsented published row and this lane never reaches it; the draft path
+// here is owner-to-own-replica only, enforced by the SQL predicate in
+// `mirrorReplyAgent` and by nothing in this file.
+//
+// ═════════════════════════════════════════════════════════════════════════
+// THE CAPTION AND THE AUDIO ARE THE SAME STRING
+// ═════════════════════════════════════════════════════════════════════════
+//
+// WS-W's panel caps synthesis text at 280 characters (`capPanelText`), and
+// this lane synthesises through that function rather than around it. So the
+// turn is capped HERE, at assembly, to the first fragment `splitForLimit`
+// yields at that width — and the caption renders that same capped string.
+//
+// The alternative was tried on paper and rejected: caption the full reply and
+// speak the first fragment. That produces a screen saying more than the voice
+// said, which is `silent-truncation` with a speaker on it and is worse on a
+// call than anywhere else, because the owner is grading the voice against the
+// text in front of them. The trimming is NOT silent either — `assembled_chars`
+// rides on the row and on the wire whenever it exceeds the spoken length.
+import {
+  gatedReply,
+  loadEngine,
+  makeCtx,
+  splitForLimit,
+  think,
+} from "./_surface.js";
+import { sheetToModule, validateTeacherSheet } from "./_engine.gen.js";
+
+/** The synthesis cap, and therefore the caption cap. Equal to
+ *  `api/_voice/warmup.js`'s `PANEL_TEXT_MAX` by intent and not by coincidence:
+ *  if that number moves and this one does not, every long turn becomes a 413
+ *  the owner reads as a broken clone. `evals/mirrorcallreply.mjs` asserts the
+ *  two are equal so the drift is a failing check rather than a support ticket. */
+export const MIRROR_REPLY_TEXT_MAX = 280;
+
+/** How much of the call rides into the compile. The cascade lane is one window
+ *  at a time, so twenty turns is roughly ten exchanges — long enough that the
+ *  clone does not restart every window, short enough that a thirty-minute call
+ *  does not grow an unbounded prompt under the budget checker. */
+export const MIRROR_REPLY_HISTORY_TURNS = 20;
+
+/** What one owner window may contribute. Sarvam's sync lane caps a window at
+ *  30 s, which cannot reach this, so it is a guard against a malformed
+ *  transcript rather than a product limit. */
+export const MIRROR_REPLY_INPUT_MAX = 2_000;
+
+/**
+ * Every reason a window can fail to produce a turn, and nothing else.
+ *
+ * `turn_absent_reason` is the field WS-Y renders, so this set IS the vocabulary
+ * of that field. Kept frozen and exported so the eval can assert that the
+ * handler emits nothing outside it: a reason string invented at a call site is
+ * a reason no client can render and no operator can grep for.
+ *
+ * `clone_reply_lane_not_wired` is deliberately still here. It is what WS-X's
+ * build answered on every window, it is what a deployment running the previous
+ * tree still answers, and deleting the value would make that deployment's
+ * payloads unparseable rather than merely stale.
+ */
+export const MIRROR_TURN_ABSENT_REASONS = Object.freeze([
+  "clone_reply_lane_not_wired",
+  "owner_window_dropped",
+  "clone_sheet_absent",
+  "clone_sheet_invalid",
+  "clone_engine_unavailable",
+  "clone_reply_empty",
+  "clone_reply_failed",
+  // WS-R4. The owner tapped "Never say this" on this shape of answer, and the
+  // predicate at the one door caught it. Distinct from `clone_reply_empty`
+  // because "your own rule stopped this" and "the clone had nothing to say" are
+  // different things for a studio to render, and collapsing them would make a
+  // working rule look like a broken clone.
+  "clone_reply_never_rule",
+  // WS-R5. The interview mode could not place its ask block in the compiled
+  // prompt without appending it AFTER the appended-last set, and it refused
+  // rather than do that. See `spliceInterviewAsk` for why that refusal is the
+  // whole safety property and not a defensive branch nobody will hit.
+  "interview_ask_unplaceable",
+]);
+
+/** Why a turn that EXISTS still cannot be spoken. Distinct from the absent
+ *  reasons above on purpose: "there is no turn" and "there is a turn and the
+ *  voice route will not carry it" are different things for a studio to say,
+ *  and collapsing them would make the captions-only state indistinguishable
+ *  from a clone with nothing to say. */
+export const MIRROR_VOICE_ABSENT_REASONS = Object.freeze([
+  "voice_route_unconfigured",
+  "voice_genome_absent",
+]);
+
+export function mirrorReplyError(code, status = 409, details) {
+  const error = Object.assign(new Error(code), { code, status });
+  if (details) error.details = details;
+  return error;
+}
+
+/**
+ * Trim an assembled reply to what can actually be spoken.
+ *
+ * Returns `{ text, assembledChars, truncated }`. `text` is what is captioned
+ * AND synthesised — one string, never two.
+ */
+export function capMirrorReply(value, max = MIRROR_REPLY_TEXT_MAX) {
+  const raw = String(value ?? "").replace(/\s+/g, " ").trim();
+  const assembledChars = raw.length;
+  if (!raw) return { text: "", assembledChars: 0, truncated: false };
+  if (assembledChars <= max) return { text: raw, assembledChars, truncated: false };
+  // `splitForLimit` is the same fragmenter every surface renders through, so
+  // the cut lands where a burst would have split rather than mid-word.
+  const first = splitForLimit(raw, max)[0]?.text ?? raw.slice(0, max);
+  return { text: first.trim(), assembledChars, truncated: true };
+}
+
+/**
+ * WS-R5 — WHERE AN INTERVIEW QUESTION IS ALLOWED TO SIT IN THE PROMPT.
+ *
+ * The interview mode hands the clone a NOTE about what to ask (shapes, never a
+ * question: `api/_interview-gaps.js` renders no question text and this file
+ * writes none). The note has to go somewhere in the compiled prompt, and where
+ * is not a style question.
+ *
+ * `prompt-position` is measured: an identical rule fired 0 times in 8 mid-brief
+ * and 8 in 8 appended last. The appended-last set is CLOSED AT TWO —
+ * `SEARCH_DECISION` and `FORGET_DECISION`, hard-enforced in CI by
+ * `shapelint.checkAppendedLastExactlyTwo`, and `AGE_TIER_SAFETY_OVERRIDE`
+ * already settled for a worse position rather than dilute it. So the ask
+ * CANNOT be appended last, and appending it after `FORGET_DECISION` anyway
+ * would be a surface quietly widening a set the compiler closes.
+ *
+ * It goes exactly where `compiler.ts` puts T16 and T19 for the same reason
+ * those two sit there: immediately before the appended-last set, which is the
+ * strongest position that is actually available. A Mirror Call compiles with
+ * `mode: "call"`, so `SEARCH_DECISION` is not emitted and `FORGET_DECISION` is
+ * the tail's literal suffix.
+ *
+ * IT REFUSES RATHER THAN GUESSES. If the suffix is not where the compiler says
+ * it is, this returns null and the window reports `interview_ask_unplaceable`.
+ * The alternative is appending after it, which is the one thing this function
+ * exists to make impossible, and a silent fallback there would break the
+ * position law of the whole persona on a lane nobody re-reads.
+ */
+export function spliceInterviewAsk(compiled, agentModule, askBlock) {
+  const block = String(askBlock ?? "").trim();
+  if (!block) return compiled;
+  const suffix = String(agentModule?.FORGET_DECISION ?? "");
+  const tail = String(compiled?.tail ?? "");
+  if (!suffix || !tail.endsWith(suffix)) return null;
+  const spliced = `${tail.slice(0, tail.length - suffix.length)}\n\n${block}${suffix}`;
+  return { ...compiled, tail: spliced, system: `${compiled.core ?? ""}${spliced}` };
+}
+
+/**
+ * The rolling call, as the engine's turn list.
+ *
+ * Owner windows that DROPPED contribute nothing — they have no words, and
+ * inventing a placeholder for them would put something in the clone's context
+ * that the owner never said. Turns are interleaved by `seq`, which is the only
+ * ordering either side agrees on.
+ */
+export function mirrorReplyHistory(windows, turns, limit = MIRROR_REPLY_HISTORY_TURNS) {
+  const bySeq = new Map();
+  for (const w of Array.isArray(windows) ? windows : []) {
+    if (String(w?.asr_state) !== "transcribed") continue;
+    const text = String(w.transcript || "").trim();
+    if (!text) continue;
+    const seq = Number(w.seq);
+    if (!bySeq.has(seq)) bySeq.set(seq, {});
+    bySeq.get(seq).user = text.slice(0, MIRROR_REPLY_INPUT_MAX);
+  }
+  for (const t of Array.isArray(turns) ? turns : []) {
+    const text = String(t?.text || "").trim();
+    if (!text) continue;
+    const seq = Number(t.seq);
+    if (!bySeq.has(seq)) bySeq.set(seq, {});
+    bySeq.get(seq).assistant = text;
+  }
+  const out = [];
+  for (const seq of [...bySeq.keys()].sort((a, b) => a - b)) {
+    const pair = bySeq.get(seq);
+    if (pair.user) out.push({ role: "user", content: pair.user });
+    if (pair.assistant) out.push({ role: "assistant", content: pair.assistant });
+  }
+  return out.slice(-limit);
+}
+
+/**
+ * Build the AgentModule for the owner's own replica from the sheet row the
+ * store returned.
+ *
+ * Throws — every failure path, with a code. Returns `{ module, sheetSource }`.
+ * There is no branch that returns a default module, for the reason the header
+ * gives at length.
+ */
+export function mirrorReplyModule(sheetRow) {
+  if (!sheetRow) throw mirrorReplyError("clone_sheet_absent", 409);
+  const sheet = sheetRow.sheet && typeof sheetRow.sheet === "object"
+    ? sheetRow.sheet
+    : (() => { try { return JSON.parse(String(sheetRow.sheet || "")); } catch { return null; } })();
+  if (!sheet || typeof sheet !== "object") throw mirrorReplyError("clone_sheet_invalid", 409);
+
+  // Re-validated at LOAD, exactly as `loadTeacherAgent` does and for the same
+  // reason: a sheet that was valid when it was saved and is not valid now must
+  // fail closed rather than quietly serve the version that predates the rule.
+  // The draft path needs this MORE than the published one, because a draft has
+  // never been through the publish gate at all.
+  const validation = validateTeacherSheet(sheet);
+  if (!validation.ok) {
+    throw mirrorReplyError("clone_sheet_invalid", 409, { errors: validation.errors });
+  }
+  const module = sheetToModule(sheet);
+
+  // The wrong-agent guard, transferred from `loadTeacherAgent`. Here the
+  // disaster it prevents is narrower and stranger: an owner calibrating their
+  // clone against SOMEBODY ELSE'S persona, in their own cloned voice, and
+  // accepting phrase-habit chips mined from the mismatch. One mis-joined row
+  // reaches it.
+  const slug = String(sheetRow.slug || "");
+  if (slug && module.slug !== slug) {
+    throw mirrorReplyError("clone_sheet_invalid", 500, { row_slug: slug, sheet_slug: module.slug });
+  }
+  return {
+    module,
+    sheetSource: sheetRow.status === "published" && sheetRow.consent_artifact_id ? "published" : "draft",
+    sheetId: sheetRow.sheet_id || null,
+    agentId: sheetRow.agent_id || null,
+    slug: module.slug || slug,
+  };
+}
+
+/**
+ * Assemble one clone turn.
+ *
+ * Everything with an edge is injected so `evals/mirrorcallreply.mjs` can drive
+ * the whole assembly offline with no engine bundle, no database and no
+ * credential — the discipline `api/_voice/preview-panel.js` established.
+ *
+ * @param deps `{ sheetRow, history, latestText, askBlock?, engine?, reply?, now? }`
+ *   `askBlock` is WS-R5's interview note, already rendered as telegraphic lines
+ *   by `api/_interview-gaps.js::renderInterviewAsk`. Absent on a calibration
+ *   call, which is why the calibration lane's bytes do not move.
+ * @returns `{ ok: true, ... }` or `{ ok: false, reason }` where `reason` is a
+ *   member of MIRROR_TURN_ABSENT_REASONS. It does NOT throw for an expected
+ *   refusal: a window whose clone could not answer is still a window that must
+ *   return its transcript, its chips and its fidelity, and a throw here would
+ *   lose all three to a lane failure that is not one.
+ */
+export async function assembleMirrorReply(deps = {}) {
+  const latest = String(deps.latestText ?? "").trim().slice(0, MIRROR_REPLY_INPUT_MAX);
+  if (!latest) return { ok: false, reason: "owner_window_dropped" };
+
+  let built;
+  try {
+    built = mirrorReplyModule(deps.sheetRow);
+  } catch (error) {
+    const code = String(error?.code || "clone_sheet_invalid");
+    return {
+      ok: false,
+      reason: code === "clone_sheet_absent" ? "clone_sheet_absent" : "clone_sheet_invalid",
+      details: error?.details ?? null,
+    };
+  }
+
+  const engine = deps.engine !== undefined ? deps.engine : await loadEngine();
+  // No engine, no answer, and the failure is NAMED. A hand-rolled fallback
+  // prompt here would be a second clone of a real, named, living person that
+  // nobody validated and nobody consented to — and on this surface that person
+  // is the one listening.
+  if (!engine) return { ok: false, reason: "clone_engine_unavailable" };
+
+  const history = Array.isArray(deps.history) ? deps.history : [];
+  const memoryFacts = (Array.isArray(deps.memoryFacts) ? deps.memoryFacts : [])
+    .map((fact) => String(fact?.body || "").trim().slice(0, 600))
+    .filter(Boolean)
+    .slice(0, 8);
+  // A REQUEST/RESPONSE surface: the reply IS the response, so `send` has
+  // nothing to transmit to. It is present because `makeCtx` requires an
+  // adapter and because a `send` that threw would turn a future `deliver()`
+  // call added by someone else into a lane failure rather than a no-op.
+  const adapter = {
+    surface: "web",
+    verify: async () => ({ ok: true, reason: "" }),
+    parse: () => [],
+    send: async () => ({ ok: true }),
+    render: (text) => splitForLimit(text, MIRROR_REPLY_TEXT_MAX),
+  };
+  const ctx = makeCtx(adapter, {
+    engine,
+    agent: built.module,
+    agentId: built.agentId || undefined,
+    reply: deps.reply || ((compiled, turns) => think(engine, compiled, turns)),
+  });
+
+  const compiled = engine.compile({
+    agent: built.module,
+    // The owner is the person on the call and the person the clone is OF. No
+    // vibe and no facts are passed: this lane reads no memory and writes none,
+    // and passing a half-populated profile would make the clone's familiarity
+    // depend on which fields a studio happened to fill.
+    user: { name: "", vibe: [], facts: {} },
+    messageCount: history.length,
+    // SPOKEN, not texted. The engine's spoken-register rules are the ones
+    // `evals/persona-invariants.mjs` protects, and a Mirror Call reply that
+    // compiled as text would be graded by the owner as a voice.
+    medium: "voice",
+    mode: "call",
+    // Not "live". The live branch of `buildSpeechStyle` tells her that nothing
+    // she says is written down anywhere, which is FALSE here — a Mirror Call
+    // turn is captioned on screen and stored as a row so the owner can rate it
+    // and the synthesis path can bind to it. "device" is the truthful value
+    // for a cascade lane driven by our own runtime, and the `[tone: …]` marker
+    // its branch asks for never reaches an ear: `parseBubbles` extracts it
+    // inside `gatedReply` before this function ever sees the text.
+    voiceEngine: "device",
+    isDirective: false,
+    watching: false,
+    innerThread: "",
+    innerWants: "",
+    // Only facts from explicitly owner-accepted, source-cited claims enter this
+    // calibration call. The database retrieval applies the shared disclosure
+    // predicate to the exact clone/owner dyad before this assembler sees text.
+    memories: memoryFacts.map((fact) => `- ${fact}`).join("\n"),
+    herLife: "",
+    cultureNoteText: "",
+    latestUserText: latest,
+  });
+
+  // WS-R5. The interview's note, spliced into the one position the compiler
+  // leaves open. `null` means the tail did not end where the compiler says it
+  // ends, and the honest answer to that is no turn with a named reason — never
+  // a turn assembled with the ask silently dropped, which would be an interview
+  // that asked nothing and reported success.
+  const withAsk = spliceInterviewAsk(compiled, built.module, deps.askBlock);
+  if (withAsk === null) return { ok: false, reason: "interview_ask_unplaceable" };
+
+  const turns = [...history, { role: "user", content: latest }];
+  let gated;
+  try {
+    // THE ONE DOOR. `record` and `nameable` are empty, which makes honesty
+    // family 4 as strict as it ever is.
+    // THE SAME DOOR IN BOTH MODES. An interview turn is not assembled anywhere
+    // else and by nothing else: the only difference between calibrate and
+    // interview is one note inside the compiled tail, so every rule added to
+    // `gatedReply` after today reaches the interview lane without anyone
+    // remembering to wire it (`mirror-call-reply-is-the-one-door`).
+    gated = await gatedReply(ctx, withAsk, turns, {
+      label: deps.askBlock ? "studio/mirror-interview" : "studio/mirror-call",
+      // WS-R4. The never-rules ride in on `deps` rather than being read here, because
+      // this function is deliberately databaseless so the offline suite can drive
+      // the whole assembly. The caller that has the replica reads them.
+      neverRules: Array.isArray(deps.neverRules) ? deps.neverRules : [],
+      record: memoryFacts,
+    });
+  } catch (error) {
+    return { ok: false, reason: "clone_reply_failed", details: { code: String(error?.code || "") } };
+  }
+
+  const capped = capMirrorReply(gated?.text);
+  // A reply the owner's own rule suppressed is NOT "the clone had nothing to
+  // say". Naming it separately is the same discipline every other absent reason
+  // on this lane follows: a lane that answered silence would be the fake
+  // progress bar with a speaker on it.
+  if (!capped.text && gated?.neverRule) return { ok: false, reason: "clone_reply_never_rule" };
+  if (!capped.text) return { ok: false, reason: "clone_reply_empty" };
+
+  return {
+    ok: true,
+    text: capped.text,
+    assembledChars: capped.assembledChars,
+    truncated: capped.truncated,
+    sheetSource: built.sheetSource,
+    sheetId: built.sheetId,
+    agentSlug: built.slug,
+    recalled: memoryFacts.length,
+    // Counts only, never the strings — `gateReply`'s rule.
+    gate: { applied: Boolean(gated?.gated), findings: Array.isArray(gated?.findings) ? gated.findings.length : 0 },
+    // WS-R5. Whether this turn carried an interview ask at all. A boolean, not
+    // the block: the block is a note about what to ask, and putting it on a
+    // wire payload would put it one copy-paste away from a screen.
+    asked: Boolean(deps.askBlock),
+  };
+}

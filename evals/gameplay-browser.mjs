@@ -35,7 +35,7 @@
 // evals/world-thread-browser.mjs states: it needs a built app and a server on
 // a port. It is in version control because `dead-writers` does not stop being
 // true for evals.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { execSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -72,7 +72,7 @@ const ok = (n, c, e = "") => {
   if (!c && !OBSERVE) fails++;
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("gameplay-browser");
 
 const BASE_STATE = {
   onboarded: true,

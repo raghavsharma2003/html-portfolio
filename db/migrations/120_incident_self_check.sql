@@ -1,0 +1,34 @@
+-- Migration 120 - the self-check cron needs one more incident kind
+-- (WS-R76).
+--
+-- `vy_incident.kind` (migration 109) is a closed CHECK-bounded vocabulary -
+-- `api/_incidents.js`'s own `INCIDENT_KINDS`, mirrored here so a future
+-- INSERT cannot widen the table past what a human reviewed. The self-check
+-- cron (`api/self-check.js`) records one incident per FAILING check it
+-- finds (a missing env var by name, the database not answering `select 1`,
+-- a migration family's table or column absent from the live catalog, a
+-- sibling sweep gone stale against `vercel.json`'s own schedule) through
+-- the SAME `recordIncident(db, {kind, door, status})` every other door
+-- already calls - `door` carries the check's own name (e.g. "env: NEON_URL
+-- missing"), never a value and never a length that could leak one
+-- (workstream law: NEVER print, log or commit a value from api/_config.js
+-- or the environment). Without this kind, every self-check finding would be
+-- refused by this CHECK and swallowed by `recordIncident`'s own
+-- best-effort catch - a self-check that cannot report anything is worse
+-- than no self-check at all, `context/rejected.md`'s own "a plausible
+-- return hides a dead pipeline" law restated for a CHECK constraint instead
+-- of a mocked db.
+--
+-- One statement per request, idempotent (drop-if-exists then add), no DO
+-- blocks - migration 113's own precedent one migration family over
+-- (WS-R59: "the constraint name is the one Postgres gave ... read back from
+-- the live catalog before this was written"). Here the name is not
+-- ambiguous the way 102's inline column CHECK was - migration 109 gave this
+-- constraint an EXPLICIT name (`vy_incident_kind_check`) in its own `alter
+-- table ... add constraint` statement, so Postgres could not have chosen a
+-- different one. The main loop should still read the live name back before
+-- applying, the same belt-and-suspenders precedent, in case an out-of-band
+-- change ever renamed it.
+alter table vy_incident drop constraint if exists vy_incident_kind_check;
+alter table vy_incident add constraint vy_incident_kind_check
+  check (kind in ('door_5xx', 'provider_payments', 'provider_telegram', 'provider_whatsapp', 'provider_webpush', 'self_check'));

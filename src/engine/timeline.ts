@@ -753,7 +753,35 @@ function parseRelative(hay: string, raw: string, anchor: number): number | null 
   // style: "may" is a modal verb far more often than it is a month, and
   // api/memory.js's own TIME_BOUND regex has the same hole. A bare "may" is
   // ignored; "may 14" is a date. Every other month name is unambiguous.
-  const md = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(\d{1,2})?\b/i.exec(raw);
+  //
+  // ── THE SECOND CARVE-OUT (WS-O, 2026-08-26) ────────────────────────────
+  // This pattern used to end each abbreviation with `[a-z]*`, meaning "the
+  // three-letter prefix plus whatever follows it", so it matched the PREFIX
+  // INSIDE ANY LONGER WORD. Measured over a plain word list: married→March,
+  // marriage→March, marks→March, decade→December, decide→December,
+  // declare→December, junior→June, novel→November, octopus→October,
+  // septic→September, augment→August, aprons→April, janta→January.
+  //
+  // That is not a theoretical hole. `evals/recallbench`'s dyad-a carries the
+  // row "younger sister, getting married in nashik in december", and the old
+  // pattern read "married" as MARCH — resolving a December wedding to the
+  // month the sentence was written in, five months BEHIND where it belongs.
+  // It was invisible while `resolveWhen` had one consumer (hisClock, whose
+  // output is a coarse label); it became visible the moment WS-O made the same
+  // answer the stored `valid_to` that decides tense. In a product whose
+  // students say "marks" in every third message, "marks"→March is the
+  // load-bearing case.
+  //
+  // The alternation below admits ONLY the real completions of each month name
+  // and closes with `\b`, so a month must be a whole word (or its standard
+  // abbreviation, "sept." included) rather than a prefix of one. Capture group
+  // 1 may now be a full name; every consumer already normalises it with
+  // `.slice(0, 3)`, and the `may` carve-out below still compares the whole
+  // token, which is exactly "may" either way.
+  const md =
+    /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?\s*(\d{1,2})?\b/i.exec(
+      raw,
+    );
   if (md && !(md[1].toLowerCase() === "may" && !md[2])) {
     const mi = MONTHS.indexOf(md[1].toLowerCase().slice(0, 3));
     const dom = md[2] ? Math.max(1, Math.min(28, Number(md[2]))) : 15;

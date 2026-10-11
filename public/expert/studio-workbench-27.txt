@@ -1,0 +1,23 @@
+Asset: studio-workbench-27.png
+Origin: Generated with Codex built-in image_gen tool on 2026-09-27.
+Source artifact: C:\Users\raghav.s\.codex\generated_images\01a0e140-363a-7153-b9e7-9e4a6ad63a90\exec-53372ebe-a477-4037-af1a-c4499ca86b0c.png
+Project copy: C:\Users\raghav.s\Desktop\build\Vyakti-platform-standalone25\public\expert\studio-workbench-27.png
+Dimensions: 1586 x 992 pixels
+
+Exact prompt:
+
+Use case: photorealistic-natural
+Asset type: wide brand artwork for a premium personal expert studio and authentication experience
+Primary request: Create one refined editorial photographic still life that feels like a personal expert's creative workbench: beautiful, premium, classy, quietly futuristic through craft and precision, never techy.
+Scene/backdrop: a serene pearl-white work surface with a softly tonal pearl-white background, real studio depth and restrained negative space suitable for responsive cropping.
+Subject: an open, completely unmarked ivory notebook with blank pages; one elegant graphite pen; one small, beautifully machined brushed-silver microphone as a tactile physical object. Keep the arrangement sparse and coherent, like a gallery still life made for a thoughtful human creator.
+Style/medium: photorealistic high-end editorial product photography, understated European design magazine sensibility, honest materials, natural imperfections, subtle fine film grain.
+Composition/framing: wide 16:10 horizontal composition; a calm three-quarter overhead camera angle; objects gathered in a balanced low, off-center constellation while generous clean breathing room remains around them for flexible cropping; clear visual hierarchy and graceful silhouettes; no clipped objects.
+Lighting/mood: soft directional window light, pale warm daylight, long delicate shadows, quiet confidence, intimate and human, contemplative rather than corporate.
+Color palette: pearl white, brushed silver, graphite ink, soft warm gray, tiny tonal variations only.
+Materials/textures: visible paper tooth and page edges, satin brushed metal, finely textured graphite-black pen, subtle surface grain; physically believable contact shadows and reflections.
+Text: none.
+Constraints: no embedded UI, no words, no letters, no numbers, no logos, no brands, no watermark; notebook pages must be entirely blank; exactly one notebook, one pen, and one compact microphone; the microphone must look like an elegant real tabletop recording object, not a futuristic gadget.
+Avoid: people or hands; screens; phones; laptops; keyboards; headphones; AI orbs; glowing spheres; circuit boards; circuitry motifs; glass panels; holograms; neon; blue-purple tech lighting; generic abstract shapes; trophy styling; excessive chrome; laboratory sterility; sci-fi concept art; 3D-render appearance; visual clutter.
+
+Delivery variants: studio-workbench-27-640.webp and studio-workbench-27-1200.webp encoded with Sharp, quality85, unchanged composition. Original kept in scratchpad/workbench27/studio-workbench-source.png.

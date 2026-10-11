@@ -1,0 +1,7 @@
+# Verification knowledge178: retained caller guard
+
+2026-09-09 local date. Base6201ffd86842fbcfc7b28af37640652625a3fc98. Actual full175 failure occurs before any browser/build at evals/verification-knowledge/run.mjs:27: whole CloneExperience source equality against684441e14dcbb0fac904fea3c8d104412848ab98. Reviewed e418d4b5 added Teach source action and evolve workspace routing outside the verification invocation. These unrelated accepted additions invalidate the old whole-file assertion without showing a navigation defect.
+
+Narrow repair compares the exact sole CloneVerificationJourney invocation and all its props after existing reviewed owner-plumbing normalization and exact Back to knowledge navigation removal. Historical fixture SHA b7fb64ac4965ba7af81ec4acff5cc9c7f42b052a0cb1f6d3f3297c0c7b5ddb8e unchanged. Four added source negatives reject missing navigation, wrong destination, changed consent props and duplicate invocation. Source-only check passed. No product/API/authority change; all mounted cases and timing limits unchanged. Browser run pending root lane grant.
+
+The full-workspace historical file is still used as an actual mounted negative caller. Restricting source comparison to the owned invocation does not claim unrelated workspace code is identical; separate Teach/action tests own those changes. Reverse if a relevant invocation mutation passes, historical bytes change, or actual mounted navigation fails. No full-release pass inferred from source-only result.

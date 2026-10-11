@@ -1,0 +1,210 @@
+/* ListeningTest.css — WS-R155. Mobile-first (390px), desktop second, both
+ * inside the studio's own token scale (design/tokens.css) rather than new
+ * hand-picked sizes. */
+.lt-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-block);
+  padding: var(--space-pad);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.lt-panel h2 {
+  font-size: var(--text-heading);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-heading);
+  margin: 0;
+  color: var(--ink);
+}
+
+.lt-intro {
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--ink-soft);
+  margin: 0;
+  max-width: var(--measure);
+}
+
+.lt-samples {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-block);
+}
+
+@media (min-width: 720px) {
+  .lt-samples {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.lt-sample {
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-item);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-item);
+  background: var(--paper);
+}
+
+.lt-sample h3 {
+  font-size: var(--text-title);
+  margin: 0;
+  color: var(--ink);
+}
+
+.lt-player {
+  width: 100%;
+  max-width: 100%;
+}
+
+.lt-playback-note {
+  font-size: var(--text-small);
+  line-height: var(--leading-snug);
+  color: var(--ink-faint);
+  margin: 0;
+  padding: var(--space-tight);
+  border-radius: var(--radius-control);
+  background: var(--paper-deep);
+}
+
+/* WS-R179. The reference recording reuses .lt-sample's box; only the small
+ * instruction line beneath its heading is new. */
+.lt-reference-note {
+  font-size: var(--text-small);
+  line-height: var(--leading-snug);
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.lt-axis {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+}
+
+.lt-axis legend {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  padding: 0;
+}
+
+.lt-axis-scale {
+  display: flex;
+  gap: var(--space-tight);
+  flex-wrap: wrap;
+}
+
+.lt-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: var(--space-hair) var(--space-tight);
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-size: var(--text-body);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.lt-score input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.lt-score:has(input:checked) {
+  background: var(--forest);
+  border-color: var(--forest);
+  color: #fff;
+}
+
+.lt-score:has(input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.lt-axis-help {
+  font-size: var(--text-micro);
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+.lt-error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-control);
+  padding: var(--space-tight) var(--space-item);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.lt-actions {
+  display: flex;
+  gap: var(--space-item);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.lt-cancel,
+.lt-submit,
+.lt-close {
+  font-size: var(--text-body);
+  padding: var(--space-tight) var(--space-item);
+  border-radius: var(--radius-control);
+  border: var(--hairline) solid var(--line-strong);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.lt-submit,
+.lt-close {
+  background: var(--forest);
+  border-color: var(--forest);
+  color: #fff;
+}
+
+.lt-submit:disabled {
+  background: var(--paper-deep);
+  border-color: var(--line);
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+.lt-cancel:focus-visible,
+.lt-submit:focus-visible,
+.lt-close:focus-visible,
+.lt-score:focus-within {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.lt-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-item);
+  margin: 0;
+}
+
+.lt-summary dt {
+  font-size: var(--text-small);
+  color: var(--ink-faint);
+}
+
+.lt-summary dd {
+  margin: 0;
+  font-size: var(--text-lead);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}

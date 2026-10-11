@@ -32,7 +32,7 @@
 // shared with production (`free-tts-daily`) and is never touched here.
 
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { rmSync } from "node:fs";
 
@@ -47,8 +47,9 @@ const STUB = join(HERE, "stubs/platform.mjs");
 const BUNDLE = join(HERE, `.device.${process.pid}.bundle.mjs`);
 
 execFileSync(
-  "npx",
+  process.platform === "win32" ? (process.env.ComSpec || "cmd.exe") : "npx",
   [
+    ...(process.platform === "win32" ? ["/d", "/s", "/c", "npx"] : []),
     "esbuild",
     join(ROOT, "src/voice/speech.ts"),
     "--bundle",
@@ -190,7 +191,10 @@ function check(lane, why, captured, { tagsOk = false, mustSay = [] } = {}) {
 const load = async (native) => {
   globalThis.__MEERA_NATIVE = native;
   // A fresh module instance per lane: `isNative` is captured at load.
-  return import(`file://${BUNDLE}?lane=${native ? "native" : "web"}&t=${Date.now()}`);
+  const url = pathToFileURL(BUNDLE);
+  url.searchParams.set("lane", native ? "native" : "web");
+  url.searchParams.set("t", String(Date.now()));
+  return import(url.href);
 };
 
 const reset = () => {

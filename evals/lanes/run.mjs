@@ -31,7 +31,7 @@
 // Offline, deterministic, no model call, no database, no money.
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as F from "./fixtures.mjs";
@@ -45,7 +45,7 @@ execSync(
     `--outfile=${BUNDLE} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
   { stdio: "inherit", cwd: ROOT },
 );
-const E = await import(BUNDLE);
+const E = await import(pathToFileURL(BUNDLE).href);
 
 let fail = 0;
 let checks = 0;
@@ -101,9 +101,33 @@ const herLifeToldOnly = E.formatHerLife(
   NOW,
 );
 
+// A window where HE discloses steadily and SHE does not — the Kuki-study
+// direction. Sixteen turns, over both floors, well past the threshold.
+const RECIPROCITY_LOPSIDED = Array.from({ length: 16 }, (_, i) =>
+  i % 2 === 0
+    ? { from: "me", text: `mujhe aaj bahut tension ho rahi hai ${i}` }
+    : { from: "her", text: `accha ${i}` },
+);
+
 const base = {
   user: F.user,
   messageCount: h.length,
+  // T17 rel.reciprocity (WS-K): every lane's real call site folds the SAME
+  // message store, so it belongs in `base` rather than being repeated per
+  // lane — the shape of the wiring is itself the parity claim this table makes.
+  //
+  // The fold runs over a DEDICATED lopsided transcript rather than over `h`.
+  // Two reasons, and the second is the important one:
+  //   1. `h` is balanced, and `reciprocityNote` is silent on every balanced
+  //      window BY CONSTRUCTION — so a table row driven from `h` would read
+  //      DARK on all four lanes and say nothing about the wiring.
+  //   2. Perturbing `h` to make it lopsided would move T14's repetition
+  //      signal, T16's commitment ages and T5's memories for every lane at
+  //      once, i.e. it would pay for one row with four others.
+  // What this row therefore asserts is the thing that actually breaks: that
+  // all four call sites PASS the state. `evals/reciprocity.mjs` owns the
+  // content half.
+  reciprocity: E.reciprocityState(RECIPROCITY_LOPSIDED),
   isDirective: false,
   watching: false,
   herLife: herLifeWithNow,
@@ -188,6 +212,23 @@ const BLOCKS = [
   { id: "T15", what: "session.activity", chat: P, cascade: P, live: P,
     watch: "the watch compile passes no `activity`. A share starts MID-CALL and this prompt is frozen when it starts, so a board opened later cannot ride it either way; mid-call state travels by direct(). NOT stated at the call site — WS-SYNC+MEMEVAL flagged it for whoever owns useCallEngine.ts" },
   { id: "T16", what: "her.commitments", chat: P, cascade: P, live: P, watch: P },
+  { id: "T17", what: "rel.reciprocity", chat: P, cascade: P, live: P, watch: P },
+  // WS-Q. Both blocks are CLONE-ONLY by construction: they render from fields
+  // a published TeacherSheet supplies, and these four lanes are Meera's, whose
+  // sheet has no life shape and no speak-first record. Exempt on every lane
+  // here, and that is the same zero-byte property gate Q1 states — asserted in
+  // this table too, rather than only in evals/clonelife, because THIS is the
+  // file that would notice a compiler edit quietly lighting them up for Meera.
+  { id: "T18", what: "clone.now",
+    chat: "Meera's aliveness comes from herNow.ts + T7 via brain.ts, not from a sheet life shape — a second answer to 'what are you doing right now' is the defect herNow.ts exists to close, so this stays dark on every incumbent lane",
+    cascade: "same: no sheet life shape on an incumbent agent, so cloneNowAt() is never called and the slot renders zero bytes (gate Q1)",
+    live: "same: no sheet life shape on an incumbent agent, so cloneNowAt() is never called and the slot renders zero bytes (gate Q1)",
+    watch: "same: no sheet life shape on an incumbent agent, so cloneNowAt() is never called and the slot renders zero bytes (gate Q1)" },
+  { id: "T19", what: "clone.initiative",
+    chat: "these fixtures are all turns HE started; the slot renders only on a turn the clone opened, and only with a citable reason on the record — an incumbent lane supplies no initiative verdict at all",
+    cascade: "a spoken turn is never a turn the clone opened unprompted; no initiative verdict is supplied and the slot renders zero bytes",
+    live: "a spoken turn is never a turn the clone opened unprompted; no initiative verdict is supplied and the slot renders zero bytes",
+    watch: "a watch turn is a frame arriving mid-call, never an opening the clone chose; no initiative verdict is supplied and the slot renders zero bytes" },
   { id: "mp.roster", what: "multiparty roster", chat: "no roomBundle on a dyadic lane: the room layer is a separate surface (WS-TGBOT) and every dyadic fixture must render it as exactly zero bytes — gate G1",
     cascade: "no roomBundle on a dyadic lane — same G1 zero-byte property",
     live: "no roomBundle on a dyadic lane — same G1 zero-byte property",
@@ -200,6 +241,31 @@ const BLOCKS = [
     cascade: "compile() gates it on `mode === \"chat\"`: a cascade turn is mode 'call', so this is chat-only BY CONSTRUCTION rather than by a caller's omission",
     live: "chat-only by construction inside compile() (mode 'call'); the call site also passes \"\" for clarity",
     watch: "chat-only by construction inside compile() (mode 'call'); the call site also passes \"\" for clarity" },
+  // WS-R153 (migration 164). No lane fixture in this file sets `input.vibe`
+  // — EmotionOS's vibe is a Vyakti-replica-only, owner-set field with no
+  // Meera/incumbent-agent counterpart, the same shape T18/T19's own "no
+  // sheet life shape on an incumbent agent" exemption above already states
+  // for a different pair of slots.
+  { id: "vibe", what: "EmotionOS vibe",
+    chat: "no input.vibe on any incumbent-agent fixture in this file — Meera carries no vibe row, the same T18/T19 exemption shape one section up",
+    cascade: "same: no input.vibe on an incumbent-agent fixture",
+    live: "same: no input.vibe on an incumbent-agent fixture",
+    watch: "same: no input.vibe on an incumbent-agent fixture" },
+  // This fixture's own `latestUserText` ("yaar aaj bahut stress hai,
+  // deadline kal hai") is a genuine, real cascade case for `readRegister`
+  // (see `register.ts`): it matches the "rushed" shape (a long run-on with
+  // no terminal punctuation) but at LOW confidence (a Hindi/Hinglish
+  // marker demotes it, `register.ts`'s own documented rule), and
+  // `renderRegisterHint` only ever renders on HIGH confidence — so this is
+  // a fact about THIS TEXT, not about any lane, and every lane using it
+  // (chat/cascade/live all share the same fixture string) renders zero
+  // bytes identically. `evals/emotionos/run.mjs` is the dedicated suite
+  // that drives the classifier's own gate-open (high-confidence) cases.
+  { id: "register", what: "register hint",
+    chat: "this fixture's own turn text reads as rushed at LOW confidence (a Hindi marker demotes it) and the render gate only fires on HIGH confidence — a text property, not a chat-lane property",
+    cascade: "same fixture text, same low-confidence non-render — a text property, not a cascade-lane property",
+    live: "same fixture text, same low-confidence non-render — a text property, not a live-lane property",
+    watch: "the watch lane's own latestUserText is \"\" (T4/T12's own budget-decision exemption above) — readRegister's own \"no turn, no register\" guard renders nothing" },
   { id: "watch", what: "WATCH note",
     chat: "there is no screen being shared on a text lane — the note describes a frame she is looking at, and this lane has none",
     cascade: "there is no shared screen on the cascade voice lane either; the note belongs to the surfaces that carry frames",

@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <title>Rooms directory</title>
+  <meta name="description" content="Creators who have opted in to be found: a name, a one-line description, and the language their AI's chrome speaks. Nothing about any follower." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Rooms directory" />
+  <meta property="og:description" content="Creators who have opted in to be found: a name, a one-line description, and the language their AI's chrome speaks." />
+  <meta name="theme-color" content="#f4f1e9" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="canonical" href="/creators" />
+
+  <!--
+    ══ WS-R45, THE CREATOR DIRECTORY ═════════════════════════════════════════
+    site/vyakti.html's own rule, restated for the identical reason: one
+    self-contained file, no build coupling, no extra copy step beyond
+    scripts/vercel-build.sh's plain `cp`. This page fetches ONE public,
+    unauthenticated read (`GET /api/creators`, `api/_creators.js`) and renders
+    it. It never asks who is looking, and the read it calls never returns a
+    follower count, a message count, or anything else about a person - the
+    directory's own brief, restated in code by that module's own header.
+
+    Locale is `?lang=hi`, read from the query string and nothing else - no
+    cookie, no Accept-Language sniff, so a search engine and a person share
+    the exact same page for the exact same URL, which is the property a
+    sitemap and a JSON-LD block both depend on staying true.
+
+    The em-dash ban, the Rooms vocabulary rule and every other copy-gate rule
+    `site/vyakti.html`'s own header names cover this file too
+    (`scripts/check-copy.mjs`, `dir: "site/"`, `roomsVocab` extended to this
+    file by name). HTML comments are exempt, body copy and the COPY table
+    below are not.
+  -->
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { margin: 0; }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+    }
+
+    /* Same values as src/studio/design/tokens.css, restated - this file ships
+       with no build step (site/vyakti.html's own note, one file over). */
+    :root {
+      color-scheme: light;
+      --paper: #f4f1e9;
+      --panel: #fffef9;
+      --ink: #171915;
+      --ink-soft: #52564e;
+      --ink-faint: #676b62; /* AA on paper (4.82:1) and on panel (5.39:1) */
+      --line: rgba(28, 32, 26, 0.12);
+      --line-strong: rgba(28, 32, 26, 0.22);
+      --forest: #17493b;
+      --forest-deep: #0e352a;
+      --forest-soft: #e1eee7;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --devanagari: "Noto Sans Devanagari", var(--sans);
+      --serif: Georgia, "Times New Roman", serif;
+      --radius-control: 10px;
+      --radius: 20px;
+      --tracking-caps: 0.06em;
+      --leading-body: 1.6;
+      --measure: 62ch;
+      --space-pad: clamp(18px, 4vw, 40px);
+      --motion-quick: 160ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    body {
+      min-width: 320px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: var(--leading-body);
+    }
+    body[data-lang="hi"] { font-family: var(--devanagari); }
+
+    h1, h2 { margin: 0; font-family: var(--serif); font-weight: 400; line-height: 1.2; }
+    body[data-lang="hi"] h1, body[data-lang="hi"] h2 { font-family: var(--devanagari); font-weight: 700; }
+    p { margin: 0; }
+
+    :focus-visible { outline: 3px solid var(--forest); outline-offset: 3px; border-radius: 4px; }
+
+    .wrap { width: min(920px, 100% - 2 * var(--space-pad)); margin-inline: auto; }
+
+    .mark { display: inline-grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 3px; width: 30px; height: 30px; padding: 6px; border-radius: 9px; background: var(--forest); flex: none; }
+    .mark i { width: 100%; border-radius: 999px; background: var(--paper); }
+    .mark i:nth-child(1) { height: 42%; }
+    .mark i:nth-child(2) { height: 100%; }
+    .mark i:nth-child(3) { height: 68%; }
+
+    .nav { padding: 14px 0; }
+    .nav .wrap { display: flex; align-items: center; gap: 14px; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .brand b { font-size: 14px; font-weight: 800; letter-spacing: 0.12em; }
+    .nav-spacer { flex: 1; }
+    .lang-switch { display: flex; gap: 6px; }
+    .lang-switch a {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--ink-soft);
+    }
+    .lang-switch a[aria-current="true"] { background: var(--forest); border-color: var(--forest); color: var(--panel); }
+
+    .creators-hero { padding: clamp(28px, 5vw, 56px) 0 clamp(24px, 4vw, 40px); }
+    .creators-hero h1 { max-width: 20ch; font-size: clamp(28px, 4.4vw, 42px); }
+    .creators-hero p { max-width: var(--measure); margin-top: 16px; color: var(--ink-soft); font-size: clamp(15px, 1.6vw, 17px); }
+
+    .creators-list { padding-bottom: clamp(40px, 6vw, 72px); display: grid; gap: 14px; }
+
+    .creators-card {
+      display: grid;
+      gap: 10px;
+      padding: 18px var(--space-pad);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color var(--motion-quick) var(--ease-standard);
+    }
+    a.creators-card:hover { border-color: var(--forest); }
+    .creators-card__top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .creators-card__name { font-size: 17px; font-weight: 700; }
+    .creators-card__lang { font-size: 12px; font-weight: 700; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--forest-deep); background: var(--forest-soft); border-radius: 999px; padding: 3px 9px; }
+    .creators-card__bio { max-width: var(--measure); color: var(--ink-soft); font-size: 15px; }
+
+    .creators-card--status { max-width: var(--measure); color: var(--ink-soft); font-size: 15px; }
+
+    .load-more { display: flex; justify-content: center; padding-top: 6px; }
+    .load-more button {
+      min-height: 44px;
+      padding: 0 22px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .load-more button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .foot { padding: 32px 0 48px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 13px; }
+    .foot .wrap { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .foot p { max-width: 56ch; }
+    .foot a { color: var(--ink-soft); }
+  </style>
+</head>
+<body class="creators-shell">
+
+  <nav class="nav" aria-label="Primary">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Vyakti home">
+        <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span data-copy="brand">VYAKTI</span>
+      </a>
+      <span class="nav-spacer"></span>
+      <div class="lang-switch" aria-label="Language">
+        <a href="#" data-lang-link="en">English</a>
+        <a href="#" data-lang-link="hi">हिन्दी</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <header class="creators-hero">
+      <div class="wrap">
+        <h1 data-copy="heroTitle"></h1>
+        <p data-copy="heroLede"></p>
+      </div>
+    </header>
+
+    <section class="wrap" aria-labelledby="creators-list-title">
+      <h2 id="creators-list-title" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;" data-copy="listTitle"></h2>
+      <div class="creators-list" id="creators-list" role="list" aria-live="polite"></div>
+      <div class="load-more" id="load-more" hidden>
+        <button type="button" id="load-more-button" data-copy="loadMore"></button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <p data-copy="footNote"></p>
+      <span class="nav-spacer"></span>
+      <a href="/privacy" data-copy="footPrivacy"></a>
+    </div>
+  </footer>
+
+  <script id="creators-jsonld" type="application/ld+json">{}</script>
+
+  <script>
+    // ── COPY, EN/HI, `src/room/copy.ts`'s own table discipline restated for a
+    // file with no build step to check it against a shared export: every key
+    // present in EN must be present in HI, asserted at the bottom of this
+    // script (a page that fails its own check renders the failure rather than
+    // a half-translated screen) and by `evals/creator-directory/run.mjs`
+    // against this file's real source. ──────────────────────────────────────
+    var COPY = {
+      en: {
+        brand: "VYAKTI",
+        heroTitle: "Creators you can find here.",
+        heroLede: "Every AI on this page belongs to a real person who chose to be found. Talking to one starts your own private, continuing relationship with it, never shared with anyone else who talks to the same AI.",
+        listTitle: "Listed creators",
+        loading: "Loading.",
+        error: "This page could not load the directory right now. Try again in a moment.",
+        empty: "No one has opted in to the directory yet.",
+        open: "Open",
+        loadMore: "Show more",
+        footNote: "A creator lists here by choice. The listing shows only a name, a one-line description, and a language, never a follower count.",
+        footPrivacy: "Privacy and Terms",
+      },
+      hi: {
+        brand: "VYAKTI",
+        heroTitle: "यहाँ मिलने वाले क्रिएटर.",
+        heroLede: "इस पेज पर हर AI किसी असली व्यक्ति का है, जिसने खुद यहाँ दिखने का फैसला लिया है. किसी से बात करते ही आपका अपना, निजी और लगातार चलने वाला रिश्ता शुरू होता है, जो उसी AI से बात करने वाले किसी और के साथ साझा नहीं होता.",
+        listTitle: "सूचीबद्ध क्रिएटर",
+        loading: "लोड हो रहा है.",
+        error: "अभी सूची लोड नहीं हो पाई. थोड़ी देर बाद फिर कोशिश करें.",
+        empty: "अभी तक किसी ने सूची में शामिल होना नहीं चुना है.",
+        open: "खोलें",
+        loadMore: "और दिखाएं",
+        footNote: "क्रिएटर अपनी मर्जी से यहाँ सूचीबद्ध होता है. सूची में सिर्फ नाम, एक पंक्ति का परिचय और भाषा दिखती है, फॉलोअर की संख्या कभी नहीं.",
+        footPrivacy: "गोपनीयता और नियम",
+      },
+    };
+    (function assertCopyKeysMatch() {
+      var en = Object.keys(COPY.en).sort().join("|");
+      var hi = Object.keys(COPY.hi).sort().join("|");
+      if (en !== hi) throw new Error("creators.html COPY keys diverge between en and hi");
+    })();
+
+    function currentLang() {
+      var q = new URLSearchParams(location.search).get("lang");
+      return q === "hi" ? "hi" : "en";
+    }
+
+    function applyStaticCopy(lang) {
+      var t = COPY[lang];
+      document.documentElement.lang = lang;
+      document.body.setAttribute("data-lang", lang);
+      document.querySelectorAll("[data-copy]").forEach(function (el) {
+        var key = el.getAttribute("data-copy");
+        if (t[key] != null) el.textContent = t[key];
+      });
+      document.querySelectorAll("[data-lang-link]").forEach(function (el) {
+        var target = el.getAttribute("data-lang-link");
+        var params = new URLSearchParams(location.search);
+        if (target === "en") params.delete("lang"); else params.set("lang", target);
+        var qs = params.toString();
+        el.href = location.pathname + (qs ? "?" + qs : "");
+        el.setAttribute("aria-current", String(target === lang));
+      });
+    }
+
+    // ── the one card renderer, used for both a real read and the eval fixture ─
+    function creatorCard(creator, lang, doc) {
+      doc = doc || document;
+      var a = doc.createElement("a");
+      a.className = "creators-card";
+      a.setAttribute("role", "listitem");
+      a.href = "/r/" + creator.slug;
+      var top = doc.createElement("div");
+      top.className = "creators-card__top";
+      var name = doc.createElement("span");
+      name.className = "creators-card__name";
+      name.textContent = creator.display_name || creator.slug;
+      var langBadge = doc.createElement("span");
+      langBadge.className = "creators-card__lang";
+      langBadge.textContent = creator.locale === "hi" ? "हिन्दी" : "English";
+      top.appendChild(name);
+      top.appendChild(langBadge);
+      a.appendChild(top);
+      if (creator.one_line_bio) {
+        var bio = doc.createElement("p");
+        bio.className = "creators-card__bio";
+        bio.textContent = creator.one_line_bio;
+        a.appendChild(bio);
+      }
+      return a;
+    }
+
+    // ── the directory's own JSON-LD, name and url only (WS-R45's own brief:
+    // never a bio, never a locale, never anything per-person beyond what a
+    // stranger reading the page already sees rendered). Pure and exported on
+    // `window` so `evals/creator-directory/run.mjs` can call the REAL
+    // function pulled from this file's own source, never a reimplementation
+    // of it. ─────────────────────────────────────────────────────────────────
+    function buildItemListJsonLd(creators, origin) {
+      return {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        itemListElement: creators.map(function (c, i) {
+          return {
+            "@type": "ListItem",
+            position: i + 1,
+            item: {
+              "@type": "Person",
+              name: c.display_name || c.slug,
+              url: origin + "/r/" + c.slug,
+            },
+          };
+        }),
+      };
+    }
+    if (typeof window !== "undefined") window.buildItemListJsonLd = buildItemListJsonLd;
+
+    (function boot() {
+      var lang = currentLang();
+      applyStaticCopy(lang);
+
+      var list = document.getElementById("creators-list");
+      var loadMoreWrap = document.getElementById("load-more");
+      var loadMoreButton = document.getElementById("load-more-button");
+      var allCreators = [];
+      var nextCursor = null;
+      var loading = false;
+
+      function renderStatus(key) {
+        var el = document.createElement("p");
+        el.className = "creators-card creators-card--status";
+        el.textContent = COPY[lang][key];
+        list.appendChild(el);
+      }
+
+      function renderPage(creators, append) {
+        if (!append) list.textContent = "";
+        creators.forEach(function (c) { list.appendChild(creatorCard(c, lang)); });
+        allCreators = append ? allCreators.concat(creators) : creators.slice();
+        try {
+          document.getElementById("creators-jsonld").textContent =
+            JSON.stringify(buildItemListJsonLd(allCreators, location.origin));
+        } catch (e) { /* JSON-LD is a courtesy to a crawler, never a page blocker */ }
+      }
+
+      function load(cursor) {
+        if (loading) return;
+        loading = true;
+        if (!cursor) renderStatus("loading");
+        var url = "/api/creators" + (cursor ? "?cursor=" + encodeURIComponent(cursor) : "");
+        fetch(url)
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var creators = Array.isArray(data && data.creators) ? data.creators : [];
+            nextCursor = (data && data.next_cursor) || null;
+            if (!cursor && creators.length === 0) {
+              list.textContent = "";
+              renderStatus("empty");
+            } else {
+              renderPage(creators, Boolean(cursor));
+            }
+            loadMoreWrap.hidden = !nextCursor;
+            loadMoreButton.disabled = false;
+          })
+          .catch(function () {
+            list.textContent = "";
+            renderStatus("error");
+            loadMoreWrap.hidden = true;
+          })
+          .then(function () { loading = false; });
+      }
+
+      loadMoreButton.addEventListener("click", function () {
+        loadMoreButton.disabled = true;
+        load(nextCursor);
+      });
+
+      load(null);
+    })();
+  </script>
+
+</body>
+</html>

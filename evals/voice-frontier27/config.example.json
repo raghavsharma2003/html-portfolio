@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "arms": ["baseline", "candidate-b", "candidate-c"],
+  "repetitions": [1, 2],
+  "speakers": [
+    { "id": "speaker01", "enrollment_audio": "references/speaker01/enrollment.wav", "heldout_reference_audio": "references/speaker01/heldout.wav", "consent_current": false, "heldout_text_excluded_from_enrollment": false },
+    { "id": "speaker02", "enrollment_audio": "references/speaker02/enrollment.wav", "heldout_reference_audio": "references/speaker02/heldout.wav", "consent_current": false, "heldout_text_excluded_from_enrollment": false },
+    { "id": "speaker03", "enrollment_audio": "references/speaker03/enrollment.wav", "heldout_reference_audio": "references/speaker03/heldout.wav", "consent_current": false, "heldout_text_excluded_from_enrollment": false }
+  ]
+}

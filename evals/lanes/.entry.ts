@@ -10,6 +10,9 @@ export {
   JUST_HAPPENED_BUDGET,
 } from "../../src/voice/callHistory";
 export { herCommitments } from "../../src/engine/honesty";
+// WS-K: T17's producer, so the parity table folds the same state the real
+// call sites do rather than a copy of the fold.
+export { reciprocityState } from "../../src/engine/reciprocity";
 export { activityOf } from "../../src/state/game";
 export { innerContext } from "../../src/engine/inner";
 // WS-HERNOW. T7's string carries her told-ledger AND her present minute, so

@@ -55,7 +55,7 @@
 import { Capacitor } from "@capacitor/core";
 import { setTelTap, telDevice, telSession } from "./telemetry";
 
-const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
+const BASE = Capacitor.isNativePlatform() ? "https://vyakti-replica-lab.vercel.app" : "";
 const ENDPOINT = `${BASE}/api/trace`;
 
 const FLUSH_MS = 5_000;

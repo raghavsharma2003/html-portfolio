@@ -359,6 +359,96 @@ Gate: `node evals/run.mjs activity`.
 
 ---
 
+## 2c. Which clone answers — the binding (Gurukul WS-N, migration 055)
+
+Until 055 this whole document described a layer that answered as exactly one
+agent. Not by a setting — by a **constant**: `MEERA_AGENT_ID`, named in
+`ensureRoomForSurfaceChat` and `upsertRoomMember`, with `compile()` taking no
+`agent` at all. That is correct for a product with one persona and it is
+precisely why a second clone on Telegram was a code change.
+
+`vy_clone_channel` answers one question and only one: **on this wire, at this
+address, which published clone replies?**
+
+```
+(kind, external_ref) --vy_clone_channel--> agent_id --vy_agent--> slug
+                                                                    |
+                                    api/_teachersheet.js loadTeacherAgent
+                                                                    v
+                                                              AgentModule
+```
+
+### §0 is unchanged, and that is the load-bearing half
+
+A surface is still a TRANSPORT. It is still not a tenant. It still scopes
+nothing. The binding yields an **agent**, never a person and never a scope, and
+the two halves of an inbound event meet without mixing:
+
+| question | table | agent-scoped? |
+|---|---|---|
+| who is speaking | `vy_surface_identity` | **no**, and it must never gain an `agent_id` |
+| who answers | `vy_clone_channel` | it *is* the agent |
+
+The agent then enters at RETRIEVAL, exactly as `api/_agentscope.js` requires. A
+binding that also filtered identity would make "she remembers me from Telegram"
+false on the web for no reason a user could ever be told.
+
+### What an adapter must do, and it is two things
+
+1. Put the binding address on the event as `channelRef`. It is **not** the
+   `chatKey`: the chatKey addresses a human, `channelRef` addresses the bot or
+   the business line. WhatsApp reads it from `value.metadata.phone_number_id`;
+   Telegram has none in the payload (a token is already one bot) so it rides on
+   the webhook URL as `?ch=<bot id>`.
+2. Accept an optional `deps.bind`, call it once per event, and **drop the event
+   when it returns null**.
+
+Everything else is `makeCtx`'s two new fields, `ctx.agent` and `ctx.agentId`,
+both defaulted to Meera's — so an adapter that passes neither behaves exactly
+as it did, which is what `evals/mp/*` still measure without edits.
+
+### Fail closed, with ONE indistinguishable error
+
+Unbound address, paused binding, revoked binding, unpublished clone, withdrawn
+consent artifact → all five are `clone_unavailable`, flattened in
+`api/_clonechannel.js` on purpose. A caller that could tell them apart could
+enumerate which teachers had taken their clone down.
+
+And **never toward Meera**: there is no fallback branch. A wrong-agent fallback
+is the disaster case — the student asked their physics teacher and reached a
+companion persona built for consenting adults, with none of the minor defaults
+and none of the clone disclosure, and every log line would look healthy.
+
+### The credential is a REFERENCE
+
+`vy_clone_channel.credentials_ref` is a `uuid`, so a bot token cannot be cast
+into it. The value lives in `api/_channel-secrets.js`, whose **default backend
+refuses**: a deployment with no configured secret store cannot connect a
+credentialed channel at all. See `docs/gurukul/ENV-MANIFEST.md` §15c.
+
+## 2d. `api/embed.js` — the fourth surface, and the only self-serve one
+
+An embeddable `<script>` that mounts a chat bubble on any site, talking to
+`api/clone-chat.js`. It is a surface like the others — its reply comes out of
+`gatedReply()` — with three properties none of the other three have:
+
+- **Anonymous, and therefore remembers nothing.** No `vy_person` row, no
+  episode, no retrieval. §6.4's rule where it bites hardest: the visitor is
+  very likely a minor, consented to nothing, and arrived from a page that is
+  not ours.
+- **The disclosure is bound into the session token, not asked of the page.**
+  The widget runs on somebody else's website, so "it renders the card" cannot
+  be the mechanism — a fork that deleted the render would still chat. `open`
+  mints a token carrying the card's digest; `say` recomputes the card and
+  refuses a token whose digest does not match.
+- **The transcript is the client's and it is signed.** Every reply mints a new
+  token whose digest covers the transcript so far, so an invented `assistant`
+  turn — words in a real named teacher's clone's mouth — is refused.
+
+Needs nobody's approval. That is why it was built first and built completely:
+it is the only surface where "self-serve, without us writing code per customer"
+is true today rather than after somebody else's review queue.
+
 ## 3. The three that exist
 
 ### Status, stated so a green run is not read as more than it is

@@ -10,12 +10,13 @@
 // column and nothing for recall to filter, because a memory that is still in
 // the table is still a memory — the row is gone. The single exception is
 // meera_forget, which stores the WORD and nothing else, for the one reason
-// documented at noteForgotten(). Every statement in here is scoped by
-// device_id: the device is the identity, so a device can only ever delete
-// its own rows.
+// documented at noteForgotten(). Migration 018 makes the raw relationship
+// substrate `(agent_id, device_id)` scoped: a device identifies the human and
+// agent_id identifies which relationship may read or mutate the row.
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
+import { isAzureOnlyServing, assertAzureServingOrigin } from "./_model-serving-policy.js";
 // A1 (docs/research/MEMORY-FIELD-SURVEY.md §Q5): the mutation-time forget
 // matcher's one model call. Deliberately the SAME helper api/chat.js reaches
 // the free pool with — a forget must not grow a second, differently-behaved
@@ -57,6 +58,42 @@ import {
   AZURE_KEY,
 } from "./_config.js";
 
+// WS-R27 (migration 090): the plain SHA-256 helper the Room forget receipt's
+// hash is built from - see `roomForgetReceiptHash` below for why this is a
+// bare hash rather than the HMAC `api/_replica-full-erasure.js` uses for its
+// own deletion receipt. A leaf module (no imports of its own beyond
+// node:crypto), so importing it here creates no cycle with api/_room-surface.js,
+// which imports FROM this file already.
+import { sha256Hex } from "./_replica-processing/contracts.js";
+
+// ── the validity deriver (ROADMAP-100X item 4, WS-O) ──────────────────────
+//
+// LAZY, and cached across invocations of a warm function. api/_engine.gen.js is
+// ~300 KB and this file is on the latency-critical recall path; a static import
+// would put the whole engine bundle in every cold start of every op here, to
+// serve one write path that runs after the reply has already gone out.
+// api/_surface.js's `loadEngine` is the same pattern for the same reason.
+//
+// A missing bundle is NOT loud here, and the asymmetry against api/_surface.js
+// is deliberate: there, a missing bundle means she would answer as somebody
+// else, so the turn is refused. Here it means one new fact is stored without a
+// derived horizon, and `staleNote` falls back to the row-age rule this repo
+// has been shipping all along. Degrading to today's behaviour is the correct
+// failure; refusing to store a memory is not.
+let _validity = null;
+let _validityTried = false;
+async function loadValidity() {
+  if (_validityTried) return _validity;
+  _validityTried = true;
+  try {
+    const m = await import("./_engine.gen.js");
+    _validity = typeof m?.deriveFactValidity === "function" ? m : null;
+  } catch {
+    _validity = null;
+  }
+  return _validity;
+}
+
 const SB_URL = process.env.SUPABASE_URL || SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_KEY || SUPABASE_KEY;
 const OR_KEY = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY;
@@ -80,8 +117,33 @@ const AZ_ENDPOINT = process.env.AZURE_ENDPOINT || AZURE_ENDPOINT;
 const AZ_KEY = process.env.AZURE_API_KEY || AZURE_KEY;
 const AZ_EXTRACT_MODEL = "grok-4-1-fast-reasoning";
 
-/** Ask the extraction brain. Azure (reasoning) first, OpenRouter as fallback. */
-async function extractChat(messages, maxTokens) {
+/** Strict: guarded Azure or named failure. Legacy: Azure then OpenRouter. */
+export async function extractChat(messages, maxTokens, { env = process.env, fetchImpl = globalThis.fetch, model = AZ_EXTRACT_MODEL, timeoutMs = 25_000 } = {}) {
+  if (isAzureOnlyServing(env)) {
+    const endpoint = env.AZURE_ENDPOINT || (env === process.env ? AZURE_ENDPOINT : "");
+    const key = env.AZURE_API_KEY || (env === process.env ? AZURE_KEY : "");
+    if (!endpoint || !key) throw Object.assign(new Error("memory_azure_unconfigured"), { code: "memory_azure_unconfigured", status: 503 });
+    const url = `${endpoint}/chat/completions`;
+    assertAzureServingOrigin(url, env);
+    try {
+      const response = await fetchImpl(url, {
+        method: "POST", redirect: "error",
+        headers: { "api-key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) throw Object.assign(new Error("memory_azure_http_failed"), { code: "memory_azure_http_failed", status: 502 });
+      const data = await response.json();
+      const choice = data?.choices?.[0];
+      if (choice?.finish_reason !== "stop" || typeof choice?.message?.content !== "string" || !choice.message.content.trim()) {
+        throw Object.assign(new Error("memory_azure_response_incomplete"), { code: "memory_azure_response_incomplete", status: 502 });
+      }
+      return choice.message.content;
+    } catch (error) {
+      if (/^memory_azure_/.test(String(error?.code || ""))) throw error;
+      throw Object.assign(new Error("memory_azure_transport_failed"), { code: "memory_azure_transport_failed", status: 502 });
+    }
+  }
   if (AZ_ENDPOINT && AZ_KEY) {
     try {
       const r = await fetch(`${AZ_ENDPOINT}/chat/completions`, {
@@ -139,14 +201,14 @@ export const LOG_CHANNELS = new Set(["chat", "call", "watch"]);
  *  that pins the two together. */
 export const RECALL_T5_BUDGET = 6_000;
 
-async function opLog(device, body) {
+async function opLog(device, body, agentId = MEERA_AGENT_ID) {
   const turns = (Array.isArray(body.turns) ? body.turns : []).slice(0, 30);
   if (!turns.length) return { ok: true };
   const values = [];
   const params = [];
   let p = 1;
   for (const t of turns) {
-    values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+    values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},${agentValue(`$${p++}`)})`);
     params.push(
       device,
       t.role === "her" ? "her" : "me",
@@ -170,6 +232,7 @@ async function opLog(device, body) {
       typeof t.kind === "string" ? t.kind.slice(0, 20) : "text",
       String(t.content || "").slice(0, 4000),
       Number.isFinite(t.at) ? new Date(t.at).toISOString() : new Date().toISOString(),
+      agentId,
     );
   }
   // WS-TRACE: `returning id` makes the trace's link to CONTENT a reference
@@ -183,7 +246,7 @@ async function opLog(device, body) {
   // rather than a standard guarantee, which is why `role` and `at` ride along:
   // a caller that needs certainty can match on those instead of on position.
   const inserted = await q(
-    `insert into meera_log (device_id, role, channel, kind, content, at) values ${values.join(",")}
+    `insert into meera_log (device_id, role, channel, kind, content, at, agent_id) values ${values.join(",")}
      returning id, role, at`,
     params,
   );
@@ -675,7 +738,14 @@ async function opRecall(device, body) {
   // fetched. `last_recalled` is selected for the same reason it is written:
   // so the spaced-resurfacing modifier below is inspectable from the row
   // rather than only from the ORDER BY.
-  const COLS = "id, name, kind, summary, feel, updated_at, created_at, mentions, last_recalled";
+  // `valid_from, valid_to` (migration 056, WS-O) ride along so `staleNote`
+  // below can ask the fact's OWN horizon instead of counting days since the
+  // row was written. They are null for every row written before 056 and for
+  // every fact whose text carries no resolvable date, which is most of them —
+  // and null means `staleNote` keeps the 45-day rule it already had, so the
+  // recalled bytes for an existing store do not move.
+  const COLS =
+    "id, name, kind, summary, feel, updated_at, created_at, mentions, last_recalled, valid_from, valid_to";
   // STANDING BACKGROUND is what she carries without being asked, so it must be
   // the big durable things — not last week's loudest topic. Identity kinds
   // (who they are, where they are, what they like) hold their weight; episodic
@@ -737,7 +807,8 @@ async function opRecall(device, body) {
   const fetches = [
     q(
       `with scored as (
-         select ${COLS}, salience, ${RANK} as r from meera_nodes where device_id = $1
+         select ${COLS}, salience, ${RANK} as r from meera_nodes n where device_id = $1
+           ${agentScopePredicate("n", { agentId: "$2" })}
        ),
        ranked as (select *, 0 as slot from scored order by r desc, updated_at desc limit 5),
        reserved as (
@@ -747,13 +818,13 @@ async function opRecall(device, body) {
           order by s.created_at asc limit 1
        )
        select * from ranked union all select * from reserved`,
-      [device],
+      [device, agentId],
     ),
   ];
   if (words.length) {
     const clauses = [];
-    const params = [device];
-    let p = 2;
+    const params = [device, agentId];
+    let p = 3;
     for (const w of words) {
       // word-boundary match, not substring: `ilike '%rate%'` hits "corporate"
       // and hands her a memory the message never referred to
@@ -763,7 +834,9 @@ async function opRecall(device, body) {
     }
     fetches.push(
       q(
-        `select ${COLS} from meera_nodes where device_id = $1 and (${clauses.join(" or ")})
+        `select ${COLS} from meera_nodes n where device_id = $1
+           ${agentScopePredicate("n", { agentId: "$2" })}
+           and (${clauses.join(" or ")})
          order by ${RANK} desc, updated_at desc limit 8`,
         params,
       ).catch(() => []),
@@ -975,7 +1048,108 @@ async function opRecall(device, body) {
   // person a third time, and it degrades to `self: null` on any failure.
   const selfBundleFetch = personPromise.then((person) => fetchSelfBundle(person, agentId)).catch(() => null);
 
-  const [[bgRaw, matchedRaw = []], semanticRaw, activityRaw, watchRaw, relBundle, selfBundle] =
+  // ── THE SURFACE-SWITCH LEG (WS-O) ──────────────────────────────────────
+  //
+  // WHAT IS BROKEN. `api/_surface.js`'s own header states the law: "A surface
+  // is a TRANSPORT... The same human on Telegram and on the web is the same
+  // relationship, so identity resolution here is AGENT-INDEPENDENT and memory
+  // is never keyed by surface. Anything that keys memory by surface
+  // reintroduces the amnesia the relational layer exists to delete."
+  //
+  // Identity really is shared — `vy_surface_identity` maps (surface,
+  // surface_user_id) to ONE person_id. But `_room.js`'s `bindSurfaceDmDevice`
+  // mints a device PER SURFACE, and the two biggest legs above
+  // (`meera_nodes`: standing background and the keyword match) plus
+  // `meera_edges` are device-keyed. The vy_ store is person-keyed and follows
+  // the person; the graph store does not.
+  //
+  // MEASURED, on the same 44 scorable questions over the same fixture rows,
+  // with the device_id as the ONLY variable (`evals/run.mjs recallbench` §3c):
+  // mean recall 0.841 on the device the rows were formed on, 0.091 from
+  // another device the same person owns. **89.2% of what she had, gone on a
+  // surface switch**, silently, with a 200 on every call.
+  //
+  // ── WHY THIS IS AN ADDITIVE LEG AND NOT A WIDER `where` ────────────────
+  // The obvious fix is to widen the existing predicates to the person's device
+  // set. It was refused, for two reasons that are about failure modes rather
+  // than taste:
+  //
+  //   1. Those two statements are the ones every recalled prompt is built
+  //      from, and each is wrapped in `.catch(() => [])`. A SQL error in a
+  //      widened predicate — a uuid/text mismatch in the subquery, say — would
+  //      not raise: it would return an empty array, and she would silently
+  //      have no memory at all. That is `silent-truncation` in the retrieval
+  //      path, and `offline-mocks-cannot-type-check-sql` is explicit that a
+  //      mocked DB proves control flow and not SQL types. There is no live
+  //      database in this session to smoke-test against.
+  //   2. As a separate leg, the failure mode is the opposite one: this query
+  //      dies, the cross-surface rows are absent, and the recall is exactly
+  //      what it is today. The feature degrades; the product does not.
+  //
+  // ── CONSENT: THE HALF THAT DECIDES THE SHAPE ───────────────────────────
+  // `opRecall` has NO read-side forget suppression — forget is a hard DELETE,
+  // and the legacy lane's delete is device-scoped. So reading another device's
+  // rows without any further work would let her say, on the very device where
+  // she was asked to forget something, a thing already forgotten there.
+  //
+  // Hence the term query below, and hence the ATOMIC RULE: the cross-surface
+  // rows are used ONLY if the forget-term read also succeeded. If the terms
+  // cannot be read, the rows are dropped. A memory that arrives without its
+  // suppression list is not a partially-good feature, it is a consent defect,
+  // so the two travel as one result or not at all.
+  //
+  // Terms are read across ALL of the person's devices, this one included —
+  // broader than what any single-device path does today, and broad in the only
+  // safe direction.
+  //
+  // ── WHAT CANNOT LEAK THROUGH THIS, BY CONSTRUCTION ─────────────────────
+  // Group rooms. A room turn is written under `vy_group.room_device_id`, a
+  // synthetic uuid that (PERSON_TABLES' own note) "appears in NOBODY's
+  // vy_person_device mapping". So the subquery cannot reach a room device, and
+  // the §2.3 disclosure predicate is not being re-implemented here or relied
+  // on — the join simply does not contain those rows. Agent scope is carried
+  // explicitly on both statements, exactly as every other leg carries it.
+  //
+  // ABSENT BY DEFAULT: a person with one device has no other devices, both
+  // queries return nothing, and every byte of the recalled prompt is what it
+  // was before this leg existed.
+  const crossSurfaceFetch = (async () => {
+    const person = await personPromise;
+    if (!person) return null;
+    const clauses = words.map((_, i) => `(n.name ~* $${i + 4} or n.summary ~* $${i + 4})`);
+    const [rows, terms] = await Promise.all([
+      q(
+        `select ${COLS}, salience, ${RANK} as r
+           from meera_nodes n
+          where n.device_id <> $1
+            and n.device_id in (select d.device_id from vy_person_device d where d.person_id = $2)
+            ${agentScopePredicate("n", { agentId: "$3" })}
+            ${clauses.length ? `and (${clauses.join(" or ")})` : ""}
+          order by r desc, updated_at desc
+          limit 6`,
+        [device, person, agentId, ...words.map((w) => `\\m${w}\\M`)],
+        2_500,
+      ),
+      q(
+        `select f.term from meera_forget f
+          where f.device_id in (select d.device_id from vy_person_device d where d.person_id = $1)
+            ${agentScopePredicate("f", { agentId: "$2" })}
+          limit 200`,
+        [person, agentId],
+        2_500,
+      ),
+    ]).catch(() => [null, null]);
+    // THE ATOMIC RULE. Either both halves are here, or this leg contributed
+    // nothing. `null` is the failure signal; `[]` is a real empty answer.
+    if (!Array.isArray(rows) || !Array.isArray(terms)) return null;
+    const rxs = terms.map((r) => termRe(String(r.term)));
+    const kept = rxs.length
+      ? rows.filter((n) => !rxs.some((rx) => rx.test(n.name || "") || rx.test(n.summary || "")))
+      : rows;
+    return kept;
+  })().catch(() => null);
+
+  const [[bgRaw, matchedRaw = []], semanticRaw, activityRaw, watchRaw, relBundle, selfBundle, crossRaw] =
     await Promise.all([
       Promise.all(fetches),
       semanticFetch,
@@ -983,14 +1157,50 @@ async function opRecall(device, body) {
       watchFetch,
       relBundleFetch,
       selfBundleFetch,
+      crossSurfaceFetch,
     ]);
   // slot 0 = the five ranked rows, slot 1 = the reserved oldest-high-salience
   // row. `union all` does not promise an order, so the reservation is put back
   // where it belongs here rather than trusted to arrive there.
-  const background = (Array.isArray(bgRaw) ? bgRaw : [])
+  const backgroundHome = (Array.isArray(bgRaw) ? bgRaw : [])
     .slice()
     .sort((a, b) => Number(a.slot ?? 0) - Number(b.slot ?? 0) || Number(b.r ?? 0) - Number(a.r ?? 0));
-  const matched = Array.isArray(matchedRaw) ? matchedRaw : [];
+  const matchedHome = Array.isArray(matchedRaw) ? matchedRaw : [];
+
+  // ── THE SURFACE-SWITCH MERGE (WS-O) ────────────────────────────────────
+  //
+  // The other devices' rows join the SAME two sets the home device's rows are
+  // in, and nothing downstream learns which surface a row came from. That is
+  // the point rather than an omission: the surface a memory was formed on is
+  // not something she should ever know or mention, and a row tagged with its
+  // origin is a row a model will eventually narrate ("you told me this on
+  // WhatsApp"), which is both wrong and creepy.
+  //
+  // WHICH SET a cross row joins is decided by the same rule the home legs use:
+  // there were query words, so it word-matched, so it is an ANSWER; there were
+  // none, so it is CONTINUITY. One rule, not a second opinion.
+  //
+  // DEDUP IS BY NAME, not by id. The same person's "amma" on two devices is
+  // two rows with two ids and one meaning, and an id-dedup would render her
+  // mother twice. The HOME row always wins — it is the one whose salience and
+  // mentions this device's conversations actually moved.
+  //
+  // The cross rows are appended AFTER the home rows in both sets, so the
+  // existing order is untouched and the T5 budget drop sheds the imported rows
+  // first. A person with one device gets an empty array here and the two
+  // consts below are the two that already existed, byte for byte.
+  const crossRows = Array.isArray(crossRaw) ? crossRaw : [];
+  const haveName = new Set(
+    [...matchedHome, ...backgroundHome].map((n) => String(n.name || "").toLowerCase()),
+  );
+  const crossNew = crossRows.filter((n) => {
+    const k = String(n.name || "").toLowerCase();
+    if (!k || haveName.has(k)) return false;
+    haveName.add(k);
+    return true;
+  });
+  const background = words.length ? backgroundHome : [...backgroundHome, ...crossNew];
+  const matched = words.length ? [...matchedHome, ...crossNew] : matchedHome;
   const semanticAll = Array.isArray(semanticRaw) ? semanticRaw : [];
   const activities = (Array.isArray(activityRaw) ? activityRaw : []).slice(0, 4);
   const watched = watchRaw && typeof watchRaw === "object" ? watchRaw : { moments: [], photos: [] };
@@ -1169,8 +1379,10 @@ async function opRecall(device, body) {
 
   const idArr = [...seen.keys()];
   const edges = await q(
-    `select * from meera_edges where device_id = $1 and (src = any($2) or dst = any($2)) limit 30`,
-    [device, idArr],
+    `select * from meera_edges e where device_id = $1
+      ${agentScopePredicate("e", { agentId: "$3" })}
+      and (src = any($2) or dst = any($2)) limit 30`,
+    [device, idArr, agentId],
   ).catch(() => []);
 
   // resolve neighbor names outside the recalled set
@@ -1182,8 +1394,10 @@ async function opRecall(device, body) {
   const names = new Map([...seen].map(([id, n]) => [id, n.name]));
   if (missing.size) {
     const extra = await q(
-      `select id, name from meera_nodes where device_id = $1 and id = any($2)`,
-      [device, [...missing]],
+      `select id, name from meera_nodes n where device_id = $1
+        ${agentScopePredicate("n", { agentId: "$3" })}
+        and id = any($2)`,
+      [device, [...missing], agentId],
     ).catch(() => []);
     for (const n of Array.isArray(extra) ? extra : []) names.set(n.id, n.name);
   }
@@ -1193,11 +1407,44 @@ async function opRecall(device, body) {
   // Flagging it in the data beats hoping the model does the date arithmetic.
   const TIME_BOUND =
     /\b(jan|feb|march|april|may|june|july|aug|sept|oct|nov|dec|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|next|upcoming|soon|planning|plans?|will|shaadi|wedding|exam|interview|trip|due|deadline|weekend|birthday|\d{4}|\d{1,2}(st|nd|rd|th))\b/i;
+  const STALE_HEDGE =
+    " ← whatever was ahead in this has already happened; talk about it as past and let them tell you how it went";
+  // ── BI-TEMPORAL FACT EDGES (ROADMAP-100X item 4, WS-O) ──────────────────
+  //
+  // THE DEFECT THIS CLOSES. This function used to be the four lines below the
+  // validity branch and nothing else, so it hedged on the age of the ROW. WS-K's
+  // recall benchmark caught the consequence on its first run
+  // (`stale-note-keys-on-row-age`): dyad-b's `neet pg` is a NOVEMBER exam
+  // recorded in JUNE, so in August the row is 67 days old, `kind = 'plan'`, and
+  // she is handed it pre-hedged as already-past — she asks how an exam went
+  // that has not happened.
+  //
+  // Row age was a PROXY for "the world has moved on". `valid_to` (migration
+  // 056) is the thing it was standing in for: the horizon after which the
+  // forward-looking reading stops being true. So when a row knows its own
+  // horizon, the horizon decides — and this is a comparison, not a model call
+  // and not a guess, which is the sentence ROADMAP-100X item 4 is written in.
+  //
+  // NOTE WHAT IS NOT IMPORTED. The date PARSER lives in src/engine/validity.ts
+  // (over timeline.ts's `resolveWhen`) and runs on the WRITE path only. The
+  // read path — this one, the latency-critical one — needs no parser, no
+  // engine bundle and no new import, because a stored interval only has to be
+  // compared. That split is deliberate: it is what lets the fix land in the
+  // hot path with two lines and zero cold-start cost.
+  //
+  // ROW AGE IS KEPT, NOT REPLACED. `valid_to` is null for every row written
+  // before 056 and for every fact whose text carries no resolvable date, which
+  // is most facts. For those the 45-day rule below is unchanged, byte for
+  // byte — which is why every existing fixture still renders identically. "The
+  // row is old and it looked like a plan" remains a genuinely useful signal;
+  // it is now the FALLBACK rather than the whole rule.
   const staleNote = (n) => {
+    const to = n.valid_to ? new Date(n.valid_to).getTime() : NaN;
+    if (Number.isFinite(to)) return Date.now() > to ? STALE_HEDGE : "";
     const days = (Date.now() - new Date(n.updated_at).getTime()) / 86_400_000;
     if (!(days > 45)) return "";
     if (n.kind !== "plan" && n.kind !== "event" && !TIME_BOUND.test(n.summary || "")) return "";
-    return " ← whatever was ahead in this has already happened; talk about it as past and let them tell you how it went";
+    return STALE_HEDGE;
   };
 
   const line = (n) => {
@@ -1389,10 +1636,12 @@ async function opRecall(device, body) {
   }
 
   // touch recall time (awaited — serverless kills post-response work)
-  await q(`update meera_nodes set last_recalled = now() where device_id = $1 and id = any($2)`, [
-    device,
-    idArr,
-  ]).catch(() => {});
+  await q(
+    `update meera_nodes n set last_recalled = now() where device_id = $1
+      ${agentScopePredicate("n", { agentId: "$3" })}
+      and id = any($2)`,
+    [device, idArr, agentId],
+  ).catch(() => {});
 
   // ── T5's byte ceiling, enforced HERE, by dropping whole blocks ──────────
   //
@@ -1650,6 +1899,7 @@ export function nonLaunderedNodes(nodes, recent) {
 }
 
 async function opRemember(device, body) {
+  const agentId = MEERA_AGENT_ID;
   const recent = (Array.isArray(body.recent) ? body.recent : []).slice(-16);
   if (recent.length < 2) return { ok: true, extracted: 0 };
   // LOAD-BEARING INVARIANT — DO NOT "IMPROVE" THIS MAP.
@@ -1711,6 +1961,9 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
     const raw = content;
     parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
   } catch {
+    if (isAzureOnlyServing()) {
+      throw Object.assign(new Error("memory_azure_extraction_invalid"), { code: "memory_azure_extraction_invalid", status: 502 });
+    }
     return { ok: false };
   }
   // her own improvised life: returned to the client, never written to the
@@ -1797,8 +2050,10 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
   // Checked against name AND summary, because a term filtered out of the
   // name walks straight back in through the summary.
   const forgotten = await q(
-    `select term from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP}`,
-    [device],
+    `select term from meera_forget f where device_id = $1
+      ${agentScopePredicate("f", { agentId: "$2" })}
+      order by at desc limit ${FORGET_TERMS_CAP}`,
+    [device, agentId],
   ).catch(() => []);
   const suppressed = (Array.isArray(forgotten) ? forgotten : []).map((r) => termRe(String(r.term)));
   const kept = suppressed.length
@@ -1808,18 +2063,70 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
 
   // split into existing (bump) vs new (insert)
   const existing = await q(
-    `select id, name, mentions, salience, feel from meera_nodes where device_id = $1 and name = any($2)`,
-    [device, kept.map((n) => n.name)],
+    `select id, name, mentions, salience, feel from meera_nodes n where device_id = $1
+      ${agentScopePredicate("n", { agentId: "$3" })}
+      and name = any($2)`,
+    [device, kept.map((n) => n.name), agentId],
   ).catch(() => []);
   const byName = new Map((Array.isArray(existing) ? existing : []).map((n) => [n.name, n]));
+
+  // ── BI-TEMPORAL FACT EDGES (migration 056, WS-O) ────────────────────────
+  // The WRITE half, derived ONCE for every kept node before the bump/insert
+  // split so both branches read one map rather than each growing their own.
+  //
+  // Over the real parser (src/engine/validity.ts → timeline.ts's
+  // `resolveWhen`), reached through the engine bundle and never re-implemented
+  // here: a second date table would be a second definition of what "november"
+  // means, which is the failure src/engine/serverEntry.ts's header exists to
+  // refuse.
+  //
+  // `saidAt` is NOW, because this op runs on the turn the thing was said. That
+  // anchor is the whole mechanism: "kal" said today and "kal" said in March are
+  // different days, and a deriver anchored on the consolidation clock instead
+  // would produce a different interval every time it ran.
+  //
+  // Degrades to an empty map on any failure (missing bundle, parser miss), and
+  // empty is exactly today's behaviour — `staleNote` keeps the 45-day rule. A
+  // memory is never lost or altered because its date could not be read.
+  const validityOf = new Map();
+  {
+    const vmod = await loadValidity();
+    if (vmod) {
+      const at = Date.now();
+      for (const n of kept) {
+        try {
+          const v = vmod.deriveFactValidity({
+            id: n.name,
+            name: n.name,
+            kind: n.kind,
+            summary: n.summary,
+            saidAt: at,
+          });
+          if (v) validityOf.set(n.name, v);
+        } catch {
+          /* a date we could not read is a null column, never a lost node */
+        }
+      }
+    }
+  }
 
   const idOf = new Map();
   for (const n of kept) {
     const ex = byName.get(n.name);
     if (ex) {
       idOf.set(n.name, ex.id);
+      // A RE-STATED HORIZON OVERWRITES; A SILENT RE-MENTION DOES NOT. The
+      // update names valid_from/valid_to only when THIS turn carried a
+      // resolvable date, so "exam ab january me shift ho gaya" moves the
+      // horizon and "padhai chal rahi" — the same node, mentioned again with
+      // no date — leaves November exactly where it was. Nulling the columns on
+      // every bump would be the simpler statement and would silently erase a
+      // horizon the person stated once and never repeated.
+      const v = validityOf.get(n.name) || null;
       await q(
-        `update meera_nodes set summary = $1, mentions = $2, salience = $3, feel = $4, updated_at = now() where id = $5`,
+        `update meera_nodes n set summary = $1, mentions = $2, salience = $3, feel = $4, updated_at = now()
+          ${v ? ", valid_from = $7, valid_to = $8" : ""}
+          where id = $5 ${agentScopePredicate("n", { agentId: "$6" })}`,
         [
           n.summary,
           (ex.mentions || 1) + 1,
@@ -1829,15 +2136,34 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
           Math.min(10, (ex.salience || 1) + (n.feel ? 1.0 : 0.6)),
           n.feel || ex.feel || "",
           ex.id,
+          agentId,
+          ...(v
+            ? [
+                new Date(v.validFrom).toISOString(),
+                v.validTo != null ? new Date(v.validTo).toISOString() : null,
+              ]
+            : []),
         ],
       ).catch(() => {});
     }
   }
   const fresh = kept.filter((n) => !byName.has(n.name));
   for (const n of fresh) {
+    const v = validityOf.get(n.name) || null;
     const ins = await q(
-      `insert into meera_nodes (device_id, kind, name, summary, feel, salience) values ($1,$2,$3,$4,$5,$6) returning id, name`,
-      [device, n.kind, n.name, n.summary, n.feel, n.feel ? 1.6 : 1.0],
+      `insert into meera_nodes (device_id, kind, name, summary, feel, salience, agent_id, valid_from, valid_to)
+       values ($1,$2,$3,$4,$5,$6,${agentValue("$7")},$8,$9) returning id, name`,
+      [
+        device,
+        n.kind,
+        n.name,
+        n.summary,
+        n.feel,
+        n.feel ? 1.6 : 1.0,
+        agentId,
+        v ? new Date(v.validFrom).toISOString() : null,
+        v && v.validTo != null ? new Date(v.validTo).toISOString() : null,
+      ],
     ).catch(() => []);
     if (ins[0]) idOf.set(ins[0].name, ins[0].id);
   }
@@ -1852,12 +2178,13 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
     }));
   for (const e of edges) {
     await q(
-      `insert into meera_edges (device_id, src, dst, relation)
-       select $1, $2, $3, $4
+      `insert into meera_edges (device_id, src, dst, relation, agent_id)
+       select $1, $2, $3, $4, ${agentValue("$5")}
        where not exists (
-         select 1 from meera_edges where device_id = $1 and src = $2 and dst = $3 and relation = $4
+         select 1 from meera_edges x where device_id = $1 and src = $2 and dst = $3 and relation = $4
+           ${agentScopePredicate("x", { agentId: "$5" })}
        )`,
-      [device, e.src, e.dst, e.relation],
+      [device, e.src, e.dst, e.relation, agentId],
     ).catch(() => {});
   }
 
@@ -1871,18 +2198,19 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
   // state on purpose: rel-state events and patterns are NEVER written from
   // 16-turn context — only episodes and facts are.
   try {
-    const agentId = MEERA_AGENT_ID;
     const person = await personIdFor(device);
     // meera_log is ground truth for the channel; the client contract this
     // op was built against (src/engine/memory.ts, frozen elsewhere) never
     // sent one, so the true value is read off the row that was just logged
     // rather than guessed.
     const latestLog = await q(
-      `select channel from meera_log where device_id = $1 order by id desc limit 1`,
-      [device],
+      `select channel from meera_log l where device_id = $1
+        ${agentScopePredicate("l", { agentId: "$2" })}
+        order by id desc limit 1`,
+      [device, agentId],
     ).catch(() => []);
     const channel = latestLog[0]?.channel === "call" ? "call" : "chat";
-    const ep = await openOrExtendEpisode(person, device, channel);
+    const ep = await openOrExtendEpisode(person, device, channel, { agentId });
     if (ep) {
       const bits = [...kept.slice(0, 3).map((n) => n.name), ...self.slice(0, 2).map((s) => s.slice(0, 30))];
       const summary = (bits.length ? bits.join(", ") : "chat stretch").slice(0, 110);
@@ -2063,8 +2391,10 @@ async function opActivity(device, body) {
     // "bhool ja wo chess wali baat" would be undone by the next reconciler
     // pass on any device. A forget has to survive the thing that produced it.
     const forgotten = await q(
-      `select term from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP}`,
-      [device],
+      `select term from meera_forget f where device_id = $1
+        ${agentScopePredicate("f", { agentId: "$2" })}
+        order by at desc limit ${FORGET_TERMS_CAP}`,
+      [device, agentId],
     ).catch(() => []);
     const suppressed = (Array.isArray(forgotten) ? forgotten : []).map((r) => termRe(String(r.term)));
     if (suppressed.some((rx) => rx.test(summary) || rx.test(kind))) {
@@ -2166,23 +2496,38 @@ const FORGET_TERMS_CAP = 200;
 // recall, never joined into a prompt, and its only consumer is the filter in
 // opRemember. Scope "all" deletes it too, since a list of things they wanted
 // gone is itself a record of them.
-async function noteForgotten(device, terms) {
+async function noteForgotten(devices, terms, agentId = MEERA_AGENT_ID) {
   const clean = [
     ...new Set(terms.map((t) => String(t || "").trim().toLowerCase()).filter((t) => t.length >= 3)),
   ].slice(0, 12);
-  for (const t of clean) {
-    await q(
-      `insert into meera_forget (device_id, term) values ($1,$2)
-       on conflict (device_id, lower(term)) do nothing`,
-      [device, t.slice(0, 60)],
-    ).catch(() => {});
+  // The suppression list is written on EVERY device the person owns, not just
+  // the one they asked from. It is what stops the extractor and the M3
+  // consolidator re-deriving what the cascade just took — and a term suppressed
+  // only on the web surface would be re-derived on Telegram from that surface's
+  // own turns, which is the forget coming undone by the back door. The per-row
+  // cap is applied per device below for the same reason it exists at all.
+  for (const device of devices) {
+    for (const t of clean) {
+      await q(
+        `insert into meera_forget (device_id, term, agent_id)
+         values ($1,$2,${agentValue("$3")})
+         on conflict (agent_id, device_id, lower(term)) do nothing`,
+        [device, t.slice(0, 60), agentId],
+      ).catch(() => {});
+    }
   }
   if (!clean.length) return;
-  await q(
-    `delete from meera_forget where device_id = $1 and id not in (
-       select id from meera_forget where device_id = $1 order by at desc limit ${FORGET_TERMS_CAP})`,
-    [device],
-  ).catch(() => {});
+  for (const device of devices) {
+    await q(
+      `delete from meera_forget f where device_id = $1
+         ${agentScopePredicate("f", { agentId: "$2" })}
+         and id not in (
+           select id from meera_forget k where device_id = $1
+             ${agentScopePredicate("k", { agentId: "$2" })}
+           order by at desc limit ${FORGET_TERMS_CAP})`,
+      [device, agentId],
+    ).catch(() => {});
+  }
 }
 
 // ── the relational store: one manifest, three consumers ────────────────────
@@ -2248,11 +2593,10 @@ async function noteForgotten(device, terms) {
 //
 // ── the agent layer (SPEC-AGENT-LAYER §2, §6) — one additive field ─────────
 //
-//   `agent`      — true on every table migration 009 gave an agent_id, i.e.
-//                  every table that holds THE RELATIONSHIP rather than the
-//                  person. It is a MARKER, not a filter: nothing in the wipe
-//                  loop reads it, and it deliberately changes nothing about
-//                  full-wipe behaviour.
+//   `agent`      — true on every relationship table migrations 009/018 gave
+//                  an agent_id. It is a MARKER, not a filter: nothing in the
+//                  whole-person wipe loop reads it, and it deliberately
+//                  changes nothing about full-wipe behaviour.
 //
 // That last sentence is the whole design. A full wipe of a person deletes
 // their rows across ALL agents — it is their data, not the agent's — so the
@@ -2274,12 +2618,91 @@ async function noteForgotten(device, terms) {
 // (§2). vy_episode_participant is NOT marked — it is the ACL join table and
 // takes its scope from the episode it points at, so an agent_id on it would be
 // a second, forgeable copy of a fact the join already carries.
+// ── WS-R27: the Room forget receipt's hash (migration 090) ──────────────────
+//
+// `vy_room_forget_receipt` is the ONE row that survives a follower's "forget
+// me" in a creator's Room. It names no person — `person_hash`, never
+// `person_id` — and this is the ONE function that computes it, called by both
+// the writer (`api/_room-surface.js`'s `roomForget`, at forget time) and the
+// eraser (`purgeRelational` below, at whole-wipe time), so the two can never
+// disagree about what a person's own hash is.
+//
+// NOT AN HMAC, unlike `api/_replica-full-erasure.js`'s deletion receipt,
+// which hashes with a per-deploy secret key precisely because THAT receipt is
+// looked up later, by an operator, from a request id. This receipt is never
+// looked up by anyone after the one response that carries it (WS-R27's own
+// law 3 — "no later lookup by anyone: there is nothing to look it up by"), so
+// a secret key would buy a property nothing here needs, at the cost of a new
+// env var this workstream's own brief says not to add. `room_id` and
+// `policy_version` sit in PLAIN TEXT on the receipt row for exactly this
+// reason: they are what let the whole wipe RECOMPUTE this same hash for the
+// person being wiped, against a table with no person_id column to filter by.
+// See `context/decisions.md#ws-r27-forget-receipt-hash-recomputed-not-looked-up`
+// for the reversal condition (a future consumer that DOES look a receipt up
+// by hash, which would need the HMAC treatment instead).
+export const ROOM_FORGET_RECEIPT_POLICY_VERSION = 1;
+export function roomForgetReceiptHash(roomId, personId, policyVersion) {
+  return sha256Hex(
+    `vy-room-forget-receipt:v1:${String(roomId)}:${String(personId)}:${String(policyVersion)}`,
+  );
+}
+
+// ── WS-R32: the whole wipe's own door onto vy_room_forget_receipt ───────────
+// (closes ws-r27-whole-wipe-receipt-read-capped-at-10000)
+//
+// The OLD read selected straight off the receipt table itself, capped at ten
+// thousand rows - bounded by RECEIPTS, so once that table passed that size a
+// whole wipe silently stopped reaching older ones. It was also the wrong
+// axis to bound
+// on: a receipt names no person (`roomForgetReceiptHash`'s own header), so
+// the only way to find "every receipt this person produced" is to compute
+// what their hash WOULD be for every (room, policy version) pair and ask the
+// table which of those hashes exist - which means the walk should be bounded
+// by ROOMS, not by receipts. `vy_room` is owner-keyed (hundreds of rows at
+// most in Phase 1, one per creator's Room) and does not grow with wipes the
+// way the receipt table does, so walking it whole and letting the receipt
+// table answer one indexed `= any($1)` delete is the bound that actually
+// matches how this product scales. Reversal condition: once Rooms
+// themselves number in the ~10,000s, THIS walk needs a different key (see
+// `context/decisions.md#ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms`).
+//
+// A person whose follower row is already gone - they forgot that Room
+// earlier, leaving only the receipt - is still reached, because the walk is
+// over EVERY room this database has, never over the person's own (now
+// possibly deleted) follower rows. Walking "the rooms this person currently
+// follows" instead would silently miss exactly this case.
+//
+// Extracted as its OWN function, taking an injectable `db`, for one reason:
+// `purgeRelational` below calls `q` directly with no injection seam at all
+// (this file is not the "thin handler over an injectable db" shape
+// api/_room-surface.js is - see this function's own call site) - so nothing
+// in this codebase could otherwise drive this ONE piece of logic through a
+// fake db. Every other statement in `purgeRelational` keeps calling `q`
+// exactly as it always has; this is the one piece that needed a seam,
+// because it is the one piece a test needs to prove (evals/room-export/
+// run.mjs's receipt-survivor scenario).
+export async function purgeRoomForgetReceipts(db, personId) {
+  const rooms = await db(`select room_id from vy_room`, []);
+  const hashes = [];
+  for (const { room_id } of rooms) {
+    for (let v = 1; v <= ROOM_FORGET_RECEIPT_POLICY_VERSION; v++) {
+      hashes.push(roomForgetReceiptHash(room_id, personId, v));
+    }
+  }
+  if (!hashes.length) return 0;
+  const gone = await db(
+    `delete from vy_room_forget_receipt where person_hash = any($1::text[]) returning 1 as x`,
+    [hashes],
+  );
+  return gone.length;
+}
+
 export const PERSON_TABLES = [
-  { table: "meera_log",         key: "device_id", lane: "legacy",
+  { table: "meera_log",         key: "device_id", lane: "legacy", agent: true,
     keys: ["device_id", "speaker_person_id"] },
-  { table: "meera_nodes",       key: "device_id", lane: "legacy" },
-  { table: "meera_edges",       key: "device_id", lane: "legacy" },
-  { table: "meera_forget",      key: "device_id", lane: "legacy" },
+  { table: "meera_nodes",       key: "device_id", lane: "legacy", agent: true },
+  { table: "meera_edges",       key: "device_id", lane: "legacy", agent: true },
+  { table: "meera_forget",      key: "device_id", lane: "legacy", agent: true },
   { table: "meera_tel",         key: "device_id", lane: "legacy" },
   { table: "meera_tel_session", key: "device_id", lane: "legacy" },
   // The call-path audit trail. meera_tel's own schema note says telemetry "is
@@ -2340,6 +2763,26 @@ export const PERSON_TABLES = [
   // conversation." Absent from the manifest for the same invisible reason
   // meera_state was.
   { table: "meera_events",      key: "device_id", lane: "legacy" },
+  // ── the memory-consent ledger (task #148, migration 016) ─────────────────
+  //
+  // Lane "relational" rather than "legacy": the manifest loop deletes lane
+  // "relational" with no further code, and there is no scoped rewrite to write
+  // for this table — a day-forget has nothing to prune out of a consent row,
+  // so the only verdict it needs is the whole-wipe one.
+  //
+  // AND THE WHOLE WIPE TAKES IT. The argument is written out at length in the
+  // migration; the short form is that a device-id-keyed record of a person
+  // surviving the one request whose promise is that nothing about them remains
+  // would break that promise to keep evidence of a permission that no longer
+  // applies to anything. The absence of a granted row IS the absence of
+  // consent, and the refusal that actually stops the writes is the copy on the
+  // device (src/engine/memory.ts's gate), which a server delete never touches.
+  //
+  // It is in a DSAR export for the reason meera_turn is: the rows are about
+  // that person, contain no conversation content (a boolean, two integers and
+  // two timestamps), and an export that omitted the record of what they had
+  // agreed to would be the wrong answer rather than a kind one.
+  { table: "meera_consent",     key: "device_id", lane: "relational" },
   { table: "vy_episode",          key: "person_id", lane: "relational", agent: true,
     // room episodes carry person_id NULL (008a), so `key` already selects only
     // the exclusive 1:1 rows; the shared spec is what handles the rest
@@ -2410,9 +2853,406 @@ export const PERSON_TABLES = [
   // any person-keyed vy_* table that is absent from this list.
   { table: "vy_surface_identity", key: "person_id", lane: "relational" },
   { table: "vy_push_token", key: "device_id", lane: "relational", agent: true },
+  // ── WS-R: the replica lane's PERSON side (migrations 015, 023, 027) ───────
+  //
+  // scripts/relcheck.mjs failed against the live database naming three of
+  // these; auditing every owning column in the live schema rather than the
+  // three relcheck happened to enumerate found the fourth. Every one of them
+  // is keyed on a `person_id` in the SAME identity space this manifest already
+  // uses, so a person who asked to be forgotten was keeping rows here — and
+  // a DSAR export was returning an answer with a hole in it.
+  //
+  // Child before parent. The three runtime rows chain by ON DELETE CASCADE
+  // (capability -> session -> turn), so deleting the capability first would
+  // make the two deletes below it report zero for rows they really did remove.
+  // Listing them child-first keeps the receipt's counts honest, which is the
+  // only thing the ordering affects.
+  //
+  // vy_replica_dialogue_turn is keyed on BOTH: person_id is the speaker and
+  // device_id is the handset the turn came from, and they are the same human.
+  // `keys` ORs them, so a row whose person mapping was rewritten between the
+  // turn and the wipe is still reached.
+  // Expression observations contain no external object locator. They are
+  // short-lived, but expiry is not an erasure authority: a person export or
+  // whole wipe must still reach every unexpired or held row by person_id.
+  { table: "vy_replica_expression_observation", key: "person_id", lane: "relational", agent: true },
+  { table: "vy_replica_dialogue_turn", key: "person_id", lane: "relational", agent: true,
+    keys: ["person_id", "device_id"] },
+  { table: "vy_replica_runtime_session", key: "person_id", lane: "relational", agent: true },
+  { table: "vy_replica_runtime_capability", key: "subject_person_id", lane: "relational", agent: true },
+  // The one server-written bridge between a Supabase auth identity and this
+  // schema's person layer (015's own header). It is a record OF a person — it
+  // is the row that says which person an account is — so a whole wipe that
+  // kept it would keep the single most identifying row in the database. It
+  // has ON DELETE CASCADE from vy_person, but that only fires when the person
+  // row itself goes, and the wipe's guarded tail deliberately SPARES vy_person
+  // when another device still maps to it. Listing it here is what closes that
+  // case: the bridge dies with the wipe either way.
+  { table: "vy_account_person", key: "person_id", lane: "relational" },
+  // ── WS-R27 (2026-09-04): the whole Room block below is ordered CHILD
+  // BEFORE PARENT, not migration-landing order any more ─────────────────────
+  //
+  // Every table from here down that carries a `follower_id references
+  // vy_room_follower(follower_id) on delete cascade` (checkin, checkin's own
+  // delivery ledger, voice usage, subscription, the Telegram pointer, push,
+  // handoff) or a `thread_id references vy_room_thread(thread_id) on delete
+  // cascade` (pulse_optin, handoff) is listed BEFORE `vy_room_thread`/
+  // `vy_room_follower` themselves, and `vy_room_checkin_delivery` (which
+  // carries `checkin_id references vy_room_checkin(checkin_id) on delete
+  // cascade`) is listed before `vy_room_checkin`. This loop iterates the
+  // array in order and is not `.catch()`-wrapped between statements — the
+  // WS-R1 comment this block used to open with already said "child before
+  // parent... listing them ahead of nothing keeps the receipt's counts
+  // honest," but the array itself put `vy_room_thread`/`vy_room_follower`
+  // FIRST among the Room tables, ahead of every child added by a LATER
+  // workstream (077 through 085). A parent deleted before its children means
+  // every child's own `delete ... returning 1 as x` finds the cascade already
+  // got there first: the row really is gone, `out[t.table]` is a real zero
+  // rather than a lie, but a zero that is ALWAYS the answer regardless of how
+  // many rows a real forget actually removed is the exact failure WS-R27's
+  // own law 2 exists to catch ("the receipt's counts must equal what was
+  // deleted") — found while building that battery, not by inspection alone.
+  // Fixed here by REORDERING the array (a pure move — no entry's own fields
+  // changed) rather than by teaching this loop a dependency sort, so the
+  // array's own literal order stays the one and only source of delete order,
+  // exactly as `vy_replica_dialogue_turn`/`vy_replica_runtime_session`/
+  // `vy_replica_runtime_capability` above already do it for the identical
+  // reason (that block's own header: "Child before parent... deleting the
+  // capability first would make the two deletes below it report zero for
+  // rows they really did remove").
+  //
+  // The identical ordering bug existed in `api/_room-surface.js`'s
+  // `roomForget` itself (its OWN explicit per-table deletes ran after its
+  // own `delete from vy_room_follower`) and is fixed there in the same
+  // change, by the same reasoning, restated at that file's own header.
+  //
+  // ── WS-R12: the cohort day-count (migration 077) ──────────────────────────
+  //
+  // "Did this follower have a turn on this day" is a record OF them exactly as
+  // their membership row is - an id, a date and a count, but a count tied to
+  // one human, and a whole wipe that kept it would leave "this person talked
+  // on these dates" standing after a receipt that said nothing remains.
+  //
+  // NO `agent: true`, deliberately: this table carries no `agent_id` column
+  // (071's convention was already scoping room_id/person_id; 077 followed it
+  // and added nothing new). `agent: true` routes a table through
+  // `roomScopedTables()` in api/_room-surface.js, whose generic delete
+  // unconditionally appends `and agent_id = (...)::uuid` - a column this
+  // table does not have, which would 500 every follower's Room forget the
+  // day 077 lands. Reached instead by two OTHER, explicit paths: the
+  // account-wide whole wipe below (lane "relational", no agent filter,
+  // keyed on person_id alone) and `roomForget`'s own explicit
+  // room_id+person_id delete. No `follower_id`/`thread_id` column either, so
+  // unlike every entry below it this one has no cascade to race against and
+  // its position here is only "as early as the rest of the block allows,"
+  // not load-bearing the way the others' positions are.
+  { table: "vy_room_follower_day", key: "person_id", lane: "relational" },
+  // ── WS-R16: check-ins, PERSON side (migration 079) ────────────────────────
+  //
+  // A follower's own schedule against a creator's check-in design, and the
+  // content-free delivery ledger behind it, are records OF them in the
+  // identical sense the day-count table one entry above is - an id, a
+  // schedule or a date, a state, never a word. NO `agent: true` on either,
+  // `vy_room_follower_day`'s own reason restated: neither table carries an
+  // `agent_id` column (agent context is joined from vy_room, which is how the
+  // sweep itself reaches it), so routing either through `roomScopedTables()`'s
+  // generic delete - which unconditionally appends "and agent_id =
+  // (...)::uuid" - would 500 every follower's Room forget the day this
+  // migration lands. Reached instead by the same two explicit paths as their
+  // sibling: the whole-account wipe (this file's `purgeRelational`, lane
+  // "relational", no further code) and `roomForget`'s own explicit
+  // room_id+person_id delete, added there in the same change as this entry.
+  //
+  // `vy_room_checkin_delivery` BEFORE `vy_room_checkin` (WS-R27): the
+  // delivery ledger carries `checkin_id references vy_room_checkin(checkin_id)
+  // on delete cascade`, so deleting the checkin row first would cascade the
+  // delivery rows away before this loop's own delivery statement ever runs -
+  // this block's own new header names the general rule this is an instance of.
+  { table: "vy_room_checkin_delivery", key: "person_id", lane: "relational" },
+  { table: "vy_room_checkin", key: "person_id", lane: "relational" },
+  // ── WS-R19: the Room's voice usage, PERSON side (migration 081) ──────────
+  //
+  // "How many seconds of voice this follower spent, on this day" is a record
+  // OF them exactly as the turn day-count above is - an id, a date, two
+  // counts, never a byte of what was said or how it sounded. Same reasoning
+  // as `vy_room_follower_day` one migration over, restated rather than
+  // re-derived: NO `agent: true` (this table carries no `agent_id` column
+  // either), so it is invisible to `roomScopedTables()`'s generic per-agent
+  // loop and reached instead by the account-wide whole wipe below (lane
+  // "relational", no agent filter, keyed on person_id alone) and
+  // `roomForget`'s own explicit room_id+person_id delete. Carries
+  // `follower_id references vy_room_follower(follower_id) on delete cascade`
+  // (migration 081), so it is listed before `vy_room_follower`, this block's
+  // own header rule.
+  { table: "vy_room_voice_usage", key: "person_id", lane: "relational" },
+  // ── WS-R11: the Room's money, PERSON side (migration 078) ────────────────
+  //
+  // A follower's subscription genuinely is a record OF that person - it is
+  // exactly the shape of thing this manifest exists to find - so it is
+  // listed rather than exempted, honestly satisfying scripts/relcheck.mjs's
+  // manifest-coverage check rather than dodging it on a technicality.
+  //
+  // NOT `agent: true`: the table carries no agent_id column (a subscription
+  // is not agent-scoped memory), so it is invisible to
+  // api/_room-surface.js's `roomScopedTables()` (filtered on `agent === true`).
+  // WS-R27 gives `roomForget` its OWN explicit statement for this table too,
+  // restricted by the SAME `wipeWhere` below - forgetting what an AI
+  // remembers about you is not the same request as forgetting that you owe,
+  // or paid, money, so only a subscription already in a terminal state is
+  // reachable from the Room's own narrow "forget me" button, exactly as from
+  // the account-wide one. It is ALSO reached by the account-wide "forget
+  // everything" pass (this file's `purgeRelational`, lane "relational", no
+  // further code needed - the same door `meera_consent` goes through for the
+  // identical reason: "the absence of a row is the absence of the
+  // relationship").
+  //
+  // `wipeWhere` is the one restriction, and it is load-bearing rather than
+  // decorative: a UPI Autopay mandate keeps debiting a real bank account
+  // whether or not this table still names it, so neither wipe may ever
+  // remove a subscription that has not ALREADY reached a terminal state
+  // ('cancelled'/'expired'). A live one survives either wipe's OWN explicit
+  // statement as the one honest local record that a mandate may still be
+  // charging someone who asked this platform to forget them - api/
+  // _room-surface.js's "a predicate on the write is a guarantee" discipline
+  // applied to money instead of a message cap.
+  //
+  // What NEITHER wipe's own statement can prevent, discovered rather than
+  // designed (WS-R27, context/decisions.md#ws-r27-subscription-cascade-still-
+  // reaches-a-live-row): `vy_room_subscription.follower_id` itself carries
+  // `references vy_room_follower(follower_id) on delete cascade` (078's own
+  // DDL), so the moment ANYTHING deletes the follower row - including this
+  // very manifest loop's own `vy_room_follower` entry below, or
+  // `roomForget`'s identical statement - Postgres removes every subscription
+  // row for that follower by cascade regardless of `state`, live one
+  // included. This entry's `wipeWhere` restricts what THIS statement
+  // deletes; it cannot restrict what the schema's own FK does two statements
+  // later. Closing that (changing the FK to RESTRICT or SET NULL, forcing a
+  // provider-cancel step before a live follower's row can go) is Phase 1
+  // work and an owner decision, not this migration's - named here rather
+  // than silently left for the next person to rediscover.
+  { table: "vy_room_subscription", key: "person_id", lane: "relational",
+    wipeWhere: "state in ('cancelled','expired')" },
+  // ── WS-R17: Pulse's own toggle (migration 080) ────────────────────────────
+  //
+  // A follower's own opt-in decision - content-free (no column here could
+  // ever hold what they said, migration 080's own header), but it is a
+  // record OF that person, exactly this manifest's own bar. No `wipeWhere`:
+  // unlike `vy_room_subscription` immediately above, a stale opt-in poses no
+  // live-mandate-shaped risk a whole-account wipe should spare, so a full
+  // delete regardless of `revoked_at` is the honest answer.
+  //
+  // NOT `agent: true`: this table carries no `agent_id` column (071's
+  // convention was already scoping room_id/person_id; 080 followed it and
+  // added nothing new, the identical reasoning `vy_room_follower_day` states
+  // several entries up). Reached instead by two OTHER, explicit paths: the
+  // account-wide whole wipe below (lane "relational", no agent filter, keyed
+  // on person_id alone) and `roomForget`'s own explicit room_id+person_id
+  // delete. Carries a nullable `thread_id references vy_room_thread(thread_id)
+  // on delete cascade`, so a thread-scoped opt-in is listed (and thus
+  // deleted) before `vy_room_thread`, this block's own header rule - a
+  // Room-scoped opt-in (`thread_id is null`) has no such dependency, but the
+  // rule is simplest applied to the whole entry rather than split by row.
+  { table: "vy_room_pulse_optin", key: "person_id", lane: "relational" },
+  // ── WS-R18: which room a Telegram chat currently means (migration 082) ───
+  //
+  // A pointer, not a subscription list - it names one room for one Telegram
+  // chat, never a follower's whole Telegram history. NOT `agent: true`: the
+  // table carries no agent_id column (db/migrations/082's own header), so it
+  // is invisible to api/_room-surface.js's `roomScopedTables()` on purpose,
+  // exactly the reasoning `vy_room_follower_day`/`vy_room_subscription` give
+  // above. Carries `follower_id references vy_room_follower(follower_id) on
+  // delete cascade` (082's own DDL), so it is listed before `vy_room_follower`
+  // - WS-R27 also gives `roomForget` its own explicit, BY-NAME delete for
+  // this table (previously left to the cascade alone, which meant a real
+  // deletion happened but the receipt never counted it - the same class of
+  // gap this whole block's header names). Reached by the account-wide whole
+  // wipe through the "relational" lane alone too.
+  { table: "vy_room_follower_channel", key: "person_id", lane: "relational" },
+  // ── WS-R22: a follower's own web push subscription (migration 085) ───────
+  //
+  // An endpoint URL and two keys - a browser's own address for this device,
+  // not a word the follower said. NOT `agent: true`: the table carries no
+  // `agent_id` column (`vy_room_follower_channel`'s own precedent one row
+  // above), so it is invisible to `roomScopedTables()`'s generic per-agent
+  // loop on purpose. Carries `follower_id references vy_room_follower
+  // (follower_id) on delete cascade`, so it is listed before `vy_room_follower`
+  // - WS-R27 gives `roomForget` its own explicit, BY-NAME delete for this
+  // table too, `vy_room_follower_channel`'s exact reasoning restated one row
+  // over. Reached by the account-wide whole wipe through the "relational"
+  // lane alone.
+  { table: "vy_room_push_subscription", key: "person_id", lane: "relational" },
+  // ── WS-R29: check-ins over WhatsApp utility templates (migration 092) ────
+  //
+  // A destination (a phone number) and a state, never a word the follower
+  // said - `vy_room_push_subscription`'s exact reasoning restated for a
+  // phone number instead of a push endpoint. NOT `agent: true`: no
+  // `agent_id` column (agent context is joined from `vy_room`, the sweep's
+  // own reasoning restated a further time in this same block). Carries
+  // `follower_id references vy_room_follower(follower_id) on delete
+  // cascade`, so it is listed before `vy_room_follower`; `api/_room-
+  // surface.js`'s `roomForget` gives it its own explicit, BY-NAME delete too
+  // (WS-R27's own lesson applied on arrival rather than found later: a row
+  // reached only by cascade is a row deleted but never counted). Reached by
+  // the account-wide whole wipe through the "relational" lane alone.
+  { table: "vy_room_follower_whatsapp", key: "person_id", lane: "relational" },
+  // ── WS-R104: which room a WhatsApp phone currently means (migration 128) ──
+  //
+  // `vy_room_follower_channel`'s own pointer above, one transport further -
+  // NOT `agent: true` (no `agent_id` column, the same reasoning restated a
+  // further time). UNLIKE that table and `vy_room_follower_whatsapp` right
+  // above it, this one carries NO `follower_id references
+  // vy_room_follower(follower_id) on delete cascade` at all - migration 128's
+  // own header states why (009's own WHERE-clause-binding law, restated
+  // rather than the 082 exception repeated a third time): `room_id`
+  // carries the FK (with cascade), `person_id`/`follower_id` do not, so this
+  // row is reached ONLY by the account-wide whole wipe below (lane
+  // "relational") and `roomForget`'s own explicit room_id+person_id delete,
+  // never by a cascade a caller could forget to name. The phone number
+  // itself was never written here at all (`phone_hash` is a salted sha256,
+  // migration 128's own header) - the whole-account wipe below still reaches
+  // this table by person_id exactly as it reaches every sibling above, since
+  // deleting the row is deleting the row whether or not it ever held the
+  // number in the clear.
+  { table: "vy_room_follower_whatsapp_chat", key: "person_id", lane: "relational" },
+  // ── Handoff (WS-R20; migration 083) ──
+  //
+  // A follower's own verbatim ask and the creator's own verbatim reply to
+  // it - unlike every Room table above, this one DOES hold words, and 083's
+  // own header names that as a deliberate, narrow exception to 071's "never
+  // a word" law rather than a violation of it. It is still reached the
+  // identical way its content-free siblings are: NOT `agent: true` (no
+  // `agent_id` column - agent context is joined from vy_room, the sweep's
+  // own reasoning restated a sixth time), the account-wide whole wipe below
+  // (lane "relational") and `roomForget`'s own explicit room_id+person_id
+  // delete are the only two doors. Carries BOTH `follower_id references
+  // vy_room_follower(follower_id) on delete cascade` AND a nullable
+  // `thread_id references vy_room_thread(thread_id) on delete cascade`, so it
+  // is listed before BOTH `vy_room_thread` and `vy_room_follower` - this was
+  // the clearest instance of the ordering bug this block's own header
+  // describes: `roomForget`'s own handoff delete existed from 083 onward but
+  // ran AFTER its follower delete, so it always reported zero regardless of
+  // how many rows the cascade had really just removed.
+  { table: "vy_room_handoff", key: "person_id", lane: "relational" },
+  // ── WS-R30: the upgrade-offer ledger (migration 093) ──────────────────────
+  //
+  // Content-free (`reason`/`outcome` are both closed enums, never a word the
+  // follower typed), but a record OF that person exactly this manifest's own
+  // bar - `vy_room_subscription`'s reasoning several rows up, restated for a
+  // ledger instead of a mandate. NOT `agent: true`: no `agent_id` column
+  // (agent context is joined from `vy_room`, the sweep's own reasoning
+  // restated a seventh time). Carries `follower_id references
+  // vy_room_follower(follower_id) on delete cascade`, so it is listed before
+  // `vy_room_follower` below - `roomForget`'s own explicit room_id+person_id
+  // delete gives it the identical, named, counted statement its siblings
+  // above have, from the start, rather than repeating the child-before-
+  // parent ordering bug WS-R27 found and fixed for them.
+  { table: "vy_room_upgrade_offer", key: "person_id", lane: "relational" },
+  // ── WS-R37: the renewal reminder ledger (migration 099) ───────────────────
+  //
+  // ONE table, THREE subject kinds (`api/_renewals.js`'s own header): a
+  // follower's own reminder history is a record of THIS manifest's bar, a
+  // creator's is owner lane (reached BY NAME in
+  // api/_replica-full-erasure.js, never here), and a Suite's is reached only
+  // by cascade from `vy_org` (`vy_org_subscription`'s own 091 precedent). So
+  // `wipeWhere` restricts this entry to `subject_kind = 'follower'` -
+  // `vy_room_subscription`'s own `wipeWhere` shape several rows up, applied
+  // to a subject lane instead of a subscription state - which is what makes
+  // this ONE manifest entry correct for a table that also holds rows this
+  // entry must never touch (person_id is null on every creator/org row
+  // anyway, so the restriction is defense in depth as much as it is
+  // documentation). Content-free (subject_kind, period_end, channel,
+  // sent_at, a short failure code - never a word the follower typed), but a
+  // record of when this creator's AI reminded THIS follower about their own
+  // subscription. Carries BOTH `room_id references vy_room(room_id) on
+  // delete cascade` AND `follower_id references vy_room_follower
+  // (follower_id) on delete cascade`, 078's own double-FK shape, so it is
+  // listed before `vy_room_follower` below - `roomForget`'s own explicit
+  // room_id+person_id delete gives it the same named, counted statement its
+  // siblings above have, from the start.
+  { table: "vy_renewal_reminder", key: "person_id", lane: "relational", wipeWhere: "subject_kind = 'follower'" },
+  // ── WS-R67: the follower's own copy of every reply they flagged (migration
+  // 116) ─────────────────────────────────────────────────────────────────
+  //
+  // Which reply (by hash), which reason, when - never a word this follower
+  // typed. Carries `follower_id references vy_room_follower(follower_id) on
+  // delete cascade`, `vy_room_upgrade_offer`'s own shape restated, so it is
+  // listed here, ahead of `vy_room_follower` below. The CREATOR's mirror
+  // (`vy_room_reply_flag`) is deliberately ABSENT from this manifest: it
+  // names no person at all (migration 116's own header - no follower_id, no
+  // person_id, no thread reference of any kind), so it is reached only by
+  // room_id in api/_replica-full-erasure.js's owner-wide cascade, never
+  // through a person's own wipe.
+  { table: "vy_room_follower_reply_flag", key: "person_id", lane: "relational" },
+  // ── WS-R137: the follower's monthly note ledger (migration 136) ──────────
+  //
+  // Content-free (a month label, a timestamp, a small array of channel
+  // names - never a count, never a word this follower typed, `api/_room-
+  // month-note.js`'s own header on why the ledger carries no counts at
+  // all), but the row IS a record of when this platform built and sent this
+  // person a note about themselves - `vy_room_follower_reply_flag`'s own
+  // reasoning restated one table up. NO `agent: true`: this table carries
+  // no `agent_id` column (`vy_room_follower_day`'s own reason, restated -
+  // agent context is joined from `vy_room`), so it is invisible to
+  // `roomScopedTables()`'s generic per-agent loop and reached instead by
+  // the account-wide whole wipe below (lane "relational", no agent filter,
+  // keyed on person_id alone) and `roomForget`'s own explicit
+  // room_id+person_id delete, added there in the same change as this entry.
+  { table: "vy_room_follower_month_note", key: "person_id", lane: "relational" },
+  // ── WS-R1: the Room's PERSON side (migration 071), moved LAST among the
+  // Room's relational-lane entries by WS-R27 (see this block's own header) ──
+  //
+  // A follower's membership of a creator's Room, and the names they gave their
+  // own topic threads. Neither holds a word anybody said (071's content law
+  // restates 012's), and both are still unambiguously records OF that person:
+  // the membership says they joined this creator's room and answered the
+  // memory question, the thread titles are nouns they typed. A whole wipe that
+  // kept either would leave "this human follows Anjali and calls one of their
+  // threads `injury`" standing after a receipt that said nothing remains.
+  //
+  // The ROOM itself (vy_room) is deliberately not here. It is owner-keyed with
+  // no person column, so it is the owner lane, and a manifest loop deleting it
+  // on one follower's request would take a creator's room away from everyone
+  // else in it. Its erasure is api/_replica-full-erasure.js's, which also
+  // deletes these two by agent_id - the same rows, reached from the other side,
+  // which is the house rule for a harm the next turn does not undo.
+  //
+  // `vy_room_thread` before `vy_room_follower`: `vy_room_thread` is itself a
+  // PARENT other entries above (`vy_room_pulse_optin`, `vy_room_handoff`)
+  // must be listed and deleted ahead of, and `vy_room_follower` is the ROOT
+  // every OTHER Room child in this whole block cascades from - so it is the
+  // very last relational-lane Room entry in the array, deliberately.
+  { table: "vy_room_thread",   key: "person_id", lane: "relational", agent: true },
+  { table: "vy_room_follower", key: "person_id", lane: "relational", agent: true },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
+
+// ── WHAT IS DELIBERATELY NOT IN THE LIST ABOVE ─────────────────────────────
+//
+// 48 tables in the live schema carry `owner_user_id`, and none of them is
+// here. That is a decision, not an oversight, and this is where it is written
+// down (scripts/relcheck.mjs holds the machine-checked half).
+//
+// `owner_user_id` is a Supabase AUTH id: the expert who owns a replica. It is
+// a natural person, so the instinct is to add all 48 and be done. That would
+// make erasure WEAKER, not stronger. The replica lane's rows are the only
+// pointers this system has to objects that live OUTSIDE Postgres — the
+// provider Personal Voice, the private-bucket originals and derivatives, the
+// Azure face sessions. docs/REPLICA-ERASURE.md's chain deletes those FIRST and
+// the rows LAST, precisely because a row deleted early is an object nobody can
+// find again. A manifest loop issuing `delete from vy_replica_source` would
+// strand a person's biometric audio in object storage while the receipt said
+// it was gone: the worst possible outcome of a deletion request.
+//
+// So the owner lane is erased by its own named path, and the check that it
+// really is covered lives in relcheck.mjs as a walk of the live FK graph —
+// 44 of the 48 fall out of `delete from vy_replica` by ON DELETE CASCADE, and
+// the other four are named explicitly in api/_replica-full-erasure.js. An
+// owner-lane table reachable by neither fails that gate.
+//
+// The reversal condition: if a teacher-facing "delete my account" ever needs
+// to erase an owner across replicas, it gets its own op that CALLS the erasure
+// job per replica. It does not get a row in PERSON_TABLES.
 
 /** The owning columns of a manifest entry, always as an array. `key` stays the
  *  primary one so every existing consumer keeps working unchanged; `keys` is
@@ -2454,7 +3294,24 @@ export async function multipartyApplied(t = (name) => name) {
  *  drift about which tables exist. */
 export async function activePersonTables() {
   const on = await multipartyApplied();
-  return PERSON_TABLES.filter((t) => !MP_TABLES.has(t.table) || on).map((t) =>
+  const consent = await tableApplied("meera_consent");
+  // WS-R: the same per-table guard meera_consent already gets, for the replica
+  // lane's person-keyed tables. They arrive with migrations 015/023/027/068,
+  // and the manifest loop's delete is not wrapped in a catch on purpose — the
+  // receipt may only be sent once the delete actually happened. A manifest
+  // naming a table this database does not have yet would turn every whole wipe
+  // into a 500 for a deploy-ordering reason. Provably lossless, same argument
+  // as 008's and 016's: a table that does not exist holds no rows.
+  const gated = await Promise.all(
+    REPLICA_PERSON_TABLES.map(async (n) => [n, await tableApplied(n)]),
+  );
+  const absent = new Set(gated.filter(([, present]) => !present).map(([n]) => n));
+  return PERSON_TABLES.filter(
+    (t) =>
+      (!MP_TABLES.has(t.table) || on) &&
+      (t.table !== "meera_consent" || consent) &&
+      !absent.has(t.table),
+  ).map((t) =>
     // `keys` and `wipeWhere` both name COLUMNS 008 adds (speaker_person_id,
     // group_id), so on a pre-008 database they are dropped along with the
     // tables. Lossless for the same reason: with no rooms there are no shared
@@ -2463,6 +3320,82 @@ export async function activePersonTables() {
     on ? t : { ...t, keys: undefined, wipeWhere: undefined },
   );
 }
+
+// ── the same guard, generalised for ONE table (task #148, migration 016) ────
+//
+// meera_consent is in the manifest the day the code is written and in the
+// database the day the owner applies 016, and those are not the same day. The
+// manifest loop's delete is not wrapped in a catch, so a manifest naming a
+// table that does not exist yet turns "make her forget you" into a 500 — the
+// one operation that must never fail for a deploy-ordering reason. Migration
+// 008 already has this exact shape of problem and this exact shape of answer
+// (`multipartyApplied` above); this is that answer for a single table, which
+// is all 016 needs, and the skipped work is provably empty for the same reason
+// theirs is: a table that does not exist holds no rows to delete or export.
+//
+// Probed once per process and cached per name; a fresh serverless invocation
+// re-probes, so the guard self-clears the moment the migration lands, with no
+// deploy.
+const _applied = new Map();
+export async function tableApplied(name) {
+  if (_applied.has(name)) return _applied.get(name);
+  const r = await q(`select to_regclass($1) is not null as present`, [`public.${name}`]).catch(
+    () => [],
+  );
+  const present = r[0]?.present === true;
+  _applied.set(name, present);
+  return present;
+}
+
+/** The manifest entries that arrive with a migration LATER than the ones a
+ *  given database may have applied, gated per table exactly as meera_consent is
+ *  on 016. Named here so the guard cannot drift from the list it guards.
+ *
+ *  The replica lane's four arrive with 015 / 023 / 027. The Room's two arrive
+ *  with 071, and its third (the cohort day-count) with 077 - all three are on
+ *  this list for the identical reason rather than a similar one: the wipe
+ *  loop's delete is NOT catch-wrapped on purpose (the receipt may only be
+ *  sent once the delete actually happened), so a manifest naming a table this
+ *  database has not got yet turns "make it forget me" into a 500 for a
+ *  deploy-ordering reason. Provably lossless in both cases: a table that does
+ *  not exist holds no rows. */
+export const REPLICA_PERSON_TABLES = [
+  "vy_replica_expression_observation",
+  "vy_replica_dialogue_turn",
+  "vy_replica_runtime_session",
+  "vy_replica_runtime_capability",
+  "vy_account_person",
+  "vy_room_thread",
+  "vy_room_follower",
+  "vy_room_follower_day",
+  // Arrives with 078 (WS-R11), on the identical reasoning.
+  "vy_room_subscription",
+  // Arrive with 079 (WS-R16), on the identical reasoning.
+  "vy_room_checkin",
+  "vy_room_checkin_delivery",
+  // Arrives with 080 (WS-R17), on the identical reasoning.
+  "vy_room_pulse_optin",
+  // Arrives with 082 (WS-R18), on the identical reasoning.
+  "vy_room_follower_channel",
+  // Arrives with 081 (WS-R19), on the identical reasoning.
+  "vy_room_voice_usage",
+  // Arrives with 085 (WS-R22), on the identical reasoning.
+  "vy_room_push_subscription",
+  // Arrives with 083 (WS-R20), on the identical reasoning.
+  "vy_room_handoff",
+  // Arrives with 093 (WS-R30), on the identical reasoning.
+  "vy_room_upgrade_offer",
+  // Arrives with 099 (WS-R37), on the identical reasoning.
+  "vy_renewal_reminder",
+  // Arrives with 116 (WS-R67), on the identical reasoning.
+  "vy_room_follower_reply_flag",
+  // Arrives with 128 (WS-R104), on the identical reasoning: a database
+  // between the code push and the migration landing must not have the
+  // account-wide whole wipe 500 on a table it does not have yet.
+  "vy_room_follower_whatsapp_chat",
+  // Arrives with 136 (WS-R137), on the identical reasoning.
+  "vy_room_follower_month_note",
+];
 
 // tables and columns that migration 008 introduces
 const MP_TABLES = new Set([
@@ -2476,11 +3409,21 @@ const MP_TABLES = new Set([
  *  OR'd together, plus the entry's exclusive-rows restriction if it has one.
  *  Params are $1..$n in `keysOf` order. Forget only — export must not apply
  *  `wipeWhere` (see the manifest header). */
-export function wipeWhereSql(t) {
+export function wipeWhereSql(t, { deviceSet = false } = {}) {
   const cols = keysOf(t)
-    .map((k, i) => `${k} = $${i + 1}`)
+    .map((k, i) => ownerEq(k, `$${i + 1}`, deviceSet))
     .join(" or ");
   return t.wipeWhere ? `(${cols}) and ${t.wipeWhere}` : `(${cols})`;
+}
+
+/** One owning column compared to one param. `deviceSet` is what makes a forget
+ *  reach the whole PERSON rather than the one surface they happened to ask
+ *  from (`personDeviceSet`): the device column takes an id ARRAY and every
+ *  other owning column stays scalar, because only `device_id` is minted per
+ *  surface. Off by default so `export.js` and the evals that share this
+ *  generator emit exactly the SQL they always did. */
+export function ownerEq(col, param, deviceSet = false) {
+  return col === "device_id" && deviceSet ? `${col} = any(${param}::uuid[])` : `${col} = ${param}`;
 }
 
 /** Values for wipeWhereSql's params: device for device-keyed columns, person
@@ -2497,6 +3440,47 @@ export async function personIdFor(device) {
     () => [],
   );
   return r[0]?.person_id || device;
+}
+
+/** Every device the same human owns, this one first.
+ *
+ *  `api/_surface.js` §4: memory is never keyed by surface. `bindSurfaceDmDevice`
+ *  mints a device PER SURFACE, so the legacy graph tables — which key on
+ *  `device_id` — hold one human's memory under several ids. The read path was
+ *  widened to the person in WS-O; the FORGET path was not, and a whole wipe on
+ *  the web left the Telegram rows standing (`legacy-forget-is-device-scoped`).
+ *  This is the resolver both halves needed: opForget resolves the set ONCE and
+ *  every legacy-lane statement takes `device_id = any($n::uuid[])` over it.
+ *
+ *  Three properties this shape has, and each is load-bearing:
+ *
+ *  1. ABSENT BY DEFAULT. A person with one device (and an unmapped device,
+ *     which IS its own person by §2.1) resolves to `[device]`, so every
+ *     statement is byte-identical to what it was before this existed. The
+ *     widening cannot change a single-surface forget in any way.
+ *  2. GROUP ROOMS CANNOT BE REACHED. A room turn is written under
+ *     `vy_group.room_device_id`, a synthetic uuid that (PERSON_TABLES' own
+ *     note) appears in NOBODY's `vy_person_device` mapping. The set is built
+ *     from that mapping, so a room device is not in it and a personal forget
+ *     structurally cannot delete a room's shared history. No predicate is
+ *     re-implemented here to achieve that; the join simply does not contain
+ *     those rows.
+ *  3. FAILS CLOSED, NARROW. If the mapping read throws, the set degrades to
+ *     `[device]` — today's behaviour — rather than widening a DELETE on a
+ *     result nobody could verify. For forget, the safe failure is deleting
+ *     LESS than asked and saying so in the receipt, never more.
+ *
+ *  The cap is a safety rail, not a product limit: a human with more than 64
+ *  bound devices is a bug or an attack, and either way an unbounded id list
+ *  should not be pasted into a delete.
+ */
+export async function personDeviceSet(device) {
+  const person = await personIdFor(device);
+  const rows = await q(
+    `select device_id from vy_person_device where person_id = $1::uuid limit 64`,
+    [person],
+  ).catch(() => []);
+  return [...new Set([device, ...rows.map((r) => r.device_id).filter(Boolean)])];
 }
 
 // ── forget cascade v2 (SPEC §9.1, steps 2–6) ───────────────────────────────
@@ -2554,13 +3538,16 @@ export async function personIdFor(device) {
 // same shape as `silent-truncation`.
 //
 // `t` is a table-name resolver, defaulting to identity. Production never passes
-// it. evals/mp/withdraw.mjs passes the fixture-namespace prefixer, so THIS
+// it. `agentId` is optional by design: a room's `/bhool` supplies the current
+// clone and withdraws only from that relationship; the full-person wipe omits
+// it and still withdraws the person from every agent before erasing identity.
+// evals/mp/withdraw.mjs passes the fixture-namespace prefixer, so THIS
 // function — not a re-implementation of it — is what the withdraw suite proves
 // against the real Postgres. The same reason api/_disclosure.js takes a bind
 // map: a cascade tested through a copy is a copy that was tested.
 export async function withdrawSharedRows(
   person,
-  { dropAuthoredRoomTurns = true, t = (name) => name } = {},
+  { dropAuthoredRoomTurns = true, t = (name) => name, agentId = null } = {},
 ) {
   const out = {
     participant_rows: 0, room_turns: 0, grants: 0, memberships: 0,
@@ -2576,11 +3563,20 @@ export async function withdrawSharedRows(
 
   // 1. leave the ACL. P can no longer be disclosed TO, and can no longer be
   //    attributed as someone who witnessed it, from the next retrieval on.
-  const left = await q(
-    `delete from ${t("vy_episode_participant")} where person_id = $1 returning episode_id`,
-    [person],
-    30_000,
-  );
+  const left = agentId
+    ? await q(
+        `delete from ${t("vy_episode_participant")} p
+          using ${t("vy_episode")} e
+          where p.person_id = $1 and p.episode_id = e.id and e.agent_id = $2::uuid
+          returning p.episode_id`,
+        [person, agentId],
+        30_000,
+      )
+    : await q(
+        `delete from ${t("vy_episode_participant")} where person_id = $1 returning episode_id`,
+        [person],
+        30_000,
+      );
   out.participant_rows = left.length;
 
   // 2. P's OWN authored room turns — never her replies to the room, never
@@ -2589,8 +3585,9 @@ export async function withdrawSharedRows(
   //    implementable at row level.
   if (dropAuthoredRoomTurns) {
     const turns = await q(
-      `delete from ${t("meera_log")} where speaker_person_id = $1 and group_id is not null returning id`,
-      [person],
+      `delete from ${t("meera_log")} where speaker_person_id = $1 and group_id is not null
+        ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+      agentId ? [person, agentId] : [person],
       30_000,
     );
     out.room_turns = turns.length;
@@ -2604,30 +3601,34 @@ export async function withdrawSharedRows(
     const orphan = await q(
       `select e.id from ${t("vy_episode")} e
         where e.id = any($1::bigint[]) and e.group_id is not null
+          ${agentId ? "and e.agent_id = $2::uuid" : ""}
           and not exists (select 1 from ${t("vy_episode_participant")} p where p.episode_id = e.id)`,
-      [epIds],
+      agentId ? [epIds, agentId] : [epIds],
       30_000,
     );
     const dead = orphan.map((r) => r.id);
     if (dead.length) {
       // derived closure FIRST (no dangling-citation window), episodes last
       const facts = await q(
-        `delete from ${t("vy_fact")} where citations && $1::bigint[] returning id`,
-        [dead],
+        `delete from ${t("vy_fact")} where citations && $1::bigint[]
+          ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+        agentId ? [dead, agentId] : [dead],
         30_000,
       );
       out.facts_closed = facts.length;
       const phrases = await q(
-        `delete from ${t("vy_phrase")} where origin_episode = any($1::bigint[]) returning id`,
-        [dead],
+        `delete from ${t("vy_phrase")} where origin_episode = any($1::bigint[])
+          ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+        agentId ? [dead, agentId] : [dead],
         30_000,
       );
       out.phrases_closed = phrases.length;
       const embs = await q(
         `delete from ${t("vy_embedding")}
-          where (owner_kind = 'episode' and owner_id = any($1::bigint[]))
-             or (owner_kind = 'fact'    and owner_id = any($2::bigint[])) returning 1 as x`,
-        [dead, facts.map((r) => r.id)],
+          where ((owner_kind = 'episode' and owner_id = any($1::bigint[]))
+             or (owner_kind = 'fact'    and owner_id = any($2::bigint[])))
+             ${agentId ? "and agent_id = $3::uuid" : ""} returning 1 as x`,
+        agentId ? [dead, facts.map((r) => r.id), agentId] : [dead, facts.map((r) => r.id)],
         30_000,
       );
       out.embeddings_closed = embs.length;
@@ -2636,8 +3637,9 @@ export async function withdrawSharedRows(
       // the turn-level action log survives the episode it described — silence
       // and speech are the room's own behavioural record, not the episode's.
       const eps = await q(
-        `delete from ${t("vy_episode")} where id = any($1::bigint[]) returning id`,
-        [dead],
+        `delete from ${t("vy_episode")} where id = any($1::bigint[])
+          ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+        agentId ? [dead, agentId] : [dead],
         30_000,
       );
       out.episodes_closed = eps.length;
@@ -2648,8 +3650,10 @@ export async function withdrawSharedRows(
   //    the grantee stops being a recipient, and granted_to is scalar, so both
   //    roles are the same delete (see the manifest's `by_role` note).
   const grants = await q(
-    `delete from ${t("vy_disclosure_grant")} where granted_by = $1 or granted_to = $1 returning id`,
-    [person],
+    `delete from ${t("vy_disclosure_grant")}
+      where (granted_by = $1 or granted_to = $1)
+      ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+    agentId ? [person, agentId] : [person],
     30_000,
   );
   out.grants = grants.length;
@@ -2660,8 +3664,9 @@ export async function withdrawSharedRows(
   //    deliberately not inline here.
   const mem = await q(
     `update ${t("vy_group_member")} set left_at = now()
-      where person_id = $1 and left_at is null returning group_id`,
-    [person],
+      where person_id = $1 and left_at is null
+      ${agentId ? "and agent_id = $2::uuid" : ""} returning group_id`,
+    agentId ? [person, agentId] : [person],
     30_000,
   );
   out.memberships = mem.length;
@@ -2669,8 +3674,12 @@ export async function withdrawSharedRows(
   return out;
 }
 
-async function purgeRelational(device, scope, { logIds = [], rx = null, from = NaN, to = NaN } = {}) {
-  const person = await personIdFor(device);
+async function purgeRelational(devices, scope, { logIds = [], rx = null, from = NaN, to = NaN } = {}) {
+  // The relational store is person-keyed (SPEC §2), so most of this function
+  // never saw a device at all. The exceptions are the manifest rows that carry
+  // a `device_id` owning column and the identity mapping itself — both below,
+  // both widened to the person's whole device set.
+  const person = await personIdFor(devices[0]);
   const out = {
     episodes: 0, facts: 0, rel_events: 0, patterns: 0, kin: 0, currency: 0,
     rituals: 0, phrases: 0, embeddings: 0, derivations: 0, sessions: 0,
@@ -2689,15 +3698,85 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
     for (const t of await activePersonTables()) {
       if (t.lane !== "relational") continue;
       const gone = await q(
-        `delete from ${t.table} where ${wipeWhereSql(t)} returning 1 as x`,
-        wipeParams(t, { device, person }),
+        `delete from ${t.table} where ${wipeWhereSql(t, { deviceSet: true })} returning 1 as x`,
+        wipeParams(t, { device: devices, person }),
         30_000,
       );
       if (gone.length) out[t.table] = gone.length;
     }
+    // WS-R32 (migration 094, closing ws-r27-whole-wipe-receipt-read-capped-
+    // at-10000): every Room forget receipt this person's own past "forget me
+    // in this room" requests ever produced, across every Room. `vy_room_
+    // forget_receipt` is deliberately NOT a PERSON_TABLES entry (it carries
+    // no person_id column - `roomForgetReceiptHash`'s own header states
+    // why), so the generic manifest loop above cannot see it and this is its
+    // one explicit door - see `purgeRoomForgetReceipts`'s own header for the
+    // bounded-by-Rooms-not-receipts argument. Gated on the table existing at
+    // all (090's own migration), the same guard `meera_consent` gets for
+    // 016 - a manifest naming a table this database has not got yet must
+    // never turn "forget everything" into a 500.
+    if (await tableApplied("vy_room_forget_receipt")) {
+      const goneReceipts = await purgeRoomForgetReceipts(q, person);
+      if (goneReceipts) out.vy_room_forget_receipt = goneReceipts;
+    }
+    // WS-R100 (migration 126). `vy_receipt` — a follower's own payment
+    // receipts. Deliberately NOT a `PERSON_TABLES` entry above (this table's
+    // own migration header, and `scripts/relcheck.mjs`'s `EXEMPT` map, carry
+    // the written reason), so the generic manifest loop a few lines up
+    // cannot see it — this is its own explicit door, `vy_room_forget_
+    // receipt`'s own one line up restated for a table that must NOT be
+    // blind-deleted the way that loop deletes every `relational` lane
+    // entry. An UPDATE, never a DELETE: `person_id` is nulled, the row
+    // itself (its `receipt_no` and, through the still-intact
+    // `vy_payment_event` row, its amount) survives — a receipt is proof a
+    // real charge happened, and an account-wide "forget everything" may not
+    // also make an accountant's or a parent's copy of that proof
+    // retroactively inaccurate (`vy_room_subscription`'s own
+    // "forgetting what an AI remembers is a different request in kind from
+    // forgetting that you paid money" restated for a receipt instead of a
+    // mandate). Gated on the table existing at all, `vy_room_forget_
+    // receipt`'s own guard restated.
+    if (await tableApplied("vy_receipt")) {
+      const nulledReceipts = await q(
+        `update vy_receipt set person_id = null where person_id = $1 returning receipt_id`,
+        [person],
+      );
+      if (nulledReceipts.length) out.vy_receipt = nulledReceipts.length;
+    }
+    // WS-R130 (migration 133). `vy_room_referral_credit`/`vy_room_referral_
+    // reward` - `vy_receipt`'s own precedent one block up, restated for two
+    // tables instead of one: both name a real referrer's `referrer_person_id`
+    // and both are financial/growth-ledger rows that must survive a
+    // person's own "forget everything" with their room and their number
+    // intact - only the identity goes. An UPDATE, never a DELETE, exactly
+    // `vy_receipt`'s own shape; the narrow per-Room `roomForget`
+    // (api/_room-surface.js) does not touch either table at all, the same
+    // restraint `vy_receipt` gets one block up. Gated on each table
+    // existing at all, `vy_receipt`'s own guard restated twice.
+    if (await tableApplied("vy_room_referral_credit")) {
+      const nulledCredits = await q(
+        `update vy_room_referral_credit set referrer_person_id = null where referrer_person_id = $1 returning credit_id`,
+        [person],
+      );
+      if (nulledCredits.length) out.vy_room_referral_credit = nulledCredits.length;
+    }
+    if (await tableApplied("vy_room_referral_reward")) {
+      const nulledRewards = await q(
+        `update vy_room_referral_reward set referrer_person_id = null where referrer_person_id = $1 returning reward_id`,
+        [person],
+      );
+      if (nulledRewards.length) out.vy_room_referral_reward = nulledRewards.length;
+    }
     // the mapping and (if no other device shares it) the person row itself:
     // a full wipe that kept the identity row would keep a record of them
-    const m = await q(`delete from vy_person_device where device_id = $1 returning person_id`, [device]);
+    // EVERY mapping row, not just the asking device's. Leaving the others
+    // behind would keep a record of which surfaces this human used, and would
+    // also block the person-row delete below, whose `not exists` guard reads
+    // exactly this table.
+    const m = await q(
+      `delete from vy_person_device where device_id = any($1::uuid[]) returning person_id`,
+      [devices],
+    );
     await q(
       `delete from vy_person p where p.person_id = $1
         and not exists (select 1 from vy_person_device d where d.person_id = p.person_id)`,
@@ -2752,7 +3831,14 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
   // ── steps 2+4: delete episodes with the superseded_by chase, both
   // directions, in one recursive statement (SQL-HTTP = no transactions, so
   // each statement must leave a consistent-enough state on its own; the
-  // zero-orphan sweep is the prover). FK cascade takes assertions/moments.
+  // zero-orphan sweep is the prover). Surviving raw rows are returned to the
+  // valid unconsolidated state in this SAME statement. A content-free
+  // provisional episode per remaining agent/device/channel wakes the nightly
+  // finalizer, whose person cursor is provisional episodes rather than raw
+  // NULLs. It can segment again from the text left after the requested
+  // item/window deletion; leaving the old cursor would hide that text forever
+  // behind an episode this statement removes. FK cascade takes assertions/
+  // moments.
   let epIds = [];
   if (seeds.size) {
     const gone = await q(
@@ -2761,8 +3847,25 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
          union
          select e.id, e.superseded_by from vy_episode e
            join doomed d on e.person_id = $1 and (e.id = d.superseded_by or e.superseded_by = d.id)
+       ), unclaimed_logs as (
+         update meera_log l set episode_id = null
+          where l.episode_id in (select id from doomed)
+         returning l.id,l.agent_id,l.device_id,l.channel,l.at,l.group_id,l.room_memory_follower_id
+       ), wake_episodes as (
+         insert into vy_episode
+           (agent_id,person_id,device_id,channel,participation,started_at,ended_at,
+            boundary_reason,log_from,log_to,summary,provisional)
+         select l.agent_id,$1::uuid,l.device_id,
+                case when l.channel = 'call' then 'call' else 'chat' end,
+                'user',min(l.at),max(l.at),'backfill',min(l.id),max(l.id),'',true
+           from unclaimed_logs l
+          where l.group_id is null and l.room_memory_follower_id is null
+          group by l.agent_id,l.device_id,case when l.channel = 'call' then 'call' else 'chat' end
+         returning id
        )
        delete from vy_episode where person_id = $1 and id in (select id from doomed)
+         and (select count(*) from unclaimed_logs) >= 0
+         and (select count(*) from wake_episodes) >= 0
        returning id`,
       [person, [...seeds]],
       30_000,
@@ -3006,11 +4109,13 @@ async function rebuildRelState(person, agentId = MEERA_AGENT_ID) {
 
 // an orphaned edge is a relation between two things that no longer exist —
 // it survives every node-level delete unless it is chased explicitly
-async function dropEdgesFor(device, ids) {
+async function dropEdgesFor(devices, ids, agentId = MEERA_AGENT_ID) {
   if (!ids.length) return 0;
   const gone = await q(
-    `delete from meera_edges where device_id = $1 and (src = any($2) or dst = any($2)) returning id`,
-    [device, ids],
+    `delete from meera_edges e where device_id = any($1::uuid[])
+      ${agentScopePredicate("e", { agentId: "$3" })}
+      and (src = any($2) or dst = any($2)) returning id`,
+    [devices, ids, agentId],
   ).catch(() => []);
   return gone.length;
 }
@@ -3069,9 +4174,12 @@ async function dropEdgesFor(device, ids) {
 // a forget that bricks the app on the next load is not a forget.
 //
 // Not .catch()-swallowed for the same reason nothing else in this cascade is.
-async function purgeSyncedState(device, { rx, from, to, all }) {
+async function purgeSyncedState(devices, { rx, from, to, all }) {
   if (all) {
-    const gone = await q(`delete from meera_state where device_id = $1 returning user_id`, [device]);
+    const gone = await q(
+      `delete from meera_state where device_id = any($1::uuid[]) returning user_id`,
+      [devices],
+    );
     return { rows: gone.length, rewritten: 0 };
   }
   const prune = async (field, whereKept, params) => {
@@ -3081,7 +4189,7 @@ async function purgeSyncedState(device, { rx, from, to, all }) {
                 coalesce((select jsonb_agg(e) from jsonb_array_elements(state->'${field}') e
                            where ${whereKept}), '[]'::jsonb)),
               updated_at = now()
-        where device_id = $1 and jsonb_typeof(state->'${field}') = 'array'
+        where device_id = any($1::uuid[]) and jsonb_typeof(state->'${field}') = 'array'
         returning user_id`,
       params,
     );
@@ -3094,10 +4202,10 @@ async function purgeSyncedState(device, { rx, from, to, all }) {
     rewritten += await prune(
       "messages",
       `not (coalesce(e->>'text','') ~* $2 or coalesce(e->>'desc','') ~* $2)`,
-      [device, rx],
+      [devices, rx],
     );
     // activityEpisodeSummary's own text: "chess, 22 aug, you left it on move 6"
-    rewritten += await prune("activities", `not (coalesce(e->>'summary','') ~* $2)`, [device, rx]);
+    rewritten += await prune("activities", `not (coalesce(e->>'summary','') ~* $2)`, [devices, rx]);
   } else if (Number.isFinite(from) && Number.isFinite(to)) {
     // `at` is epoch ms in AppState (src/engine/memory.ts's Message), and the
     // ->> extraction is text — the cast is what makes the comparison numeric
@@ -3106,12 +4214,12 @@ async function purgeSyncedState(device, { rx, from, to, all }) {
     rewritten += await prune(
       "messages",
       `not (coalesce((e->>'at')::bigint, 0) >= $2::bigint and coalesce((e->>'at')::bigint, 0) < $3::bigint)`,
-      [device, String(Math.floor(from)), String(Math.floor(to))],
+      [devices, String(Math.floor(from)), String(Math.floor(to))],
     );
     rewritten += await prune(
       "activities",
       `not (coalesce((e->>'startedAt')::bigint, 0) >= $2::bigint and coalesce((e->>'startedAt')::bigint, 0) < $3::bigint)`,
-      [device, String(Math.floor(from)), String(Math.floor(to))],
+      [devices, String(Math.floor(from)), String(Math.floor(to))],
     );
   }
   return { rows: 0, rewritten };
@@ -3140,25 +4248,31 @@ async function purgeSyncedState(device, { rx, from, to, all }) {
 // forget matches a WORD, and there are no words in these tables to match. A
 // trace row is deleted when the person is wiped, or when the stretch it timed
 // is wiped. Saying that here beats a branch that silently matches nothing.
-async function purgeTurnTrace(device, { from, to, all }) {
+async function purgeTurnTrace(devices, { from, to, all }) {
   const del = async (sql, params) => (await q(sql, params).catch(() => [])).length;
   if (all) {
     // legs first: the detail table's rows are reachable only through their
     // turn, so taking the spine first would strand them (no FK, house law)
-    const legs = await del(`delete from meera_turn_leg where device_id = $1 returning id`, [device]);
-    const turns = await del(`delete from meera_turn where device_id = $1 returning turn_id`, [device]);
+    const legs = await del(
+      `delete from meera_turn_leg where device_id = any($1::text[]) returning id`,
+      [devices],
+    );
+    const turns = await del(
+      `delete from meera_turn where device_id = any($1::text[]) returning turn_id`,
+      [devices],
+    );
     return legs + turns;
   }
   if (Number.isFinite(from) && Number.isFinite(to)) {
     const a = new Date(from).toISOString();
     const b = new Date(to).toISOString();
     const legs = await del(
-      `delete from meera_turn_leg where device_id = $1 and at >= $2 and at < $3 returning id`,
-      [device, a, b],
+      `delete from meera_turn_leg where device_id = any($1::text[]) and at >= $2 and at < $3 returning id`,
+      [devices, a, b],
     );
     const turns = await del(
-      `delete from meera_turn where device_id = $1 and started_at >= $2 and started_at < $3 returning turn_id`,
-      [device, a, b],
+      `delete from meera_turn where device_id = any($1::text[]) and started_at >= $2 and started_at < $3 returning turn_id`,
+      [devices, a, b],
     );
     return legs + turns;
   }
@@ -3169,31 +4283,32 @@ async function purgeTurnTrace(device, { from, to, all }) {
  *  Its own function rather than a branch inside purgeTelemetry because
  *  meera_events has no session rollup to repair and no `props::text` draft
  *  exception to reason about — it is one table and one predicate. */
-async function purgeEvents(device, { rx, from, to, all }) {
+async function purgeEvents(devices, { rx, from, to, all }) {
   if (all) {
-    const gone = await q(`delete from meera_events where device_id = $1 returning id`, [device]).catch(
-      () => [],
-    );
+    const gone = await q(
+      `delete from meera_events where device_id = any($1::uuid[]) returning id`,
+      [devices],
+    ).catch(() => []);
     return gone.length;
   }
   if (rx) {
     const gone = await q(
-      `delete from meera_events where device_id = $1 and props::text ~* $2 returning id`,
-      [device, rx],
+      `delete from meera_events where device_id = any($1::uuid[]) and props::text ~* $2 returning id`,
+      [devices, rx],
     ).catch(() => []);
     return gone.length;
   }
   if (Number.isFinite(from) && Number.isFinite(to)) {
     const gone = await q(
-      `delete from meera_events where device_id = $1 and at >= $2 and at < $3 returning id`,
-      [device, new Date(from).toISOString(), new Date(to).toISOString()],
+      `delete from meera_events where device_id = any($1::uuid[]) and at >= $2 and at < $3 returning id`,
+      [devices, new Date(from).toISOString(), new Date(to).toISOString()],
     ).catch(() => []);
     return gone.length;
   }
   return 0;
 }
 
-async function purgeTelemetry(device, { rx, from, to, all }) {
+async function purgeTelemetry(devices, { rx, from, to, all }) {
   let gone = [];
   // meera_diag rides every branch of this function on exactly rule 3's terms.
   // It is the call-path audit trail, its `detail` jsonb can carry turn-shaped
@@ -3205,39 +4320,41 @@ async function purgeTelemetry(device, { rx, from, to, all }) {
   const diag = async (where, params) =>
     (await q(`delete from meera_diag where ${where} returning id`, params).catch(() => [])).length;
   if (all) {
-    gone = await q(`delete from meera_tel where device_id = $1 returning id`, [device]);
-    await q(`delete from meera_tel_session where device_id = $1`, [device]).catch(() => {});
-    await diag(`device_id = $1`, [device]);
+    gone = await q(`delete from meera_tel where device_id = any($1::text[]) returning id`, [devices]);
+    await q(`delete from meera_tel_session where device_id = any($1::text[])`, [devices]).catch(
+      () => {},
+    );
+    await diag(`device_id = any($1::text[])`, [devices]);
     return gone.length;
   }
   if (rx) {
-    gone = await q(`delete from meera_tel where device_id = $1 and props::text ~* $2 returning id`, [
-      device,
-      rx,
-    ]);
-    await diag(`device_id = $1 and detail::text ~* $2`, [device, rx]);
+    gone = await q(
+      `delete from meera_tel where device_id = any($1::text[]) and props::text ~* $2 returning id`,
+      [devices, rx],
+    );
+    await diag(`device_id = any($1::text[]) and detail::text ~* $2`, [devices, rx]);
   } else if (Number.isFinite(from) && Number.isFinite(to)) {
     gone = await q(
-      `delete from meera_tel where device_id = $1 and at >= $2 and at < $3 returning id`,
-      [device, new Date(from).toISOString(), new Date(to).toISOString()],
+      `delete from meera_tel where device_id = any($1::text[]) and at >= $2 and at < $3 returning id`,
+      [devices, new Date(from).toISOString(), new Date(to).toISOString()],
     );
-    await diag(`device_id = $1 and at >= $2 and at < $3`, [
-      device,
+    await diag(`device_id = any($1::text[]) and at >= $2 and at < $3`, [
+      devices,
       new Date(from).toISOString(),
       new Date(to).toISOString(),
     ]);
   }
   if (!gone.length) return 0;
   await q(
-    `delete from meera_tel_session s where s.device_id = $1
+    `delete from meera_tel_session s where s.device_id = any($1::text[])
        and not exists (select 1 from meera_tel t where t.session_id = s.session_id)`,
-    [device],
+    [devices],
   ).catch(() => {});
   await q(
     `update meera_tel_session s set events = c.n
-       from (select session_id, count(*)::int n from meera_tel where device_id = $1 group by session_id) c
-      where s.session_id = c.session_id and s.device_id = $1 and s.events <> c.n`,
-    [device],
+       from (select session_id, count(*)::int n from meera_tel where device_id = any($1::text[]) group by session_id) c
+      where s.session_id = c.session_id and s.device_id = any($1::text[]) and s.events <> c.n`,
+    [devices],
   ).catch(() => {});
   return gone.length;
 }
@@ -3423,7 +4540,7 @@ export function parseForgetHook(text, allowedIds) {
 }
 
 /** The candidate rows: what the existing predicate found, then recency. */
-async function forgetCandidates(device, name, rx) {
+async function forgetCandidates(devices, name, rx, agentId = MEERA_AGENT_ID) {
   const seen = new Map();
   const add = (rows) => {
     for (const r of rows) {
@@ -3439,17 +4556,20 @@ async function forgetCandidates(device, name, rx) {
   };
   add(
     await q(
-      `select id, name, summary from meera_nodes
-        where device_id = $1 and (name = $2 or name ~* $3 or summary ~* $3)
+      `select id, name, summary from meera_nodes n
+        where device_id = any($1::uuid[]) and (name = $2 or name ~* $3 or summary ~* $3)
+        ${agentScopePredicate("n", { agentId: "$4" })}
         order by updated_at desc limit ${FORGET_HOOK_LEX_CAP}`,
-      [device, name, rx],
+      [devices, name, rx, agentId],
     ).catch(() => []),
   );
   add(
     await q(
-      `select id, name, summary from meera_nodes
-        where device_id = $1 order by updated_at desc limit ${FORGET_HOOK_RECENT}`,
-      [device],
+      `select id, name, summary from meera_nodes n
+        where device_id = any($1::uuid[])
+        ${agentScopePredicate("n", { agentId: "$2" })}
+        order by updated_at desc limit ${FORGET_HOOK_RECENT}`,
+      [devices, agentId],
     ).catch(() => []),
   );
   return [...seen.values()];
@@ -3476,10 +4596,22 @@ async function forgetCandidates(device, name, rx) {
  * than a transport of its own. It takes plain arguments and touches no
  * database, so exporting it buys the coverage and exposes nothing.
  */
-export async function askForgetHook(marker, candidates) {
+export async function askForgetHook(marker, candidates, options = {}) {
   if (!candidates.length) return { failed: true };
   const messages = forgetHookPrompt(marker, candidates);
   const allowed = candidates.map((c) => c.id);
+  if (isAzureOnlyServing(options.env || process.env)) {
+    // A failed semantic resolver retains the existing lexical delete and its
+    // hedged receipt. It never escalates a deletion into a Google request.
+    try {
+      const content = await extractChat(messages, 2000, { ...options, model: FORGET_HOOK_AZ_MODEL, timeoutMs: FORGET_HOOK_FUSE_MS });
+      const ids = parseForgetHook(content, allowed);
+      return ids ? { ids } : { failed: true, code: "memory_azure_forget_response_invalid" };
+    } catch (error) {
+      return { failed: true, code: /^memory_azure_|^model_serving_/.test(String(error?.code || ""))
+        ? error.code : "memory_azure_forget_failed" };
+    }
+  }
   let calls = 0;
   const budget = () => calls < FORGET_HOOK_MAX_CALLS;
 
@@ -3553,6 +4685,10 @@ export async function askForgetHook(marker, candidates) {
 //   day     — one calendar day in their timezone.
 //   all     — every row this device has, including the suppression list.
 async function opForget(device, body) {
+  // The public legacy endpoint is Meera-only. A replica runtime must enter
+  // through an authenticated server-side binding before this becomes a
+  // parameter; request JSON is never an authority for an agent id.
+  const agentId = MEERA_AGENT_ID;
   const scope = ["item", "session", "day", "all"].includes(body.scope) ? body.scope : "";
   if (!scope) return { error: "unknown scope" };
 
@@ -3580,9 +4716,27 @@ async function opForget(device, body) {
   // Until room ingestion writes speaker_person_id it is NULL on every row, so
   // the added disjunct matches nothing and behaviour today is unchanged.
   const person = await personIdFor(device);
+  // ── THE DEVICE SET, RESOLVED ONCE (`legacy-forget-is-device-scoped`) ──────
+  //
+  // `bindSurfaceDmDevice` mints a device per surface, and every legacy-lane
+  // table below keys on `device_id`. Until this line, a whole wipe asked for on
+  // the web deleted the web rows and left the same human's Telegram graph
+  // standing — the strongest promise in the product, kept on one surface. The
+  // read path was widened to the person in WS-O; this is the other half.
+  //
+  // Resolved ONCE and threaded down rather than re-read per statement: a set
+  // that changed between the node delete and the edge delete would strand
+  // edges pointing at deleted nodes, and a forget is the one path where a
+  // torn read is unrecoverable — the rows it would have needed are gone.
+  //
+  // For a person with one device this is `[device]` and every statement is
+  // byte-identical to what it was. See `personDeviceSet` for why it cannot
+  // reach a group room and why it fails closed and narrow.
+  const devices = await personDeviceSet(device);
   const LOG = (await activePersonTables()).find((t) => t.table === "meera_log");
-  const logOwner = keysOf(LOG).map((k, i) => `${k} = $${i + 1}`).join(" or ");
-  const logOwnerVals = wipeParams(LOG, { device, person });
+  const logOwner = keysOf(LOG).map((k, i) => ownerEq(k, `$${i + 1}`, true)).join(" or ");
+  const logOwnerVals = [...wipeParams(LOG, { device: devices, person }), agentId];
+  const logAgentP = `$${logOwnerVals.length}`;
   const logP = (n) => `$${logOwnerVals.length + n}`; // 1-based extra params
 
   if (scope === "item") {
@@ -3606,7 +4760,7 @@ async function opForget(device, body) {
     // `nohook` is the SPOKEN lane opting out (src/engine/memory.ts). It takes
     // the fallback path deliberately rather than being a second, quieter
     // implementation of it — one code path, one receipt vocabulary.
-    const candidates = body.nohook ? [] : await forgetCandidates(device, name, rx);
+    const candidates = body.nohook ? [] : await forgetCandidates(devices, name, rx, agentId);
     const resolved = body.nohook
       ? { failed: true }
       : await askForgetHook(name, candidates).catch(() => ({ failed: true }));
@@ -3640,32 +4794,34 @@ async function opForget(device, body) {
     // this law, so the hook may only ever ADD to what the lexical predicate
     // already found. A hook that picks nothing degrades exactly to today.
     nodeRows = await q(
-      `delete from meera_nodes where device_id = $1
-         and ((name = $2 or name ~* $3 or summary ~* $3) or id::text = any($4))
+      `delete from meera_nodes n where device_id = any($1::uuid[])
+       ${agentScopePredicate("n", { agentId: "$5" })}
+       and ((name = $2 or name ~* $3 or summary ~* $3) or id::text = any($4))
        returning id, name`,
-      [device, name, rx, hookIds],
+      [devices, name, rx, hookIds, agentId],
     );
-    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id));
+    edges = await dropEdgesFor(devices, nodeRows.map((n) => n.id), agentId);
     logRows = await q(
-      `delete from meera_log where (${logOwner}) and content ~* ${logP(1)} returning id`,
+      `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid
+       and content ~* ${logP(1)} returning id`,
       [...logOwnerVals, rxWide],
     );
-    telemetry = await purgeTelemetry(device, { rx: rxWide });
+    telemetry = await purgeTelemetry(devices, { rx: rxWide });
     // P2-1: the same word, in the server's copy of the conversation and in the
     // analytics rows. Before the relational cascade, so that if the cascade
     // throws the receipt is never sent while the blob is still standing.
-    synced = await purgeSyncedState(device, { rx: rxWide });
-    events = await purgeEvents(device, { rx: rxWide });
+    synced = await purgeSyncedState(devices, { rx: rxWide });
+    events = await purgeEvents(devices, { rx: rxWide });
     // the turn trace holds no words, so an item scope has nothing to match on
     // — called anyway, and returning 0, so the receipt's shape is the same on
     // every scope and a future rx-able column cannot land unwired
-    traces = await purgeTurnTrace(device, { rx: rxWide });
+    traces = await purgeTurnTrace(devices, { rx: rxWide });
     // derived state: episodes citing the deleted rows, then everything citing
     // those episodes, lineage chased, snapshot replayed (§9.1 steps 2–6).
     // rxWide, not rx: the cascade is the half of forget that is actually good,
     // and handing it the un-widened term would be resolving the referent and
     // then throwing the answer away one line before the part that uses it.
-    relational = await purgeRelational(device, scope, {
+    relational = await purgeRelational(devices, scope, {
       logIds: logRows.map((r) => r.id),
       rx: rxWide,
     });
@@ -3673,7 +4829,7 @@ async function opForget(device, body) {
     // so deletePhotos() (which needs one) never ran for this scope and the
     // JPEG outlived its own memory. Last, after every row delete has already
     // committed, and unable to fail the forget either way.
-    photos = await deletePhotoObjects(device, relational?.photoNames);
+    photos = await deletePhotoObjects(devices, relational?.photoNames);
   } else if (scope === "session" || scope === "day") {
     const [from, to] = scope === "day" ? dayWindow(body) : [Number(body.from), Number(body.to)];
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return { error: "bad window" };
@@ -3681,7 +4837,8 @@ async function opForget(device, body) {
     const b = new Date(to).toISOString();
     const chan = body.channel === "call" ? "call" : body.channel === "chat" ? "chat" : null;
     logRows = await q(
-      `delete from meera_log where (${logOwner}) and at >= ${logP(1)} and at < ${logP(2)}${chan ? ` and channel = ${logP(3)}` : ""}
+      `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid
+       and at >= ${logP(1)} and at < ${logP(2)}${chan ? ` and channel = ${logP(3)}` : ""}
        returning id`,
       chan ? [...logOwnerVals, a, b, chan] : [...logOwnerVals, a, b],
     );
@@ -3691,31 +4848,35 @@ async function opForget(device, body) {
     // it. Taking too much here is the safe direction; leaving the stretch
     // standing in summary form is not.
     nodeRows = await q(
-      `delete from meera_nodes where device_id = $1 and updated_at >= $2 and updated_at < $3
+      `delete from meera_nodes n where device_id = any($1::uuid[])
+       ${agentScopePredicate("n", { agentId: "$4" })}
+       and updated_at >= $2 and updated_at < $3
        returning id, name`,
-      [device, a, b],
+      [devices, a, b, agentId],
     );
-    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id));
+    edges = await dropEdgesFor(devices, nodeRows.map((n) => n.id), agentId);
     const inWindow = await q(
-      `delete from meera_edges where device_id = $1 and created_at >= $2 and created_at < $3 returning id`,
-      [device, a, b],
+      `delete from meera_edges e where device_id = any($1::uuid[])
+       ${agentScopePredicate("e", { agentId: "$4" })}
+       and created_at >= $2 and created_at < $3 returning id`,
+      [devices, a, b, agentId],
     ).catch(() => []);
     edges += inWindow.length;
     // The whole window goes, not just the events whose area matches `channel`.
     // "forget that call" is a time window; a chat event sitting inside it is
     // part of the same stretch, and the node delete directly above already
     // takes the window unfiltered for the same reason.
-    telemetry = await purgeTelemetry(device, { from, to });
+    telemetry = await purgeTelemetry(devices, { from, to });
     // P2-1: the same window, pruned out of the synced blob. This is the exact
     // arithmetic src/engine/memory.ts's `messagesAfterForget` runs on the
     // device — the two must agree, or the next sync merges the window back in
     // from whichever side kept it.
-    synced = await purgeSyncedState(device, { from, to });
-    events = await purgeEvents(device, { from, to });
-    traces = await purgeTurnTrace(device, { from, to });
+    synced = await purgeSyncedState(devices, { from, to });
+    events = await purgeEvents(devices, { from, to });
+    traces = await purgeTurnTrace(devices, { from, to });
     // the pictures they sent during that stretch go with it
-    photos = await deletePhotos(device, from, to).catch(() => 0);
-    relational = await purgeRelational(device, scope, {
+    photos = await deletePhotos(devices, from, to).catch(() => 0);
+    relational = await purgeRelational(devices, scope, {
       logIds: logRows.map((r) => r.id),
       from,
       to,
@@ -3728,28 +4889,43 @@ async function opForget(device, body) {
     // window sweep above skips it and it would otherwise survive its own
     // memory. Deduplicated by construction: a second delete of an object the
     // sweep already took returns nothing and adds nothing.
-    photos += await deletePhotoObjects(device, relational?.photoNames);
+    photos += await deletePhotoObjects(devices, relational?.photoNames);
   } else {
-    logRows = await q(`delete from meera_log where ${logOwner} returning id`, logOwnerVals);
-    nodeRows = await q(`delete from meera_nodes where device_id = $1 returning id, name`, [device]);
-    const e = await q(`delete from meera_edges where device_id = $1 returning id`, [device]).catch(
+    logRows = await q(
+      `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid returning id`,
+      logOwnerVals,
+    );
+    nodeRows = await q(
+      `delete from meera_nodes n where device_id = any($1::uuid[])
+       ${agentScopePredicate("n", { agentId: "$2" })} returning id, name`,
+      [devices, agentId],
+    );
+    const e = await q(
+      `delete from meera_edges e where device_id = any($1::uuid[])
+       ${agentScopePredicate("e", { agentId: "$2" })} returning id`,
+      [devices, agentId],
+    ).catch(
       () => [],
     );
     edges = e.length;
-    await q(`delete from meera_forget where device_id = $1`, [device]).catch(() => {});
+    await q(
+      `delete from meera_forget f where device_id = any($1::uuid[])
+       ${agentScopePredicate("f", { agentId: "$2" })}`,
+      [devices, agentId],
+    ).catch(() => {});
     // a wipe takes telemetry outright, rollup included — rule 3
-    telemetry = await purgeTelemetry(device, { all: true });
+    telemetry = await purgeTelemetry(devices, { all: true });
     // P2-1: and the whole synced row. This is the one that made "forget
     // everything" a lie for every signed-in user: the graph went, the blob
     // stayed, and the next load_state handed the conversation back.
-    synced = await purgeSyncedState(device, { all: true });
-    events = await purgeEvents(device, { all: true });
-    traces = await purgeTurnTrace(device, { all: true });
+    synced = await purgeSyncedState(devices, { all: true });
+    events = await purgeEvents(devices, { all: true });
+    traces = await purgeTurnTrace(devices, { all: true });
     // a full wipe takes every picture, including any whose filename carries no
     // parseable timestamp — this is the one path that is allowed to be total
-    photos = await deletePhotos(device).catch(() => 0);
+    photos = await deletePhotos(devices).catch(() => 0);
     // the whole relational store, manifest-driven, mapping row included
-    relational = await purgeRelational(device, "all");
+    relational = await purgeRelational(devices, "all");
   }
 
   if (scope !== "all") {
@@ -3759,7 +4935,7 @@ async function opForget(device, body) {
     // phrases and currency topics join the list, so neither the extractor
     // nor the M3 consolidator can re-derive what the cascade just took
     if (relational?.terms?.length) terms.push(...relational.terms);
-    await noteForgotten(device, terms);
+    await noteForgotten(devices, terms, agentId);
   }
 
   if (relational) delete relational.terms; // suppression list never leaves the server
@@ -3837,7 +5013,16 @@ async function opForget(device, body) {
 // The upload path names each object `${device}/${Date.now()}-rand.jpg`, so the
 // timestamp travels in the filename and a windowed forget can honour its own
 // window instead of falling back to all-or-nothing.
-async function deletePhotos(device, from, to) {
+async function deletePhotos(devices, from, to) {
+  let total = 0;
+  // The bucket prefixes every object with the uploading device's id, so unlike
+  // the SQL above this widening is a loop rather than a predicate. Same law:
+  // a picture sent from one surface is not a different person's picture.
+  for (const device of devices) total += await deletePhotosForDevice(device, from, to);
+  return total;
+}
+
+async function deletePhotosForDevice(device, from, to) {
   const prefix = `${device}/`;
   const paths = [];
   // list is paginated; the upload quota caps a device at 500 objects, so this
@@ -3931,8 +5116,8 @@ export function photoPathsFromFactNames(device, names) {
  *  AFTER every row delete has already succeeded, it swallows its own errors,
  *  and its return value is a count for the receipt, never a condition. The
  *  rows are the promise; the file is the promise kept. */
-async function deletePhotoObjects(device, factNames) {
-  const paths = photoPathsFromFactNames(device, factNames);
+async function deletePhotoObjects(devices, factNames) {
+  const paths = devices.flatMap((d) => photoPathsFromFactNames(d, factNames));
   if (!paths.length) return 0;
   try {
     const n = await deleteStorageObjects(paths);
@@ -4212,7 +5397,7 @@ export function photoIdFromUrl(url) {
 /** The write path itself. Never throws — an enhancement layered on a call
  *  whose primary job (handing the client a description) already happened;
  *  this must never cost the client that response. */
-export async function recordPhotoMemory(device, url, rawDesc) {
+export async function recordPhotoMemory(device, url, rawDesc, { extractorModel = PHOTO_DESC_MODEL } = {}) {
   const desc = lintPhotoDesc(rawDesc);
   if (!desc) return { ok: true, wrote: false };
   try {
@@ -4263,7 +5448,7 @@ export async function recordPhotoMemory(device, url, rawDesc) {
     await writeVisualAssertion(
       person,
       ep.id,
-      { claim: desc, extractorModel: PHOTO_DESC_MODEL, confidence: PHOTO_VISION_CONFIDENCE, illegible: false },
+      { claim: desc, extractorModel, confidence: PHOTO_VISION_CONFIDENCE, illegible: false },
       agentId,
     );
 
@@ -4345,10 +5530,22 @@ export async function recordPhotoMemory(device, url, rawDesc) {
   }
 }
 
-async function opDescribe(body) {
+export async function opDescribe(body, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
   const device = String(body.device || "");
   const url = String(body.url || "");
   if (!url.startsWith(`${SB_URL}/storage/v1/object/public/meera-photos/`)) return { desc: "" };
+  const extractorModel = isAzureOnlyServing(env) ? env.AZURE_PHOTO_MODEL : PHOTO_DESC_MODEL;
+  let content;
+  if (isAzureOnlyServing(env)) {
+    const model = extractorModel;
+    if (typeof model !== "string" || !model.trim()) {
+      throw Object.assign(new Error("memory_azure_photo_model_unconfigured"), { code: "memory_azure_photo_model_unconfigured", status: 503 });
+    }
+    content = await extractChat([{ role: "user", content: [
+      { type: "text", text: "Describe this photo in one factual line (<=110 chars) for a chat log, e.g. 'a plate of pasta on a desk' or 'screenshot of a code error in vs code'. Only the line." },
+      { type: "image_url", image_url: { url } },
+    ] }], 90, { env, fetchImpl, model });
+  } else {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -4375,7 +5572,9 @@ async function opDescribe(body) {
   });
   if (!res.ok) return { desc: "" };
   const data = await res.json();
-  const desc = String(data?.choices?.[0]?.message?.content || "").trim().slice(0, 140);
+  content = data?.choices?.[0]?.message?.content;
+  }
+  const desc = String(content || "").trim().slice(0, 140);
   // Fire-and-forget from the CLIENT's point of view is not the same thing as
   // unawaited here: this function must finish writing before the response
   // goes out (the handler does `await opDescribe(...)`), but describePhoto()
@@ -4384,7 +5583,7 @@ async function opDescribe(body) {
   // nothing the user is waiting on. `.catch` belt-and-braces on top of the
   // try/catch already inside recordPhotoMemory: this path must never cost
   // the client its `desc`.
-  if (UUID.test(device)) await recordPhotoMemory(device, url, desc).catch(() => {});
+  if (UUID.test(device)) await recordPhotoMemory(device, url, desc, { extractorModel }).catch(() => {});
   return { desc };
 }
 
@@ -4410,6 +5609,13 @@ export default async function handler(req, res) {
     if (op === "forget") return res.status(200).json(await opForget(device, req.body));
     return res.status(400).json({ error: "unknown op" });
   } catch (e) {
+    if (isAzureOnlyServing() && /^memory_azure_|^model_serving_/.test(String(e?.code || ""))) {
+      return res.status(e.status || 502).json({ error: e.code });
+    }
+    // the message goes to the server log only — the client gets the same
+    // opaque error it always did, but an operator can now see WHICH statement
+    // a forget died on instead of diagnosing "memory failure" from nothing
+    console.error("[memory] op failed:", e?.message || e);
     return res.status(500).json({ error: "memory failure" });
   }
 }

@@ -1,0 +1,30 @@
+-- Migration 094 — an index on vy_room_forget_receipt.person_hash (WS-R32).
+--
+-- Closes ws-r27-whole-wipe-receipt-read-capped-at-10000: the account-wide
+-- whole wipe (api/memory.js's purgeRelational, scope "all") used to
+-- `select ... from vy_room_forget_receipt limit 10000` and recompute a
+-- candidate hash for each of at most 10,000 rows read - silently leaving
+-- every older receipt behind, un-deleted, the moment the table passed that
+-- size. It now walks every `vy_room` row this database has (bounded by
+-- Rooms, not receipts - hundreds at most in Phase 1, one per creator's
+-- Room) times every receipt policy version, computes the candidate hash for
+-- each with the SAME `roomForgetReceiptHash` the writer used
+-- (api/memory.js's `purgeRoomForgetReceipts`), and deletes every receipt
+-- whose `person_hash` is among them in ONE statement:
+--
+--   delete from vy_room_forget_receipt where person_hash = any($1) returning 1 as x
+--
+-- This index is what makes that delete an index scan rather than the
+-- sequential scan migration 090's own comment predicted this table would
+-- never need ("the account-wide whole wipe's own scan... does not use this
+-- index at all"). That comment described the OLD read (an unfiltered
+-- `limit 10000` scan); the new one is exactly the read migration 090 did
+-- not anticipate anyone building, and this index is what it needs.
+--
+-- See context/decisions.md#ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms
+-- for the reversal condition.
+--
+-- Idempotent, one statement per request (Neon SQL-over-HTTP accepts exactly
+-- one), no DO blocks, no functions.
+create index if not exists vy_room_forget_receipt_person_hash_ix
+  on vy_room_forget_receipt (person_hash);

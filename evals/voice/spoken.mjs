@@ -21,7 +21,7 @@
 // text she SAYS, and on a call the spoken copy is the only copy there is.
 
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { rmSync } from "node:fs";
 
@@ -30,8 +30,9 @@ const ROOT = join(HERE, "../..");
 const BUNDLE = join(HERE, `.spoken.${process.pid}.bundle.mjs`); // pid-scoped: concurrent runs must not delete each other's bundle
 
 execFileSync(
-  "npx",
+  process.platform === "win32" ? (process.env.ComSpec || "cmd.exe") : "npx",
   [
+    ...(process.platform === "win32" ? ["/d", "/s", "/c", "npx"] : []),
     "esbuild",
     join(ROOT, "src/voice/spokenText.ts"),
     "--bundle",
@@ -44,7 +45,7 @@ execFileSync(
 );
 
 const { spokenText, spokenTextKeepingAudioTags, SPOKEN_RULES_VERSION } = await import(
-  `file://${BUNDLE}`
+  pathToFileURL(BUNDLE).href
 );
 
 /** [what it proves, input, expected output] */

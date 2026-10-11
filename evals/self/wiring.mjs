@@ -52,7 +52,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   SELF_TAG, SELF_AGENT, SELF_P1, SELF_P2, SELF_D1, SELF_D2, SELF_ARC_KEY,
@@ -72,7 +72,7 @@ execSync(
     `--alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
   { stdio: "inherit", cwd: ROOT },
 );
-const E = await import(bundlePath);
+const E = await import(pathToFileURL(bundlePath).href);
 
 let failed = 0;
 let passed = 0;
@@ -247,9 +247,9 @@ try {
   // HER turns, so `deriveTexture` has something real to count.
   for (const [i, text] of SELF_HER_TURNS.entries()) {
     await q(
-      `insert into meera_log (device_id, role, channel, kind, content, at)
-       values (($1)::uuid, 'her', 'chat', 'text', $2, $3::timestamptz)`,
-      [SELF_D1, text, daysAgo(30 - i * 0.5)],
+      `insert into meera_log (device_id, role, channel, kind, content, at, agent_id)
+       values (($1)::uuid, 'her', 'chat', 'text', $2, $3::timestamptz, ($4)::uuid)`,
+      [SELF_D1, text, daysAgo(30 - i * 0.5), SELF_AGENT],
     );
   }
   // THE REAL DERIVER AND THE REAL WRITER. Not an insert: an inserted texture

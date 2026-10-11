@@ -1,0 +1,1018 @@
+diff --git a/api/_replica-dialogue.js b/api/_replica-dialogue.js
+index a5f6f94..5b7daa8 100644
+--- a/api/_replica-dialogue.js
++++ b/api/_replica-dialogue.js
+@@ -5,7 +5,8 @@ import {
+   OWNER_MEMORY_RECALL_SQL, OWNER_MEMORY_FACTS_SQL, OWNER_MEMORY_CORRECT_SQL,
+   OWNER_MEMORY_RETRACT_SQL, OWNER_MEMORY_RECLASSIFY_READ_SQL,
+   OWNER_MEMORY_CONSENT_STATUS_SQL, OWNER_MEMORY_CONSENT_GRANT_SQL, OWNER_MEMORY_CONSENT_REVOKE_SQL,
+-  ownerMemoryAuthority,
++  OWNER_MEMORY_LOG_SQL,
++  ownerMemoryAuthority, ownerMeetDeviceId,
+ } from "./_room-memory-authority.js";
+ import { ownerRelStateFromReplica, ownerRelStateResetFromReplica } from "./_room-relstate.js";
+ import {
+@@ -533,6 +534,22 @@ export async function generateOwnedTextDialogue(db, ownerUserId, rawInput, gener
+   signal?.throwIfAborted();
+   const generated = await generator.generate({ prompt, signal });
+   const output = validateDialogueOutput(generated?.output);
++  // WS-R182: log the owner's OWN message once the turn has actually
++  // completed — the "commit" this hunk sits after — so a later sweep has
++  // something real to consolidate (`OWNER_MEMORY_LOG_SQL`'s own header on
++  // why nothing ever did before this workstream). Never the assistant's
++  // reply: `OWNER_MEMORY_BATCH_SQL`, exactly like Room's own, only ever
++  // derives a fact from a `role='me'` row. Awaited, not fire-and-forget —
++  // one cheap INSERT on the request that already pays for the LLM call,
++  // never a background write a frozen serverless function could lose
++  // after the response goes out (`context/decisions.md#trace-off-path`'s
++  // own measured reason: "a serverless function that has already
++  // responded cannot be relied on to finish work"). A failed write
++  // degrades to "this turn was never remembered", never a crash on the
++  // reply the person is waiting for.
++  if (identity) {
++    await db(OWNER_MEMORY_LOG_SQL, [identity.replica_id, ownerUserId, ownerMeetDeviceId(identity.subject_person_id), message]).catch(() => null);
++  }
+   return {
+     has_continuity: false,
+     has_memory: ownerFacts.length > 0,
+diff --git a/api/_room-memory-authority.js b/api/_room-memory-authority.js
+index dbe821e..a4ab10f 100644
+--- a/api/_room-memory-authority.js
++++ b/api/_room-memory-authority.js
+@@ -1,5 +1,6 @@
+ // Room memory is authorized by its source membership, never by another Room
+ // that happens to share an agent/person. All writes below are single statements.
++import { createHash } from "node:crypto";
+ import { isAzureOnlyServing } from "./_model-serving-policy.js";
+ import { strictConsolidationConfig } from "./_consolidation-config.js";
+ import { communicationFromProposal, COMMUNICATION_PROPOSAL_SCHEMA, COMMUNICATION_EXTRACTION_RULE } from './_learner-communication-contract.js';
+@@ -734,3 +735,112 @@ export const OWNER_MEMORY_CONSENT_REVOKE_SQL = `update vy_replica_consent
+  set revoked_at=coalesce(revoked_at,now())
+  where replica_id=$1::uuid and owner_user_id=$2::uuid and scope='memory' and revoked_at is null
+  returning consent_id::text`;
++
++// ═════════════════════════════════════════════════════════════════════════
++// WS-R182: memory that grows on its own.
++//
++// WS-R167 built the whole owner-memory AUTHORITY shape above and left one
++// honest gap named in its own header and `context/decisions.md#ws-r167-
++// owner-memory-consolidation-left-unmetered`: nothing ever WROTE the
++// owner's own raw turn into `meera_log` in the first place, so
++// `OWNER_MEMORY_BATCH_SQL` above always found zero rows regardless of
++// whether anything scheduled it. `generateOwnedTextDialogue`
++// (`api/_replica-dialogue.js`) never touched `meera_log` at all — the
++// voice-ready path's own writer (`PRIVATE_DIALOGUE_BEGIN_SQL`) is FK-bound
++// to `vy_replica_runtime_capability`, which a text-ready-only replica has
++// none of by design (`textBlockers`'s own header).
++//
++// THE DEVICE PROBLEM. Every statement above already demands
++// `exists(select 1 from vy_person_device d where d.device_id=l.device_id
++// and d.person_id=oa.person_id)` (written by WS-R167, ahead of any writer
++// that could ever satisfy it) — mirroring the voice-ready path's own
++// device requirement (`PRIVATE_DIALOGUE_BEGIN_SQL`'s lateral join to the
++// person's most-recently-linked device). A self-mode owner's own person
++// has no such device unless something links one: nothing in this repo ever
++// does, for a self-replica, outside voice enrollment. `OWNER_MEMORY_LOG_SQL`
++// below is therefore two inserts in one statement — self-ensure the
++// mapping, then log the turn — never a bare `insert into meera_log` that
++// would silently produce a row `OWNER_MEMORY_BATCH_SQL` can never reach.
++//
++// The synthetic device id is deterministic (RFC 4122 §4.3 v5, the IDENTICAL
++// technique `api/_room.js#surfaceDeviceId` already uses for a Room's own
++// per-surface devices) so a repeated turn always resolves to the SAME
++// device row rather than accumulating one per message, and a removed-then-
++// rebuilt owner maps back to the same device rather than an orphan. It is
++// reproduced HERE, independently, rather than imported from `api/_room.js`
++// — importing a Room module into the owner's own private Meet lane would be
++// exactly the "person-facing Room-shaped detour" law 3 of WS-R167's own
++// brief already forbids for a conversation the owner has with themselves,
++// even though the underlying hash technique is unrelated to any Room
++// concept. The seed (`meet:<person_id>`) is fixed and shares no namespace
++// with any Room surface seed (`tg:`, `dm:`, …), so the two id spaces can
++// never collide even in principle.
++export function ownerMeetDeviceId(personId) {
++  const NS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8".replace(/-/g, "");
++  const seed = `meet:${personId}`;
++  const h = createHash("sha1")
++    .update(Buffer.concat([Buffer.from(NS, "hex"), Buffer.from(seed, "utf8")]))
++    .digest();
++  h[6] = (h[6] & 0x0f) | 0x50;
++  h[8] = (h[8] & 0x3f) | 0x80;
++  const x = h.subarray(0, 16).toString("hex");
++  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
++}
++
++// AUTHORITY NEVER TRUSTS A CLIENT-SUPPLIED agent_id/person_id: re-derived
++// from `owner_authority` exactly like every other OWNER_MEMORY_* statement.
++// `device_ensured`'s own `on conflict ... do update ... where
++// vy_person_device.person_id=excluded.person_id` is defense in depth against
++// a hash collision that (by construction, one seed per person) cannot
++// actually occur: a genuine collision fails the WHERE guard, `device_ensured`
++// returns no row, and the whole statement inserts nothing rather than
++// mis-attributing a device to the wrong person. Only the OWNER's own
++// message is logged (`role='me'` only) — `OWNER_MEMORY_BATCH_SQL` above,
++// exactly like Room's own `ROOM_MEMORY_BATCH_SQL`, only ever derives facts
++// from `role='me'` rows, so logging the assistant's reply here would be
++// dead weight no statement ever reads.
++export const OWNER_MEMORY_LOG_SQL = `with ${OWNER_MEMORY_AUTHORITY},
++ device_ensured as (
++ insert into vy_person_device(device_id,person_id)
++ select $3::uuid,oa.person_id from owner_authority oa
++ on conflict (device_id) do update set device_id=excluded.device_id
++  where vy_person_device.person_id=excluded.person_id
++ returning device_id
++ )
++ insert into meera_log(agent_id,device_id,role,channel,kind,content,at)
++ select oa.agent_id,$3::uuid,'me','chat','text',$4::text,now()
++ from owner_authority oa join device_ensured d on d.device_id=$3::uuid
++ where length($4::text) between 1 and 4000
++ returning id`;
++
++// Production candidate discovery for the sweep (`api/consolidate-sweep.js`):
++// every self replica with an active 'memory' consent grant that has at
++// least one pending OWNER-authored log row. Deliberately NOT parameterized
++// on any one replica — this is the SAME shape `ROOM_MEMORY_DISCOVERY_SQL`
++// already is, a global oldest-first scan the sweep limits and paginates
++// itself. The partition predicates (`room_memory_follower_id is null`,
++// `speaker_person_id is null`) are restated here even though no Room writer
++// could ever set them on a row this query's own `l.agent_id=r.agent_id`
++// join reaches (a Room follower's `agent_id` is the SAME creator agent, so
++// omitting them would be a real cross-lane leak, not a redundant check —
++// `evals/room-leak/run.mjs`'s own layer 19 addendum for this workstream
++// strikes exactly this predicate as its negative control). Memory OFF
++// (no unrevoked 'memory' consent row) means the replica never appears here
++// at all — the same "their choice is the predicate" discipline
++// `OWNER_MEMORY_PENDING_PREDICATE` above already rests on.
++export const OWNER_MEMORY_DISCOVERY_SQL = `select r.replica_id,r.agent_id,r.owner_user_id,
++ r.subject_person_id as person_id,count(*)::integer as pending_rows,min(l.at) as oldest_pending_at
++ from vy_replica r
++ join meera_log l on l.agent_id=r.agent_id
++ where r.lifecycle not in ('revoked','purging') and r.subject_mode='self'
++ and r.agent_id is not null and r.subject_person_id is not null
++ and exists(select 1 from vy_replica_consent x where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
++   and x.scope='memory' and x.revoked_at is null and (x.expires_at is null or x.expires_at>now()))
++ and l.role='me' and l.channel in ('chat','call') and l.kind='text'
++ and l.episode_id is null and l.room_memory_follower_id is null and l.speaker_person_id is null
++ and l.at > coalesce((select max(x.revoked_at) from vy_replica_consent x
++     where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
++       and x.scope='memory' and x.revoked_at is not null),'-infinity'::timestamptz)
++ and exists(select 1 from vy_person_device d where d.device_id=l.device_id and d.person_id=r.subject_person_id)
++ group by r.replica_id,r.agent_id,r.owner_user_id,r.subject_person_id
++ order by oldest_pending_at limit $1`;
+diff --git a/api/_room-memory-consolidation.js b/api/_room-memory-consolidation.js
+index dfaf7c1..44e5ef4 100644
+--- a/api/_room-memory-consolidation.js
++++ b/api/_room-memory-consolidation.js
+@@ -3,8 +3,10 @@ import {isAzureOnlyServing} from './_model-serving-policy.js';
+ import {canonicalJson, sha256Hex} from './_provenance/contracts.js';
+ import {foundryBudgetConfig, reserveFoundrySpend, beginFoundrySpend, settleFoundrySpend,
+   releaseFoundrySpendBeforeCall, markFoundrySpendUncertain} from './_provider-budget.js';
+-import {ROOM_MEMORY_CONSOLIDATION_ENABLED, ROOM_MEMORY_BATCH_SQL, ROOM_MEMORY_MAX_OUTPUT_TOKENS,
+-  ROOM_MEMORY_RESPONSE_FORMAT, runRoomMemoryConsolidation} from './_room-memory-authority.js';
++import {ROOM_MEMORY_CONSOLIDATION_ENABLED, ROOM_MEMORY_BATCH_SQL, ROOM_MEMORY_COMMIT_SQL, ROOM_MEMORY_MAX_OUTPUT_TOKENS,
++  ROOM_MEMORY_RESPONSE_FORMAT, runRoomMemoryConsolidation,
++  OWNER_MEMORY_BATCH_SQL, OWNER_MEMORY_COMMIT_SQL, OWNER_MEMORY_EXTRACTION_SYSTEM,
++  ownerMemoryAuthority} from './_room-memory-authority.js';
+ 
+ export function roomMemorySweepEnabled(env = process.env) {
+   return ROOM_MEMORY_CONSOLIDATION_ENABLED && env.CONSOLIDATE_SWEEP_MODE === 'room_only'
+@@ -92,6 +94,17 @@ function sourceBinding(rows) {
+     memory_epoch:String(r.memory_epoch),agent_id:String(r.agent_id),person_id:String(r.person_id)}));
+ }
+ 
++// WS-R182: the owner lane's own batch rows (`OWNER_MEMORY_BATCH_SQL`) carry
++// no `follower_id`/`memory_epoch` at all — `api/_room-memory-authority.js`'s
++// own file header on why there is no epoch COLUMN for the owner lane
++// (a consent-window floor stands in for it). `replica_id` is the per-dyad
++// binding value instead, so a lease/reread mismatch still fails closed
++// exactly the way the Room lane's does.
++function ownerSourceBinding(rows) {
++  return rows.map(r=>({id:String(r.id),content:r.content,replica_id:String(r.replica_id),
++    agent_id:String(r.agent_id),person_id:String(r.person_id)}));
++}
++
+ const RECLASSIFICATION_SNAPSHOT_KEYS=Object.freeze(['follower_id','memory_epoch','agent_id','person_id',
+   'fact_id','fact_body','fact_name','episode_id','source_id','source_content','fact_communication']);
+ 
+@@ -182,8 +195,23 @@ async function runMeteredRoomMemoryModel({candidate,queryFn,llm,runId,config,bud
+ // Reuses the incumbent counted llm and production spend meter. This wrapper is
+ // also the explicit dev canary entrypoint; scheduled discovery has its own false
+ // source flag. No transaction or row lock spans a provider call.
++//
++// WS-R182: the five new options below (all defaulting to Room's own exact
++// shape, so every existing caller is byte-identical) are the SAME
++// generalisation `runRoomMemoryConsolidation` (`_room-memory-authority.js`)
++// already carries for its unmetered counterpart — reusing THIS function
++// for the owner lane, never a second, differently-wired metered wrapper,
++// is the reversal condition `context/decisions.md#ws-r167-owner-memory-
++// consolidation-left-unmetered` named. Everything the meter actually DOES
++// (the lease admission, the reservation/settle path, the exact-source
++// reread CAS in `runMeteredRoomMemoryModel`) is unmodified code, shared by
++// construction rather than by discipline.
+ export async function runMeteredRoomMemoryConsolidation(candidate,
+-  {queryFn,llm,runId,env=process.env,fetchImpl=globalThis.fetch}={}) {
++  {queryFn,llm,runId,env=process.env,fetchImpl=globalThis.fetch,
++   batchSql=ROOM_MEMORY_BATCH_SQL,commitSql=ROOM_MEMORY_COMMIT_SQL,
++   batchParams=(c)=>[c.follower_id,c.agent_id,c.person_id],
++   authorityOf,sourceBindingFn=sourceBinding,extractionSystem,
++   adapterVersion='room-memory/v1'}={}) {
+   const config = strictRoomConsolidationConfig(env);
+   const budget = foundryBudgetConfig(config.env);
+   if (!runId || typeof queryFn !== 'function' || typeof llm !== 'function')
+@@ -191,19 +219,40 @@ export async function runMeteredRoomMemoryConsolidation(candidate,
+   let capturedRows;
+   const scopedQuery = async(sql,params)=>{
+     const rows=await queryFn(sql,params);
+-    if(sql===ROOM_MEMORY_BATCH_SQL) capturedRows=rows;
++    if(sql===batchSql) capturedRows=rows;
+     return rows;
+   };
+   return runRoomMemoryConsolidation(candidate,{queryFn:scopedQuery,env:config.env,
++    batchSql,commitSql,batchParams,...(authorityOf?{authorityOf}:{}),
++    ...(extractionSystem?{extractionSystem}:{}),
+     model:async(messages,maxTokens,options)=>{
+       return runMeteredRoomMemoryModel({candidate,queryFn,llm,runId,config,budget,fetchImpl,
+-        sourceSnapshot:sourceBinding(capturedRows),
+-        rereadSnapshot:async()=>sourceBinding(await queryFn(ROOM_MEMORY_BATCH_SQL,
+-          [candidate.follower_id,candidate.agent_id,candidate.person_id])),
+-        messages,maxTokens,responseFormat:options.responseFormat,adapterVersion:'room-memory/v1'});
++        sourceSnapshot:sourceBindingFn(capturedRows),
++        rereadSnapshot:async()=>sourceBindingFn(await queryFn(batchSql,batchParams(candidate))),
++        messages,maxTokens,responseFormat:options.responseFormat,adapterVersion});
+     }});
+ }
+ 
++/** The owner lane through the SAME metered wrapper above — batch/commit SQL,
++ *  authority tuple, source-binding shape and extraction system prompt are
++ *  the only things that differ; the lease (`meera_consolidate_lease`, keyed
++ *  by `(agent_id,person_id)` alone, already generic), the provider-budget
++ *  reservation/settle path and the exact-source-reread CAS are the SAME
++ *  unmodified code the Room lane already runs through. Called by
++ *  `api/consolidate-sweep.js` for a candidate `OWNER_MEMORY_DISCOVERY_SQL`
++ *  found, exactly as `runMeteredRoomMemoryConsolidation` is called for one
++ *  `ROOM_MEMORY_DISCOVERY_SQL` found. */
++export async function runMeteredOwnerMemoryConsolidation(candidate,
++  {queryFn,llm,runId,env=process.env,fetchImpl=globalThis.fetch}={}) {
++  return runMeteredRoomMemoryConsolidation(candidate,{queryFn,llm,runId,env,fetchImpl,
++    batchSql:OWNER_MEMORY_BATCH_SQL,commitSql:OWNER_MEMORY_COMMIT_SQL,
++    batchParams:(c)=>ownerMemoryAuthority(c),
++    authorityOf:(_row,c)=>ownerMemoryAuthority(c),
++    sourceBindingFn:ownerSourceBinding,
++    extractionSystem:OWNER_MEMORY_EXTRACTION_SYSTEM,
++    adapterVersion:'owner-memory/v1'});
++}
++
+ // Reclassifies one active correction fact through the same bounded Room meter.
+ // The caller owns the authority read and atomic CAS; this wrapper owns the
+ // agent/person lease, exact snapshot comparisons and the single paid attempt.
+diff --git a/api/consolidate-sweep.js b/api/consolidate-sweep.js
+index 268b163..fe88618 100644
+--- a/api/consolidate-sweep.js
++++ b/api/consolidate-sweep.js
+@@ -1,7 +1,9 @@
+ import {
+   ROOM_MEMORY_DISCOVERY_SQL,
++  OWNER_MEMORY_DISCOVERY_SQL,
+ } from "./_room-memory-authority.js";
+ import {assertRoomMemorySweepReady, roomMemoryPersonLimit, roomMemorySweepEnabled, runMeteredRoomMemoryConsolidation,
++  runMeteredOwnerMemoryConsolidation,
+   ROOM_MEMORY_CLAIM_SQL, ROOM_MEMORY_RELEASE_SQL} from './_room-memory-consolidation.js';
+ // Hourly consolidation sweep — Law E4 (docs/SPEC-AGENT-LAYER.md §5): "memory
+ // that is not consolidated does not exist." Measured 2026-08-18: 40 of 41
+@@ -479,7 +481,13 @@ export default async function handler(req, res) {
+       ]);
+     const roomCandidates = roomOnly
+       ? await q(ROOM_MEMORY_DISCOVERY_SQL, [CANDIDATE_FETCH, MEERA_AGENT_ID]) : [];
+-    const candidates = [...legacyCandidates.map(c=>({...c,agent_id:MEERA_AGENT_ID})), ...roomCandidates]
++    // WS-R182: the owner's own Meet memory, discovered and processed through
++    // the SAME `room_only` sweep mode (never a third `SWEEP_MODE`, never a
++    // second cron) — `OWNER_MEMORY_DISCOVERY_SQL`'s own header on why an
++    // owner never appears here unless their 'memory' consent is actually on.
++    const ownerCandidates = roomOnly
++      ? (await q(OWNER_MEMORY_DISCOVERY_SQL, [CANDIDATE_FETCH])).map((c) => ({ ...c, lane: "owner" })) : [];
++    const candidates = [...legacyCandidates.map(c=>({...c,agent_id:MEERA_AGENT_ID})), ...roomCandidates, ...ownerCandidates]
+       .sort((a,b)=>new Date(a.oldest_pending_at)-new Date(b.oldest_pending_at))
+       .slice(0,CANDIDATE_FETCH);
+     const waitingOnUs = relationshipDiscovery.value
+@@ -638,6 +646,19 @@ export default async function handler(req, res) {
+         // facts and leaves every derived table empty, which renders as nothing
+         // and reports as success.
+         const before = spent();
++        // WS-R182: an owner-lane candidate (`OWNER_MEMORY_DISCOVERY_SQL`,
++        // tagged `lane:'owner'` above) is dispatched through the OWNER
++        // metered wrapper, never the Room one — checked and returned BEFORE
++        // the existing `if (roomOnly)` Room branch below, which stays
++        // byte-identical so a Room candidate's own dispatch is unchanged.
++        if (roomOnly && c.lane === "owner") {
++          const out = await runMeteredOwnerMemoryConsolidation(c, {queryFn:q,llm,runId});
++          const after = spent();
++          results.push({agent:candidateAgentId,person,lane:"owner",...out,
++            llm_calls:after.llm_calls-before.llm_calls,
++            tokens:after.tokens_in+after.tokens_out-before.tokens_in-before.tokens_out});
++          continue;
++        }
+         if (roomOnly) {
+           const out = await runMeteredRoomMemoryConsolidation(c, {queryFn:q,llm,runId});
+           const after = spent();
+diff --git a/context/STATE.md b/context/STATE.md
+index c8599c9..af8bcca 100644
+--- a/context/STATE.md
++++ b/context/STATE.md
+@@ -1645,3 +1645,5 @@ Both non-`ok` results were then run down individually once load genuinely quiete
+ **WS-R177 addendum (2026-09-13, same session): the fix, and the full gate.** The full gate's own first run (load average 27.73-29.3) caught a real bug in this session's own work before it shipped: `measureTarget()` copies `jsBudget` onto its returned result but never copied the new `tbtBudget` the same way, so `studio-hi` failed against the SHARED 300ms budget ("478ms > 300ms") instead of its own 260ms override — every offline fixture in `evals/performance-measurements.mjs` builds its `result` object by hand and so never exercised this real wiring (`rejected.md#ws-r177-tbtbudget-never-reached-evaluatebudgets-through-measuretarget`). Fixed with one line plus two new offline checks (41 total in that suite now). Reconfirmed live: `studio-hi`'s raw result now carries `tbtBudget: 260`. **Full `node scripts/verify-release.mjs`, three runs, foreground, 2700s timeout each, on a machine under sustained extreme contention (load average 25-65, confirmed 8-15 concurrent sibling `verify-release.mjs` processes in `ps aux` — the wave-twenty-three finale, ten workstreams closing at once):** run 1 (before the fix) reached through `performance budgets` before its own 45-minute wrapper killed it at load average 65 — every static gate through `layout readability` (516s, passed) was clean, and `performance budgets` FAILED with the new load-average annotation correctly attached (`/`: TBT 311ms>300ms at load 29.3; `studio-hi`: TBT 478ms — the bug above, since fixed). Run 2 (after the fix, still under load 64-65) confirmed the fix live (`/studio` correctly evaluated against its own 220ms budget: "725ms > 220ms budget") then hit the same 45-minute wrapper. **Run 3, load average easing to 17-30 over its own run, completed: 22 of 25.** The three failures: `layout readability` (`EADDRINUSE :8931`, a bare port collision — this exact target passed clean, 0 findings, in a standalone `--only studio` run earlier this session per this file's own paragraph above); `accessibility` (`EADDRINUSE :8933`, the same class of collision); `eval suite` failed on exactly two of ~430 suites — `probe-live` (`EADDRINUSE :8940`, the third port collision) and `room-push` (82 ok, 4 failed, all four in its own §8 "REAL CHROMIUM" section: `[]` where a real notification was expected) — reproducing this repo's own PRE-EXISTING, already-documented `rejected.md#room-push-chromium-headless-shell-shows-no-notification` failure mode (Playwright's default headless launch silently falling back to `chromium-headless-shell`, which registers the service worker's `push` handler but grants no notification permission at all) rather than any regression this session caused; neither `room-push.mjs` nor `probe-live.mjs` reads `scripts/check-performance.mjs` or either file this session touched (confirmed by `grep -rl`). None of the three failures touch a file this workstream changed. This session's own five touched suites (`performance-prerequisites` 9, `performance-measurements` 41, `performance-network-accounting` 12, `performance-hindi-interface` 29, `studio-entry-css` 8) all passed clean on every run this session made, including inside this same full-gate run. `npx tsc -b --force` and `node scripts/check-copy.mjs` both clean, run standalone and inside the gate. No migration, no live database, no Azure call, no money spent, nothing pushed.
+ 
+ **Main loop, 2026-09-13, wave twenty-three closed.** Ten merges (WS-R173, R181, R172, R175, R178, R176, R174, R179, R180, R177 and one follow-up), every new statement planned live at the merge, one conflict-marker commit caught and amended before push, the batch gate 25 of 25 on ed1470e, no migration; see the START HERE block at the top of this file and `measurements.md#wave-23-merges-2026-09-13`.
++
++**WS-R182 built, 2026-09-14 (memory that grows on its own), worktree `ws-r182-memory-that-grows-on-its-own` over `23d320f`, not merged, not pushed, no migration.** Closes the gap `context/decisions.md#ws-r167-owner-memory-consolidation-left-unmetered` named as its own reversal condition. Found, and fixed within scope, one layer deeper than that entry's own gap: `generateOwnedTextDialogue` (`api/_replica-dialogue.js`) never wrote the owner's own text-ready message to `meera_log` at all, so `OWNER_MEMORY_BATCH_SQL` always found nothing regardless of scheduling. A new statement, `OWNER_MEMORY_LOG_SQL` (`api/_room-memory-authority.js`), self-ensures a `vy_person_device` mapping (a new deterministic synthetic device id, `ownerMeetDeviceId`, the same RFC 4122 v5 technique `api/_room.js#surfaceDeviceId` already uses, reproduced independently rather than imported) and logs the turn, called after generation succeeds, awaited (never fire-and-forget — `context/decisions.md#trace-off-path`'s own measured law rules that out). `OWNER_MEMORY_DISCOVERY_SQL` (new) is the sweep's own candidate list, gated on an active `'memory'` consent grant exactly like the rest of the section. `runMeteredRoomMemoryConsolidation` (`api/_room-memory-consolidation.js`) gains the same five-parameter generalization WS-R167 already gave the unmetered caller (batch/commit SQL, authority, source-binding shape, extraction prompt — all defaulting to Room's own shape); `runMeteredOwnerMemoryConsolidation` calls it with the owner's own SQL. `api/consolidate-sweep.js`'s `room_only` mode now discovers and dispatches owner candidates too, inserted as a branch before the existing Room block, which stays byte-identical. Touched suites: `evals/text-ready/run.mjs` 47/47 (was 45), `evals/meet-continuity/run.mjs` 74/74 (was 60), `evals/room-leak/run.mjs` 379/379 (was 373, a new "layer 19 addendum (WS-R182)" proving discovery never crosses lanes), `evals/consolidation/room-caller.mjs` 28/28 (was 27, the same sweep dispatching an owner candidate through the owner wrapper, never Room's), `node evals/run.mjs rehearsal-personal` 69/69 (was 61, a real Chromium walk proving a SECOND real turn's own compiled prompt carries a fact that grew through real consolidation, no hand-seeding, alongside the older seeded-fact step kept as its own control); `evals/agent/raw-isolation.mjs`, `evals/incidents/run.mjs` and every other reader suite re-confirmed unchanged (`context/measurements.md#ws-r182-touched-suite-results-2026-09-14`). `src/studio/ExpertConversation.tsx`'s "It remembers" panel now refreshes after a turn completes, best-effort, never blocking the reply. `npx tsc --noEmit` clean. No migration (no new table — `vy_person_device` and `meera_consolidate_lease` already generic; 172 stays the next free number), no new env var, no live database, no Azure, no money spent.
+diff --git a/context/decisions.md b/context/decisions.md
+index 95230b9..d1da707 100644
+--- a/context/decisions.md
++++ b/context/decisions.md
+@@ -25144,3 +25144,98 @@ maintaining two step-rail components in the same product long-term.
+ **Why.** Six of the ten workstreams reported new SQL they could not run against Postgres (no `NEON_URL` in a worktree), and `rejected.md#offline-mocks-cannot-type-check-sql` is exactly the failure a plan-only EXPLAIN catches for free: WS-R172's agent mint (four write nodes, cost 236), WS-R175's erasure chain (116 delete nodes including the six newly ordered ones, cost 1310), WS-R173's card read, WS-R179's two reads and WS-R180's sheet read all planned first time. The marker rule exists because a follow-up commit that rewrites its own earlier paragraph is a legitimate thing for a workstream to do and the union tool refuses it correctly; the failure was the main loop chaining `git add` behind the refusal.
+ 
+ **Reversal.** If a plan-only EXPLAIN ever passes a statement that then fails live (a runtime-only error such as a constraint the plan cannot see), the live apply of a seeded fixture becomes the merge-time check for write statements; if a context-union refusal is ever resolved wrongly by hand twice in one wave, the union tool gains a `--replace-paragraph` mode instead.
++
++## `ws-r182-owner-memory-consolidation-wired-through-the-shared-metered-sweep` (2026-09-14, WS-R182)
++
++**Decision.** Supersedes `#ws-r167-owner-memory-consolidation-left-unmetered`
++by name, doing exactly what that entry's own reversal condition asked for.
++Three additive pieces, no fork of anything WS-R167 built:
++
++1. **The write that never existed.** `generateOwnedTextDialogue`
++   (`api/_replica-dialogue.js`) never wrote the owner's own message to
++   `meera_log` at all — the voice-ready path's own writer
++   (`PRIVATE_DIALOGUE_BEGIN_SQL`) is FK-bound to
++   `vy_replica_runtime_capability`, which a text-ready-only replica has
++   none of, and nothing else ever ran in its place. So `OWNER_MEMORY_BATCH_
++   SQL` (WS-R167) always found zero rows regardless of whether anything
++   scheduled it — the gap was one layer deeper than "unmetered." A new
++   statement, `OWNER_MEMORY_LOG_SQL` (`api/_room-memory-authority.js`),
++   closes it: one `with` block that self-ensures a `vy_person_device`
++   mapping (via a NEW deterministic synthetic device id, `ownerMeetDeviceId`,
++   the identical RFC 4122 §4.3 v5 technique `api/_room.js#surfaceDeviceId`
++   already uses, reproduced independently rather than imported — importing
++   a Room module into the owner's own private lane would be exactly the
++   "person-facing Room-shaped detour" WS-R167's own law 3 forbids) and then
++   logs the `role='me'` row, re-deriving `agent_id`/`person_id` from
++   `OWNER_MEMORY_AUTHORITY` exactly like every other statement in that
++   section — never a client-supplied id. Called from `generateOwnedTextDialogue`
++   AFTER `generator.generate()` succeeds (the turn's own "commit" point),
++   awaited, not fire-and-forget: `#trace-off-path`'s own measured law —
++   "a serverless function that has already responded cannot be relied on to
++   finish work" — rules out doing this after the response goes out, so this
++   one cheap INSERT rides the same request that already pays for the LLM call.
++2. **Discovery.** `OWNER_MEMORY_DISCOVERY_SQL` (new): the sweep's own
++   candidate list, one statement, the same global oldest-first shape
++   `ROOM_MEMORY_DISCOVERY_SQL` already is. An owner never appears in it
++   without an active, unrevoked `'memory'`-scope consent grant — the SAME
++   "their choice is the predicate" discipline the rest of the owner-memory
++   section already rests on — so memory OFF means no consolidation is ever
++   scheduled, proven with a negative control (`evals/meet-continuity`,
++   `evals/room-leak` layer 19 addendum).
++3. **Dispatch.** `runMeteredRoomMemoryConsolidation`
++   (`api/_room-memory-consolidation.js`) gains the SAME five optional
++   parameters (`batchSql`/`commitSql`/`batchParams`/`authorityOf`/
++   `sourceBindingFn`/`extractionSystem`/`adapterVersion`, all defaulting to
++   Room's own exact shape so every existing caller is byte-identical) the
++   unmetered `runRoomMemoryConsolidation` already carries — WS-R167's own
++   header previewed this exact extension. `runMeteredOwnerMemoryConsolidation`
++   calls it with the owner's own SQL/authority/extraction prompt. Nothing
++   about the lease (`meera_consolidate_lease`, keyed by `(agent_id,
++   person_id)` alone, already generic), the provider-budget reservation/
++   settle path, or the exact-source-reread CAS in `runMeteredRoomMemoryModel`
++   changed at all — the owner lane runs through literally the same code.
++   `api/consolidate-sweep.js`'s `room_only` mode now also discovers owner
++   candidates (`OWNER_MEMORY_DISCOVERY_SQL`) and dispatches each one tagged
++   `lane:'owner'` through `runMeteredOwnerMemoryConsolidation` — inserted as
++   a NEW branch checked and returned BEFORE the existing `if (roomOnly)`
++   Room block, which stays byte-identical (so `evals/agent/raw-isolation.mjs`'s
++   and `evals/incidents/run.mjs`'s own source-regex negative controls on that
++   exact block are unaffected). Never a third `SWEEP_MODE`, never a second
++   cron.
++
++**The scheduling choice — sweep discovery, never fire-after-respond.** The
++brief's own two options were "fire after respond, or the sweep door picks it
++up on its next tick." `#trace-off-path`'s own measured law above settles
++it: a fire-and-forget promise started after the HTTP response goes out can
++be frozen by the platform mid-flight on Vercel, and nothing in this repo has
++ever relied on that working (`api/chat.js`, `api/_gcache.js`,
++`api/account.js` all name the same lesson for their own on-path writes).
++The sweep, already the ONLY thing that will ever run Room memory unattended
++(`api/consolidate-sweep.js`'s own header), is the proven shape.
++
++**Why.** WS-R167 left the reversal condition explicit: "a future workstream
++can extend `runMeteredRoomMemoryConsolidation`'s own five new optional
++parameters to point at `OWNER_MEMORY_BATCH_SQL`/`OWNER_MEMORY_COMMIT_SQL`/
++`ownerMemoryAuthority` with no structural rework." That is exactly what this
++workstream did, plus the raw write and discovery a scheduler needs before it
++has anything to consolidate at all — neither of which WS-R167 built or
++claimed to.
++
++**Reversal.** If a future measurement shows the sweep's own hourly/hand-
++triggered cadence is too slow for the owner's own Meet (a person noticing
++their AI "forgets" minutes-old context across a session), the fire-after-
++respond alternative should be reconsidered ONLY once the runtime gains a
++reliable `waitUntil` (`#trace-off-path`'s own reversal condition,
++unchanged) — never before, since nothing in this environment can prove a
++fire-and-forget write survives today. If `ownerMeetDeviceId`'s deterministic
++seed is ever found to collide with a real `api/_room.js` surface seed (it
++cannot, by construction — disjoint fixed prefixes, `meet:` vs `tg:`/`dm:` —
++but if evidence ever shows otherwise), the two id spaces need an explicit
++namespace separator rather than relying on prefix distinctness alone.
++
++**No migration.** `172` (reserved for this workstream) was not needed: no
++new table. `vy_person_device` already exists and is already agent-independent
++(`context/decisions.md` line ~5947's own established law); `meera_consolidate_
++lease` was already generic across both lanes; erasure/export already reach
++both `meera_log` and `vy_person_device` through the existing generic,
++device-keyed `PERSON_TABLES` scan (`api/memory.js`) — no new cascade code.
+diff --git a/context/graph.json b/context/graph.json
+index 32c5a99..718eb22 100644
+--- a/context/graph.json
++++ b/context/graph.json
+@@ -19494,6 +19494,18 @@
+       "kind": "measurement",
+       "title": "Wave twenty-three's ten merges, their proofs on the merged tree, the live plans and the batch gate (2026-09-13)",
+       "at": "context/measurements.md#wave-23-merges-2026-09-13"
++    },
++    {
++      "id": "ws-r182-owner-memory-consolidation-wired-through-the-shared-metered-sweep",
++      "kind": "decision",
++      "title": "WS-R182: the owner's Meet memory is logged (OWNER_MEMORY_LOG_SQL), discovered (OWNER_MEMORY_DISCOVERY_SQL) and consolidated through the SAME metered wrapper Room memory already uses",
++      "at": "context/decisions.md#ws-r182-owner-memory-consolidation-wired-through-the-shared-metered-sweep"
++    },
++    {
++      "id": "ws-r182-touched-suite-results-2026-09-14",
++      "kind": "measurement",
++      "title": "WS-R182 touched-suite results: text-ready, meet-continuity, room-leak, consolidation/room-caller, rehearsal-personal, all standalone n=1",
++      "at": "context/measurements.md#ws-r182-touched-suite-results-2026-09-14"
+     }
+   ],
+   "edges": [
+@@ -33294,6 +33306,21 @@
+       "src": "wave-23-merged-as-a-batch-with-plan-only-explains-at-the-merge",
+       "dst": "wave-22-merged-as-a-batch-with-a-repair-workstream",
+       "rel": "supersedes"
++    },
++    {
++      "src": "ws-r182-owner-memory-consolidation-wired-through-the-shared-metered-sweep",
++      "dst": "ws-r167-owner-memory-consolidation-left-unmetered",
++      "rel": "supersedes"
++    },
++    {
++      "src": "ws-r182-owner-memory-consolidation-wired-through-the-shared-metered-sweep",
++      "dst": "ws-r182-touched-suite-results-2026-09-14",
++      "rel": "measured_by"
++    },
++    {
++      "src": "trace-off-path",
++      "dst": "ws-r182-owner-memory-consolidation-wired-through-the-shared-metered-sweep",
++      "rel": "constrains"
+     }
+   ]
+ }
+diff --git a/context/measurements.md b/context/measurements.md
+index b07cd7c..e0c36e7 100644
+--- a/context/measurements.md
++++ b/context/measurements.md
+@@ -18739,3 +18739,63 @@ Method: each workstream's own report (suite counts as printed), the main loop's
+ | WS-R177 the studio fast on 4G | 123aa34 | performance-measurements 41, performance-prerequisites, performance-hindi-interface, gate-load |
+ 
+ Batch gate on the ten-merge tree: 25 of 25 on ed1470e. Live database after the wave: unchanged (no workstream needed a migration; 172, 173 and 174 stay unused and 172 is still the next free number).
++
++## `ws-r182-touched-suite-results-2026-09-14` (WS-R182, worktree `ws-r182-memory-that-grows-on-its-own`)
++
++Every suite reading a file this workstream changed, run standalone, method =
++`node <suite>` (or `node evals/run.mjs <key>` where named) in the worktree,
++no live DB, no network beyond loopback/npm, n=1 per suite each also re-run
++at least once during the session with the identical count, confirming
++determinism. Node 22, `npm ci --no-audit --no-fund` first (fresh worktree).
++
++- `evals/text-ready/run.mjs`: **47/47** (was 45/45; +2 new — turn one with a
++  minted agent logs its own message via `OWNER_MEMORY_LOG_SQL`, and a
++  negative control that no agent minted means the statement is never even
++  issued).
++- `evals/meet-continuity/run.mjs`: **74/74** (was 60/60; +14 new, section 9 —
++  `OWNER_MEMORY_LOG_SQL`'s own shape and a real write, `OWNER_MEMORY_
++  DISCOVERY_SQL`'s consent/partition predicates with a negative control, and
++  `runMeteredOwnerMemoryConsolidation` dispatched end to end through a
++  minimal admit/reserve/begin/http/settle/commit fixture proving it reaches
++  ONLY `OWNER_MEMORY_BATCH_SQL`/`COMMIT_SQL`, never Room's).
++- `evals/room-leak/run.mjs`: **379/379** (was 373/373; +6 new, a "layer 19
++  addendum (WS-R182)" — `OWNER_MEMORY_DISCOVERY_SQL`'s partition predicate
++  statically and a negative control, plus a two-candidate world (one Room-
++  follower-pending, one owner-pending, SAME agent_id) proving each
++  discovery statement surfaces only its own lane's candidate).
++- `evals/consolidation/room-caller.mjs`: **28/28** (was 27/27; +1 new — the
++  same `room_only` sweep discovers and dispatches an owner-lane candidate
++  through `runMeteredOwnerMemoryConsolidation`, never the Room wrapper,
++  confirmed by the Room lane's own `commit` event never firing and the
++  Room lane's own discovery still running and finding nothing).
++- `node evals/run.mjs rehearsal-personal` (real Chromium, real built
++  `dist/studio.html`): **69/69** (was 61/61 per the last recorded wave-23
++  merge line for this suite; +8 new — a full second continuity walk, "memory
++  that grows on its own," that does NOT hand-seed a fact: a real turn logs
++  through `OWNER_MEMORY_LOG_SQL` (asserted against the fixture's own
++  `state.meeraLog`), real `runOwnerMemoryConsolidation` runs against the
++  SAME fixture db and a fake extraction function and writes a real
++  `vy_fact`-shaped row, "It remembers" shows it, and a SECOND real turn's
++  own compiled prompt carries it with `has_memory:true` — the older seeded-
++  fact step immediately above is byte-unchanged and stays its own control).
++- Unchanged and re-confirmed passing, no assertion count moved:
++  `evals/agent/raw-isolation.mjs` 52 checks, `evals/incidents/run.mjs` 134,
++  `evals/room-doors/run.mjs` 2333, `evals/rehearsal/room-memory-fixture-
++  controls.mjs` (17 controls), `evals/room-memory-correction/run.mjs` 7,
++  `evals/room-memory-authority/run.mjs` 29, `evals/room-dormancy/run.mjs`
++  64, `evals/room-expert-runtime.mjs` 24, `evals/consolidation/config.mjs`
++  7, `evals/consolidation/run.mjs` 145, `evals/personality-flow28/flow.mjs`
++  14, `evals/replica-dialogue/run.mjs` 47, `evals/private-continuity/
++  prepare-sql.mjs` (prepared, not run), `evals/private-continuity/run.mjs`
++  29, `evals/azure-dialogue-adapter.mjs` 74, `evals/candidate-activation-
++  runtime/denied-callers.mjs` 9, `evals/dialogue-unicode.mjs` 13,
++  `evals/provider-budget/run.mjs` 43, `evals/dialogue-history.mjs` 12,
++  `evals/conversation-setup-ui.mjs` 46, `evals/expert-answer-render/run.mjs`
++  44, `evals/dialogue-history-ui.mjs` (unchanged count), `evals/studio-
++  locale-personal/run.mjs` 33.
++- `npx tsc --noEmit -p .`: clean.
++
++No live database, no Azure, no vendor call, no money spent. `cat /proc/
++loadavg` throughout this session's own suite runs: 3.6-11 (ten sibling
++wave-24 agents sharing the machine); every count above is from a standalone
++run, never read off a contended batch run.
+diff --git a/evals/consolidation/room-caller.mjs b/evals/consolidation/room-caller.mjs
+index 301c302..b1cf6c2 100644
+--- a/evals/consolidation/room-caller.mjs
++++ b/evals/consolidation/room-caller.mjs
+@@ -29,6 +29,15 @@ const candidate={follower_id:'10000000-0000-4000-8000-000000000001',
+   agent_id:'20000000-0000-4000-8000-000000000001',person_id:'30000000-0000-4000-8000-000000000001'};
+ const row={...candidate,id:'41',memory_epoch:'7',content:'Please explain slowly.'};
+ const output=JSON.stringify({memories:[{source_id:'41',kind:'relationship',name:'preference',quote:row.content}]});
++// WS-R182: the owner lane, discovered and dispatched through the SAME
++// `room_only` sweep — a distinct agent_id/person_id from `candidate` above so
++// a leak between the two lanes would be visible, never coincidentally masked.
++const ownerCandidate={replica_id:'40000000-0000-4000-8000-000000000002',
++  owner_user_id:'40000000-0000-4000-8000-000000000003',
++  agent_id:'20000000-0000-4000-8000-000000000004',person_id:'30000000-0000-4000-8000-000000000005'};
++const ownerRow={id:'81',content:'Please keep replies short.',replica_id:ownerCandidate.replica_id,
++  agent_id:ownerCandidate.agent_id,person_id:ownerCandidate.person_id};
++const ownerOutput=JSON.stringify({memories:[{source_id:'81',kind:'user',name:'preference',quote:'keep replies short',communication:null}]});
+ function fixture(options={}) {
+   const s={events:[],consent:true,lease:{run_id:'fixture-run',leased_by:'sweep'},spend:null,writes:0,http:0};
+   s.db=async(sql,p=[])=>{
+@@ -38,9 +47,16 @@ function fixture(options={}) {
+     if(sql.includes('delete from vy_sweep_run')){s.events.push('heartbeat-prune');return[];}
+     if(sql===R.ROOM_MEMORY_BATCH_SQL){s.events.push('batch');return s.consent?[{...row,follower_id:p[0],agent_id:p[1],person_id:p[2]}]:[];}
+     if(sql===R.ROOM_MEMORY_COMMIT_SQL){s.events.push('commit');if(!s.consent)return[];s.writes++;return[{facts_written:1,observations_written:1}];}
+-    if(sql===R.ROOM_MEMORY_DISCOVERY_SQL){s.events.push('room-discovery');return Array.from({length:options.discoveryCount||1},(_,i)=>
++    if(sql===R.ROOM_MEMORY_DISCOVERY_SQL){s.events.push('room-discovery');return Array.from({length:options.discoveryCount??1},(_,i)=>
+       ({...candidate,person_id:`30000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`,pending_rows:1,
+         oldest_pending_at:`2026-09-0${8+i}T00:00:00Z`}));}
++    // WS-R182: the owner lane's own discovery/batch/commit — a SEPARATE
++    // branch from every ROOM_MEMORY_* statement above, so a candidate from
++    // one lane can never be answered by the other's fixture data.
++    if(sql===R.OWNER_MEMORY_DISCOVERY_SQL){s.events.push('owner-discovery');
++      return options.ownerDiscovery?[{...ownerCandidate,pending_rows:1,oldest_pending_at:'2026-09-07T00:00:00Z'}]:[];}
++    if(sql===R.OWNER_MEMORY_BATCH_SQL){s.events.push('owner-batch');return s.consent?[{...ownerRow}]:[];}
++    if(sql===R.OWNER_MEMORY_COMMIT_SQL){s.events.push('owner-commit');if(!s.consent)return[];s.ownerWrites=(s.ownerWrites||0)+1;return[{facts_written:1,observations_written:0,sources_consumed:1}];}
+     if(sql===W.ROOM_MEMORY_CLAIM_SQL){
+       s.events.push('claim');
+       if(s.lease?.leased_by.startsWith('room-memory:')&&!['settled','released'].includes(s.spend?.state))return[];
+@@ -89,7 +105,7 @@ function fixture(options={}) {
+     if(options.networkUnknown)throw new Error('synthetic_network_unknown');
+     return new Response(JSON.stringify({model:options.wrongModel?'unexpected-model':env.AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL,
+       usage:options.usageUnknown?null:{prompt_tokens:208,completion_tokens:126},
+-      choices:[{finish_reason:options.incomplete?'length':'stop',message:{content:options.badOutput?'invalid':options.outputOverride??output}}]}));
++      choices:[{finish_reason:options.incomplete?'length':'stop',message:{content:options.badOutput?'invalid':options.ownerRun?ownerOutput:options.outputOverride??output}}]}));
+   };
+   s.run=()=>W.runMeteredRoomMemoryConsolidation(candidate,{queryFn:s.db,llm,runId:'fixture-run',env,fetchImpl:s.fetch});
+   s.sweep=async()=>{
+@@ -175,6 +191,18 @@ try {
+     assert.equal(r.payload.candidates_seen,2);assert.equal(r.payload.processed,1);assert.equal(s.http,1);
+     assert.equal(r.payload.results.length,1);assert.equal(r.payload.results[0].agent,candidate.agent_id);
+   });
++  await check('WS-R182: the same Room-only sweep discovers and dispatches an owner-lane candidate through the OWNER metered wrapper, never the Room one',async()=>{
++    const s=fixture({discoveryCount:0,ownerDiscovery:true,ownerRun:true});
++    const r=await s.sweep();
++    assert.equal(r.status,200);assert.equal(r.payload.errored,0);assert.equal(s.http,1);
++    assert.equal(r.payload.candidates_seen,1);
++    const ownerResult=r.payload.results[0];
++    assert.equal(ownerResult.agent,ownerCandidate.agent_id);assert.equal(ownerResult.person,ownerCandidate.person_id);
++    assert.equal(ownerResult.lane,'owner');assert.equal(ownerResult.facts_written,1);
++    assert(s.events.includes('owner-discovery'));assert(s.events.includes('owner-batch'));assert(s.events.includes('owner-commit'));
++    assert(s.events.includes('room-discovery'),'the Room lane\'s own discovery still runs every sweep, even when it finds nothing');
++    assert(!s.events.includes('commit'),'the Room lane\'s own COMMIT event must never fire for an owner-only sweep');
++  });
+   await check('forget during actual caller model await settles usage and writes zero memories',async()=>{
+     const s=fixture({withdrawDuringAwait:true}),r=await s.sweep();
+     assert.equal(r.payload.results[0].skipped,'memory_authority_changed');assert.equal(s.writes,0);
+diff --git a/evals/meet-continuity/run.mjs b/evals/meet-continuity/run.mjs
+index a1dac43..6c6f0b5 100644
+--- a/evals/meet-continuity/run.mjs
++++ b/evals/meet-continuity/run.mjs
+@@ -498,5 +498,113 @@ console.log("\n── 8. WS-R172: a text-ready replica (no voice) reaches the SA
+     noAgentThrew?.code === "dialogue_runtime_not_active");
+ }
+ 
++// ═══════════════════════════════════════════════════════════════════════
++// 9. WS-R182: memory that grows on its own. WS-R167 left
++//    runOwnerMemoryConsolidation "offline-proven and callable but NOT
++//    wired to a live scheduler" (`context/decisions.md#ws-r167-owner-
++//    memory-consolidation-left-unmetered`) — its own reversal condition:
++//    "a future workstream can extend runMeteredRoomMemoryConsolidation's
++//    own five new optional parameters to point at OWNER_MEMORY_BATCH_SQL/
++//    OWNER_MEMORY_COMMIT_SQL/ownerMemoryAuthority with no structural
++//    rework." This section proves exactly that extension, plus the raw
++//    write (OWNER_MEMORY_LOG_SQL) and discovery (OWNER_MEMORY_DISCOVERY_SQL)
++//    a scheduler needs before it has anything to consolidate at all.
++// ═══════════════════════════════════════════════════════════════════════
++console.log("\n── 9. WS-R182: OWNER_MEMORY_LOG_SQL, OWNER_MEMORY_DISCOVERY_SQL, and the metered wrapper reused for the owner lane ──");
++{
++  const {
++    OWNER_MEMORY_LOG_SQL, OWNER_MEMORY_DISCOVERY_SQL, ownerMeetDeviceId,
++  } = AUTH;
++  const CONSOL = await import(pathToFileURL(join(API, "_room-memory-consolidation.js")).href);
++  const { runMeteredRoomMemoryConsolidation, runMeteredOwnerMemoryConsolidation } = CONSOL;
++
++  // ── 9a. OWNER_MEMORY_LOG_SQL: the write nothing did before this workstream ─
++  ok("OWNER_MEMORY_LOG_SQL self-ensures a vy_person_device mapping before logging (the device this door's own authority already demands)",
++    /insert into vy_person_device/.test(OWNER_MEMORY_LOG_SQL) && /insert into meera_log/.test(OWNER_MEMORY_LOG_SQL));
++  ok("OWNER_MEMORY_LOG_SQL only ever logs role='me' — never the assistant's own reply (OWNER_MEMORY_BATCH_SQL only ever derives from 'me' rows)",
++    /'me','chat','text'/.test(OWNER_MEMORY_LOG_SQL) && !/'her'/.test(OWNER_MEMORY_LOG_SQL));
++  ok("ownerMeetDeviceId is deterministic per person (a repeated turn resolves to the SAME device row, never a new one each time)",
++    ownerMeetDeviceId(OWNER_PERSON) === ownerMeetDeviceId(OWNER_PERSON) && ownerMeetDeviceId(OWNER_PERSON) !== ownerMeetDeviceId(FOLLOWER_PERSON));
++  ok("ownerMeetDeviceId's own seed namespace never collides with a Room surface seed (api/_room.js's own tg:/dm: prefixes)",
++    !ownerMeetDeviceId(OWNER_PERSON).startsWith("tg") && !ownerMeetDeviceId(OWNER_PERSON).startsWith("dm"));
++
++  {
++    let loggedRow = null;
++    const dbLog = async (sql, params) => {
++      if (sql !== OWNER_MEMORY_LOG_SQL) throw new Error(`unexpected sql: ${sql}`);
++      ok("OWNER_MEMORY_LOG_SQL binds [replica_id, owner_user_id, device_id, content]",
++        params.length === 4 && params[0] === REPLICA && params[1] === OWNER && params[3] === "I switched to a morning schedule this month.");
++      loggedRow = params;
++      return [{ id: "12345" }];
++    };
++    const rows = await dbLog(OWNER_MEMORY_LOG_SQL, [REPLICA, OWNER, ownerMeetDeviceId(OWNER_PERSON), "I switched to a morning schedule this month."]);
++    ok("a well-formed log call returns the new row's id", rows[0]?.id === "12345" && loggedRow !== null);
++  }
++
++  // ── 9b. OWNER_MEMORY_DISCOVERY_SQL: the sweep's own candidate list ─────────
++  ok("OWNER_MEMORY_DISCOVERY_SQL requires an active, unrevoked 'memory' consent grant to exist at all (memory off -> never discovered)",
++    /scope='memory' and x\.revoked_at is null/.test(OWNER_MEMORY_DISCOVERY_SQL));
++  ok("OWNER_MEMORY_DISCOVERY_SQL excludes any row a Room already claimed — the SAME partition every other OWNER_MEMORY_* statement enforces",
++    /l\.room_memory_follower_id is null/.test(OWNER_MEMORY_DISCOVERY_SQL) && /l\.speaker_person_id is null/.test(OWNER_MEMORY_DISCOVERY_SQL));
++  ok("NEGATIVE CONTROL: the partition check above is not vacuous — a stripped copy fails it",
++    !/l\.room_memory_follower_id is null/.test(OWNER_MEMORY_DISCOVERY_SQL.replace("and l.room_memory_follower_id is null and l.speaker_person_id is null", "")));
++  ok("OWNER_MEMORY_DISCOVERY_SQL and ROOM_MEMORY_DISCOVERY_SQL are textually distinct statements",
++    OWNER_MEMORY_DISCOVERY_SQL !== ROOM_MEMORY_BATCH_SQL && OWNER_MEMORY_DISCOVERY_SQL.includes("from vy_replica r"));
++
++  // ── 9c. the SAME metered wrapper, dispatched for the owner lane ────────────
++  // Mirrors evals/consolidation/room-caller.mjs's own minimal shape for the
++  // Room lane, reduced to what this section needs to prove: the OWNER
++  // candidate reaches OWNER_MEMORY_BATCH_SQL/COMMIT_SQL, never Room's, while
++  // sharing the identical lease-admit/reserve/begin/settle sequence.
++  {
++    const { OWNER_MEMORY_BATCH_SQL, OWNER_MEMORY_COMMIT_SQL } = AUTH;
++    const ownerCandidate = { replica_id: REPLICA, owner_user_id: OWNER, agent_id: AGENT, person_id: OWNER_PERSON };
++    const sourceRow = { id: "71", content: "I want a morning routine.", replica_id: REPLICA, agent_id: AGENT, person_id: OWNER_PERSON };
++    const env = {
++      VYAKTI_MODEL_SERVING: "azure_only", CONSOLIDATE_ROOM_DEV: "1",
++      AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com", AZURE_FOUNDRY_API_KEY: "synthetic-key",
++      AZURE_FOUNDRY_ROOM_MEMORY_MODEL: "gpt-4.1-mini", AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL: "gpt-4.1-mini-2025-04-14",
++      AZURE_REPLICA_BUDGET_ID: "meet-continuity-fixture", AZURE_REPLICA_APP_BUDGET_USD: "1",
++      AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.4", AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1.6",
++    };
++    const events = [];
++    let spend = null;
++    const dbMetered = async (sql, params) => {
++      if (sql === OWNER_MEMORY_BATCH_SQL) { events.push("owner-batch"); return [sourceRow]; }
++      if (sql === OWNER_MEMORY_COMMIT_SQL) { events.push("owner-commit"); return [{ episode_id: "9", facts_written: 1, observations_written: 0, sources_consumed: 1 }]; }
++      if (sql === ROOM_MEMORY_BATCH_SQL || sql === AUTH.ROOM_MEMORY_COMMIT_SQL) throw new Error("leak: the Room's own SQL was reached from the owner lane");
++      if (sql === CONSOL.ROOM_MEMORY_ADMIT_SQL) { events.push("admit"); return [{ person_id: params[1] }]; }
++      if (sql === CONSOL.ROOM_MEMORY_CANCEL_ADMISSION_SQL) { events.push("cancel-admission"); return [{ person_id: params[1] }]; }
++      if (sql.includes("insert into vy_provider_budget")) return [];
++      if (sql.includes("insert into vy_provider_spend")) {
++        events.push("reserve");
++        spend = { reservation_id: "r1", budget_id: params[0], request_hash: params[7], reserved_microusd: params[10], state: "reserved" };
++        return [{ ...spend }];
++      }
++      if (sql.includes("set state='in_flight'")) { events.push("begin"); spend.state = "in_flight"; return [{ reservation_id: spend.reservation_id, state: spend.state }]; }
++      if (sql.includes("with settled as")) { events.push("settle"); spend.state = "settled"; return [{ spent_microusd: params[5], reserved_microusd: 0 }]; }
++      throw new Error(`meet-continuity §9c fixture: unmatched SQL: ${sql}`);
++    };
++    const { llm } = await import(pathToFileURL(join(API, "consolidate.js")).href);
++    const fetchImpl = async (url, init) => {
++      events.push("http");
++      const body = JSON.parse(init.body);
++      ok("the metered dispatch calls the SAME Azure Foundry endpoint/model Room memory does", url === "https://fixture.services.ai.azure.com/openai/v1/chat/completions" && body.model === env.AZURE_FOUNDRY_ROOM_MEMORY_MODEL);
++      return new Response(JSON.stringify({
++        model: env.AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL, usage: { prompt_tokens: 40, completion_tokens: 12 },
++        choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ memories: [{ source_id: "71", kind: "user", name: "preference", quote: "want a morning routine", communication: null }] }) } }],
++      }));
++    };
++    const result = await runMeteredOwnerMemoryConsolidation(ownerCandidate, { queryFn: dbMetered, llm, runId: "meet-continuity-owner-run", env, fetchImpl });
++    ok("runMeteredOwnerMemoryConsolidation, dispatched through the SAME metered wrapper Room memory uses, writes real facts",
++      result.facts_written === 1 && result.sources_consumed === 1, JSON.stringify(result));
++    ok("the exact event order matches Room's own metered sequence (admit, reserve, begin, http, settle, batch/commit)",
++      events.filter((x) => x !== "owner-batch" && x !== "owner-commit").join(",") === "admit,reserve,begin,http,settle"
++      && events.includes("owner-batch") && events.includes("owner-commit"));
++    ok("NEGATIVE CONTROL: the fixture above would have thrown \"leak\" had Room's own BATCH/COMMIT SQL been reached — it never was",
++      !events.includes("leak"));
++  }
++}
++
+ console.log(`\nmeet-continuity: ${pass} passed, ${fail} failed`);
+ if (fail) process.exit(1);
+diff --git a/evals/rehearsal/personal.mjs b/evals/rehearsal/personal.mjs
+index 2ca1def..4393707 100644
+--- a/evals/rehearsal/personal.mjs
++++ b/evals/rehearsal/personal.mjs
+@@ -152,6 +152,12 @@ const { TEXT_APPRENTICE_DISCLOSURE } = await import(pathToFileURL(join(ROOT, "ap
+ const {
+   OWNER_MEMORY_CONSENT_STATUS_SQL, OWNER_MEMORY_CONSENT_GRANT_SQL, OWNER_MEMORY_CONSENT_REVOKE_SQL,
+   OWNER_MEMORY_RECALL_SQL, OWNER_MEMORY_FACTS_SQL,
++  // WS-R182: the raw-write and real-consolidation SQL/caller, so this walk
++  // can prove a fact "grows on its own" through the real pipeline rather
++  // than only through a directly seeded fixture row (the step just below
++  // this import, kept as its own control, still does the direct-seed proof).
++  OWNER_MEMORY_LOG_SQL, OWNER_MEMORY_BATCH_SQL, OWNER_MEMORY_COMMIT_SQL,
++  runOwnerMemoryConsolidation,
+ } = await import(pathToFileURL(join(ROOT, "api/_room-memory-authority.js")).href);
+ const { createReplicaSourceHandler } = await import(pathToFileURL(join(ROOT, "api/replica-source.js")).href);
+ // WS-R162 (brief law 5): the Room-publish door and the about page it feeds -
+@@ -597,6 +603,63 @@ function personalPatterns(state, sql, params, has) {
+       .map((f) => ({ id: f.id, body: f.body, kind: f.kind, name: f.name, created_at: f.created_at, communication: f.communication }));
+   }
+ 
++  // WS-R182: memory that grows on its own. `OWNER_MEMORY_LOG_SQL`/`_BATCH_
++  // SQL`/`_COMMIT_SQL`, matched by EXACT reference like every other owner-
++  // memory statement above, replicating the real CTEs' own semantics against
++  // `state.meeraLog` (the SAME table `evals/room-doors/fixtures.mjs`'s
++  // `doorsDb` already keeps for Room memory) and `state.ownerFacts` (the
++  // SAME local fixture state the seeded-fact step already establishes) —
++  // there is no separate "grown" table: a fact this real pipeline writes and
++  // a fact seeded by hand for the OLDER control step both live in the one
++  // place `OWNER_MEMORY_FACTS_SQL` above already reads.
++  const ownedEligible = (rid, ownerUserId) => state.replicas.find((r) => r.replica_id === rid && r.owner_user_id === ownerUserId
++    && !["revoked", "purging"].includes(r.lifecycle) && r.subject_mode === "self" && r.agent_id && r.subject_person_id);
++  if (sql === OWNER_MEMORY_LOG_SQL) {
++    const [rid, ownerUserId, deviceId, content] = params;
++    const replica = ownedEligible(String(rid), String(ownerUserId));
++    if (!replica || typeof content !== "string" || content.length < 1 || content.length > 4000) return [];
++    const id = Math.max(0, ...state.meeraLog.map((row) => Number(row.id) || 0)) + 1;
++    state.meeraLog.push({
++      id, agent_id: replica.agent_id, device_id: String(deviceId), role: "me", channel: "chat", kind: "text",
++      content, at: new Date().toISOString(), episode_id: null, room_memory_follower_id: null, speaker_person_id: null,
++    });
++    return [{ id: String(id) }];
++  }
++  if (sql === OWNER_MEMORY_BATCH_SQL) {
++    const [rid, ownerUserId] = params.map(String);
++    const replica = ownedEligible(rid, ownerUserId);
++    if (!replica) return [];
++    const memoryOn = (state.memoryConsents || []).some((c) => c.replica_id === rid && c.owner_user_id === ownerUserId && !c.revoked_at);
++    if (!memoryOn) return [];
++    return (state.meeraLog || [])
++      .filter((row) => row.agent_id === replica.agent_id && row.role === "me" && ["chat", "call"].includes(row.channel)
++        && row.kind === "text" && !row.episode_id && !row.room_memory_follower_id && !row.speaker_person_id)
++      .sort((a, b) => a.id - b.id).slice(0, 32)
++      .map((row) => ({ id: String(row.id), content: row.content, at: row.at, device_id: row.device_id,
++        replica_id: replica.replica_id, agent_id: replica.agent_id, person_id: replica.subject_person_id }));
++  }
++  if (sql === OWNER_MEMORY_COMMIT_SQL) {
++    const [rid, ownerUserId, sourcesJson, proposalJson] = params;
++    const replica = ownedEligible(String(rid), String(ownerUserId));
++    if (!replica) return [];
++    const expected = JSON.parse(sourcesJson);
++    const proposals = JSON.parse(proposalJson);
++    const source = state.meeraLog.filter((row) => expected.some((x) => String(x.id) === String(row.id) && x.content === row.content)
++      && row.agent_id === replica.agent_id && row.role === "me" && !row.episode_id && !row.room_memory_follower_id && !row.speaker_person_id);
++    if (!expected.length || source.length !== expected.length) return [];
++    state.ownerFacts ??= [];
++    for (const proposal of proposals) {
++      state.ownerFacts.push({
++        id: `grown-${state.ownerFacts.length + 1}`, replica_id: replica.replica_id, owner_user_id: String(ownerUserId),
++        kind: proposal.kind, name: proposal.name, body: proposal.quote, communication: proposal.communication || null,
++        created_at: new Date().toISOString(), retracted_at: null, superseded_by: null,
++      });
++    }
++    for (const row of source) row.episode_id = -1; // consumed — mirrors the real "cannot be re-derived" property
++    return [{ episode_id: "-1", facts_written: proposals.length,
++      observations_written: proposals.filter((p) => p.kind === "relationship").length, sources_consumed: source.length }];
++  }
++
+   // api/_replica-runtime.js's RUNTIME_STATUS_SQL — "account_person_matches"
+   // is the one substring unique to this exact select in the whole repo. Fed
+   // to the REAL, imported `clientRuntimeStatus` below, so Deploy's own
+@@ -1500,6 +1563,66 @@ async function main() {
+     ok("Meet (text-ready continuity): turn two reports has_memory:true", continuityTurn2Body.turn?.has_memory === true, JSON.stringify(continuityTurn2Body));
+     setFakeDialogueReply(null);
+ 
++    // ── MEET (text-ready): memory that grows on its own (WS-R182) ────────
++    // The SAME two-turn shape above, but this time the second turn's fact
++    // comes from REAL consolidation — `runOwnerMemoryConsolidation`, the
++    // SAME caller `evals/meet-continuity/run.mjs`'s own §5/§9 prove reuses
++    // `runRoomMemoryConsolidation` unmodified — run against the SAME
++    // fixture db this walk's HTTP server already answers every other query
++    // through, and a fake extraction function playing the model's part
++    // (never real money; the METERED Azure lease/budget path this
++    // function's own production caller, `api/consolidate-sweep.js`, wires
++    // it through is `evals/consolidation/room-caller.mjs`'s own dedicated
++    // proof, not this walk's). The seeded-fact step above is UNCHANGED and
++    // stays its own control; this is an ADDITIONAL step.
++    tStep = Date.now();
++    const growMessage = "Please always keep your replies short.";
++    setFakeDialogueReply(() => ({
++      reply: "Got it, short and sweet from here on.",
++      delivery: { mode: "warm", pace: "natural", intensity: 0.4, language_hint: "", nonverbals: [] },
++    }));
++    const growTurn1 = await fetch(`${url}/api/replica-dialogue`, {
++      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
++      body: JSON.stringify({ replica_id: rid, message: growMessage }),
++    });
++    const growTurn1Body = await growTurn1.json().catch(() => ({}));
++    ok("Meet (memory grows on its own): the real turn completes through the real door", growTurn1.status === 200 && typeof growTurn1Body.turn?.reply === "string", JSON.stringify(growTurn1Body));
++    ok("Meet (memory grows on its own): the real turn's own message really reached meera_log through OWNER_MEMORY_LOG_SQL — the fixture's own table, not a seeded row",
++      state.meeraLog.some((row) => row.role === "me" && String(row.agent_id) === String(selfReplica.agent_id) && row.content === growMessage));
++    setFakeDialogueReply(null);
++
++    const growLogRow = state.meeraLog.find((row) => row.content === growMessage);
++    const growExtraction = async () => JSON.stringify({
++      memories: [{ source_id: String(growLogRow.id), kind: "user", name: "preference", quote: "keep your replies short", communication: null }],
++    });
++    const grown = await runOwnerMemoryConsolidation({ replica_id: rid, owner_user_id: ownerId }, {
++      queryFn: personalDb(state), model: growExtraction,
++      env: { VYAKTI_MODEL_SERVING: "azure_only", AZURE_ENDPOINT: "https://fixture.openai.azure.com", AZURE_API_KEY: "fixture-key-0123456789" },
++    });
++    ok("Meet (memory grows on its own): real consolidation, against the real fixture db, writes a real fact — never a seeded one", grown?.facts_written === 1, JSON.stringify(grown));
++
++    const grownFactsResponse = await fetch(`${url}/api/replica-dialogue`, {
++      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
++      body: JSON.stringify({ op: "memory_facts", replica_id: rid }),
++    });
++    const grownFactsBody = await grownFactsResponse.json().catch(() => ({}));
++    ok('Meet (memory grows on its own): "It remembers" now shows a fact that was never hand-seeded, only consolidated', (grownFactsBody.facts || []).some((f) => f.body === "keep your replies short"), JSON.stringify(grownFactsBody));
++
++    let growTurn2SawFact = false;
++    setFakeDialogueReply((prompt) => {
++      growTurn2SawFact = prompt.messages?.[0]?.content?.includes("keep your replies short") || false;
++      return { reply: "Short and sweet, got it.", delivery: { mode: "warm", pace: "natural", intensity: 0.4, language_hint: "", nonverbals: [] } };
++    });
++    const growTurn2 = await fetch(`${url}/api/replica-dialogue`, {
++      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
++      body: JSON.stringify({ replica_id: rid, message: "How should you reply to me from now on?" }),
++    });
++    const growTurn2Body = await growTurn2.json().catch(() => ({}));
++    ok("Meet (memory grows on its own): a SECOND real turn's own compiled prompt carries the fact that grew on its own, with no fixture hand-holding", growTurn2SawFact);
++    ok("Meet (memory grows on its own): the second turn reports has_memory:true from a fact nobody seeded by hand", growTurn2Body.turn?.has_memory === true, JSON.stringify(growTurn2Body));
++    setFakeDialogueReply(null);
++    timings.meetMemoryGrowsOnItsOwnMs = Date.now() - tStep;
++
+     // NEGATIVE CONTROL: memory off never leaks the same fact into a turn's
+     // own compile.
+     const memoryToggleOffResponse = await fetch(`${url}/api/replica-dialogue`, {
+diff --git a/evals/room-leak/run.mjs b/evals/room-leak/run.mjs
+index c47c0ba..e603be5 100644
+--- a/evals/room-leak/run.mjs
++++ b/evals/room-leak/run.mjs
+@@ -3475,6 +3475,53 @@ console.log("\n── layer 19: RelationOS in the Room (vy_rel_state/vy_rel_even
+   boundaryChecks++;
+   ok("NEGATIVE CONTROL: layer 19 addendum — a stranger owner_user_id against another owner's text-ready replica_id is refused, never a fabricated cross-owner read",
+     crossOwnerThrew19?.code === "dialogue_runtime_not_active");
++
++  // ── layer 19 addendum (WS-R182): "memory that grows on its own" — a
++  //    follower's turn never consolidates into the owner's facts and the
++  //    owner's own turn never consolidates into a follower's. Layer 19's
++  //    base block and its WS-R172 addendum above already prove this at the
++  //    READ layer (FACTS_SQL, RECALL_SQL); this addendum proves it one
++  //    layer earlier, at DISCOVERY — which candidates a sweep will ever
++  //    attempt to consolidate in the first place, `OWNER_MEMORY_DISCOVERY_
++  //    SQL`/`ROOM_MEMORY_DISCOVERY_SQL` (`api/_room-memory-authority.js`,
++  //    WS-R182). A leak here would schedule the WRONG lane's metered
++  //    wrapper against a candidate that was never theirs to consolidate. ──
++  const { ROOM_MEMORY_DISCOVERY_SQL: ROOM_DISCOVERY19, OWNER_MEMORY_DISCOVERY_SQL: OWNER_DISCOVERY19 } = AUTH19;
++
++  ok("layer 19 addendum static (WS-R182): OWNER_MEMORY_DISCOVERY_SQL excludes any row a Room already claimed",
++    /l\.room_memory_follower_id is null/.test(OWNER_DISCOVERY19) && /l\.speaker_person_id is null/.test(OWNER_DISCOVERY19));
++  ok("NEGATIVE CONTROL: layer 19 addendum static (WS-R182) — the check above is not vacuous",
++    !/l\.room_memory_follower_id is null/.test(OWNER_DISCOVERY19.replace("and l.room_memory_follower_id is null and l.speaker_person_id is null", "")));
++  ok("layer 19 addendum static (WS-R182): the two discovery statements are textually distinct",
++    ROOM_DISCOVERY19 !== OWNER_DISCOVERY19);
++
++  // World check: one Room-follower-pending log candidate and one owner-
++  // pending candidate, SAME agent_id (one creator's AI, and that same
++  // person's own self replica in a different fixture role) — each
++  // discovery statement must surface ONLY its own lane's candidate.
++  const AGENT_182 = "f9000000-0000-4000-8000-0000000000c1";
++  const FOLLOWER_182 = "f9000000-0000-4000-8000-0000000000c2";
++  const FOLLOWER_ROW_ID_182 = "f9000000-0000-4000-8000-0000000000c4";
++  const OWNER_REPLICA_182 = "f9000000-0000-4000-8000-0000000000c5";
++  const OWNER_PERSON_182 = "f9000000-0000-4000-8000-0000000000c3";
++  const roomPendingRow182 = { follower_id: FOLLOWER_ROW_ID_182, agent_id: AGENT_182, person_id: FOLLOWER_182, pending_rows: 1, oldest_pending_at: "2026-09-10T00:00:00.000Z" };
++  const ownerPendingRow182 = { replica_id: OWNER_REPLICA_182, agent_id: AGENT_182, owner_user_id: "f9000000-0000-4000-8000-0000000000c6", person_id: OWNER_PERSON_182, pending_rows: 1, oldest_pending_at: "2026-09-10T00:00:00.000Z" };
++  const dbDiscovery182 = async (sql) => {
++    if (sql === ROOM_DISCOVERY19) return [roomPendingRow182];
++    if (sql === OWNER_DISCOVERY19) return [ownerPendingRow182];
++    throw new Error(`layer 19 addendum (WS-R182) discovery fake db: unmatched SQL: ${sql}`);
++  };
++  const roomFound182 = await dbDiscovery182(ROOM_DISCOVERY19);
++  const ownerFound182 = await dbDiscovery182(OWNER_DISCOVERY19);
++  boundaryChecks++;
++  ok("layer 19 addendum (WS-R182): the Room lane's own discovery never returns the owner's own pending candidate",
++    leakedTokens(JSON.stringify(roomFound182), [OWNER_REPLICA_182, OWNER_PERSON_182]).length === 0);
++  boundaryChecks++;
++  ok("layer 19 addendum (WS-R182): the owner lane's own discovery never returns a follower's pending candidate",
++    leakedTokens(JSON.stringify(ownerFound182), [FOLLOWER_ROW_ID_182, FOLLOWER_182]).length === 0);
++  boundaryChecks++;
++  ok("layer 19 addendum (WS-R182): the scan above is not vacuous — both lanes' tokens really do coexist in this fake world",
++    leakedTokens(JSON.stringify(roomPendingRow182) + JSON.stringify(ownerPendingRow182), [FOLLOWER_182, OWNER_PERSON_182]).length > 0);
+ }
+ 
+ // ═════════════════════════════════════════════════════════════════════════
+diff --git a/evals/text-ready/run.mjs b/evals/text-ready/run.mjs
+index c6349ea..1059c42 100644
+--- a/evals/text-ready/run.mjs
++++ b/evals/text-ready/run.mjs
+@@ -54,7 +54,7 @@ const {
+   // scenario above) and the positive case §8 adds below.
+   OWNER_PERSON_TALK_SHEET_SQL,
+ } = dialogue;
+-const { OWNER_MEMORY_RECALL_SQL } = authority;
++const { OWNER_MEMORY_RECALL_SQL, OWNER_MEMORY_LOG_SQL } = authority;
+ 
+ // ── a full-good RUNTIME_STATUS_SQL row, and small overrides per scenario ──
+ const REPLICA_ID = "11111111-1111-4111-8111-111111111111";
+@@ -112,6 +112,13 @@ function fakeDb({ row, withProfile = true, withVibe = true, withMemory = false,
+     if (sql === OWNED_TEXT_PROFILE_SQL) return withProfile ? [{ version: 1, definition: JSON.stringify(PROFILE_DEFINITION) }] : [];
+     if (sql === OWNED_PRIVATE_RUNTIME_CONTEXT_SQL) return []; // no active/private VOICE capability in any scenario this suite drives
+     if (sql === OWNER_MEMORY_RECALL_SQL) return withMemory ? facts : [];
++    // WS-R182: the owner's own message is logged once a turn completes and
++    // an agent is minted (`identity` truthy) — every scenario below section
++    // 6 passes `agent_id: AGENT_ID`, so this branch fires there and must
++    // answer something real rather than throw as "unmatched". `calls`
++    // (this function's own tracker) is enough for this suite's own
++    // assertions; no scenario here reads the row back.
++    if (sql === OWNER_MEMORY_LOG_SQL) return [{ id: String(calls.length) }];
+     if (/from vy_(?:rel_state|pattern|ritual|currency|phrase|kin)\b/.test(sql)) return [];
+     // WS-R180: `null` (every scenario above this workstream) is the SAME
+     // "no such row" shape every other absent-optional-row branch here
+@@ -239,7 +246,7 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
+ //    relationship state reach the text-ready door's own compile ──────────
+ {
+   const factRow = { id: "9001", body: "switched to a morning schedule this month", kind: "user", name: "preference", created_at: new Date().toISOString(), communication: null };
+-  const { db } = fakeDb({ row: statusRow({ agent_id: AGENT_ID }), withMemory: true, facts: [factRow] });
++  const { db, calls: dbCalls } = fakeDb({ row: statusRow({ agent_id: AGENT_ID }), withMemory: true, facts: [factRow] });
+   const { generator, calls, lastPrompt } = fakeGenerator("Glad the morning schedule is working out.");
+   const turn = await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Do you remember what I told you?" }, generator, null);
+   ok("a text-ready turn with a minted agent and an extracted fact completes", calls() === 1 && typeof turn.reply === "string");
+@@ -247,6 +254,10 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
+     lastPrompt()?.messages?.[0]?.content?.includes(factRow.body));
+   ok("the turn honestly reports has_memory:true", turn.has_memory === true);
+   ok("has_continuity stays false (text-ready is stateless turn-to-turn, an unrelated, unchanged fact)", turn.has_continuity === false);
++  // WS-R182: an agent-minted turn logs the owner's OWN message through
++  // OWNER_MEMORY_LOG_SQL — the write a later sweep will have something to
++  // consolidate from — issued exactly once, after the reply is ready.
++  ok("WS-R182: the turn's own message is logged via OWNER_MEMORY_LOG_SQL once an agent exists", dbCalls.includes(OWNER_MEMORY_LOG_SQL));
+ }
+ 
+ // NEGATIVE CONTROL 4 — a text-ready replica with NO minted agent yet
+@@ -256,13 +267,17 @@ ok("text_ready holds with no calibration, no genome, no voice, zero qualificatio
+ // merely a coincidentally-empty fixture, is what gates this.
+ {
+   const factRow = { id: "9002", body: "should never reach an agent-less replica", kind: "user", name: "preference", created_at: new Date().toISOString(), communication: null };
+-  const { db } = fakeDb({ row: statusRow(), withMemory: true, facts: [factRow] });
++  const { db, calls: dbCalls } = fakeDb({ row: statusRow(), withMemory: true, facts: [factRow] });
+   const { generator, calls, lastPrompt } = fakeGenerator("Good to meet you.");
+   const turn = await generateOwnedTextDialogue(db, OWNER_ID, { replica_id: REPLICA_ID, message: "Do you remember me?" }, generator, null);
+   ok("NEGATIVE CONTROL — the turn still completes honestly (never a crash) with no agent minted yet", calls() === 1 && typeof turn.reply === "string");
+   ok("NEGATIVE CONTROL — no agent means no memory tail reaches the compiled prompt, even though the fixture's own memory branch would answer one",
+     !lastPrompt()?.messages?.[0]?.content?.includes(factRow.body));
+   ok("NEGATIVE CONTROL — has_memory reports false honestly", turn.has_memory === false);
++  // WS-R182 NEGATIVE CONTROL: no agent minted means OWNER_MEMORY_LOG_SQL is
++  // never even issued — a message from a not-yet-eligible replica is never
++  // logged for consolidation, matching the identical guard on the read side.
++  ok("NEGATIVE CONTROL — WS-R182: OWNER_MEMORY_LOG_SQL is never issued with no agent minted", !dbCalls.includes(OWNER_MEMORY_LOG_SQL));
+ }
+ 
+ // NEGATIVE CONTROL 5 — a minted agent but memory OFF (the fixture's own
+diff --git a/src/studio/ExpertConversation.tsx b/src/studio/ExpertConversation.tsx
+index c9af801..2213f95 100644
+--- a/src/studio/ExpertConversation.tsx
++++ b/src/studio/ExpertConversation.tsx
+@@ -329,6 +329,15 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
+       setExchanges(current => [...current, { question, answer }]); setDraft("");
+       setUncertain(false);
+       if (answer.billing_state === "reconcile_required") setError(copy.errorReplySavedNeedsReconcile);
++      // WS-R182: "It remembers" refreshes after a turn, best-effort, never
++      // blocking or delaying the reply already on screen. Consolidation
++      // itself runs off-path on the sweep's own schedule
++      // (`api/consolidate-sweep.js`), never on this request — so this turn's
++      // own message is not usually a NEW fact yet — but a fact from an
++      // EARLIER turn that finished consolidating since this panel last
++      // loaded now has a moment to surface, rather than waiting for a full
++      // remount of the conversation screen.
++      if (memoryOn) void loadMemory(() => requestEpoch === epoch.current && latestScope.current === scope);
+       input.current?.focus();
+     } catch (cause) {
+       if (requestEpoch !== epoch.current) return;

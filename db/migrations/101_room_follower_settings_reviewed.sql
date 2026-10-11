@@ -1,0 +1,36 @@
+-- Migration 101 - the follower's own settings page needs one column
+-- (WS-R39).
+--
+-- No table knows when a follower last looked at their own settings page (the
+-- consolidated "your AI" screen this workstream builds: memory consent,
+-- channels, subscription, locale, export, forget, the disclosure sentence
+-- repeated). Without it the Room cannot honestly say "you have not looked at
+-- your settings since <date>" - it would have to guess, or nag on a fixed
+-- schedule unrelated to whether the follower ever actually looked.
+--
+-- One column, on the table that already scopes everything else about this
+-- follower's relationship to this Room (`vy_room_follower`, migration 071).
+-- Nullable: a follower who has never opened the page has never reviewed it,
+-- and NULL says exactly that rather than a fabricated epoch. Written by
+-- `api/_room-surface.js`'s `roomSettingsReviewed` alone, scoped off the
+-- follower's own verified session exactly as `roomSetLocale`'s write is -
+-- never a client-supplied follower id.
+--
+-- Read by the SAME row `followerRow`/`clientFollower` already return, so the
+-- Room's own reminder sentence needs no extra round trip beyond what `open`/
+-- `join`/`say` already make. `roomForget` already deletes this row (and
+-- therefore this column) as part of `vy_room_follower`'s own delete at the
+-- bottom of that function - a plain column on an existing table needs no new
+-- entry in `PERSON_TABLES`, no new erasure statement, and no `relcheck.mjs`
+-- change, because the row it lives on was already reached.
+--
+-- No analytics event fires on a settings-page view (WS-R39's own law 5: a
+-- follower's settings visits are theirs, and this column is state a Room
+-- reads back to the SAME follower, never a count anyone else sees).
+--
+-- Idempotent, one statement (Neon's SQL-over-HTTP endpoint accepts exactly
+-- one per request), no DO block, no function, no foreign key on any
+-- person/owner column (009's WHERE-clause-binding convention; this column
+-- adds nothing that changes `vy_room_follower`'s existing FK shape).
+alter table vy_room_follower
+  add column if not exists settings_reviewed_at timestamptz null;

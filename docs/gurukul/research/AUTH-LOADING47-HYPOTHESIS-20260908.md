@@ -1,0 +1,37 @@
+# Auth loading47: source-only candidate
+
+Separate codex/auth-loading47 isolate from exact release45 commit71663c5d173ed0ffe49b86639567cf83e9b7cd16. No tests, browser, build or performance run while full45 owns the lane. Candidate is not a measured improvement.
+
+## Evidence and smallest change
+
+Release45 fails English LCP2608ms and Hindi LCP3480ms/TBT948ms/actual-interface1747.3ms. Its six studio runs all contain113718 font bytes at immutable settled receipt. Old observed Instrument+Noto total84148 differs by29570, matching29400-byte built Geist Latin plus170-byte response overhead previously observed per font. Aggregate totals alone do not prove request identity or causal layout cost.
+
+Actual code supplies the missing candidate caller: PersonalAuthLoading initially has auth-page with default Geist-first face, while the final general AuthGate image activates an Instrument Sans override. The loading screen is real product behavior during session restore and locale loading. This candidate gives it the same eventual general typography from its first render, preserving all locale/session/error/retry paths. No auth is skipped and no loading text is hidden.
+
+Exact changes: PersonalAuthLoading accepts optional testEnvironment defaultfalse and emits auth-loading plus data-auth-theme. Both actual callers pass their incumbent mode: initial session check passes STUDIO_SELF_TEST_UI, locale-ready branch passes AuthGate's testEnvironment. A narrow `.auth-page.auth-loading[data-auth-theme="general"]` rule sets the existing final Instrument Sans Variable/sans-serif stack and paper#f8f8f5; its legacy dark pseudo/ambient layers are hidden. Test loading uses existing test-theme styling. Final AuthGate is not auth-loading, so no final-screen typography rule changes. No global Geist/Noto removal, font preload, shell geometry change or performance-instrumentation change.
+
+Potential benefit is avoiding a temporary general-entry face request/swap and unnecessary backdrop transition. It may not reduce Hindi TBT; current45 lacks native trace/DOM identity. The new visible marker can flush style but remains intact. The754MiB late host snapshot was after performance and is not assigned as the historical cause.
+
+## Bounded post-terminal comparison plan, not yet run
+
+After root reviews source and grants the lane, prepare a private dependency/config copy and fingerprint exact45 baseline dist/source/browser. Build the candidate once using the same dependency/config versions; retain both asset manifests and build receipts. No production deployment or edit to frozen45.
+
+First verify actual loading and final mode behavior en/hi, general/test at390 and1440: computed family/background, readable loading/error/retry, final typography unchanged, keyboard recovery and no authority bypass. Deliberately defer locale loading in a fixture for inspection; that fixture is functionality evidence only and not used for performance.
+
+One paired experiment uses the unchanged actual gate workload, identical cold contexts390x844, CPU4x/network150ms/209715.2Bps down, fixed3 runs per target per revision for English /studio and studio-hi. Preserve load/networkidle/dwell/settled read, all current budgets and real visible marker. Fix order before running; save every run, including failures, without retries. The pair is comparative evidence, not release acceptance.
+
+Attach a bounded passive CDP font-request collector to the existing session before navigation for both revisions. Keep only local public asset paths, sanitized initiator type and local stylesheet/script pathname (no query, stack text, request bodies or environment), timestamps/status/encodedbytes/cache/pending. Snapshot lifecycle when the named settled network receipt is captured; later cleanup events must never rewrite it. Record loading/final computed face in the separate functional fixture so measurement performs no extra style flush or font wait. Explicitly distinguish declared CSS family from selected glyph font. No need for a native trace in this first discriminating pair.
+
+Predictions: general entry no longer requests temporary Geist from loading, while real final Instrument/Noto stay available; actualfontbytes might fall by29570 if that was the only caller. Reject claimed benefit if lifecycle retains Geist, final typography changes, interface/auth/readability regresses, or timing does not improve consistently. Even if resource savings are real, any remaining LCP/TBT/DOM failure remains a release blocker. Do not iterate uncontrolled variants or relax thresholds.
+
+Context tuples prepared externally in expert-tools/auth-loading47-context.json. Graph validation and source checks deferred until permitted; no test result is claimed.
+
+## Prepared experiment implementation, still unrun
+
+scripts/run-loading-font-pair.mjs requires explicit private baseline directory named expert-loading47-baseline and candidate expert-auth-loading47, never writes frozen45. It generates temporary diagnostic copies of the actual gate in each private scripts directory, reuses serveApp/measureOnce and the exact existing aggregate/budget functions. Fixed order: baseline-en,candidate-en,candidate-hi,baseline-hi; candidate-en,baseline-en,baseline-hi,candidate-hi; baseline-en,candidate-en,candidate-hi,baseline-hi. This gives three per revision/language and equal overall first-position exposure. Each measureOnce creates its original cold context; one common browser and same server port are reused sequentially with the server closed between navigations. It skips unrelated installable-Room checks because this is a paired studio experiment, not full release acceptance.
+
+The passive collector starts before navigation and snapshots synchronously immediately after networkReceipt, using that exact Node receipt timestamp. It keeps at most16 local asset-font records and4 sanitized local initiator frames per record. Overflow marks incomplete, never silently accepted. Later events cannot mutate copied snapshot records. There is no page evaluation, font wait, new timer in the measured page or style query. Root source review should assess this diagnostic overhead equally on both variants. Existing default gate remains unmodified. Temporary generated modules and browser/server are cleaned on runner exit;15minute supervisor closes the browser if the experiment hangs. Every completed navigation is written immediately and later exceptions retain prior rows. All budget findings remain in the final receipt and any finding produces exit1, regardless of comparative improvement.
+
+Before/after manifests retain all dist file hashes, gate source, package/lock/config hashes, and actual browser version/executable hash. Configuration is hashed only, never printed. No build or dependency copy is performed by this runner. Source-prepared8 collector controls cover sanitization, pending/completed snapshots, old-vs-new timing immutability, caps and listener cleanup. They have not run.
+
+The actual mounted AuthGate fixture now additionally mounts the real PersonalAuthLoading component for8 en/hi x390/1440 xgeneral/test combinations. It checks computed expected family/paper, removes dark backdrop, preserves status/alert and exercises keyboard retry/English recovery before returning to the actual final AuthGate checks. This direct component fixture verifies UI/callback behavior; the actual caller mode forwarding is also source-reviewed. It is not a lazy-network performance simulation and its font wait/styles are never used by the paired runner.

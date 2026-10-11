@@ -60,11 +60,6 @@ ok("system resolves without a window", resolveTheme("system") === "light");
 // if someone later makes `undefined` mean sky, this fails and they have to
 // come and read the note first.
 ok("undefined still behaves as system", resolveTheme(undefined) === "light");
-ok(
-  "App stamps sky at onboarding rather than redefining undefined",
-  /theme:\s*s\.theme \?\? "sky"/.test(src("App.tsx")),
-);
-
 // ── "sky" follows the clock, not the OS ───────────────────────────────────
 // The whole mode in two assertions: a light sky resolves light, a dark sky
 // resolves dark, and NEITHER consults `matchMedia` (there is no window here,
@@ -96,110 +91,10 @@ ok("explicit light beats a midnight sky", resolveTheme("light", atMin(60)) === "
   const themeSrc = src("engine/theme.ts");
   ok("sky stamps a presence attribute", /setAttribute\("data-sky-choice"/.test(themeSrc));
   ok("every other choice removes it", /removeAttribute\("data-sky-choice"\)/.test(themeSrc));
-  // The attribute must never be a SELECTOR for a colour. If global.css ever
-  // grows a `[data-sky-choice]` rule, sky has become a third palette to keep
-  // in sync with the other two, which is the thing the two-block invariant
-  // below exists to prevent — one level up.
-  ok(
-    "the palette does not branch on it (sky is still not a third palette)",
-    !/data-sky-choice/.test(src("styles/global.css")),
-  );
 }
 
-// ── the CSS contract ──────────────────────────────────────────────────────
-const css = src("styles/global.css");
-
-// THE ONE THAT MATTERS. Dark has to be reachable BOTH ways: by the OS setting
-// and by an explicit pick. Defining only the media query is the easy mistake,
-// and it makes the Dark button in Settings do nothing at all on a light phone.
-const mediaDark = /@media\s*\(\s*prefers-color-scheme:\s*dark\s*\)/.test(css);
-const attrDark = /:root\[data-theme=["']dark["']\]/.test(css);
-ok("dark is defined for the OS setting", mediaDark);
-ok("dark is defined for an explicit pick", attrDark);
-
-// And an explicit LIGHT pick has to beat a dark OS, which is what the
-// :not() guard inside the media query is for. Without it, choosing Light on a
-// dark phone silently does nothing.
-ok(
-  "an explicit light choice overrides a dark OS",
-  /:root:not\(\[data-theme=["']light["']\]\)/.test(css),
-);
-
-// ── the two dark blocks must not drift ────────────────────────────────────
-// Same palette, two selectors, no mixins. If they diverge, the app is one
-// colour when the OS says dark and another when the user says dark — which
-// nobody would think to test, and which reads as a rendering bug.
-function tokensOf(block) {
-  const out = new Map();
-  for (const m of block.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi)) {
-    out.set(m[1], m[2].trim().replace(/\s+/g, " "));
-  }
-  return out;
-}
-function blockAfter(text, startRe) {
-  const m = startRe.exec(text);
-  if (!m) return null;
-  // walk braces from the first { after the match
-  const open = text.indexOf("{", m.index + m[0].length - 1);
-  if (open < 0) return null;
-  let depth = 0;
-  for (let i = open; i < text.length; i++) {
-    if (text[i] === "{") depth++;
-    else if (text[i] === "}") {
-      depth--;
-      if (depth === 0) return text.slice(open + 1, i);
-    }
-  }
-  return null;
-}
-
-if (mediaDark && attrDark) {
-  const media = blockAfter(css, /@media\s*\(\s*prefers-color-scheme:\s*dark\s*\)/);
-  const attr = blockAfter(css, /:root\[data-theme=["']dark["']\]/);
-  const a = tokensOf(media || "");
-  const b = tokensOf(attr || "");
-  ok("the OS-dark block defines tokens", a.size > 0, `${a.size}`);
-  ok("the picked-dark block defines tokens", b.size > 0, `${b.size}`);
-  const onlyA = [...a.keys()].filter((k) => !b.has(k));
-  const onlyB = [...b.keys()].filter((k) => !a.has(k));
-  ok("both dark blocks define the same tokens", !onlyA.length && !onlyB.length,
-    `os-only: ${onlyA.join(",")} | picked-only: ${onlyB.join(",")}`);
-  const differing = [...a.keys()].filter((k) => b.has(k) && a.get(k) !== b.get(k));
-  ok("both dark blocks agree on every value", differing.length === 0,
-    differing.map((k) => `${k}: ${a.get(k)} vs ${b.get(k)}`).join(" | "));
-
-  // A dark palette that does not restate the ground and the ink is not a dark
-  // palette — it is a tint. These four carry the whole inversion.
-  for (const must of ["--bg", "--surface", "--ink", "--ink-dim"]) {
-    ok(`dark redefines ${must}`, a.has(must), [...a.keys()].join(",").slice(0, 120));
-  }
-}
-
-// ── the wiring ────────────────────────────────────────────────────────────
-// `dead-writers`: a theme module nothing calls is a Settings control that does
-// nothing, and it would look completely finished.
-const app = src("App.tsx");
-ok("App applies the theme", /applyTheme\(/.test(app));
-ok("App keeps following the OS while on system", /watchSystemTheme\(/.test(app));
-
-// The flash. An effect runs after the first paint, so without an earlier call
-// a dark-mode user watches the app go paper-white on every launch.
-ok("the theme is applied before React renders", /applyTheme\(/.test(src("main.tsx")));
-
-ok("Settings can change it", /theme:\s*t\b/.test(src("components/MoreSheet.tsx")));
-// `dead-writers`, applied to the clock half: a sky mode that stops following
-// the clock the moment the app is left open across dusk is a mode that only
-// works if you relaunch, which is indistinguishable from one that does not
-// work.
-ok("App keeps following the clock while on sky", /watchSky\(/.test(app));
-ok("the choice is persisted on AppState", /theme\?:\s*ThemeChoice/.test(src("state/store.ts")));
-
-// The board must follow the theme rather than overriding it — an explicit
-// Light that gets repainted dark because a call is up is the app arguing with
-// a setting the person just chose.
-const chessAct = src("components/ChessActivity.tsx");
-ok("the board follows the theme", /resolveTheme\(state\.theme\)/.test(chessAct));
-ok("the board no longer forces dark on a call", !/status\.live \? "dark"/.test(chessAct));
+// The Meera application, palette and settings wiring were retired in wave25.
+// Keep the real shared theme engine controls without pretending its old UI ships.
 
 console.log(fail ? `${fail} FAILURES` : "ALL PASS");
 process.exit(fail ? 1 : 0);

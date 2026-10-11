@@ -1,36 +1,5 @@
-<!-- The tab mark: the app icon's motif, reduced to what survives at 16px.
-
-     WHAT WAS HERE BEFORE was a purple gradient bolt with fifteen gaussian
-     filters — scaffolding art from the tool this project was started in, still
-     declared FIRST in index.html's icon list, so every browser that prefers
-     SVG has been showing a stranger's logo in the tab this whole time. It was
-     not "the old motif"; it was never this product's motif at all.
-
-     A faithful downscale of the painted icon is not available here: it is a
-     raster with grain and a soft glow, and a 16px favicon renders none of
-     that. So this is the motif's COMPOSITION rather than its paint — the
-     crescent, the two lit windows, the deep indigo field — in the icon's own
-     measured colours: field rgb(1,16,54), moon #f8d08b, windows #f2b75b.
-
-     The crescent is one circle with a second subtracted, which is the same
-     construction world.css uses for the procedural moon and opens the same
-     way (lit on the right, bite on the left). No filters, no gradients, no
-     text: it has to survive being drawn 16 pixels wide. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Maya">
-  <defs>
-    <mask id="crescent">
-      <rect width="64" height="64" fill="#000" />
-      <circle cx="32" cy="25" r="13" fill="#fff" />
-      <circle cx="25.5" cy="21.5" r="12" fill="#000" />
-    </mask>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="#011036" />
-  <rect width="64" height="64" rx="14" fill="#f8d08b" mask="url(#crescent)" />
-  <g fill="#f2b75b">
-    <rect x="20" y="44" width="9" height="9" rx="1" />
-    <rect x="35" y="44" width="9" height="9" rx="1" />
-  </g>
-  <g stroke="#011036" stroke-width="1.4">
-    <path d="M24.5 44v9M20 48.5h9M39.5 44v9M35 48.5h9" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Vyakti">
+  <rect width="64" height="64" rx="14" fill="#171714"/>
+  <path d="M15 16h10l7 28 7-28h10L37 50H27L15 16Z" fill="#f8f8f5"/>
+  <circle cx="47" cy="17" r="4" fill="#e37a48"/>
 </svg>

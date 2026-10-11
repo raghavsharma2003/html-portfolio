@@ -25,17 +25,19 @@
 // against tables the fixture does not have. Teardown is a table drop, and
 // residue is greppable rather than trusted.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { q } from "../../api/_db.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 import { MIG_FILES } from "./harness.mjs";
-import { handleUpdate, ROOM_CARD, parseUpdate, parseStartPayload } from "../../api/tg.js";
+import { handleUpdate, ROOM_CARD, parseUpdate, parseStartPayload, clientFor } from "../../api/tg.js";
 import { stateWriteCount, recipientSet, roomRecall, roomBridge, roster } from "../../api/_room.js";
 import { withdrawSharedRows } from "../../api/memory.js";
 import { disclosurePredicate, NEGATIVE_AFFECT_TAGS } from "../../api/_disclosure.js";
+import { MEERA_AGENT_ID } from "../../api/_agentscope.js";
 import { execFileSync } from "node:child_process";
 
-const ROOT = new URL("../..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const PREFIX = "wstg_test_";
 const TAG = "wstg-test-";
 const KEEP = process.argv.includes("--keep");
@@ -118,6 +120,9 @@ async function proveNoResidue() {
  * harness reads db/migrations/ at all.
  */
 const POST008_TABLES = new Set([
+  "meera_log",
+  "vy_fact",
+  "vy_phrase",
   "vy_group",
   "vy_group_member",
   "vy_group_turn",
@@ -127,19 +132,24 @@ const POST008_TABLES = new Set([
   // fixture the shipping writer cannot insert into — the exact drift this
   // block's own comment warns about.
   "vy_episode",
+  "vy_rel_state",
+  "vy_rel_event",
+  "vy_pattern",
+  "vy_taste_candidate",
+  "vy_currency",
 ]);
-const POST008_FILES = ["009_agents.sql", "013_surface_room_binding.sql"];
+const POST008_FILES = [
+  "009_agents.sql",
+  "010_agent_strict.sql",
+  "013_surface_room_binding.sql",
+  "018_raw_agent_isolation.sql",
+  "021_raw_agent_strict.sql",
+  "064_agent_room_binding.sql",
+];
 
-// KNOWN DIVERGENCE FROM PRODUCTION, named rather than implied: this fixture
-// stops at 009, so `agent_id` keeps the DEFAULT 009 gave it. Migration 010 —
-// which HAS been applied to production — drops that default on all twenty
-// agent-scoped tables so that a writer which never names agent_id fails
-// loudly. api/_surface.js's room/member writers name it and are therefore
-// correct either way; api/_room.js's episode, turn and grant writers do NOT,
-// and against production they raise a NOT NULL violation. That is a real,
-// live defect in a file this workstream does not own (see docs/SURFACES.md §4,
-// "owed"), and dropping the default here would turn this suite red for
-// somebody else's bug rather than surfacing it where it can be fixed.
+// Production strictness is part of this fixture: 010 and 021 drop every
+// compatibility default on the tables the runtime touches. A writer that omits
+// agent_id must therefore fail here exactly as it would after a live deploy.
 
 async function buildSchema() {
   const full = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
@@ -149,9 +159,12 @@ async function buildSchema() {
   const migStmts = MIG_FILES.flatMap((f) =>
     splitSql(readFileSync(join(ROOT, "db/migrations", f), "utf8")),
   );
-  const postStmts = POST008_FILES.flatMap((f) =>
-    splitSql(readFileSync(join(ROOT, "db/migrations", f), "utf8")),
-  ).filter((s) => POST008_TABLES.has(targetOf(s)));
+  const postStmts = POST008_FILES.flatMap((f) => {
+    const statements = splitSql(readFileSync(join(ROOT, "db/migrations", f), "utf8"));
+    return f === "064_agent_room_binding.sql"
+      ? statements
+      : statements.filter((s) => POST008_TABLES.has(targetOf(s)));
+  });
   for (const s of [...baseStmts, ...migStmts, ...postStmts]) await q(ns(s), [], 60_000);
   return { base: baseStmts.length, migration: migStmts.length + postStmts.length };
 }
@@ -174,6 +187,43 @@ if (CLEANUP_ONLY) {
   const res = await proveNoResidue();
   console.log(`dropped ${n} fixture relation(s); residue: ${JSON.stringify(res)}`);
   process.exit(res.relations.length || res.productionRows.length ? 1 : 0);
+}
+
+// ── WS-R60: the REAL setMessageReaction body shape, pinned ────────────────
+//
+// Every OTHER assertion below drives `send`/`react` as INJECTED fakes (the
+// suite's own header explains why: `reply` and the wire are the two things a
+// test cannot own) — which means nothing else in this file has ever exercised
+// `clientFor(...).react()`'s own call into the REAL `tgCall`, the function
+// that actually builds the outbound body. This section does, with no DB and
+// no network: a monkey-patched global.fetch captures the request `tgCall`
+// would send, then the real fetch is restored before schema setup below.
+// Citation: api/tg.js's own header, WS-R60 finding — the changelog (Bot API
+// 7.0 added the method) plus grammyjs/types' typed parameter table, since
+// core.telegram.org/bots/api itself still truncates before this method's own
+// section for this fetch tool (context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways).
+console.log("── setMessageReaction body shape (WS-R60) ──");
+{
+  const realFetch = globalThis.fetch;
+  let captured = null;
+  globalThis.fetch = async (url, init) => {
+    captured = { url: String(url), body: init?.body ? JSON.parse(init.body) : null };
+    return { ok: true, json: async () => ({ ok: true, result: true }) };
+  };
+  try {
+    await clientFor("faketoken12345").react(-100777001, 42, "🔥");
+    ok("setMessageReaction is called at bot<token>/setMessageReaction",
+      captured?.url === "https://api.telegram.org/botfaketoken12345/setMessageReaction");
+    ok("...with {chat_id, message_id, reaction:[{type:'emoji', emoji}]} exactly",
+      captured?.body?.chat_id === -100777001 &&
+      captured?.body?.message_id === 42 &&
+      Array.isArray(captured?.body?.reaction) &&
+      captured.body.reaction.length === 1 &&
+      captured.body.reaction[0].type === "emoji" &&
+      captured.body.reaction[0].emoji === "🔥");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 }
 
 // ── 0. the engine bundle must be the one this tree compiles ───────────────
@@ -209,8 +259,9 @@ for (const p of [RHEA, VIKRAM, ANJALI, OUTSIDER])
 // honorific bands, so the roster's R6 bet renders three different registers in
 // one strip (M9) instead of one band applied to everybody
 await q(
-  `insert into ${T("vy_rel_state")} (person_id, honorific) values ($1,'tu'),($2,'tum'),($3,'aap')`,
-  [RHEA, VIKRAM, ANJALI],
+  `insert into ${T("vy_rel_state")} (agent_id, person_id, honorific)
+   values ($1,$2,'tu'),($1,$3,'tum'),($1,$4,'aap')`,
+  [MEERA_AGENT_ID, RHEA, VIKRAM, ANJALI],
 );
 
 // ── the injected Telegram client ──────────────────────────────────────────
@@ -439,8 +490,11 @@ ok("reply-to-her routes to speak", replied.action === "speak", replied.reason);
 const atMention = await drive(turn(TG.anjali, `${TAG}@MeeraBot kya scene hai`));
 ok("@bot mention routes to speak", atMention.action === "speak", atMention.reason);
 ok(
+  // WS-R41 (2026-09-04): api/tg.js's tgExtra() now sends `reply_parameters:
+  // {message_id}`, not the pre-Bot-API-7.0 `reply_to_message_id` — see that
+  // function's own header for the doc citation.
   "she replies in the room, threaded to the message she answered",
-  sent.some((s) => s.extra?.reply_to_message_id),
+  sent.some((s) => s.extra?.reply_parameters?.message_id != null),
 );
 ok("her own reply is logged with role='her' and NO speaker person", true);
 const [herRow] = await q(
@@ -510,26 +564,26 @@ ok("no room bundle => the room note never enters core (G1)", !noRoom.core.includ
 console.log("\n── disclosure: the same rows, two channels ──");
 // a DM-only episode of Rhea's, and a fact derived from it
 const [dmEp] = await q(
-  `insert into ${T("vy_episode")} (person_id, channel, participation, disclosure_scope, started_at, summary)
-   values ($1,'chat','user','participants_1to1', now(), $2) returning id`,
-  [RHEA, `${TAG}rhea dm`],
+  `insert into ${T("vy_episode")} (agent_id, person_id, channel, participation, disclosure_scope, started_at, summary)
+   values ($1,$2,'chat','user','participants_1to1', now(), $3) returning id`,
+  [MEERA_AGENT_ID, RHEA, `${TAG}rhea dm`],
 );
 await q(`insert into ${T("vy_episode")}_participant (episode_id, person_id) values ($1,$2)`, [dmEp.id, RHEA]);
 const [dmFact] = await q(
-  `insert into ${T("vy_fact")} (person_id, kind, name, body, provenance, citations)
-   values ($1,'user',$2,$3,'extracted',$4) returning id`,
-  [RHEA, `${TAG}dmfact`, `${TAG}rhea does not want to come`, [dmEp.id]],
+  `insert into ${T("vy_fact")} (agent_id, person_id, kind, name, body, provenance, citations)
+   values ($1,$2,'user',$3,$4,'extracted',$5) returning id`,
+  [MEERA_AGENT_ID, RHEA, `${TAG}dmfact`, `${TAG}rhea does not want to come`, [dmEp.id]],
 );
 // a ROOM fact, cited to the room episode everyone was at
 const [roomFact] = await q(
-  `insert into ${T("vy_fact")} (person_id, kind, name, body, provenance, citations, group_id)
-   values ($1,'world',$2,$3,'extracted',$4,$5) returning id`,
-  [RHEA, `${TAG}roomfact`, `${TAG}goa plan floated for the 14th`, [lurked.episodeId], roomId],
+  `insert into ${T("vy_fact")} (agent_id, person_id, kind, name, body, provenance, citations, group_id)
+   values ($1,$2,'world',$3,$4,'extracted',$5,$6) returning id`,
+  [MEERA_AGENT_ID, RHEA, `${TAG}roomfact`, `${TAG}goa plan floated for the 14th`, [lurked.episodeId], roomId],
 );
 await q(
-  `insert into ${T("vy_phrase")} (person_id, phrase, origin_episode, group_id)
-   values ($1,$2,$3,$4)`,
-  [RHEA, `${TAG}biriyanii`, lurked.episodeId, roomId],
+  `insert into ${T("vy_phrase")} (agent_id, person_id, phrase, origin_episode, group_id)
+   values ($1,$2,$3,$4,$5)`,
+  [MEERA_AGENT_ID, RHEA, `${TAG}biriyanii`, lurked.episodeId, roomId],
 );
 
 const inRoom = await roomRecall(roomId, rset, {}, t);

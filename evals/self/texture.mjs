@@ -26,7 +26,7 @@
 //   G10 live round trip      seeded, asserted, torn down, residue verified
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -50,8 +50,8 @@ const bundle = (rel, name) => {
   return out;
 };
 
-const T = await import(bundle("src/engine/texture.ts", "texture.bundle.mjs"));
-const M = await import(bundle("src/engine/moment.ts", "moment.bundle.mjs"));
+const T = await import(pathToFileURL(bundle("src/engine/texture.ts", "texture.bundle.mjs")).href);
+const M = await import(pathToFileURL(bundle("src/engine/moment.ts", "moment.bundle.mjs")).href);
 const SOURCE = readFileSync(join(ROOT, "src/engine/texture.ts"), "utf8");
 
 let failed = 0;
@@ -199,7 +199,7 @@ console.log("\n── G4  determinism ──");
   const b = await T.deriveTexture(fakeQ, TEX_PERSON, TEX_AGENT);
   assert(JSON.stringify(a) === JSON.stringify(b), "deriveTexture: same input twice, byte-identical output");
   eq("the deriver issues exactly one query", seen.length, 2); // once per call
-  eq("…with exactly the person and the scan limit as params", seen[0].params, [TEX_PERSON, T.TEXTURE_SCAN_LIMIT]);
+  eq("…with person, scan limit and agent as params", seen[0].params, [TEX_PERSON, T.TEXTURE_SCAN_LIMIT, TEX_AGENT]);
 
   // permutation invariance: every metric is a count or a median, so row order
   // out of the database cannot change the answer.
@@ -288,7 +288,10 @@ console.log("\n── G7  G1 starvation (structural) ──");
 {
   const sql = T.TEXTURE_SCAN_SQL;
   const projection = sql.slice(sql.indexOf("select") + 6, sql.indexOf("from")).trim();
-  assert(projection === "l.content", `the scan projects exactly one column, l.content (got "${projection}")`);
+  assert(
+    projection === "l.content, l.episode_id",
+    `the scan projects only counted content and its drift citation id (got "${projection}")`,
+  );
   for (const forbidden of ["l.at", "now(", "interval", "extract(", "lag(", "count(", "started_at", "created_at", "linked_at", "last_seen"]) {
     assert(!sql.includes(forbidden), `the scan never names ${forbidden}`);
   }
@@ -296,6 +299,7 @@ console.log("\n── G7  G1 starvation (structural) ──");
   assert(sql.includes("l.role = 'her'"), "only HER turns are scanned — the user's turns are never read");
   assert(sql.includes("l.channel = 'chat'"), "call transcripts are excluded (channel mixing would measure how much they call)");
   assert(sql.includes("l.group_id is null"), "group turns are excluded (multiparty v1 is state-inert)");
+  assert(sql.includes("l.agent_id = ($3)::uuid"), "the raw scan binds the active agent before its LIMIT");
   // and no clock reaches the module at all
   for (const forbidden of ["new Date", "Date.now", "performance.now", "setTimeout"]) {
     const hits = SOURCE.split("\n").filter((l) => l.includes(forbidden) && !l.trim().startsWith("//") && !l.trim().startsWith("*"));
@@ -409,29 +413,33 @@ if (LIVE) {
     // the floor of 40 and under the scan limit of 400.
     const seeded = [];
     for (let i = 0; i < 4; i++) for (const t of TEX_TURNS) seeded.push(t.text);
-    const rowsSql = seeded.map((_, i) => `(($1)::uuid,'her','chat','text',$${i + 2},null)`).join(",");
+    const agentP = seeded.length + 2;
+    const rowsSql = seeded
+      .map((_, i) => `(($1)::uuid,'her','chat','text',$${i + 2},null,($${agentP})::uuid)`)
+      .join(",");
     await q(
-      `insert into meera_log (device_id, role, channel, kind, content, group_id) values ${rowsSql}`,
-      [TEX_DEVICE, ...seeded],
+      `insert into meera_log (device_id, role, channel, kind, content, group_id, agent_id) values ${rowsSql}`,
+      [TEX_DEVICE, ...seeded, TEX_AGENT],
     );
     // decoys: every one of them matches the person and must NOT be counted.
     await q(
-      `insert into meera_log (device_id, role, channel, kind, content, group_id) values
-         (($1)::uuid,'me','chat','text',$2,null),
-         (($1)::uuid,'her','call','text',$3,null),
-         (($1)::uuid,'her','chat','text',$4,7770001)`,
+      `insert into meera_log (device_id, role, channel, kind, content, group_id, agent_id) values
+         (($1)::uuid,'me','chat','text',$2,null,($5)::uuid),
+         (($1)::uuid,'her','call','text',$3,null,($5)::uuid),
+         (($1)::uuid,'her','chat','text',$4,7770001,($5)::uuid)`,
       [
         TEX_DEVICE,
         `${TEX_TAG} decoy his own turn haha roast bhenchod`,
         `${TEX_TAG} decoy call turn haha roast bhenchod`,
         `${TEX_TAG} decoy group turn haha roast bhenchod`,
+        TEX_AGENT,
       ],
     );
     // the legacy path: log rows keyed by the person id itself, no device row
     await q(
-      `insert into meera_log (device_id, role, channel, kind, content, group_id)
-       values (($1)::uuid,'her','chat','text',$2,null)`,
-      [TEX_LEGACY_PERSON, `${TEX_TAG} legacy path haha`],
+      `insert into meera_log (device_id, role, channel, kind, content, group_id, agent_id)
+       values (($1)::uuid,'her','chat','text',$2,null,($3)::uuid)`,
+      [TEX_LEGACY_PERSON, `${TEX_TAG} legacy path haha`, TEX_AGENT],
     );
 
     const derived = await T.deriveTexture(q, TEX_PERSON, TEX_AGENT);
