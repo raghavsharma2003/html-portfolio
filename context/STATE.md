@@ -1,5 +1,51 @@
 # STATE — read this first, then the graph
 
+## START HERE: OCTOBER 11 CHECKPOINT, STOPPED AFTER PUSH
+
+Canonical application source accepted for release is commit
+`323405659eeb717f6ff9d032c07a75d0fb884452` on
+`claude/vyakti-cloning-platform-aq05n4`. Node22 and Node24 each passed the
+complete25/25 release gate; Android passed. The current branch may be one
+documentation-only checkpoint commit ahead of that source. Do not deploy from
+the checkpoint head with helpers pinned to323; either use a clean checkout of
+323 or deliberately rebind and revalidate those helpers first.
+
+The October9 protected preview remains the only deployed web application. No
+October10/11 Vercel preview was created. The accepted application adds custom
+Hindi/Hinglish test text, localized private rehearsal, explicit person language
+and register edits, bounded long-source retrieval, and one-use publication
+access passes. It has not been verified as a live arbitrary-account or paid
+customer journey.
+
+The private CPU voice service was updated once to immutable image
+`sha256:d6ba0f1e2a70c8f8276097812b3a61296d705e0809898b14b9bb64aa449034ed`.
+The new revision returned health200 and its scale, configuration, identity,
+ingress, budget and Hindi GPU settings were unchanged. This verifies runtime
+health only. It is not fresh speech, owner-likeness, language-quality or
+competitor evidence.
+
+Production migration173 is still **not applied**. Its fresh read-only preflight
+found the expected schema absent. The single guarded apply transaction
+acknowledged all10 DDL statements, then its in-transaction catalog assertion
+failed before COMMIT; an independent readback confirmed the schema is exactly
+absent. The attempt is consumed. Do not retry it blindly: diagnose the catalog
+comparison against the development schema, write a new scoped operator and use
+fresh receipts before another production attempt.
+
+Azure Email and Communication resources for the Vyakti-only email lane exist,
+but no access key has been retrieved, no Vercel binding was written, no shared
+Supabase SMTP/hook was changed and no email was sent. The implementation remains
+isolated on `codex/vyakti-azure-authmail-oct10`; it is a WIP checkpoint, not
+merged, deployed or enabled. It must pass dedicated development migration174,
+full release checks and a bounded delivery test before it can claim arbitrary
+account sign-in.
+
+Keep Maya, Meera and every other product out of scope. Azure-only serving,
+existing budget bounds, no personal Microsoft login on this device and no reuse
+of expired voice grants remain binding. The global production database finding
+is still36 external legacy Meera pointers, so global DB integrity is not green.
+Read `docs/handoff/2026-10-11/STOP-HERE.md` before resuming.
+
 ## START HERE: OCTOBER 10 INTEGRATION, NOT DEPLOYED
 
 Continue repo `raghavsharma2003/html-portfolio`, branch

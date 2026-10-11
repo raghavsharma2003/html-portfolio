@@ -21096,6 +21096,24 @@
       "kind": "rejection",
       "title": "Interrupted logging and resolved deployment faults must not be replayed",
       "at": "2026-09-30"
+    },
+    {
+      "id": "release323-and-private-cpu-image-20261010",
+      "kind": "measurement",
+      "title": "Full 25/25 CI and a healthy immutable private CPU image",
+      "at": "2026-10-10"
+    },
+    {
+      "id": "migration173-production-catalog-mismatch-20261010",
+      "kind": "rejection",
+      "title": "Production catalog assertion rolled migration173 back before commit",
+      "at": "2026-10-10"
+    },
+    {
+      "id": "no-blind-production-migration-retry-20261011",
+      "kind": "decision",
+      "title": "Diagnose migration173 catalog mismatch before any new production attempt",
+      "at": "2026-10-11"
     }
   ],
   "edges": [
@@ -35723,6 +35741,26 @@
       "src": "interrupted-closeout-recovery-20260930",
       "rel": "measured_by",
       "dst": "private-voice-activation-closeout-20260930"
+    },
+    {
+      "src": "release323-and-private-cpu-image-20261010",
+      "rel": "part_of",
+      "dst": "sellable-core-iteration-20261010"
+    },
+    {
+      "src": "migration173-production-catalog-mismatch-20261010",
+      "rel": "caused_by",
+      "dst": "access-pass-dev-proof-before-release-20261010"
+    },
+    {
+      "src": "no-blind-production-migration-retry-20261011",
+      "rel": "caused_by",
+      "dst": "migration173-production-catalog-mismatch-20261010"
+    },
+    {
+      "src": "no-blind-production-migration-retry-20261011",
+      "rel": "constrains",
+      "dst": "text-publication-access-passes-20261010"
     }
   ]
 }

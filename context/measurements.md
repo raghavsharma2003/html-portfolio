@@ -19446,3 +19446,18 @@ older auth journeys trying to fill a deliberately collapsed optional code input.
 Their exact-action repairs passed65personal and11first-session assertions locally.
 No new app behavior was introduced by those fixture repairs; a new full matrix
 is pending. No October10 application deploy or fresh voice result is claimed.
+
+## `release323-and-private-cpu-image-20261010`
+
+2026-10-10, accepted application commit
+`323405659eeb717f6ff9d032c07a75d0fb884452`: n=2 complete release-gate jobs
+(Node22 and Node24), each 25/25, plus n=1 Android workflow, all successful.
+The immutable private CPU image
+`vyaktivoiceacr.azurecr.io/vyakti/internal-voice@sha256:d6ba0f1e2a70c8f8276097812b3a61296d705e0809898b14b9bb64aa449034ed`
+was built and then applied as an image-only revision. n=1 post-update service
+observation returned health200. Method: independent GitHub workflow logs, ACR
+manifest receipt and the guarded Container Apps observer. It also compared the
+pre/post scale, configuration, identity, ingress, tag, resource, mode, budget
+and Hindi GPU metadata and found zero changes. This is release and service-health
+evidence only; it does not measure audio quality, owner likeness, speech output,
+email delivery or customer value.

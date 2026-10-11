@@ -25704,3 +25704,16 @@ transaction-pinned backend PIDs before claiming race coverage. Preserve spent
 ledgers and content-free retirement witnesses while independently proving private
 fixture removal. Reverse the test harness when an equivalent isolated database
 runner proves the same locking, response and cleanup boundaries with less work.
+
+## `no-blind-production-migration-retry-20261011`
+
+Production migration173 now has one deliberately bounded failed attempt: its
+preflight proved the target catalog absent, all ten DDL statements ran inside one
+transaction, the operator's in-transaction catalog assertion failed and no COMMIT
+was attempted. A separate observer confirmed the catalog is still exactly absent.
+Treat this as a diagnostic checkpoint rather than a failed deployment to retry.
+First compare the precise catalog shape the assertion observed with the proven
+development shape, then create a new reviewed operator and fresh receipts. Do
+not reuse the consumed apply intent or weaken an assertion merely to reach
+Vercel. Reverse this decision only with a root-cause report that explains the
+production/development catalog difference and a separately verified new operator.

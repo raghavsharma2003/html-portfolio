@@ -19510,3 +19510,20 @@ The next full matrix caught older first-session tests skipping the new optional
 OTP disclosure. Open the same control a person must use and retain wrong-code,
 session and ownership assertions. Making a hidden input visible in tests or
 forcing a click would erase the product behavior being checked.
+
+## `migration173-production-catalog-mismatch-20261010`
+
+The guarded production operator was allowed exactly once after an absent-catalog
+preflight. All ten migration173 DDL statements acknowledged inside its open
+transaction, but the operator could not prove its exact post-DDL catalog shape.
+It therefore stopped before COMMIT and an independent read-only observer found
+the original absent shape again. The database did not receive the migration, no
+fixtures or product DML were written and no other product was read or changed.
+
+The bad response would be to rerun the same apply command until it commits or to
+relax catalog assertions without understanding the mismatch. The correct next
+step is a read-only comparison of the actual development catalog and the
+in-transaction production catalog, followed by a newly reviewed operator if the
+root cause is known. This rejection is reversed only by that comparison and a
+fresh successful transaction-plus-independent-readback, not by the earlier
+preflight or development race evidence.
