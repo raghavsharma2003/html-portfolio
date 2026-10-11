@@ -10,6 +10,47 @@ import { askPublication, forgetPublication, joinPublication, openPublication, re
   type Publication, type PublicationAdmission, type PublicationRequest, type PublicationMemory } from "./publicationApi";
 import "./publication.css";
 
+const publicationCopy = {
+  en: {
+    signOut: "Sign out", context: "AI conversation", opening: "Opening conversation", unavailableTitle: "This link is unavailable", tryAgain: "Try again",
+    reload: "Reload conversation", inactive: "This conversation is no longer available.", continueTitle: "Continue your conversation", beforeTitle: "Before your first question",
+    retention: (days: number) => `For adults aged 18 and over. Your questions and answers are kept for up to ${days} days. You can delete them here.`,
+    allowance: (count: number) => `You have up to ${count} questions. Submitted questions count even when an answer cannot be delivered.`,
+    passLabel: "Access pass (first visit)", passHelp: "If you have joined this conversation before, you can leave this blank.",
+    agreement: "I am 18 or older. I understand this is AI and agree to the retention above.", rememberOptional: "Remember my recent conversations (optional)",
+    memoryLoading: "Loading your memory choice", memoryLoadError: "Your memory settings couldn't be loaded. Reload to check your choice.",
+    openingButton: "Opening", rejoin: "Rejoin conversation", start: "Start conversation", withdrawn: "This answer is no longer available.",
+    memoryBudget: "This exchange is too long to use as memory. Turn memory off to continue.", blocked: "An answer couldn't be delivered for this question.",
+    working: "Working on your question", awaiting: "Your question is awaiting confirmation.", prompt: "What would you like to understand?",
+    checkStatus: "Check answer status", question: "Your question", sending: "Sending", ask: "Ask", conversation: "Your conversation",
+    remember: "Remember my recent conversations", saveMemory: "Save memory choice",
+    deletionNote: "Deleting removes your questions and answers. It does not reset your question allowance.", confirmDeletion: "Confirm deletion", deleteConversation: "Delete my conversation",
+    deletionPending: "Deletion needs confirmation. Your previous answers are hidden.", memorySaved: "Your memory choice is saved. Rejoin to continue.",
+    deleted: "Your questions and answers have been deleted.", openError: "This link isn't available right now.", refreshError: "We couldn't refresh your sign-in. Reload to continue.",
+    memoryError: "We couldn't confirm your memory choice. Reload to check it before continuing.", deletionError: "Deletion isn't confirmed. Please try again.",
+    joinError: "We couldn't start this conversation. Reload the link and try again.", answerError: "We couldn't confirm the answer. Check its status before asking again.",
+  },
+  hi: {
+    signOut: "साइन आउट", context: "AI बातचीत", opening: "बातचीत खुल रही है", unavailableTitle: "यह लिंक उपलब्ध नहीं है", tryAgain: "फिर कोशिश करें",
+    reload: "बातचीत फिर लोड करें", inactive: "यह बातचीत अब उपलब्ध नहीं है।", continueTitle: "बातचीत जारी रखें", beforeTitle: "पहला सवाल पूछने से पहले",
+    retention: (days: number) => `यह बातचीत केवल 18 वर्ष या उससे अधिक उम्र के लोगों के लिए है। आपके सवाल और जवाब ${days} दिनों तक रखे जाते हैं। आप उन्हें यहीं मिटा सकते हैं।`,
+    allowance: (count: number) => `आप ${count} सवाल तक पूछ सकते हैं। जवाब न मिल पाने पर भी भेजा गया सवाल गिना जाएगा।`,
+    passLabel: "एक्सेस पास (पहली बार)", passHelp: "अगर आप पहले इस बातचीत में शामिल हो चुके हैं, तो इसे खाली छोड़ सकते हैं।",
+    agreement: "मैं 18 वर्ष या उससे अधिक उम्र का हूं। मैं समझता हूं कि यह AI है और ऊपर लिखी अवधि से सहमत हूं।", rememberOptional: "मेरी हाल की बातचीत याद रखें (वैकल्पिक)",
+    memoryLoading: "आपकी याद रखने की पसंद लोड हो रही है", memoryLoadError: "आपकी याद रखने की सेटिंग लोड नहीं हो सकी। अपनी पसंद जांचने के लिए पेज फिर लोड करें।",
+    openingButton: "खुल रही है", rejoin: "फिर से जुड़ें", start: "बातचीत शुरू करें", withdrawn: "यह जवाब अब उपलब्ध नहीं है।",
+    memoryBudget: "यह बातचीत याद रखने के लिए बहुत लंबी है। आगे बढ़ने के लिए बातचीत की याद बंद करें।", blocked: "इस सवाल का जवाब नहीं दिया जा सका।",
+    working: "आपके सवाल पर काम हो रहा है", awaiting: "आपका सवाल पुष्टि का इंतजार कर रहा है।", prompt: "आप क्या समझना चाहते हैं?",
+    checkStatus: "जवाब की स्थिति जांचें", question: "आपका सवाल", sending: "भेजा जा रहा है", ask: "पूछें", conversation: "आपकी बातचीत",
+    remember: "मेरी हाल की बातचीत याद रखें", saveMemory: "याद रखने की पसंद सेव करें",
+    deletionNote: "मिटाने पर आपके सवाल और जवाब हट जाएंगे। आपके सवालों की सीमा रीसेट नहीं होगी।", confirmDeletion: "मिटाना पक्का करें", deleteConversation: "मेरी बातचीत मिटाएं",
+    deletionPending: "मिटाने की पुष्टि चाहिए। आपके पुराने जवाब छिपा दिए गए हैं।", memorySaved: "याद रखने की पसंद सेव हो गई। जारी रखने के लिए फिर से जुड़ें।",
+    deleted: "आपके सवाल और जवाब मिटा दिए गए हैं।", openError: "यह लिंक अभी उपलब्ध नहीं है।", refreshError: "साइन इन रीफ्रेश नहीं हो सका। जारी रखने के लिए पेज फिर लोड करें।",
+    memoryError: "याद रखने की पसंद पक्की नहीं हो सकी। आगे बढ़ने से पहले पेज फिर लोड करके जांचें।", deletionError: "मिटाना पक्का नहीं हुआ। फिर कोशिश करें।",
+    joinError: "बातचीत शुरू नहीं हो सकी। लिंक फिर लोड करके कोशिश करें।", answerError: "जवाब की पुष्टि नहीं हो सकी। दोबारा पूछने से पहले उसकी स्थिति जांचें।",
+  },
+} as const;
+
 export default function PublicationApp({ publicId }: { publicId: string }) {
   const [publication, setPublication] = useState<Publication | null>(null);
   const [auth, setAuth] = useState<StudioSession | null>(null);
@@ -32,6 +73,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
   const memoryRevision = useRef(0);
   const generation = useRef(0), locked = useRef(false);
   const locale = new URLSearchParams(window.location.search).get("lang") === "hi" ? "hi" : "en";
+  const copy = publicationCopy[locale];
   const receiptKey = (userId: string) => `vyakti.publication.question.${publicId}.${userId}`;
   const deletionKey = (userId: string) => `${receiptKey(userId)}.deletion`;
   const saveReceipt = (id: string | null) => { setRequestId(id); if (!auth) return; try { if (id) sessionStorage.setItem(receiptKey(auth.userId), id); else sessionStorage.removeItem(receiptKey(auth.userId)); } catch { /* Current page retains the receipt. */ } };
@@ -57,7 +99,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
       } catch { if (alive && generation.current === revision && stillSameAccount()) setAuth(null); }
     };
     const opening = openPublication(publicId, controller.signal).then(opened => { if (alive) setPublication(opened); })
-      .catch(error => { if (alive && error?.name !== "AbortError") setMessage("This link isn't available right now."); });
+      .catch(error => { if (alive && error?.name !== "AbortError") setMessage(copy.openError); });
     Promise.allSettled([opening, restore()]).finally(() => { if (alive) setRestoring(false); });
     return () => { alive = false; generation.current++; controller.abort(); };
   }, [publicId, reload]);
@@ -128,7 +170,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
         // The confirmed epoch change deliberately withdraws the old answer's authority.
         // No request is replayed; unresolved requests cannot enter this operation.
         saveReceipt(null); setAdmission(null); setRequest(null); setRejoinRequired(true);
-        setMessage("Your memory choice is saved. Rejoin to continue.");
+        setMessage(copy.memorySaved);
       } else if (action === "forget") {
         setDeletionUncertain(true); setRequest(null); setAdmission(null); setAgreed(false); setQuestion("");
         try { sessionStorage.setItem(deletionKey(auth.userId), "pending"); } catch { /* In-memory deletion remains pending. */ }
@@ -138,7 +180,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
         saveReceipt(null); setDeletionUncertain(false);
         memoryRevision.current++; setMemory(null); setRemember(false); setMemoryError(publication?.version === 2); setRejoinRequired(false);
         try { sessionStorage.removeItem(deletionKey(auth.userId)); } catch { /* A later page can safely confirm deletion again. */ }
-        setMessage("Your questions and answers have been deleted.");
+        setMessage(copy.deleted);
       } else {
         const id = action === "ask" ? crypto.randomUUID() : requestId;
         if (!id) return;
@@ -165,61 +207,61 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
       if (generation.current === revision && action === "memory") {
         memoryRevision.current++; setMemory(null); setMemoryError(true); setAdmission(null); setRequest(null); setRejoinRequired(true);
       }
-      if (generation.current === revision && code !== "text_publication_access_required" && code !== "text_publication_access_revoked") setMessage(!authenticated ? "We couldn't refresh your sign-in. Reload to continue." : action === "memory" ? "We couldn't confirm your memory choice. Reload to check it before continuing." : action === "forget" ? "Deletion isn't confirmed. Please try again." : action === "join" ? "We couldn't start this conversation. Reload the link and try again." : "We couldn't confirm the answer. Check its status before asking again.");
+      if (generation.current === revision && code !== "text_publication_access_required" && code !== "text_publication_access_revoked") setMessage(!authenticated ? copy.refreshError : action === "memory" ? copy.memoryError : action === "forget" ? copy.deletionError : action === "join" ? copy.joinError : copy.answerError);
     } finally { if (generation.current === revision) { locked.current = false; setBusy(false); } }
   }
   const unresolved = !!requestId && (!request || request.state === "pending" || request.state === "uncertain");
   const memoryBudgetBlocked = request?.state === "blocked" && request.failure_code === "text_publication_memory_budget_exceeded";
-  return <main className="vp-page"><header className="vp-top"><a href="/">Vyakti</a>{auth && !restoring ? <button className="vp-text-button" onClick={() => {
+  return <main className="vp-page" lang={locale}><header className="vp-top"><a href="/">Vyakti</a>{auth && !restoring ? <button className="vp-text-button" onClick={() => {
     generation.current++; locked.current = false; setBusy(false); writeStoredSession(null); setAuth(null); setAdmission(null); setRequest(null); setQuestion(""); setAgreed(false); setAccessPass(""); setAccessError("");
-  }}>Sign out</button> : <span>AI conversation</span>}</header>
+  }}>{copy.signOut}</button> : <span>{copy.context}</span>}</header>
     <div className="vp-conversation">
-      {restoring ? <p role="status">Opening conversation</p> : !publication ? <section><h1>This link is unavailable</h1><p>{message}</p><button onClick={() => setReload(value => value + 1)}>Try again</button></section> : <>
-        <header><p className="vp-eyebrow">Published knowledge</p><h1>{publication.title}</h1><p className="vp-muted">{publication.disclosure}</p></header>
-        {message && <div className="vp-message"><p role="status">{message}</p><button disabled={busy} onClick={() => setReload(value => value + 1)}>Reload conversation</button></div>}
-        {!publication.can_text || publication.state !== "active" ? <p>This conversation is no longer available.</p> : !auth ? <PublicationSignIn locale={locale} onAuthed={session => {
+      {restoring ? <p role="status">{copy.opening}</p> : !publication ? <section><h1>{copy.unavailableTitle}</h1><p>{message}</p><button onClick={() => setReload(value => value + 1)}>{copy.tryAgain}</button></section> : <>
+        <header><h1>{publication.title}</h1><p className="vp-muted">{publication.disclosure}</p></header>
+        {message && <div className="vp-message"><p role="status">{message}</p><button disabled={busy} onClick={() => setReload(value => value + 1)}>{copy.reload}</button></div>}
+        {!publication.can_text || publication.state !== "active" ? <p>{copy.inactive}</p> : !auth ? <PublicationSignIn locale={locale} onAuthed={session => {
           if (!session.userId || !session.accessToken || !session.refreshToken) return;
           generation.current++; writeStoredSession(session); setAuth(session);
-        }} /> : deletionUncertain ? <p role="status">Deletion needs confirmation. Your previous answers are hidden.</p> : !admission ? <section className="vp-admission"><h2>{rejoinRequired ? "Continue your conversation" : "Before your first question"}</h2>
-          <p>For adults aged 18 and over. Your questions and answers are kept for up to {publication.terms.retention_days} days. You can delete them here.</p>
-          <p>You have up to {publication.terms.visitor_question_limit} questions. Submitted questions count even when an answer cannot be delivered.</p>
+        }} /> : deletionUncertain ? <p role="status">{copy.deletionPending}</p> : !admission ? <section className="vp-admission"><h2>{rejoinRequired ? copy.continueTitle : copy.beforeTitle}</h2>
+          <p>{copy.retention(publication.terms.retention_days)}</p>
+          <p>{copy.allowance(publication.terms.visitor_question_limit)}</p>
           {publication.terms.access_mode === "pass" && <div className="vp-access-entry">
-            <label htmlFor="publication-access-pass">{locale === "hi" ? "एक्सेस पास (पहली बार)" : "Access pass (first visit)"}</label>
+            <label htmlFor="publication-access-pass">{copy.passLabel}</label>
             <input id="publication-access-pass" type="text" autoComplete="off" spellCheck={false} value={accessPass} disabled={busy}
               aria-describedby="publication-access-pass-help" aria-invalid={!!accessError} onChange={event => { setAccessPass(event.target.value); setAccessError(""); }} />
-            <p id="publication-access-pass-help">{locale === "hi" ? "अगर आप पहले इस बातचीत में शामिल हो चुके हैं, तो इसे खाली छोड़ सकते हैं।" : "If you have joined this conversation before, you can leave this blank."}</p>
+            <p id="publication-access-pass-help">{copy.passHelp}</p>
             {accessError && <p className="vp-error" role="alert">{accessError}</p>}
           </div>}
-          <label><input type="checkbox" checked={agreed} disabled={busy} onChange={event => setAgreed(event.target.checked)} />I am 18 or older. I understand this is AI and agree to the retention above.</label>
+          <label><input type="checkbox" checked={agreed} disabled={busy} onChange={event => setAgreed(event.target.checked)} />{copy.agreement}</label>
           {publication.version === 2 && <>
-            {memory ? <><label><input type="checkbox" checked={remember} disabled={busy} aria-describedby="publication-memory-policy" onChange={event => setRemember(event.target.checked)} />Remember my recent conversations (optional)</label><p id="publication-memory-policy">{memory.policy}</p></>
-              : <p role="status">{memoryError ? "Your memory settings couldn't be loaded. Reload to check your choice." : "Loading your memory choice"}</p>}
+            {memory ? <><label><input type="checkbox" checked={remember} disabled={busy} aria-describedby="publication-memory-policy" onChange={event => setRemember(event.target.checked)} />{copy.rememberOptional}</label><p id="publication-memory-policy">{memory.policy}</p></>
+              : <p role="status">{memoryError ? copy.memoryLoadError : copy.memoryLoading}</p>}
           </>}
-          <button className="vp-primary" disabled={busy || !agreed || publication.version === 2 && (!memory || memoryError)} onClick={() => void run("join")}>{busy ? "Opening" : rejoinRequired ? "Rejoin conversation" : "Start conversation"}</button>
+          <button className="vp-primary" disabled={busy || !agreed || publication.version === 2 && (!memory || memoryError)} onClick={() => void run("join")}>{busy ? copy.openingButton : rejoinRequired ? copy.rejoin : copy.start}</button>
         </section> : <>
           <section className="vp-answer" aria-live="polite" aria-busy={busy}>
             {request?.state === "complete" && request.answer ? <div className="vp-answer-text"><ExpertAnswer text={request.answer} /></div>
-              : request?.state === "withdrawn" ? <p>This answer is no longer available.</p>
-              : memoryBudgetBlocked ? <p>{locale === "hi" ? "यह बातचीत याद रखने के लिए बहुत लंबी है। आगे बढ़ने के लिए बातचीत की याद बंद करें।" : "This exchange is too long to use as memory. Turn memory off to continue."}</p>
-              : request?.state === "blocked" ? <p>An answer couldn't be delivered for this question.</p>
-              : unresolved ? <p>{busy ? "Working on your question" : "Your question is awaiting confirmation."}</p>
-              : <p>What would you like to understand?</p>}
+              : request?.state === "withdrawn" ? <p>{copy.withdrawn}</p>
+              : memoryBudgetBlocked ? <p>{copy.memoryBudget}</p>
+              : request?.state === "blocked" ? <p>{copy.blocked}</p>
+              : unresolved ? <p>{busy ? copy.working : copy.awaiting}</p>
+              : <p>{copy.prompt}</p>}
           </section>
-          {unresolved ? <button disabled={busy} onClick={() => void run("result")}>Check answer status</button> : <form className="vp-composer" onSubmit={event => { event.preventDefault(); void run("ask"); }}>
-            <label htmlFor="publication-question">Your question</label><textarea id="publication-question" rows={3} maxLength={2000} value={question} disabled={busy} onChange={event => setQuestion(event.target.value)} />
-            <button className="vp-primary" disabled={busy || !question.trim()}>{busy ? "Sending" : "Ask"}</button>
+          {unresolved ? <button className="vp-primary" disabled={busy} onClick={() => void run("result")}>{copy.checkStatus}</button> : <form className="vp-composer" onSubmit={event => { event.preventDefault(); void run("ask"); }}>
+            <label htmlFor="publication-question">{copy.question}</label><textarea id="publication-question" rows={3} maxLength={2000} value={question} disabled={busy} onChange={event => setQuestion(event.target.value)} />
+            <button className="vp-primary" disabled={busy || !question.trim()}>{busy ? copy.sending : copy.ask}</button>
           </form>}
         </>}
       </>}
       {!restoring && !auth && (!publication || !publication.can_text || publication.state !== "active") && <PublicationSignIn locale={locale} onAuthed={session => { generation.current++; writeStoredSession(session); setAuth(session); }} />}
-      {!restoring && auth && <details className="vp-data" open={deletionUncertain || memoryBudgetBlocked || undefined}><summary>Your conversation</summary>
+      {!restoring && auth && <details className="vp-data" open={deletionUncertain || memoryBudgetBlocked || undefined}><summary>{copy.conversation}</summary>
         {publication?.version === 2 && admission && memory && !deletionUncertain && <>
-          <label><input type="checkbox" checked={remember} disabled={busy || unresolved} aria-describedby="publication-saved-memory-policy" onChange={event => setRemember(event.target.checked)} />Remember my recent conversations</label>
+          <label><input type="checkbox" checked={remember} disabled={busy || unresolved} aria-describedby="publication-saved-memory-policy" onChange={event => setRemember(event.target.checked)} />{copy.remember}</label>
           <p id="publication-saved-memory-policy">{memory.policy}</p>
-          <button disabled={busy || unresolved || remember === memory.enabled} onClick={() => void run("memory")}>Save memory choice</button>
+          <button className="vp-primary" disabled={busy || unresolved || remember === memory.enabled} onClick={() => void run("memory")}>{copy.saveMemory}</button>
         </>}
-        <p>Deleting removes your questions and answers. It does not reset your question allowance.</p>
-        <button disabled={busy} onClick={() => void run("forget")}>{deletionUncertain ? "Confirm deletion" : "Delete my conversation"}</button>
+        <p>{copy.deletionNote}</p>
+        <button disabled={busy} onClick={() => void run("forget")}>{deletionUncertain ? copy.confirmDeletion : copy.deleteConversation}</button>
       </details>}
     </div>
   </main>;

@@ -127,10 +127,18 @@ try {
     const ownerContext = await browser.newContext({ viewport: { width, height: 950 } }); await routeLocal(ownerContext);
     const ownerPage = await ownerContext.newPage(); ownerPage.on("pageerror", error => browserErrors.push(error.message)); ownerPage.on("console", message => consoleText.push(message.text()));
     const language = width === 390 ? "&lang=hi" : "";
+    const profileLabel = width === 390 ? "शिक्षण परिचय" : "Teaching profile";
+    const materialLabel = width === 390 ? "सामग्री" : "Material";
+    const publishLabel = width === 390 ? "लिंक प्रकाशित करें" : "Publish link";
+    const shareLabel = width === 390 ? "साझा लिंक" : "Share link";
+    const startLabel = width === 390 ? "बातचीत शुरू करें" : "Start conversation";
+    const questionLabel = width === 390 ? "आपका सवाल" : "Your question";
+    const askLabel = width === 390 ? "पूछें" : "Ask";
+    const rejoinLabel = width === 390 ? "फिर से जुड़ें" : "Rejoin conversation";
     await ownerPage.goto(`${origin}/?owner=1${language}`);
     await ownerPage.locator('input[name="publication-access"][value="pass"]').check();
-    await ownerPage.getByLabel("Teaching profile").selectOption(SID); await ownerPage.getByLabel("Material").selectOption(IID);
-    await ownerPage.getByRole("checkbox", { name: "I approve this publication." }).check(); await ownerPage.getByRole("button", { name: "Publish link", exact: true }).click();
+    await ownerPage.getByLabel(profileLabel).selectOption(SID); await ownerPage.getByLabel(materialLabel).selectOption(IID);
+    await ownerPage.getByRole("checkbox", { name: "I approve this publication." }).check(); await ownerPage.getByRole("button", { name: publishLabel, exact: true }).click();
     await ownerPage.getByRole("heading", { name: width === 390 ? "एक्सेस पास" : "Access passes" }).waitFor();
     const createButton = ownerPage.getByRole("button", { name: width === 390 ? "पास बनाएं" : "Create passes", exact: true });
     assert.equal(await createButton.isDisabled(), true); for (let i = 0; !heldList && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 10)); assert(heldList, "pass list request held"); heldList(); heldList = null;
@@ -149,7 +157,7 @@ try {
     assert.equal(await storageHas(ownerPage, codeOne), false); assert.equal(ownerPage.url().includes(codeOne), false); assert.equal(consoleText.some(text => text.includes(codeOne)), false);
     check(`${width} new opaque codes appear once with explicit copy and never enter URL or storage`);
 
-    const sharedLink = await ownerPage.getByLabel("Share link").inputValue();
+    const sharedLink = await ownerPage.getByLabel(shareLabel).inputValue();
     const visitorContext = await browser.newContext({ viewport: { width, height: 950 } }); await routeLocal(visitorContext);
     await visitorContext.addInitScript(value => localStorage.setItem("meera.state.v1", JSON.stringify({ auth: value })), visitor);
     const visitorPage = await visitorContext.newPage(); visitorPage.on("pageerror", error => browserErrors.push(error.message)); visitorPage.on("console", message => consoleText.push(message.text()));
@@ -157,11 +165,11 @@ try {
     const passLabel = width === 390 ? "एक्सेस पास (पहली बार)" : "Access pass (first visit)";
     await visitorPage.waitForFunction(() => !document.body.textContent.includes("Opening conversation"));
     if (await visitorPage.getByLabel(passLabel).count() === 0) throw new Error(`pass entry missing: ${await visitorPage.locator("body").innerText()} calls=${JSON.stringify(calls.slice(-5))}`);
-    await visitorPage.getByRole("checkbox", { name: /I am 18/ }).check(); await visitorPage.getByRole("button", { name: "Start conversation", exact: true }).click();
+    await visitorPage.getByRole("checkbox", { name: width === 390 ? /मैं 18 वर्ष/ : /I am 18/ }).check(); await visitorPage.getByRole("button", { name: startLabel, exact: true }).click();
     await visitorPage.getByText(width === 390 ? "पहली बार बातचीत शुरू करने के लिए अपना एक्सेस पास डालें।" : "Enter your access pass to start this conversation for the first time.", { exact: true }).waitFor();
     assert.equal("access_pass" in calls.filter(call => call.input.op === "join").at(-1).input, false);
     await visitorPage.getByLabel(passLabel).fill(codeOne);
-    await visitorPage.getByRole("button", { name: "Start conversation", exact: true }).click(); await visitorPage.getByLabel("Your question", { exact: true }).waitFor();
+    await visitorPage.getByRole("button", { name: startLabel, exact: true }).click(); await visitorPage.getByLabel(questionLabel, { exact: true }).waitFor();
     const firstJoin = calls.filter(call => call.input.op === "join").at(-1); assert.equal(firstJoin.input.access_pass, codeOne);
     const ownerListUrl = new URL(calls.find(call => call.path === "/api/replica-text-publication" && call.input.op === "access_passes").url, origin);
     assert.equal(ownerListUrl.searchParams.get("op"), "access_passes"); assert.equal(ownerListUrl.searchParams.has("access_pass"), false);
@@ -171,7 +179,7 @@ try {
     check(`${width} first visitor join sends the pass in the POST body only`);
 
     await visitorPage.reload(); await visitorPage.getByLabel(passLabel).waitFor(); assert.equal(await visitorPage.getByLabel(passLabel).inputValue(), "");
-    await visitorPage.getByRole("checkbox", { name: /I am 18/ }).check(); await visitorPage.getByRole("button", { name: "Start conversation", exact: true }).click(); await visitorPage.getByLabel("Your question", { exact: true }).waitFor();
+    await visitorPage.getByRole("checkbox", { name: width === 390 ? /मैं 18 वर्ष/ : /I am 18/ }).check(); await visitorPage.getByRole("button", { name: startLabel, exact: true }).click(); await visitorPage.getByLabel(questionLabel, { exact: true }).waitFor();
     assert.equal("access_pass" in calls.filter(call => call.input.op === "join").at(-1).input, false);
     check(`${width} bound visitor rejoins without a code`);
 
@@ -183,9 +191,9 @@ try {
     await ownerPage.getByText(width === 390 ? "रद्द" : "Revoked", { exact: true }).waitFor();
     check(`${width} reload discards plaintext while metadata remains revocable`);
 
-    await visitorPage.getByLabel("Your question", { exact: true }).fill("What is the period?"); await visitorPage.getByRole("button", { name: "Ask", exact: true }).click();
+    await visitorPage.getByLabel(questionLabel, { exact: true }).fill("What is the period?"); await visitorPage.getByRole("button", { name: askLabel, exact: true }).click();
     await visitorPage.getByText(width === 390 ? "आपका एक्सेस पास रद्द हो चुका है। बातचीत जारी रखने के लिए मालिक से नया पास मांगें।" : "Your access pass was revoked. Ask the owner for a new pass to continue.", { exact: true }).waitFor();
-    await visitorPage.getByLabel(passLabel).fill(codeTwo); await visitorPage.getByRole("button", { name: "Rejoin conversation", exact: true }).click(); await visitorPage.getByLabel("Your question", { exact: true }).waitFor();
+    await visitorPage.getByLabel(passLabel).fill(codeTwo); await visitorPage.getByRole("button", { name: rejoinLabel, exact: true }).click(); await visitorPage.getByLabel(questionLabel, { exact: true }).waitFor();
     assert.equal(calls.filter(call => call.input.op === "join").at(-1).input.access_pass, codeTwo);
     check(`${width} revoked access closes the session and accepts a fresh pass`);
 
