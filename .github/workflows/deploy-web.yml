@@ -203,4 +203,9 @@ jobs:
       # Deployed is not the same as serving the new code. Vercel reports READY
       # for a build whose functions still 500, so assert the live site answers.
       - name: Verify production is actually serving
+        # The password gate (api/_gate.js) 401s the speech and chat probes unless
+        # they carry its token. With this secret unset they print SKIPPED rather
+        # than pass, so adding it is what turns those two checks back on.
+        env:
+          ACCESS_PASSWORD: ${{ secrets.ACCESS_PASSWORD }}
         run: node scripts/verify-deploy.mjs

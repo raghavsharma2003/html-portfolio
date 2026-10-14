@@ -76,6 +76,54 @@ export const STRENGTHS: Record<number, Strength> = {
 
 export const DEFAULT_STRENGTH = 3;
 
+// ── OPENING VARIETY — one block, so tuning is one edit ─────────────────────
+//
+// Tester report, 2026-08-25: *"she plays the same exact moves every game"*.
+// That is not a bug in the picker, it is the picker working as documented.
+// `rngFor` is seeded from the POSITION, which is what makes a replay
+// reproducible; and the flavour tiebreak adds only `rng() * 6` on top of
+// weights that run to 40, so it can separate two moves that already score
+// within six points of each other and nothing else. From the start position,
+// every game therefore gets the same first move, and the same second, until
+// he deviates — and two games are enough to teach a person her whole book.
+//
+// The fix is a seed the picker did not have: `Strength.seed`, which already
+// exists and is already documented as "set it to make a whole session
+// reproducible". The surface passes the SESSION's id, so:
+//
+//   same game, same position  → same move (replays and evals are stable)
+//   next game, same position  → a different sound move
+//
+// STRENGTH IS UNCHANGED, and that is a structural property rather than a
+// promise: the variety pool is clamped to `flavourMarginCp`, so it is always a
+// SUBSET of the candidate pool the picker was already choosing from. A move
+// this can play is a move the previous code could already have played; all
+// that changed is which of them gets picked.
+const VARIETY = {
+  /** How far behind best a move may be and still count as "equally sound".
+   *  Clamped down to the strength's own flavour margin, never up — at level 5
+   *  (margin 20) that makes this 20 and the variety correspondingly narrow,
+   *  which is correct: a strong player's opening choices ARE narrow. */
+  MARGIN_CP: 35,
+  /** Plies of the game this applies to. Twelve is six moves each: the window
+   *  in which a repeated line is recognisable as "the same game again". Past
+   *  it the position itself supplies the variety and the flavour tiebreak is
+   *  the better judge. */
+  PLIES: 12,
+  /** Below this many equally-sound moves there is nothing to vary. */
+  MIN_POOL: 2,
+  /** The draw is WEIGHTED BY FLAVOUR, not uniform, and this is the weight a
+   *  flavourless move gets. Measured: a uniform draw over the sound pool
+   *  produced openings like "Nf3 Nc6 Na3 Rg1 Rh1" — varied, and not what a
+   *  person playing chess looks like, because a back-rank rook shuffle is
+   *  exactly as "sound" as a developing move and the pool cannot tell them
+   *  apart. Flavour is what `flavourOf` already exists to tell them apart
+   *  with, so the draw SAMPLES over it instead of maximising it: at 6 against
+   *  a developing move's 22 a quiet move is roughly a fifth as likely, which
+   *  is variety rather than aimlessness. */
+  FLOOR_WEIGHT: 6,
+} as const;
+
 export function resolveStrength(s?: number | Partial<Strength>): Strength {
   if (s === undefined) return STRENGTHS[DEFAULT_STRENGTH];
   if (typeof s === "number") {
@@ -264,7 +312,31 @@ function selectFrom(
 
   let picked = candidates[0];
   let pickedFlavour = tagsFor(picked.uci);
-  if (candidates.length > 1) {
+
+  // ── the variety draw, in the opening only ──────────────────────────────
+  // Ahead of the flavour tiebreak because it answers a different question.
+  // Flavour asks "which of these is the more human move to like"; this asks
+  // "which of these is she playing THIS game" — and the second question has
+  // to be settled by the session, or the answer to the first one is the same
+  // every time. A `slip` is left alone: a deliberate mistake is already the
+  // strength's own randomness and stacking two draws on it would make her
+  // erratic rather than varied.
+  const varietyPool =
+    kind !== "slip" && game.played.length < VARIETY.PLIES
+      ? candidates.filter((c) => bestCp - c.cp <= Math.min(VARIETY.MARGIN_CP, margin))
+      : [];
+  if (varietyPool.length >= VARIETY.MIN_POOL) {
+    const weights = varietyPool.map((c) => flavourScore(tagsFor(c.uci)) + VARIETY.FLOOR_WEIGHT);
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = rng() * total;
+    let idx = 0;
+    while (idx < weights.length - 1 && r > weights[idx]) {
+      r -= weights[idx];
+      idx++;
+    }
+    picked = varietyPool[idx];
+    pickedFlavour = tagsFor(picked.uci);
+  } else if (candidates.length > 1) {
     let bestWeight = -Infinity;
     for (const c of candidates) {
       const tags = tagsFor(c.uci);

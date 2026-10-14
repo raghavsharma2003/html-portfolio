@@ -179,6 +179,37 @@ export const saveStateRemote = (session: AuthSession, state: AppState, baseUpdat
 export const loadStateRemote = (session: AuthSession) =>
   post({ op: "load_state", access_token: session.accessToken });
 
+/**
+ * THE CONSENT RECORD (task #148, DPDP).
+ *
+ * Under India's DPDP Act a data fiduciary has to be able to SHOW that consent
+ * was obtained, which means the answer cannot live only in the localStorage of
+ * the phone that gave it: a blob a user can edit and a reinstall can erase is
+ * not evidence of anything. So every grant and every withdrawal is filed
+ * server-side as one row (api/account.js `consent` → meera_consent).
+ *
+ * FOUR VALUES AND NOT ONE MORE. Device id, granted, version, at. No free text,
+ * no name, no vibe, no message — a consent ledger that accumulated content
+ * would be a second copy of exactly the thing the consent is about, kept in
+ * the one table a refusal must never make bigger.
+ *
+ * Fire-and-forget, and that is a decision rather than laziness: the LOCAL
+ * answer binds the client the instant it is set (src/engine/memory.ts's gate
+ * reads state, never the network), so a failed POST can delay the evidence but
+ * can never leave the app writing memory somebody refused. The failure
+ * direction that matters is the other one, and it cannot happen.
+ */
+export function recordConsent(
+  device: string,
+  granted: boolean,
+  at: string,
+  version: number,
+  userId?: string,
+) {
+  if (!device) return;
+  post({ op: "consent", device, granted, at, version, user_id: userId }).catch(() => {});
+}
+
 // fire-and-forget analytics — literally everything noteworthy
 export function track(device: string, event: string, props: Record<string, unknown> = {}, userId?: string) {
   post({ op: "track", device, event, props, user_id: userId }).catch(() => {});

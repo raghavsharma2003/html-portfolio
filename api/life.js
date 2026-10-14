@@ -75,6 +75,7 @@
 // api/taste-queue.js gates its owner ops: no secret configured means this
 // capability is simply OFF, never open by accident.
 import { q } from "./_db.js";
+import { gateOk } from "./_gate.js";
 import { allow, ipOf } from "./_ratelimit.js";
 
 const SECRET = process.env.LIFE_SECRET || "";
@@ -143,8 +144,9 @@ function rejectsText(body) {
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Maya-Gate");
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (!gateOk(req, res)) return;
   if (!allow(ipOf(req), "life", 30)) return res.status(429).json({ error: "slow down" });
 
   try {

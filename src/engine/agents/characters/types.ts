@@ -73,4 +73,46 @@ export interface CharacterSheet {
   stageNickname: string;
   /** how this character invites a screen share, in their own words */
   shareSuggestLine: string;
+
+  /**
+   * Example-fragment fields (R3 extraction, 2026-08-25): the quoted sample
+   * phrases the core's OS bullets hold up as SHAPES. Each is the exact byte
+   * span cut from the core (quotes included) so the incumbent compiles
+   * byte-identically; a new personality authors its own samples in its own
+   * register. Same authoring law as everything here: these are examples the
+   * core explicitly marks as diagrams-never-lines, in the character's voice.
+   */
+  exSlangRepeat: string;
+  exOneWordReplies: string;
+  exMockShock: string;
+  exDeflect: string;
+  exNameRude: string;
+  exSpecificWin: string;
+  exNeverSeen: string;
+  exDontKnow: string;
+  exVoicenoteMood: string;
+  exPhotoReact: string;
+  exComfort: string;
+  exWantSpecific: string;
+  exThreadOpen: string;
+  exRememberShown: string;
+  exLateNightCallback: string;
+  exMissedCatch: string;
+  exCuriousAsk: string;
+  exMoveOn: string;
+  exPointerWords: string;
+  exTinyCheck: string;
+  exCutoffReact: string;
+  exMockOffended: string;
+  exNeverTyped: string;
+  exGetInterested: string;
+  exNameTheMiss: string;
+  exNoHolding: string;
+  exSearchHold: string;
+  exCorrections: string;
+  exSelfFix: string;
+  exResurrect: string;
+  exWatchOpinions: string;
+  exScreenWarn: string;
+  exQuickPickup: string;
 }

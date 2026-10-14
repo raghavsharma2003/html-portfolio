@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAppState, rotateDeviceId } from "./state/store";
-import type { AuthInfo, AppState } from "./state/store";
+import { useAppState, rotateDeviceId, memoryWritesAllowed, MEMORY_CONSENT_VERSION } from "./state/store";
+import type { AuthInfo, AppState, MemoryConsent } from "./state/store";
 import Onboarding from "./components/Onboarding";
+import GateScreen from "./components/GateScreen";
+import { GATE_EVENT, fetchGateRequired, hasGateToken } from "./engine/gate";
+import { MemoryConsentPrompt } from "./components/MemoryConsent";
 import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
 import IncomingCall from "./components/IncomingCall";
@@ -24,11 +27,14 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { LABEL } from "./engine/activity";
 import {
   episodeDateLabel,
+  latestSkill,
   logFinishedActivity,
   publishActivityLedger,
+  setMemoryWritesAllowed,
   withActivityRecord,
   type ActivityRecord,
 } from "./engine/memory";
+import { nextSkill } from "./engine/chess";
 import { dyadRecord, momentRecord, recordCounts } from "./engine/milestones";
 import { useMoments } from "./components/useMoments";
 import Celebration from "./components/Celebration";
@@ -78,6 +84,7 @@ import {
   isAuthDead,
   AccountError,
   loadStateRemote,
+  recordConsent,
   saveStateRemote,
   track,
   type AuthSession,
@@ -130,6 +137,30 @@ const NOTIFY_API_BASE = Capacitor.isNativePlatform() ? "https://meera-silk.verce
 export default function App() {
   const [state, setState] = useAppState();
   const [inCall, setInCall] = useState(false);
+  // THE DOOR (src/engine/gate.ts, api/_gate.js). A device that has entered the
+  // word once is "ok" from the first frame, with no network wait, which is why
+  // it is initialised from storage. Everyone else asks the server whether a
+  // word is required at all. The server is what actually refuses requests; this
+  // state only decides which screen to show, so when the answer cannot be had
+  // the UI goes in (see fetchGateRequired).
+  const [gate, setGate] = useState<"checking" | "ok" | "locked">(() => (hasGateToken() ? "ok" : "checking"));
+  useEffect(() => {
+    if (gate !== "checking") return;
+    let live = true;
+    void fetchGateRequired().then((required) => {
+      if (live) setGate(required ? "locked" : "ok");
+    });
+    return () => {
+      live = false;
+    };
+  }, [gate]);
+  // The server closed the door on a device that used to be let in (the word
+  // was changed): src/engine/gate.ts has already dropped the token.
+  useEffect(() => {
+    const shut = () => setGate("locked");
+    window.addEventListener(GATE_EVENT, shut);
+    return () => window.removeEventListener(GATE_EVENT, shut);
+  }, []);
   // THINGS THEY DO TOGETHER. Both are overlays rendered as SIBLINGS of Chat and
   // CallVoice, never replacements: opening a board must not unmount the chat or
   // drop a live call, because the whole point of the activity layer is that
@@ -401,6 +432,20 @@ export default function App() {
         record: a.record,
         startedAt: g.startedAt,
         closedAt: g.closedAt,
+        // WS-GAMEFEEL: the per-user strength estimate, carried on the SAME
+        // record as the episode because it is derived from the same event —
+        // a second store of one fact is `warm-count-unscoped`. Chess only:
+        // `nextSkill` is a chess model and there is nothing dishonest about
+        // ttt not having one, since nothing reads it for ttt.
+        //
+        // `latestSkill` is the reader, so this is an EMA over the whole
+        // history rather than a fresh opinion per game: it seeds from the
+        // last stored value and moves a fraction of the way toward what this
+        // game showed. A game too short to teach anything returns the
+        // previous value unchanged (undefined included).
+        ...(g.kind === "chess"
+          ? { skill: nextSkill(latestSkill(state.activities, "chess"), g.game, g.herSide) }
+          : {}),
       },
       // one vocabulary for what an activity is CALLED — the same table the
       // tail block and the pickup line render from
@@ -411,7 +456,11 @@ export default function App() {
     // does not cover activities; this write is synchronous, works signed out,
     // and is what she actually reads from. Both halves carry the SAME string.
     if (rec) setState((s) => ({ ...s, activities: withActivityRecord(s.activities, rec) }));
-  }, [state.game, state.deviceId, setState]);
+    // `state.activities` joined the deps with WS-GAMEFEEL's skill estimate,
+    // which seeds from the last stored one: reading it without depending on it
+    // is a stale read waiting for the first close that follows a sync. The
+    // re-run this causes is a no-op — `emittedActivity` has the key by then.
+  }, [state.game, state.activities, state.deviceId, setState]);
 
   // The ledger, published for the lanes that cannot reach `AppState`. Same
   // holder idiom as `callSelfBundle` and for the same reason: the cascade call
@@ -1206,6 +1255,48 @@ export default function App() {
     state.tally?.wyrCards ?? 0,
   ].join("|");
 
+  // ── THE MEMORY CONSENT, PUBLISHED (task #148, DPDP) ────────────────────
+  //
+  // AppState.memoryConsent is where the answer is stored; src/engine/memory.ts
+  // is where it binds. This effect is the one wire between them, and it is a
+  // publish rather than a prop for the reason `publishActivityLedger` is: the
+  // writers that have to obey it are fire-and-forget calls deep inside modules
+  // that never see React state, and threading a boolean through every one of
+  // them is how the twenty-first writer ends up not obeying it.
+  //
+  // The dependency is the granted VALUE, not the object: the same answer
+  // re-stamped by a merge must not re-publish, and a change of answer always
+  // moves this boolean or the undefined it can be.
+  useEffect(() => {
+    setMemoryWritesAllowed(memoryWritesAllowed(state));
+  }, [state.memoryConsent?.granted]);
+
+  /**
+   * Answer the memory question, from anywhere that asks it.
+   *
+   * Two things happen and their order is the point. The LOCAL record is
+   * written first, because it is what actually binds the client — the gate
+   * above reads state and never the network, so from the next render on a
+   * refusal is in force whether or not anything reaches the server. The
+   * server row is filed second and is fire-and-forget, because it is
+   * EVIDENCE: losing it costs the proof of a decision, never the decision.
+   */
+  const answerMemoryConsent = useCallback(
+    (granted: boolean) => {
+      const consent: MemoryConsent = {
+        granted,
+        at: new Date().toISOString(),
+        version: MEMORY_CONSENT_VERSION,
+      };
+      setState((s) => ({ ...s, memoryConsent: consent }));
+      recordConsent(state.deviceId, granted, consent.at, consent.version, state.auth?.userId);
+      // analytics, not memory: an event name and a boolean, which is what
+      // tells us whether the refusal path is a path anybody actually takes.
+      track(state.deviceId, "memory_consent", { granted }, state.auth?.userId);
+    },
+    [state.deviceId, state.auth?.userId, setState],
+  );
+
   // bumped by the 409 branch below, so a merge-and-retry is a real trigger
   // rather than a hope that the merge moved something in the dep list
   const [pushRetry, setPushRetry] = useState(0);
@@ -1215,6 +1306,20 @@ export default function App() {
   // their copy in and let the next debounce push the union
   useEffect(() => {
     if (!state.auth?.accessToken) return;
+    // task #148 (DPDP): THE TOP-LEVEL SYNC PUSH IS GATED ON MEMORY CONSENT.
+    // `syncableState` is the single largest cross-session record this product
+    // holds — the last 400 messages, `user`, herLife, inner, the ledgers — so
+    // a memory refusal that left this effect running would be a refusal that
+    // changed nothing about the biggest write there is.
+    //
+    // The PULL below is deliberately not gated, and the distinction is the one
+    // src/engine/memory.ts's gate note draws: this stops new memory being
+    // WRITTEN, while the pull only returns rows an earlier consent already
+    // allowed (for a person who declined at onboarding there are none, because
+    // this push is the only thing that ever creates that row). Withdrawal in
+    // More rides the forget door, which DELETES the server copy rather than
+    // hiding it, and that is the stronger answer than a read gate would be.
+    if (!memoryWritesAllowed(state)) return;
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
       try {
@@ -1253,7 +1358,12 @@ export default function App() {
     // header records killing half the merge once already. `gameSig` projects
     // the untriggering-but-synced fields so a whole chess game played without
     // a single message still pushes, without firing on every keystroke.
-  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at, gameSig, pushRetry]);
+    // `state.memoryConsent?.granted` is in the list so a withdrawal CANCELS a
+    // push that is already scheduled: the cleanup above clears the 4s timer
+    // only when this effect re-runs, and without the dep a refusal made two
+    // seconds after a message would have been followed by that message going
+    // up anyway.
+  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at, gameSig, pushRetry, state.memoryConsent?.granted]);
 
   // ── THE OTHER HALF OF SYNC: THE PULL ───────────────────────────────────
   //
@@ -1346,14 +1456,58 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", warm);
   }, [state.onboarded, inCall]);
 
+  // task #148 (DPDP): the one-time card for people who were already here.
+  // Onboarding since this shipped always leaves an answer behind, so this is
+  // true only for an install that predates the question — and it goes false
+  // forever the moment either button is pressed, because both write a record.
+  // It takes precedence over the notification card below when both are due:
+  // they are the same non-modal `.sheet` in the same corner, and one asks
+  // whether she may keep anything at all while the other asks how she may
+  // reach you, which is a question about a relationship this one has not
+  // established yet.
+  const askMemoryConsent = state.onboarded && !state.memoryConsent;
+
+  // Someone who is already registered, not yet let in: the page by itself.
+  // (New people meet it as the last onboarding step instead.)
+  if (state.onboarded && gate === "locked") {
+    return <GateScreen onOpen={() => setGate("ok")} />;
+  }
+  // Brief, and only for a device with no token: the status question is in
+  // flight. Paint the app's own background rather than a flash of the chat.
+  if (state.onboarded && gate === "checking") {
+    return (
+      <div className="app grain">
+        <div className="ambient" />
+      </div>
+    );
+  }
+
   return (
     <div className="app grain">
       <div className="ambient" />
       {!state.onboarded ? (
         <Onboarding
+          gate={gate}
+          onGateOpen={() => setGate("ok")}
           deviceId={state.deviceId}
-          onDone={(user) => {
+          onDone={(user, consent) => {
             track(state.deviceId, "onboarded", { vibe: user.vibe });
+            // task #148 (DPDP): the answer to the memory question, filed the
+            // same second it is given. It is NOT routed through
+            // `answerMemoryConsent` above, deliberately: that helper writes
+            // state on its own, and a second setState racing the one below
+            // would decide the fate of `onboarded` by render order. The
+            // consent goes into the same single write that finishes
+            // onboarding; only the server row and the analytics event are
+            // fired separately, and both are fire-and-forget by design.
+            recordConsent(
+              state.deviceId,
+              consent.granted,
+              consent.at,
+              consent.version,
+              state.auth?.userId,
+            );
+            track(state.deviceId, "memory_consent", { granted: consent.granted, at_onboarding: true });
             // "SKY" IS THE DEFAULT FOR NEW INSTALLS, and it is stamped HERE
             // rather than by changing what `undefined` means. See the long
             // note in engine/theme.ts: `undefined` is what every existing
@@ -1362,7 +1516,13 @@ export default function App() {
             // at a time of day, on a build where they changed nothing. That
             // is indistinguishable from a bug. `?? "sky"` also means a person
             // who somehow already has a choice keeps it.
-            setState((s) => ({ ...s, onboarded: true, user, theme: s.theme ?? "sky" }));
+            setState((s) => ({
+              ...s,
+              onboarded: true,
+              user,
+              theme: s.theme ?? "sky",
+              memoryConsent: consent,
+            }));
           }}
         />
       ) : (
@@ -1704,7 +1864,30 @@ export default function App() {
               `shouldExplain` is the whole rule and it is pure — it is false
               until a FELT moment has happened, and false forever after either
               answer. See src/notify/index.ts. */}
+          {/* ── task #148: THE MEMORY QUESTION, FOR PEOPLE ALREADY HERE ────
+              Same shell, same surface rules and the same non-modal reasoning
+              as the notification card below it (see that comment; it applies
+              here unchanged and is not restated). What is different is what
+              happens if it is ignored: nothing. Memory keeps working while the
+              question is unanswered, because these people were never asked and
+              the answer to never-asked is to ask, not to switch a running
+              relationship off underneath somebody. The card comes back next
+              time home is quiet, and it stops for good on either answer. */}
+          {askMemoryConsent &&
+            surface === "home" &&
+            !inCall &&
+            activity === null &&
+            !storyOpen &&
+            !usOpen &&
+            !gamesOpen &&
+            !authOpen && (
+              <MemoryConsentPrompt
+                onGrant={() => answerMemoryConsent(true)}
+                onDecline={() => answerMemoryConsent(false)}
+              />
+            )}
           {state.onboarded &&
+            !askMemoryConsent &&
             surface === "home" &&
             !inCall &&
             activity === null &&

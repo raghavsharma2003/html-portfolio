@@ -193,11 +193,11 @@ console.log("── 1. SHE KNOWS WHAT IS UP: the board reaches a compiled prompt
 {
   const sys = compiledFor(sessionOf(HIS_THREAT));
   ok("a live ttt session lights T15 at all", /IN THE MIDDLE OF A GAME OF TIC TAC TOE/.test(sys));
-  ok("the block says whose move it is", /it is (her|his) move/.test(sys), sys.slice(sys.indexOf("TIC TAC"), sys.indexOf("TIC TAC") + 420));
+  ok("the block says whose move it is", /it is (her|his) move/.test(sys), sys.slice(sys.indexOf("TIC TAC"), sys.indexOf("TIC TAC") + E.ACTIVITY_BLOCK_MAX));
   ok(
     "the block says what just happened, by name",
     /he took top middle/.test(sys),
-    sys.slice(sys.indexOf("TIC TAC"), sys.indexOf("TIC TAC") + 420),
+    sys.slice(sys.indexOf("TIC TAC"), sys.indexOf("TIC TAC") + E.ACTIVITY_BLOCK_MAX),
   );
   // THE ROW THAT DID NOT EXIST. Chess hands her mate distances and hanging
   // pieces; ttt handed her a move count. Two-in-a-row is the only threat a
@@ -205,7 +205,7 @@ console.log("── 1. SHE KNOWS WHAT IS UP: the board reaches a compiled prompt
   ok(
     "the block names the two-in-a-row",
     /one square from winning, on top right/.test(sys),
-    sys.slice(sys.indexOf("TIC TAC"), sys.indexOf("TIC TAC") + 420),
+    sys.slice(sys.indexOf("TIC TAC"), sys.indexOf("TIC TAC") + E.ACTIVITY_BLOCK_MAX),
   );
   // THE BUDGET IS THE BINDING CONSTRAINT HERE, and it is worth stating as a
   // measured number rather than as a hope. `renderActivity` drops whole rows
@@ -215,24 +215,36 @@ console.log("── 1. SHE KNOWS WHAT IS UP: the board reaches a compiled prompt
   // `tttActivity` is what decides which. Asserted, so a future edit that
   // reorders them has to face this number.
   const live = E.renderActivity(E.activityOf(sessionOf(HIS_THREAT), NOW), NOW);
-  ok("the live block respects the shared budget", live.length <= E.ACTIVITY_BUDGET, String(live.length));
+  ok("the live block respects the shared budget", live.length <= E.ACTIVITY_BLOCK_MAX, String(live.length));
   ok("the live block keeps whose-move", /it is (her|his) move/.test(live), live);
   ok("the live block keeps her own mark", /she is o/.test(live), live);
   ok("the live block keeps the threat-bearing row", /winning/.test(live), live);
-  ok("a live ttt block has room for two rows, not five", live.split("\n").length - 1 <= 3, String(live.split("\n").length - 1));
+  // FACT ROWS, counted by their own "- " prefix rather than by newlines. The
+  // block gained UNDROPPABLE lines in WS-GAMEFEEL (`state:` and `STATE_LAW`,
+  // which is the whole point of them — a fence the drop policy can delete is
+  // absent exactly when the block is busiest), and a newline count cannot tell
+  // those from the rows this assertion is actually about. The number it
+  // asserts is unchanged and still measured: two rows survive on a live ttt
+  // board, the same two that survived at 420.
+  const liveRows = live.split("\n").filter((l) => l.startsWith("- ")).length;
+  ok("a live ttt block has room for two rows, not five", liveRows <= 3, String(liveRows));
+  // …and the fence itself reached her, on the block she is holding DURING the
+  // game. `dead-writers`: a law that renders nowhere is not a law.
+  ok("the live block carries the machine state line", /\nstate: in progress, 3 marks played\n/.test(live), live);
+  ok("the live block carries the terminal fence", live.includes(E.STATE_LAW), live);
 
   // and the same for a finished game, where the head is smaller and the whole
   // position fits
   const over = compiledFor(sessionOf(HIS_WIN, { closedAt: NOW - 2 * MIN }));
   ok("a just-finished ttt game still reaches her", /JUST FINISHED A GAME OF TIC TAC TOE/.test(over));
-  ok("the ending names the winner", /he won that one/.test(over), over.slice(over.indexOf("JUST FINISHED"), over.indexOf("JUST FINISHED") + 420));
+  ok("the ending names the winner", /he won that one/.test(over), over.slice(over.indexOf("JUST FINISHED"), over.indexOf("JUST FINISHED") + E.ACTIVITY_BLOCK_MAX));
   ok("the ending names the LINE it was won on", /on the top row/.test(over));
   // The finished block has 189 spare against the live block's 113, so the
   // whole position fits there and is asserted to.
   ok(
     "the finished block carries the whole position",
-    /open squares:|she has |he has /.test(over.slice(over.indexOf("JUST FINISHED"), over.indexOf("JUST FINISHED") + 460)),
-    over.slice(over.indexOf("JUST FINISHED"), over.indexOf("JUST FINISHED") + 460),
+    /open squares:|she has |he has /.test(over.slice(over.indexOf("JUST FINISHED"), over.indexOf("JUST FINISHED") + E.ACTIVITY_BLOCK_MAX)),
+    over.slice(over.indexOf("JUST FINISHED"), over.indexOf("JUST FINISHED") + E.ACTIVITY_BLOCK_MAX),
   );
   // HER MARK IS ON THE ROW THAT CANNOT BE DROPPED. It used to be a row of its
   // own, and in the fact order this wave needs it is the row that falls off a
@@ -655,7 +667,7 @@ console.log("── 7. ENDED EARLY: a board he put away names no winner ──")
   // THE BLOCK. Before this, a ttt board he put away rendered "you two JUST
   // FINISHED a game of tic tac toe" directly above a live "it is his move".
   const sys = compiledFor(sessionOf(HIS_THREAT, { closedAt: NOW - MIN, endedEarly: true }));
-  const block = sys.slice(sys.indexOf("JUST FINISHED"), sys.indexOf("JUST FINISHED") + 460);
+  const block = sys.slice(sys.indexOf("JUST FINISHED"), sys.indexOf("JUST FINISHED") + E.ACTIVITY_BLOCK_MAX);
   ok("the closed ttt board says he ended it", /he ended the game early, no result/.test(block), block);
   ok("…and no longer says whose move it is", !/it is (her|his) move/.test(block), block);
   ok("…and names no winner", !/(she|he) won that one/.test(block), block);

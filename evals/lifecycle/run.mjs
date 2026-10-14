@@ -189,7 +189,13 @@ ok(
   "every lifecycle fact is wrapped before it is sent",
   /activityNote\(\s*boardOpenedFact/.test(CODE) &&
     /activityNote\(\s*shareEndedFact/.test(CODE) &&
-    /activityNote\(fact\)/.test(CODE) &&
+    // `fact` plus its BOARD TRUTH (WS-GAMEFEEL). The second argument is not
+    // optional decoration on this lane: the live prompt is frozen at connect,
+    // so a game that starts, moves and ends inside one call reaches her only
+    // through these notes, and the terminal fence has to travel with them or
+    // it is absent for exactly the window in which she declared a checkmate
+    // that had not happened. Both `direct` note sites are matched.
+    (CODE.match(/activityNote\(fact, /g) || []).length === 2 &&
     /lifecycleStateNote\(boardTurnFact/.test(CODE),
 );
 // ANGLE BRACKETS, NEVER SQUARE (`ack-bracket-direction`: "[laughs softly]"

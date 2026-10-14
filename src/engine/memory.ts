@@ -11,7 +11,100 @@ import { traceServer, traceTurnId, tracePatch, type TraceChannel } from "./trace
 
 const BASE = Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app" : "";
 
+// ── THE MEMORY CONSENT GATE (task #148, DPDP) ──────────────────────────────
+//
+// India's DPDP Act reaches full effect on 2027-05-14 and storing cross-session
+// personal or emotional memory needs its own specific, informed, unbundled
+// consent. The ASK is src/components/MemoryConsent.tsx; the ANSWER lives in
+// AppState.memoryConsent; this is the place the answer actually binds, because
+// a consent screen whose "no" changes no network behaviour is a lie with a
+// button on it.
+//
+// ONE SEAM, NOT TWENTY CALL SITES. Every write this file makes goes through
+// `post()` below, so the gate is here rather than repeated at each writer:
+// a gate spread across twenty call sites is a gate the twenty-first forgets.
+//
+// ── WHAT IS GATED, EXACTLY ────────────────────────────────────────────────
+//
+// Blocked when consent is explicitly refused, by op:
+//
+//   log            the conversation itself, into meera_log
+//   remember       graph extraction: people, plans, facts about their life
+//   seed_currency  the day-one topic chips from onboarding
+//   activity       the finished-game episode ("we played chess on the 22nd")
+//   upload_photo   pictures they sent, to durable storage
+//   describe       the vision description that becomes durable memory of one
+//
+// Also gated, OUTSIDE this file, at their own call sites:
+//
+//   api/account.js save_state  the whole synced conversation blob (App.tsx's
+//                              push effect; it is the single largest
+//                              cross-session record this product holds)
+//   api/episodes.js call_end   (useCallEngine.ts)
+//   api/episodes.js watch_moment (useCallEngine.ts)
+//
+// NOT gated, deliberately, and each for a stated reason:
+//
+//   op:"recall"       a READ. It returns only what an earlier consent allowed
+//                     to be written; a refusal stops new memory, it does not
+//                     need to blind her to a graph that a refusal path has
+//                     usually left empty anyway. The withdrawal door in More
+//                     DELETES rather than hides, which is the stronger answer.
+//   op:"forget"       the wipe. Gating the delete on consent would be exactly
+//                     backwards.
+//   api/account.js track / api/diag / api/telemetry
+//                     product analytics and the call audit trail: no
+//                     conversation content, and they are what tells us the
+//                     refusal path works at all.
+//   api/clock.js      the session clock (when the app was open), not memory
+//                     of a person's life.
+//   localStorage      NOT touched by a refusal, and the card says so in
+//                     words ("Your chat stays on this phone until you clear
+//                     it"). Silently deleting someone's own thread off their
+//                     own phone because they declined a SERVER-side memory is
+//                     a second, larger thing done in the name of the first.
+//
+// DEFAULT OPEN, and see `memoryWritesAllowed` in state/store.ts for why: an
+// install that predates the question was never asked, and the answer to
+// never-asked is to ask, not to switch memory off underneath a relationship.
+// App.tsx publishes the real answer into this module on every change.
+const GATED_OPS = new Set([
+  "log",
+  "remember",
+  "seed_currency",
+  "activity",
+  "upload_photo",
+  "describe",
+]);
+
+let writesAllowed = true;
+
+/** Publish the current answer. Called by App.tsx from a state effect, which is
+ *  the one place AppState.memoryConsent is authoritative. */
+export function setMemoryWritesAllowed(allowed: boolean) {
+  writesAllowed = allowed;
+}
+
+/** For the two writers that live outside this file (useCallEngine.ts). */
+export function memoryWritesPermitted(): boolean {
+  return writesAllowed;
+}
+
+/** A refusal, shaped like the network answer every caller in this file already
+ *  handles. `ok` is false, so each one takes the path it takes when the server
+ *  is unreachable — which is a path every one of them already has, because
+ *  they are all fire-and-forget or null-tolerant. Returning a rejected promise
+ *  instead would surface a refusal as an error somewhere, and the whole point
+ *  is that declining memory is a normal state rather than a fault. */
+const refused = () =>
+  Promise.resolve(new Response(JSON.stringify({ error: "memory consent not granted" }), {
+    status: 451,
+    headers: { "Content-Type": "application/json" },
+  }));
+
 function post(body: unknown): Promise<Response> {
+  const op = (body as { op?: string } | null)?.op;
+  if (!writesAllowed && op && GATED_OPS.has(op)) return refused();
   return fetch(`${BASE}/api/memory`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -562,6 +655,58 @@ export function resolveForget(
   return name.length >= 3 ? { scope: "item", name } : null;
 }
 
+// ── DID THEY ACTUALLY ASK? (2026-10-03 incident) ─────────────────────────────
+//
+// The delete is triggered by a marker THE MODEL writes. FORGET_DECISION tells
+// her to write one only for "an actual ask to get rid of it", but that is a
+// sentence in a prompt, and a sentence in a prompt is a request. On 3 Oct a
+// caller read out the digits "998185" and her reply carried [forget: call]:
+// the engine resolved it to the whole call, deleted 44 rows of a seven-minute
+// conversation, and nobody had asked for anything. The deleted rows were not
+// recoverable (no snapshot, a one-day restore window), so the cost of that
+// one false positive was the entire session.
+//
+// So the ask is checked in code. A marker deletes only if the person's own
+// words, this turn or in the burst just before it, contain a request to get
+// rid of something. It is deliberately a WIDE net on intent and a hard AND with
+// the marker: a missed phrasing costs her a turn ("kaunsi wali?" and they say
+// it again), a false positive costs unrecoverable rows. The two errors are not
+// the same size, so the check leans toward not deleting.
+const ASK_WORDS = [
+  "forget", "forgot", "forgetting", "delete", "deleted", "erase", "erased",
+  "remove", "wipe", "clear", "unsave", "dont save", "don't save", "do not save",
+  "bhool", "bhul", "bhula", "hata", "hatao", "hatado", "hatana", "mita", "mitao",
+  "mitado", "mitana", "yaad mat", "save mat", "save na", "mat rakh", "mat save",
+  "bhoolja", "bhooljao", "delete kar", "delete karo", "delete kardo",
+];
+const ASK_RE = new RegExp(
+  `(^|[^\\p{L}])(${ASK_WORDS.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+")).join("|")})`,
+  "iu",
+);
+const ASK_DEVANAGARI = /(भूल|भुला|हटा|मिटा|डिलीट|डिलिट|हटाओ|मिटाओ)/;
+
+export function userAskedToForget(latest: string, history: Message[], now = Date.now()): boolean {
+  const said: string[] = [latest || ""];
+  // a burst is several messages: "bhool ja" can be the one before the one that
+  // arrived last. Ninety seconds is the span one thought can cover.
+  for (let i = history.length - 1; i >= 0 && said.length < 4; i--) {
+    const m = history[i];
+    if (m.from !== "me") break; // her reply ends the burst
+    if (now - (m.at || 0) > 90_000) break;
+    said.push(m.text || "");
+  }
+  return said.some((t) => ASK_RE.test(t) || ASK_DEVANAGARI.test(t));
+}
+
+/** Her words PROMISE a deletion or a non-save. Used only to avoid leaving such
+ *  a line standing after a refused delete: a claim about the strongest promise
+ *  in the product must not outlive the thing it claims. */
+export function claimsDeletion(bubbles: string[]): boolean {
+  return /(hata\s*di|hata\s*dun|hata\s*diya|delete|bhool\s*gay|bhula\s*di|mita\s*di|save\s*(nahi|nhi|nai)|forgot|forgotten|yaad\s*nahi\s*rakh)/i.test(
+    bubbles.join(" "),
+  );
+}
+
 /**
  * The other half of a forget, and the half that is easy to miss: the turns
  * still sitting in the local store are the context window she thinks with.
@@ -789,6 +934,12 @@ export async function recallForCall(
 // cron remains the backstop regardless of whether this call lands.
 export function seedDayOneConsolidation(device: string) {
   if (!device) return;
+  // task #148: this is the one writer in this file that does NOT go through
+  // `post()` (it calls api/consolidate directly), so the consent gate is
+  // repeated here rather than assumed. Onboarding also refuses to call it on
+  // the declined path — belt and braces, because a derivation run kicked off
+  // for someone who just said no is the exact write the question was about.
+  if (!writesAllowed) return;
   try {
     void fetch(`${BASE}/api/consolidate`, {
       method: "POST",
@@ -849,6 +1000,9 @@ export interface FinishedActivity {
   /** the session's OWN start — the idempotence key, never the close time */
   startedAt: number;
   closedAt: number;
+  /** `ActivityRecord.skill` — see that field. Optional; absent leaves the
+   *  record exactly as it was before this field existed. */
+  skill?: number;
 }
 
 /**
@@ -978,7 +1132,16 @@ export function logFinishedActivity(
   // ledger. `device` is no longer required to reach that half — a signed-out
   // person with a dead network still gets the memory, which is the entire
   // point of the ledger existing. See `formatActivityLedger`.
-  const rec: ActivityRecord = { kind: a.kind, startedAt: a.startedAt, closedAt: a.closedAt, summary };
+  const rec: ActivityRecord = {
+    kind: a.kind,
+    startedAt: a.startedAt,
+    closedAt: a.closedAt,
+    summary,
+    // The local half only — see `ActivityRecord.skill`. The POST below is
+    // deliberately unchanged, so the server contract and `evals/gamemem.mjs`'s
+    // writer/reader agreement are untouched by this field existing.
+    ...(Number.isFinite(a.skill) ? { skill: a.skill } : {}),
+  };
   if (!device) return rec;
   try {
     post({
@@ -1029,6 +1192,36 @@ export interface ActivityRecord {
   closedAt: number;
   /** exactly the string sent to the server — one rendering, two stores */
   summary: string;
+  /**
+   * HOW WELL THEY PLAY, on the 1..5 scale the chess opponent's own levels use.
+   * Written at close by `chess/adapt.ts`'s `nextSkill`, read at the START of
+   * the next game so she opens at the level this person has actually earned.
+   *
+   * It rides the ledger rather than getting a field of its own in `AppState`,
+   * and that is the decision rather than the shortcut. The ledger is already
+   * the record of finished games: it is written by the one reconciler that
+   * observes a close, it dedupes on `kind:startedAt`, it is bounded, it merges
+   * across devices, and it works signed out. A parallel `AppState.skill` would
+   * be a second store of a fact derived from the same event — `warm-count-
+   * unscoped`, a reader and a writer of one record drifting invisibly — and it
+   * would need its own sync rule, its own merge rule and its own FATE verdict
+   * for a single number.
+   *
+   * NOT rendered into any prompt, ever, and this is load bearing. It is a
+   * number about the person, and a number about the person in front of her is
+   * exactly the thing `chess-facts-as-a-scoresheet` refuses: she would read it
+   * out. `formatActivityLedger` renders `summary` and nothing else.
+   *
+   * SERVER-BLIND on purpose: `logFinishedActivity` does not POST it, so the
+   * server copy is unchanged and `api/memory.js` needs no migration. The cost
+   * is stated plainly — a reinstall loses the estimate and the next game opens
+   * friendly, which is the correct failure for a number whose whole job is to
+   * be a guess that improves.
+   *
+   * Optional. Absent means "no history", which is what every record written
+   * before this field existed means and what `startingLevel` reads it as.
+   */
+  skill?: number;
 }
 
 /** How many finished activities the device keeps. Twenty is months of real
@@ -1168,6 +1361,26 @@ function agoDaysLabel(atMs: number, nowMs: number): string {
 // array before the first publish renders nothing, which is the same
 // render-nothing default an empty ledger has.
 let ledgerHolder: readonly ActivityRecord[] = [];
+
+/**
+ * The most recent stored skill estimate for one activity kind, or undefined.
+ *
+ * Newest-first by `closedAt` rather than by array order, because the ledger is
+ * a UNION across devices (`mergeStates`) and array order after a merge is the
+ * merge's, not the clock's. Undefined for a person with no history, which is
+ * every new person, and which the reader turns into the friendly default.
+ */
+export function latestSkill(
+  ledger: readonly ActivityRecord[] | undefined,
+  kind: string,
+): number | undefined {
+  let best: ActivityRecord | null = null;
+  for (const r of ledger ?? []) {
+    if (!r || r.kind !== kind || !Number.isFinite(r.skill)) continue;
+    if (!best || (r.closedAt || 0) > (best.closedAt || 0)) best = r;
+  }
+  return best?.skill;
+}
 
 export function publishActivityLedger(ledger: readonly ActivityRecord[] | undefined): void {
   ledgerHolder = Array.isArray(ledger) ? ledger : [];

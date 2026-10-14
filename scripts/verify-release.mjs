@@ -15,6 +15,7 @@
 // opt-in rather than default.
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { gateHeaders, isGated } from "./_gate-header.mjs";
 
 const run = promisify(execFile);
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -145,10 +146,16 @@ if (liveAt) {
     try {
       const r = await fetch(base + path, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...gateHeaders() },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(30_000),
       });
+      if (isGated(r)) {
+        // Could not run, so it proves nothing: say so, and do not count it as
+        // either a pass or a failure of the product.
+        console.log(`  SKIP  ${name} — gate is on and ACCESS_PASSWORD is not set here`);
+        return;
+      }
       const j = await r.json().catch(() => ({}));
       const why = check(r.status, j);
       record(name, why === true, why === true ? `${Date.now() - t0}ms` : String(why));

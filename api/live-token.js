@@ -2,6 +2,9 @@
 // the client can open its realtime WebSocket WITHOUT ever seeing the real
 // Google key. The token expires in 30 minutes and admits one session.
 import { GOOGLE_KEY } from "./_config.js";
+import { gateOk } from "./_gate.js";
+import { obs } from "./_obs.js";
+import { poolHealth } from "./_gkeys.js";
 import { withGeminiKey } from "./_gkeys.js";
 import { classifyUpstream, QUOTA, TRANSIENT } from "./_lanes.js";
 import { allow, ipOf } from "./_ratelimit.js";
@@ -35,9 +38,10 @@ export const LIVE_MODEL = "models/gemini-3.1-flash-live-preview";
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Maya-Gate");
   res.setHeader("Access-Control-Max-Age", "86400");
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (!gateOk(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "livetok", 12)) return res.status(429).json({ error: "slow down" });
 
@@ -99,6 +103,7 @@ export default async function handler(req, res) {
       data = got.value ?? null;
     }
     if (!data?.name) return res.status(502).json({ error: "token mint failed" });
+    await obs("live_token", { pool: poolHealth() });
     return res.status(200).json({ token: data.name, model: LIVE_MODEL });
   } catch {
     return res.status(500).json({ error: "token failure" });

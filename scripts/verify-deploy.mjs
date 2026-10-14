@@ -6,6 +6,7 @@
 // that does not check is a deploy step that can lie.
 //
 // Exits non-zero on failure so CI goes red.
+import { gateHeaders, isGated } from "./_gate-header.mjs";
 const BASE = process.argv[2] || "https://meera-silk.vercel.app";
 const TIMEOUT = 45_000;
 
@@ -13,7 +14,16 @@ const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
 const get = (path, init) =>
-  fetch(BASE + path, { ...init, signal: AbortSignal.timeout(TIMEOUT) });
+  fetch(BASE + path, {
+    ...init,
+    headers: { ...gateHeaders(), ...(init?.headers ?? {}) },
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+
+// The gate (api/_gate.js) answers 401 to any cost-bearing endpoint without the
+// token. Without ACCESS_PASSWORD in this environment those checks cannot run;
+// they say so by name instead of passing or failing for the wrong reason.
+const GATED = "SKIPPED — gate is on and ACCESS_PASSWORD is not set in this environment";
 
 check("landing page responds", async () => {
   const r = await get("/");
@@ -64,6 +74,7 @@ check("speech proxy streams PCM", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: "theek hai", stream: true }),
     });
+    if (isGated(r)) return GATED;
     if (r.ok) {
       const ct = r.headers.get("content-type") || "";
       if (!/audio\/l16/i.test(ct)) throw new Error(`content-type ${ct} — not the streaming lane`);
@@ -97,6 +108,7 @@ check("brain answers", async () => {
         max_tokens: 32,
       }),
     });
+    if (isGated(r)) return GATED;
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json().catch(() => ({}));
     if (j.text) return `${String(j.text).slice(0, 24)}${firstMiss ? " (1 empty 200 tolerated)" : ""}`;

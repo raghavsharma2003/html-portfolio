@@ -27,6 +27,27 @@
 //   3. THE onDone SHAPE. App.tsx stamps `theme: s.theme ?? "sky"` on the
 //      other side of this callback; the shape it is handed is identical.
 //
+// ── WHAT CHANGED SINCE (task #148): THE MEMORY QUESTION ──────────────────
+//
+// Three light steps became four, and the fourth is the only one in the flow
+// that is a legal record as well as a screen. India's DPDP Act reaches full
+// effect on 2027-05-14 and storing cross-session personal and emotional
+// memory needs its own specific, informed, unbundled consent — which is
+// precisely what a clause inside step one's 18+ line would NOT have been. So
+// it is a step of its own, after the questions and before the chat, with the
+// words and the reasoning in ./MemoryConsent.tsx.
+//
+// It is LAST rather than first on purpose: "can she remember your
+// conversations" is a question about a person you have not met yet if it is
+// asked before the photograph and the name. Asked here it is the last thing
+// between them and her, and it reads as the product explaining itself.
+//
+// The onDone SHAPE therefore moved, for the first time, and deliberately: the
+// answer cannot be inferred from anything already in `UserProfile`, and a
+// consent that App.tsx had to reconstruct from a side channel is a consent
+// with two sources of truth. Note 3 above stands for `user`, which is
+// untouched; `consent` is a second argument beside it.
+//
 // ── WHAT WAS DROPPED, ON PURPOSE ─────────────────────────────────────────
 //
 // THE PHOTO FAN. Three small tilted photos behind step one is the shipped
@@ -49,9 +70,12 @@
 // screen before the next step, and losing it makes the flow quicker rather
 // than poorer. Reduced motion is handled in onboard.css, completely.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HER_NAME, type UserProfile } from "../engine/persona";
 import { seedDayOneConsolidation, seedCurrencyChips } from "../engine/memory";
+import { MEMORY_CONSENT_VERSION, type MemoryConsent } from "../state/store";
+import { MEMORY_COPY, MemoryConsentBody } from "./MemoryConsent";
+import { GateBody } from "./GateScreen";
 import WorldLayer, { useSky, skyVars } from "./WorldLayer";
 import { AnimGlyph } from "./anim";
 import onboardNight from "../assets/onboard-window-night.jpg";
@@ -82,14 +106,20 @@ const VIBES = [
 const TOPICS = ["cricket", "bollywood & movies", "food & chai", "travel", "diwali & festivals"];
 
 interface Props {
-  onDone: (user: UserProfile) => void;
+  onDone: (user: UserProfile, consent: MemoryConsent) => void;
   // GAP 2/3 (WS-FELT): only needed to fire the two day-1 seed calls below —
   // optional so any other caller/test constructing this component without a
   // real device identity yet doesn't have to fabricate one.
   deviceId?: string;
+  // The password gate (src/engine/gate.ts). When it is not "ok" the memory
+  // answer is HELD and a fifth step asks for the word; both memory seeds and
+  // onDone wait for it, because the seeds are API calls and the server would
+  // 401 them from a device that has not been let in yet.
+  gate?: "checking" | "ok" | "locked";
+  onGateOpen?: () => void;
 }
 
-export default function Onboarding({ onDone, deviceId }: Props) {
+export default function Onboarding({ onDone, deviceId, gate = "ok", onGateOpen }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [vibe, setVibe] = useState<string[]>([]);
@@ -103,12 +133,37 @@ export default function Onboarding({ onDone, deviceId }: Props) {
   const toggleTopic = (t: string) =>
     setTopics((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
 
-  const finish = () => {
-    // GAP 2/3 (WS-FELT), fire-and-forget: never awaited, never allowed to
-    // delay or fail this transition — the button must feel exactly as
-    // instant as it did before either call existed. The nightly cron
-    // remains the backstop for both regardless of whether these land.
-    if (deviceId) {
+  // task #148: the two seed calls are the FIRST memory writes this product
+  // ever makes about a person, so they are also the first thing an unanswered
+  // or refused memory question has to stop. They used to fire from `finish`,
+  // which is now the step BEFORE the question — firing them there would have
+  // written her day-one memory of someone who was about to say "not now", and
+  // a consent screen whose answer arrives after the write is theatre.
+  // The memory answer, held while the gate step is on screen. null = nothing
+  // pending. It is the person's real answer and is applied exactly as given.
+  const [held, setHeld] = useState<boolean | null>(null);
+  const finished = useRef(false);
+
+  const proceed = (granted: boolean) => {
+    if (gate === "ok") return finish(granted);
+    setHeld(granted);
+    setStep(4);
+  };
+
+  // The gate opens while step four is up: the answer they gave goes through.
+  useEffect(() => {
+    if (step === 4 && gate === "ok" && held !== null) finish(held);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, gate, held]);
+
+  const finish = (granted: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
+    if (deviceId && granted) {
+      // GAP 2/3 (WS-FELT), fire-and-forget: never awaited, never allowed to
+      // delay or fail this transition — the button must feel exactly as
+      // instant as it did before either call existed. The nightly cron
+      // remains the backstop for both regardless of whether these land.
       seedDayOneConsolidation(deviceId);
       // #65 TOPIC CHIPS: topics FIRST — opSeedCurrency caps a batch at 6
       // chips, and every VIBES chip honestly misses the currency classifier
@@ -117,11 +172,14 @@ export default function Onboarding({ onDone, deviceId }: Props) {
       const currencyChips = [...topics, ...vibe];
       if (currencyChips.length) seedCurrencyChips(deviceId, currencyChips);
     }
-    onDone({
-      name: name.trim(),
-      vibe: vibe.length ? vibe : ["company"],
-      facts: topics.length ? { topics: topics.join(", ") } : {},
-    });
+    onDone(
+      {
+        name: name.trim(),
+        vibe: vibe.length ? vibe : ["company"],
+        facts: topics.length ? { topics: topics.join(", ") } : {},
+      },
+      { granted, at: new Date().toISOString(), version: MEMORY_CONSENT_VERSION },
+    );
   };
 
   return (
@@ -244,11 +302,58 @@ export default function Onboarding({ onDone, deviceId }: Props) {
                 </button>
               ))}
             </div>
-            <button className="onb-cta" data-tel="onboarding.finish" onClick={finish}>
-              Start talking
+            <button
+              className="onb-cta"
+              data-tel="onboarding.vibe_next"
+              onClick={() => setStep(3)}
+            >
+              Almost there
             </button>
           </div>
         )}
+
+        {/* ── STEP FOUR: THE MEMORY QUESTION (task #148, DPDP) ─────────────
+            One calm card, one question, two real answers. The words and the
+            reasoning behind every clause are in ./MemoryConsent.tsx; what is
+            decided HERE is only the shape of the choice, and two things about
+            it are load-bearing:
+
+            BOTH ANSWERS FINISH ONBOARDING. "Not now" is not a cancel and does
+            not park anyone on this screen: it goes straight into the chat with
+            memory off. A refusal that costs you the product is not a refusal
+            anybody is free to make, and free is the word DPDP uses.
+
+            NEITHER BUTTON IS PRE-PRESSED. There is no default, no checkbox
+            already ticked, and no way past this step without touching one of
+            the two — which is what "explicit" has to mean if it means
+            anything. The back arrow still works, because a person re-reading
+            their own name before answering is not a person being obstructed. */}
+        {step === 3 && (
+          <div className="onb-ask">
+            <h1 className="onb-q">{MEMORY_COPY.title}</h1>
+            <MemoryConsentBody name={name.trim() || undefined} />
+            <button
+              className="onb-cta"
+              data-tel="onboarding.consent_grant"
+              onClick={() => proceed(true)}
+            >
+              {MEMORY_COPY.yes}
+            </button>
+            <button
+              className="onb-quiet"
+              data-tel="onboarding.consent_decline"
+              onClick={() => proceed(false)}
+            >
+              {MEMORY_COPY.no}
+            </button>
+            <p className="onb-quiet-note">{MEMORY_COPY.noMeans}</p>
+          </div>
+        )}
+
+        {/* ── STEP FIVE: THE DOOR (only when the gate is up) ───────────────
+            After registration, before anything is written about them. Back
+            goes to the memory question without losing the answer. */}
+        {step === 4 && <GateBody onOpen={() => onGateOpen?.()} />}
       </div>
 
       {/* Onboarding used to move in one direction only: a typo in your name
@@ -264,8 +369,8 @@ export default function Onboarding({ onDone, deviceId }: Props) {
           ← back
         </button>
         <div className="onb-dots" role="presentation">
-          {[0, 1, 2].map((i) => (
-            <i key={i} className={i === step ? "on" : ""} />
+          {[0, 1, 2, 3].map((i) => (
+            <i key={i} className={i === Math.min(step, 3) ? "on" : ""} />
           ))}
         </div>
         <span className="onb-back" aria-hidden="true" />

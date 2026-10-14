@@ -455,6 +455,142 @@ function hasProse(value, seen = new Set()) {
   return Object.entries(value).some(([k, v]) => k !== "fen" && k !== "fenBefore" && k !== "fenAfter" && hasProse(v, seen));
 }
 
+
+// ══ OPENING VARIETY (WS-GAMEFEEL, tester wave 2026-08-25) ═════════════════
+//
+// *"she plays the same exact moves every game"*. Not a bug in the picker — the
+// picker is position-seeded by design, which is what makes a replay
+// reproducible, and the flavour tiebreak's `rng() * 6` can only separate moves
+// already within six points of each other. From the start position every game
+// therefore got the same first move, and two games are enough to teach a
+// person her whole book.
+//
+// The two properties are in tension and BOTH are asserted, because satisfying
+// either alone is easy and useless:
+//   · across games — two sessions do not open the same way
+//   · inside one  — the same game replays move for move
+{
+  const line = (seed, plies) => {
+    let g = C.newGame();
+    const sans = [];
+    for (let i = 0; i < plies; i++) {
+      const hm = C.chooseMove(g, { strength: { level: 2, seed } });
+      if (!hm) break;
+      sans.push(hm.move.san);
+      g = C.play(g, hm.move.uci) ?? g;
+    }
+    return sans;
+  };
+
+  const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
+  const lines = seeds.map((s) => line(s, 6).join(" "));
+  const distinct = new Set(lines).size;
+  ok(`${seeds.length} sessions open ${distinct} different ways`, distinct >= 6, lines.join(" | "));
+  const firstMoves = new Set(lines.map((l) => l.split(" ")[0]));
+  ok("…and not even the FIRST move is fixed", firstMoves.size >= 3, [...firstMoves].join(","));
+
+  // DETERMINISM, which the whole module rests on: "she played something weird
+  // on move 14" has to be a reportable bug rather than a story.
+  eq("the same session replays identically", line(3, 6), line(3, 6));
+  ok("…and a different session does not", line(3, 6).join(" ") !== line(4, 6).join(" "));
+
+  // STRENGTH IS UNCHANGED, structurally. The variety pool is clamped to the
+  // strength's own flavour margin, so every move it can play is a move the
+  // previous code could already have played. Asserted as a bound on the
+  // reported deficit rather than as a claim about the code.
+  let g = C.newGame();
+  let worst = 0;
+  for (let i = 0; i < 12; i++) {
+    const hm = C.chooseMove(g, { strength: { level: 2, seed: 11 } });
+    if (!hm) break;
+    if (hm.choice.kind !== "slip") worst = Math.max(worst, hm.choice.cpBehindBest);
+    g = C.play(g, hm.move.uci) ?? g;
+  }
+  ok("a varied move is never further behind best than the flavour margin allows",
+    worst <= C.STRENGTHS[2].flavourMarginCp, String(worst));
+
+  // NEGATIVE CONTROL — `bold-eats-words`. Past the opening window the draw is
+  // off and the flavour tiebreak is back in charge, so two sessions that reach
+  // the same late position from the same moves agree.
+  const deep = ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5", "Bb3", "d6"];
+  let d1 = C.newGame();
+  let d2 = C.newGame();
+  for (const m of deep) { d1 = C.play(d1, m) ?? d1; d2 = C.play(d2, m) ?? d2; }
+  eq("NEGATIVE CONTROL: past the opening window the seed no longer decides",
+    C.chooseMove(d1, { strength: { level: 3, seed: 21 } }).move.san,
+    C.chooseMove(d2, { strength: { level: 3, seed: 22 } }).move.san);
+}
+
+// ══ ADAPTIVE STRENGTH ═════════════════════════════════════════════════════
+//
+// *"start friendly, scale with the user's demonstrated strength"* — inside a
+// game and across games. Read off the MATERIAL RECORD, not a search: see
+// adapt.ts's header for the latency arithmetic that rules the search out.
+{
+  const g = (sans) => { let x = C.newGame(); for (const m of sans) x = C.play(x, m) ?? x; return x; };
+
+  // A CLEAN TRADE IS NOT A MISTAKE. The three-ply window exists for exactly
+  // this: he takes, she recaptures, he recaptures — nothing was lost.
+  const trade = g(["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Bxc6", "dxc6", "d3", "Bd6", "Nc3", "Nf6"]);
+  const tq = C.userPlay(trade, "b"); // she is black, so HIS moves are white's
+  ok("an even trade is not counted as a blunder", tq.blunderRate === 0, JSON.stringify(tq));
+
+  // A PIECE LEFT HANGING IS. He (white) drops a knight and never gets it back.
+  const hang = g(["e4", "e5", "Nf3", "Nc6", "Ng5", "d5", "exd5", "Qxg5", "d3", "Nf6", "Be3", "Qg6"]);
+  const hq = C.userPlay(hang, "b");
+  ok("a piece left hanging is counted", hq.blunderRate > 0, JSON.stringify(hq));
+  ok("…and the edge is his, negative", hq.edgeCp < 0, String(hq.edgeCp));
+
+  // FRIENDLY BY DEFAULT, and this is byte-for-byte the level the surface hard
+  // coded before adapt.ts existed. A person who has never played meets exactly
+  // the opponent they met yesterday.
+  ok("no history opens at the friendly level", C.startingLevel(undefined) === C.ADAPT.BASE_LEVEL);
+  ok("…and BASE_LEVEL is the 2 the surface used to hard-code", C.ADAPT.BASE_LEVEL === 2);
+  ok("a stored estimate is clamped into the playable band",
+    C.startingLevel(99) === C.ADAPT.MAX_LEVEL && C.startingLevel(-5) === C.ADAPT.MIN_LEVEL);
+  ok("…and she never reaches level 5", C.ADAPT.MAX_LEVEL < 5);
+
+  // ONE NOTCH, ONE WAY. She may get harder while he is winning and may never
+  // get easier while he is losing — see adapt.ts on why a visible mid-fight
+  // concession reads as pity.
+  const strong = { moves: 20, blunderRate: 0, meanLossCp: 10, edgeCp: 500 };
+  const weak = { moves: 20, blunderRate: 0.5, meanLossCp: 400, edgeCp: -900 };
+  ok("clearly outplaying her raises her one notch", C.inGameLevel(2, strong) === 3);
+  ok("…exactly one, never two", C.inGameLevel(2, strong) - 2 === C.ADAPT.IN_GAME_STEP);
+  ok("being outplayed does NOT lower her mid-game", C.inGameLevel(2, weak) === 2);
+  ok("too few moves is no opinion at all",
+    C.inGameLevel(2, { ...strong, moves: C.ADAPT.MIN_MOVES - 1 }) === 2);
+  ok("she cannot climb past the ceiling", C.inGameLevel(C.ADAPT.MAX_LEVEL, strong) === C.ADAPT.MAX_LEVEL);
+
+  // ACROSS GAMES: an EMA, so one bad evening moves it a little.
+  const long = g([
+    "e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7",
+    "Re1", "b5", "Bb3", "d6", "c3", "O-O", "h3", "Na5", "Bc2", "c5",
+  ]);
+  const after = C.nextSkill(undefined, long, "b");
+  ok("a real game produces an estimate", Number.isFinite(after), String(after));
+  ok("…inside the playable band", after >= C.ADAPT.MIN_LEVEL && after <= C.ADAPT.MAX_LEVEL, String(after));
+  ok("…and moves only a fraction of the way in one game",
+    Math.abs(after - C.ADAPT.BASE_LEVEL) <= (C.ADAPT.MAX_LEVEL - C.ADAPT.MIN_LEVEL) * C.ADAPT.EMA_ALPHA,
+    String(after));
+  ok("a game too short to teach anything leaves the estimate ALONE",
+    C.nextSkill(2.5, g(["e4", "e5", "Nf3"]), "b") === 2.5);
+  ok("…including when there is no estimate yet",
+    C.nextSkill(undefined, g(["e4", "e5"]), "b") === undefined);
+  ok("it is pure — the same game twice gives the same number",
+    C.nextSkill(2.1, long, "b") === C.nextSkill(2.1, long, "b"));
+
+  // NEGATIVE CONTROL: the ladder can actually reach both ends.
+  ok("NEGATIVE CONTROL: a strong showing observes high", C.observedLevel(strong) === 4);
+  ok("NEGATIVE CONTROL: a weak one observes low", C.observedLevel(weak) === 1);
+  ok("NEGATIVE CONTROL: `outplaying` needs BOTH halves",
+    !C.outplaying({ ...strong, edgeCp: 0 }) && !C.outplaying({ ...strong, blunderRate: 0.5 }));
+
+  // NO ENGLISH. This module is inside `src/engine/chess/` and lives under its
+  // law: the talking layer owns every word.
+  ok("adapt.ts emits no prose", !hasProse({ ...tq, ...hq, level: C.inGameLevel(2, strong) }));
+}
+
 console.log(fail ? `${fail} FAILURES of ${count}` : `ALL ${count} PASS`);
 process.exit(fail ? 1 : 0);
 

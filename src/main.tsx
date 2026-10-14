@@ -26,6 +26,7 @@ try {
   // storage unavailable (private mode, wiped profile) — the media query still
   // decides, which is exactly the "system" default
 }
+import { installGateFetch } from "./engine/gate";
 import { installTelemetry, tel, telFlush } from "./engine/telemetry";
 import { installTrace } from "./engine/trace";
 
@@ -33,6 +34,9 @@ import { installTrace } from "./engine/trace";
 // FIRST tap and the first error — a capture library installed after boot
 // misses precisely the boot problems it is there to explain. Records buffer
 // without a device id and are attributed the moment App identifies one.
+// The password gate's token rides every /api call from one wrapper; it has to
+// be in place before the first request, which App fires in its first effect.
+installGateFetch();
 installTelemetry("app");
 // The turn trace (docs/TRACE.md) — installs a tap on tel() and derives one
 // per-turn record from the events that already flow through it. No new call

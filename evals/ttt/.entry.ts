@@ -32,7 +32,7 @@ export { chessActivity, chessRecord, threatFacts } from "../../src/engine/chessT
 export { newGame as newChessGame, play as playChess, assessLast } from "../../src/engine/chess";
 
 // The generic seam both games ride.
-export { renderActivity, activityNote, ACTIVITY_BUDGET, LABEL } from "../../src/engine/activity";
+export { renderActivity, activityNote, ACTIVITY_BUDGET, ACTIVITY_BLOCK_MAX, STATE_LAW, LABEL } from "../../src/engine/activity";
 
 // The single derivation both lanes read, the staleness seam, the think table,
 // and the head-to-head reader.

@@ -485,6 +485,18 @@ const FATE = {
   vy_tg_person: "forget-only",
   vy_surface_identity: "forget-only",
 
+  // ── the consent ledger (task #148, migration 016) ──
+  // The whole wipe takes it: a device-keyed record of a person surviving the
+  // one request whose promise is that nothing about them remains would break
+  // that promise in order to keep evidence of a permission that no longer
+  // applies to anything, and the absence of a granted row IS the absence of
+  // consent. A SCOPED forget must not touch it — "forget priya" has nothing to
+  // prune out of a boolean, and a scoped door that silently revoked a
+  // permission would be a second, larger act done in the name of the first.
+  // The refusal that actually stops the writes is the copy on the device
+  // (src/engine/memory.ts's gate), which no server delete can reach.
+  meera_consent: "forget-only",
+
   // ── the identity itself ──
   vy_person_device:
     "exempt: the mapping is deleted by explicit guarded code at the END of the " +

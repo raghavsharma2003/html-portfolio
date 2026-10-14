@@ -16,6 +16,7 @@
 // already carries the comment "provisional episodes may not carry a log span
 // yet" and falls back to a time-window overlap for exactly this case.
 import { q } from "./_db.js";
+import { gateOk } from "./_gate.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { personIdFor } from "./memory.js";
 import { MEERA_AGENT_ID } from "./_agentscope.js";
@@ -159,8 +160,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Maya-Gate");
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (!gateOk(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!allow(ipOf(req), "episodes", 120)) return res.status(429).json({ error: "slow down" });
 
