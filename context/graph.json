@@ -1846,6 +1846,12 @@
    "kind": "rejection",
    "at": "2026-10-04",
    "title": "compiler did not pass its clock to the relationship block; a pinned fixture rotted into a red gate after 43 days"
+  },
+  {
+   "id": "canonical-origin-maya-vyakti",
+   "kind": "decision",
+   "at": "2026-10-14",
+   "title": "Canonicals and link previews name maya.vyakti.ai; meera-silk stays serving, unredirected, for the APK and per-origin identity"
   }
  ],
  "edges": [
@@ -3353,6 +3359,11 @@
    "src": "forget-retention-policy",
    "rel": "caused_by",
    "dst": "unrecoverable-delete"
+  },
+  {
+   "src": "canonical-origin-maya-vyakti",
+   "rel": "part_of",
+   "dst": "maya-rename-display-only"
   }
  ]
 }

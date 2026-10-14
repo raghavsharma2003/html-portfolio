@@ -2762,3 +2762,31 @@ is kept. Needs the owner to confirm scope (windows only, or items too).
 
 **Reverses if:** counsel or a DPDP erasure request says retained-after-forget
 is not allowed.
+
+---
+
+## `canonical-origin-maya-vyakti` — link previews and canonicals name maya.vyakti.ai (2026-10-14)
+
+**Decided 2026-10-14, owner request.** `maya.vyakti.ai` is a domain on the
+Vercel project `meera`, alongside `meera-silk.vercel.app`, serving the same
+deployment. Every human-facing origin claim now names it: `canonical`,
+`og:url` and `og:image` on the landing, privacy and delete-account pages and in
+the app's `index.html`, plus the delete-account page's printed address.
+The image paths are unchanged; only the host moved (`evals/assetwire` checks
+the path, not the host). vyakti.ai links here.
+
+`meera-silk.vercel.app` keeps serving and is deliberately NOT redirected,
+and every functional BASE stays on it. The Capacitor/Android build calls its
+API at that origin (`Capacitor.isNativePlatform() ? "https://meera-silk.vercel.app"`),
+and anonymous users' AppState lives in that origin's storage. A blanket
+redirect would break the installed app and make her forget every
+signed-out person, which is the one failure this product cannot have. The
+auth default redirect in `api/account.js` is also unchanged. Supabase's
+allowed redirect URLs may need `https://maya.vyakti.ai/**` before sign-in on
+the new origin returns there rather than to the old one. That has not been
+checked from here.
+
+**Reverses if:** an identity-carrying hand-off (device id travels with the
+redirect, the new origin adopts it) ships with a proof that a signed-out
+person keeps their thread across the move. Then the old origin can redirect
+and the BASE constants can follow, with the APK updated via OTA first.
